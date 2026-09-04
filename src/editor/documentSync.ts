@@ -132,14 +132,14 @@ export class DocumentSyncSession {
 		if (target.kind !== 'relative') {
 			// A remote diagram would mean the webview fetching over the network on
 			// behalf of a file the user merely opened; only local files are read.
-			reply({ error: 'ローカルの .drawio ファイルのみ表示できます。' });
+			reply({ error: vscode.l10n.t('Only local .drawio files can be shown.') });
 			return;
 		}
 
 		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
 		const uri = vscode.Uri.joinPath(docDir, target.path);
 		if (!isInside(docDir, uri)) {
-			reply({ error: 'ドキュメントのフォルダ外のファイルは読み込めません。' });
+			reply({ error: vscode.l10n.t('Files outside the document folder cannot be read.') });
 			return;
 		}
 
@@ -149,12 +149,12 @@ export class DocumentSyncSession {
 			// hand-drawn diagram is a few hundred kilobytes at most; well past that
 			// is either machine-generated or not a diagram at all.
 			if (bytes.byteLength > MAX_DRAWIO_BYTES) {
-				reply({ error: 'ファイルが大きすぎます（5MB を超えています）。' });
+				reply({ error: vscode.l10n.t('The file is too large (over 5MB).') });
 				return;
 			}
 			reply({ text: new TextDecoder('utf-8').decode(bytes) });
 		} catch {
-			reply({ error: `ファイルを読み込めません: ${target.path}` });
+			reply({ error: vscode.l10n.t('Cannot read the file: {0}', target.path) });
 		}
 	}
 
@@ -185,7 +185,7 @@ export class DocumentSyncSession {
 			// fixed here; a message naming the path is more use than "0x2".
 			await vscode.workspace.fs.stat(uri);
 		} catch {
-			void vscode.window.showWarningMessage(`リンク先が見つかりません: ${target.path}`);
+			void vscode.window.showWarningMessage(vscode.l10n.t('Link target not found: {0}', target.path));
 			return;
 		}
 		try {

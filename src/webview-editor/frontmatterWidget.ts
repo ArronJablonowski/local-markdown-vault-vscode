@@ -2,6 +2,7 @@ import type { EditorState } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { withCodeModeButton } from './codeModeButton';
+import { t } from '../shared/i18n';
 
 export interface FrontmatterRange {
 	from: number;
@@ -126,7 +127,7 @@ export class FrontmatterErrorWidget extends WidgetType {
 		container.className = 'mlp-frontmatter-error';
 		container.setAttribute('role', 'alert');
 		const strong = document.createElement('strong');
-		strong.textContent = 'フロントマターの解析に失敗しました';
+		strong.textContent = t('frontmatter.parseFailed');
 		const pre = document.createElement('pre');
 		pre.textContent = this.message;
 		container.append(strong, pre);

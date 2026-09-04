@@ -1,0 +1,14 @@
+{
+  "Rename style": "スタイルの名前を変更",
+  "New name (.css is added automatically)": "新しい名前（.css は自動で付きます）",
+  "Enter a name": "名前を入力してください",
+  "Could not rename to \"{0}\" — a style with that name already exists.": "「{0}」に名前を変更できませんでした（同名のスタイルが既に存在します）。",
+  "Preview: {0}": "プレビュー: {0}",
+  "New style": "新しいスタイル",
+  "{0} copy": "{0} のコピー",
+  "Only local .drawio files can be shown.": "ローカルの .drawio ファイルのみ表示できます。",
+  "Files outside the document folder cannot be read.": "ドキュメントのフォルダ外のファイルは読み込めません。",
+  "The file is too large (over 5MB).": "ファイルが大きすぎます（5MB を超えています）。",
+  "Cannot read the file: {0}": "ファイルを読み込めません: {0}",
+  "Link target not found: {0}": "リンク先が見つかりません: {0}"
+}

@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { allowRevealOnce } from './cmUtils';
+import { t } from '../shared/i18n';
 
 /**
  * The "show me the source" control shared by every rendered block widget
@@ -38,8 +39,8 @@ export function createCodeModeButton(view: EditorView, options: CodeModeButtonOp
 	// so it reads as code, and what it does is spelled out for pointer users in
 	// `title` and for assistive tech in `aria-label`.
 	button.textContent = '</>';
-	button.title = 'コードモード：Markdown ソースを表示して直接編集します';
-	button.setAttribute('aria-label', 'コードモードに切り替え');
+	button.title = t('code.toggle.title');
+	button.setAttribute('aria-label', t('code.toggle.aria'));
 
 	// The press must not reach the block underneath. Without this, the block's own
 	// click-to-source handler (or, for a table, the cell under the button) would
@@ -106,8 +107,8 @@ export function createCopyCodeButton(getCode: () => string): HTMLButtonElement {
 	// of block chrome: a short glyph in the editor's monospace face, not a word.
 	button.className = 'mlp-copy-code-btn';
 	button.textContent = COPY_GLYPH;
-	button.title = 'このコードブロックをコピーします';
-	button.setAttribute('aria-label', 'コードブロックをコピー');
+	button.title = t('code.copy.title');
+	button.setAttribute('aria-label', t('code.copy.aria'));
 
 	// The press must not reach the editor underneath, or CodeMirror moves the
 	// caret into the block — which un-hides the fences and reflows the lines the

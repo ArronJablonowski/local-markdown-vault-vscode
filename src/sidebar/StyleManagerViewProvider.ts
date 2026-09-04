@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
 import { StyleStore } from './styleStore';
 import { StylePreviewController } from './StylePreviewController';
+import { escapeAttribute } from '../shared/i18n';
 
 const CONFIG_SECTION = 'mdLivePreview';
 
@@ -92,16 +93,16 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	private async renameStyle(id: string): Promise<void> {
 		const current = id.replace(/\.css$/i, '');
 		const input = await vscode.window.showInputBox({
-			title: 'スタイルの名前を変更',
+			title: vscode.l10n.t('Rename style'),
 			value: current,
-			prompt: '新しい名前（.css は自動で付きます）',
-			validateInput: (v) => (v.trim().length === 0 ? '名前を入力してください' : undefined),
+			prompt: vscode.l10n.t('New name (.css is added automatically)'),
+			validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Enter a name') : undefined),
 		});
 		if (input === undefined) return; // cancelled
 		try {
 			await this.styleStore.renameStyle(id, input);
 		} catch {
-			await vscode.window.showErrorMessage(`「${input}」に名前を変更できませんでした（同名のスタイルが既に存在します）。`);
+			await vscode.window.showErrorMessage(vscode.l10n.t('Could not rename to "{0}" — a style with that name already exists.', input));
 		}
 	}
 
@@ -147,7 +148,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		const nonce = getNonce();
 
 		return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeAttribute(vscode.env.language)}">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
@@ -156,6 +157,9 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
 	<div id="mlp-sidebar-root"></div>
+	<script nonce="${nonce}">
+		window.mlpLocale = ${JSON.stringify(vscode.env.language)};
+	</script>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

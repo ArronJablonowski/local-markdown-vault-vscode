@@ -2,6 +2,7 @@ import { EditorView, WidgetType } from '@codemirror/view';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { loadMermaidModule, type MermaidApi } from './mermaidLoader';
 import { createCodeModeButton } from './codeModeButton';
+import { t } from '../shared/i18n';
 
 // The module load is cached by `loadMermaidModule`, but `initialize()` is
 // re-applied on every call (it's cheap) so a diagram rendered after the user
@@ -124,15 +125,15 @@ export class MermaidWidget extends WidgetType {
 			return btn;
 		};
 
-		const zoomInBtn = makeButton('+', '拡大 (Ctrl+ホイールでも可)', () => zoomCenter(1.2));
-		const zoomOutBtn = makeButton('−', '縮小', () => zoomCenter(1 / 1.2));
+		const zoomInBtn = makeButton('+', t('zoom.in'), () => zoomCenter(1.2));
+		const zoomOutBtn = makeButton('−', t('zoom.out'), () => zoomCenter(1 / 1.2));
 		// Resets all the way out to "fit", not just to scale 1. `resetPanZoom`
 		// alone leaves the diagram in native mode, where scale 1 means *full size*
 		// — so from a zoomed-in view the button appeared to only half-work: the
 		// diagram shrank a little and stopped, still larger than the view it
 		// started from. What "back to the original size" means to someone looking
 		// at the diagram is the fitted view they began with.
-		const zoomResetBtn = makeButton('↺', '元の表示に戻す（縮小表示）', () => setMode('fit'));
+		const zoomResetBtn = makeButton('↺', t('zoom.reset'), () => setMode('fit'));
 		const modeToggleBtn = makeButton('', '', () => setMode(mode === 'fit' ? 'native' : 'fit'));
 		// Same control every rendered block carries, so the way back to the source
 		// is in the same place whatever the block is. Clicking the diagram itself
@@ -148,10 +149,7 @@ export class MermaidWidget extends WidgetType {
 			zoomOutBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomResetBtn.style.display = mode === 'native' ? '' : 'none';
 			modeToggleBtn.textContent = mode === 'fit' ? '⤢' : '⤡';
-			modeToggleBtn.title =
-				mode === 'fit'
-					? '原寸大表示に切り替え（ドラッグでパン、Ctrl+ホイールでズームできます）'
-					: '自動縮小表示に戻す（表示幅に合わせて縮小し、スクロールなしで全体を表示します）';
+			modeToggleBtn.title = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
 			if (mode === 'native') resetPanZoom();
 			else applyTransform();
 			// The two modes have different heights ('native' adds a horizontal

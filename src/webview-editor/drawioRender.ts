@@ -14,6 +14,7 @@
 import { buildDiagram, DrawioUnsupportedError, type DrawioDiagram, type XmlElement } from '../shared/drawio';
 import { renderDiagramSvg, DARK_THEME, LIGHT_THEME } from '../shared/drawioSvg';
 import { getLoadedAwsShape, loadAwsShapes, awsShapesReady } from './awsShapes';
+import { t } from '../shared/i18n';
 
 /**
  * Adapts a live DOM `Element` to the minimal `XmlElement` the parser consumes.
@@ -52,10 +53,10 @@ export function parseDrawioXml(xml: string): DrawioDiagram {
 	const doc = new DOMParser().parseFromString(xml, 'text/xml');
 	const failure = doc.querySelector('parsererror');
 	if (failure) {
-		throw new DrawioParseError('XML を解析できませんでした。draw.io ファイルの内容を確認してください。');
+		throw new DrawioParseError(t('drawio.parseFailed'));
 	}
 	const root = doc.documentElement;
-	if (!root) throw new DrawioParseError('XML が空です。');
+	if (!root) throw new DrawioParseError(t('drawio.emptyXml'));
 	return buildDiagram(wrapElement(root));
 }
 

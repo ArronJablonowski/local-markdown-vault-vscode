@@ -199,10 +199,10 @@ export class StyleStore {
 			await vscode.workspace.fs.createDirectory(dir);
 		}
 		const existingNames = new Set((await this.listAllStyleFiles()).map((f) => f.name));
-		let name = '新しいスタイル.css';
+		let name = `${vscode.l10n.t('New style')}.css`;
 		let i = 1;
 		while (existingNames.has(name)) {
-			name = `新しいスタイル ${++i}.css`;
+			name = `${vscode.l10n.t('New style')} ${++i}.css`;
 		}
 		const uri = vscode.Uri.joinPath(dir, name);
 		await vscode.workspace.fs.writeFile(uri, Buffer.from(NEW_STYLE_TEMPLATE, 'utf8'));
@@ -216,10 +216,10 @@ export class StyleStore {
 		if (!file) return undefined;
 		const base = file.name.replace(/\.css$/i, '');
 		const existing = new Set(files.map((f) => f.name));
-		let name = `${base} のコピー.css`;
+		let name = `${vscode.l10n.t('{0} copy', base)}.css`;
 		let i = 1;
 		while (existing.has(name)) {
-			name = `${base} のコピー ${++i}.css`;
+			name = `${vscode.l10n.t('{0} copy', base)} ${++i}.css`;
 		}
 		const target = vscode.Uri.joinPath(this.stylesUri, name);
 		const bytes = await vscode.workspace.fs.readFile(file.uri);

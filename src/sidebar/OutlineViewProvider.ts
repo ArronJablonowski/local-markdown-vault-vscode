@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { HostToOutlineMessage, OutlineToHostMessage } from '../shared/messages';
 import type { MarkdownLivePreviewProvider } from '../editor/MarkdownLivePreviewProvider';
+import { escapeAttribute } from '../shared/i18n';
 
 const REFRESH_DEBOUNCE_MS = 150;
 
@@ -72,15 +73,18 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 		const nonce = getNonce();
 
 		return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeAttribute(vscode.env.language)}">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
-	<title>アウトライン</title>
+	<title>Outline</title>
 </head>
 <body>
 	<div id="mlp-outline-root"></div>
+	<script nonce="${nonce}">
+		window.mlpLocale = ${JSON.stringify(vscode.env.language)};
+	</script>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

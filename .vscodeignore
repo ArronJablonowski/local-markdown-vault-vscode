@@ -20,3 +20,4 @@ repro-*.png
 **/.eslintrc.json
 **/*.map
 **/*.ts
+plans/**

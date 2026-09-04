@@ -1,3 +1,4 @@
+import { t } from './i18n';
 /**
  * Parser for draw.io / diagrams.net documents.
  *
@@ -514,7 +515,7 @@ export function buildDiagram(root: XmlElement): DrawioDiagram {
 		if (!source.el) {
 			if (isCompressedDiagramBody(source.body)) {
 				throw new DrawioUnsupportedError(
-					'圧縮された draw.io ファイルには対応していません。draw.io で「XML を圧縮」を無効にして保存し直してください。',
+					t('drawio.compressed'),
 				);
 			}
 			continue;
@@ -524,6 +525,6 @@ export function buildDiagram(root: XmlElement): DrawioDiagram {
 		pages.push({ name: source.name, shapes, bounds: computeBounds(shapes) });
 	}
 
-	if (pages.length === 0) throw new DrawioUnsupportedError('draw.io の図が見つかりませんでした。');
+	if (pages.length === 0) throw new DrawioUnsupportedError(t('drawio.noDiagram'));
 	return { pages };
 }

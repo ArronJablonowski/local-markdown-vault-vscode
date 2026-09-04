@@ -10,6 +10,7 @@ import {
 } from './drawioRender';
 import { readDrawioFile } from './drawioFileClient';
 import type { DrawioDiagram } from '../shared/drawio';
+import { t } from '../shared/i18n';
 
 /**
  * Block widget for a rendered draw.io diagram.
@@ -102,9 +103,9 @@ export class DrawioWidget extends WidgetType {
 			return btn;
 		};
 
-		const zoomInBtn = makeButton('+', '拡大 (Ctrl+ホイールでも可)', () => zoomCenter(1.2));
-		const zoomOutBtn = makeButton('−', '縮小', () => zoomCenter(1 / 1.2));
-		const zoomResetBtn = makeButton('↺', '元の表示に戻す（縮小表示）', () => setMode('fit'));
+		const zoomInBtn = makeButton('+', t('zoom.in'), () => zoomCenter(1.2));
+		const zoomOutBtn = makeButton('−', t('zoom.out'), () => zoomCenter(1 / 1.2));
+		const zoomResetBtn = makeButton('↺', t('zoom.reset'), () => setMode('fit'));
 		const modeToggleBtn = makeButton('', '', () => setMode(mode === 'fit' ? 'native' : 'fit'));
 		const codeModeBtn = createCodeModeButton(view, { anchor: wrap });
 
@@ -114,8 +115,8 @@ export class DrawioWidget extends WidgetType {
 		let pageIndex = 0;
 		const pageLabel = document.createElement('span');
 		pageLabel.className = 'mlp-drawio-page-label';
-		const prevPageBtn = makeButton('‹', '前のページ', () => showPage(pageIndex - 1));
-		const nextPageBtn = makeButton('›', '次のページ', () => showPage(pageIndex + 1));
+		const prevPageBtn = makeButton('‹', t('page.prev'), () => showPage(pageIndex - 1));
+		const nextPageBtn = makeButton('›', t('page.next'), () => showPage(pageIndex + 1));
 
 		toolbar.append(codeModeBtn, prevPageBtn, pageLabel, nextPageBtn, modeToggleBtn, zoomInBtn, zoomOutBtn, zoomResetBtn);
 		wrap.appendChild(toolbar);
@@ -160,10 +161,7 @@ export class DrawioWidget extends WidgetType {
 			zoomOutBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomResetBtn.style.display = mode === 'native' ? '' : 'none';
 			modeToggleBtn.textContent = mode === 'fit' ? '⤢' : '⤡';
-			modeToggleBtn.title =
-				mode === 'fit'
-					? '原寸大表示に切り替え（ドラッグでパン、Ctrl+ホイールでズームできます）'
-					: '自動縮小表示に戻す（表示幅に合わせて縮小し、スクロールなしで全体を表示します）';
+			modeToggleBtn.title = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
 			if (mode === 'native') resetPanZoom();
 			else applyTransform();
 			view.requestMeasure();
@@ -269,7 +267,7 @@ export class DrawioWidget extends WidgetType {
 			const message =
 				err instanceof DrawioUnsupportedError
 					? err.message
-					: `draw.io の読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`;
+					: t('drawio.loadFailed', err instanceof Error ? err.message : String(err));
 			showError(message);
 			updatePageControls();
 		}
@@ -322,7 +320,7 @@ export class DrawioFileWidget extends WidgetType {
 		placeholder.className = 'mlp-mermaid-wrap mlp-drawio-wrap';
 		const canvas = document.createElement('div');
 		canvas.className = 'mlp-mermaid-canvas';
-		canvas.textContent = `${this.src} を読み込んでいます…`;
+		canvas.textContent = t('drawio.loading', this.src);
 		placeholder.appendChild(canvas);
 		host.appendChild(placeholder);
 

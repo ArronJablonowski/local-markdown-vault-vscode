@@ -15,6 +15,7 @@
  * not re-read the file each time.
  */
 import type { HostToEditorMessage } from '../shared/messages';
+import { t } from '../shared/i18n';
 
 type Pending = { resolve: (text: string) => void; reject: (err: Error) => void };
 
@@ -39,7 +40,7 @@ export function handleDrawioFileMessage(message: HostToEditorMessage): boolean {
 	if (!entry) return true; // a reply for a widget that has since been torn down
 	pending.delete(message.requestId);
 	if (typeof message.text === 'string') entry.resolve(message.text);
-	else entry.reject(new Error(message.error ?? 'ファイルを読み込めませんでした。'));
+	else entry.reject(new Error(message.error ?? t('drawio.readFailed')));
 	return true;
 }
 
@@ -50,7 +51,7 @@ export function readDrawioFile(src: string): Promise<string> {
 
 	const promise = new Promise<string>((resolve, reject) => {
 		if (!post) {
-			reject(new Error('ホストへの接続がまだ確立していません。'));
+			reject(new Error(t('drawio.noConnection')));
 			return;
 		}
 		const requestId = nextRequestId++;

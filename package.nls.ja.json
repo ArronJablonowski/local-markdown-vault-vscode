@@ -1,0 +1,18 @@
+{
+  "view.outline": "アウトライン",
+  "view.styleManager": "CSSテーマ",
+  "command.openWithLivePreview": "ライブプレビューで開く",
+  "command.openWithSource": "ソースを開く",
+  "command.newStyle": "新しいCSSスタイル",
+  "config.codeTheme": "コードブロックのシンタックスハイライトに使うテーマ。\"auto\" は VS Code のカラーテーマ（ライト/ダーク）に追従し、VS Code と同じ Dark+/Light+ 配色になります。",
+  "config.codeTheme.auto": "VS Code のカラーテーマ（ライト/ダーク）に追従し、VS Code 標準の Dark+/Light+ 配色を使います。",
+  "config.codeTheme.darkPlus": "VS Code 標準のダークテーマ（Dark+）の配色。",
+  "config.codeTheme.lightPlus": "VS Code 標準のライトテーマ（Light+）の配色。",
+  "config.codeTheme.githubDark": "GitHub ダークの配色。",
+  "config.codeTheme.githubLight": "GitHub ライトの配色。",
+  "config.enabledStyles": "ライブプレビューに適用する CSS テーマ。サイドバーの「CSSテーマ」から排他的に1つ選択します（グローバル設定）。",
+  "config.defaultEditor": ".md ファイルの既定エディタを Markdown Live Preview にするかどうかを制御します。",
+  "config.defaultEditor.prompt": "通常のテキストエディタを既定にし、ライブプレビューはツールバーのボタンから手動で開きます。",
+  "config.defaultEditor.livePreview": ".md ファイルを常に Markdown Live Preview で開きます。",
+  "config.defaultEditor.default": ".md ファイルを常に VS Code の通常のテキストエディタで開きます。"
+}

@@ -11,6 +11,7 @@ import { detectFrontmatter } from './frontmatterWidget';
 import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { insertRow, insertColumn, renderTableMarkdown, type TableEditModel } from './tableEdit';
+import { t } from '../shared/i18n';
 
 const HEADING_LINE_CLASS: Record<string, string> = {
 	ATXHeading1: 'mlp-line-h1',
@@ -813,11 +814,11 @@ class TableWidget extends WidgetType {
 		// Row and column are added at the end, which is what a `+` on the table's
 		// bottom and right edges reads as. Inserting elsewhere is a different
 		// gesture (a handle on the row or column itself) and is not offered here.
-		const addRowBtn = makeAddButton('+', '行を追加', () =>
+		const addRowBtn = makeAddButton('+', t('table.addRow'), () =>
 			applyStructuralEdit((m) => insertRow(m, m.rows.length)),
 		);
 		addRowBtn.classList.add('mlp-table-add-row');
-		const addColBtn = makeAddButton('+', '列を追加', () =>
+		const addColBtn = makeAddButton('+', t('table.addColumn'), () =>
 			applyStructuralEdit((m) => insertColumn(m, m.align.length || m.rows[0]?.length || 0)),
 		);
 		addColBtn.classList.add('mlp-table-add-col');

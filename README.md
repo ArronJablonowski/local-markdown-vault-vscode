@@ -13,6 +13,9 @@
 Your file keeps its formatted look while you type, but what's actually saved to disk is always plain Markdown.
 **Mermaid and draw.io diagrams** are drawn in place, from the text you write in a fenced code block.
 
+It is, as far as we know, **the only VS Code Markdown editor that renders `.drawio` files** — including
+AWS architecture shapes — without the draw.io application.
+
 ## Why this extension?
 
 VS Code's built-in Markdown preview splits the editing source pane and the preview pane side by side.
@@ -194,6 +197,9 @@ With the `watch` task running, changing the code and reloading the Extension Dev
 **Obsidianのライブプレビューのように、Markdownのプレビュー自体を直接編集できるVS Code拡張機能。**
 ファイルの見た目を保ったまま書けて、保存されるのは常に素のMarkdownです。
 **Mermaid図とdraw.io図**は、コードフェンスに書いたテキストがその場で図になります。
+
+知る限り、**`.drawio` ファイルを描画できる唯一の VS Code Markdown エディタ**です。
+draw.io 本体を使わず、AWS アーキテクチャ図形も含めて描画します。
 
 ### なぜこの拡張機能?
 

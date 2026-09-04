@@ -1,4 +1,5 @@
 import type { HostToOutlineMessage, OutlineToHostMessage } from '../shared/messages';
+import { t } from '../shared/i18n';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -23,7 +24,7 @@ function renderEmpty(text: string): void {
 function renderHeadings(headings: Array<{ level: number; text: string; line: number }>): void {
 	root.replaceChildren();
 	if (headings.length === 0) {
-		renderEmpty('見出しがありません。');
+		renderEmpty(t('outline.empty'));
 		return;
 	}
 	const list = document.createElement('ul');
@@ -31,7 +32,7 @@ function renderHeadings(headings: Array<{ level: number; text: string; line: num
 	for (const heading of headings) {
 		const item = document.createElement('li');
 		item.className = `mlp-outline-item mlp-outline-level-${heading.level}`;
-		item.textContent = heading.text || '(無題の見出し)';
+		item.textContent = heading.text || t('outline.untitled');
 		item.setAttribute('role', 'button');
 		item.setAttribute('tabindex', '0');
 		item.addEventListener('click', () => post({ type: 'jumpToHeading', line: heading.line }));
@@ -53,10 +54,10 @@ window.addEventListener('message', (event: MessageEvent<HostToOutlineMessage>) =
 			renderHeadings(message.headings);
 			break;
 		case 'noDocument':
-			renderEmpty('Markdown Live Preview を開くと、ここに見出し一覧が表示されます。');
+			renderEmpty(t('outline.noDocument'));
 			break;
 	}
 });
 
-renderEmpty('Markdown Live Preview を開くと、ここに見出し一覧が表示されます。');
+renderEmpty(t('outline.noDocument'));
 post({ type: 'ready' });

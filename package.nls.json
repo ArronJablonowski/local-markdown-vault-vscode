@@ -1,0 +1,18 @@
+{
+  "view.outline": "Outline",
+  "view.styleManager": "CSS Themes",
+  "command.openWithLivePreview": "Open with Live Preview",
+  "command.openWithSource": "Open Source",
+  "command.newStyle": "New CSS Theme",
+  "config.codeTheme": "Color theme used for syntax highlighting in fenced code blocks. \"auto\" follows VS Code's color theme (light/dark), matching VS Code's own Dark+/Light+ palette.",
+  "config.codeTheme.auto": "Follows VS Code's color theme (light/dark), using VS Code's standard Dark+/Light+ palette.",
+  "config.codeTheme.darkPlus": "VS Code's standard dark theme (Dark+) palette.",
+  "config.codeTheme.lightPlus": "VS Code's standard light theme (Light+) palette.",
+  "config.codeTheme.githubDark": "GitHub Dark palette.",
+  "config.codeTheme.githubLight": "GitHub Light palette.",
+  "config.enabledStyles": "The CSS theme applied to the live preview. Pick one exclusively from \"CSS Themes\" in the sidebar (global setting).",
+  "config.defaultEditor": "Controls whether .md files open in Markdown Live Preview by default.",
+  "config.defaultEditor.prompt": "Keep the normal text editor as the default; open Live Preview manually from the toolbar button.",
+  "config.defaultEditor.livePreview": "Always open .md files in Markdown Live Preview.",
+  "config.defaultEditor.default": "Always open .md files in VS Code's normal text editor."
+}

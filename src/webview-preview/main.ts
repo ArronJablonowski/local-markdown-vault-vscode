@@ -1,4 +1,5 @@
 import type { HostToPreviewMessage, PreviewToHostMessage } from '../shared/messages';
+import { t } from '../shared/i18n';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -15,52 +16,58 @@ function post(message: PreviewToHostMessage): void {
 // is authored for VS Code's Markdown preview, i.e. against real <body>/<h1>/… —
 // so it applies here directly, no adaptation needed.
 const SAMPLE_HTML = `
-<h1>見出し 1 (Heading 1)</h1>
-<p>これは本文の段落です。<strong>太字</strong>、<em>斜体</em>、<del>取り消し線</del>、
-<code>inline code</code>、そして <a href="#">リンク</a> を含みます。</p>
+<h1>${t('sample.h1')}</h1>
+<p>${t(
+	'sample.body',
+	`<strong>${t('sample.bold')}</strong>`,
+	`<em>${t('sample.italic')}</em>`,
+	`<del>${t('sample.strike')}</del>`,
+	`<code>inline code</code>`,
+	`<a href="#">${t('sample.link')}</a>`,
+)}</p>
 
-<h2>見出し 2 (Heading 2)</h2>
-<p>もう一つの段落。日本語と English が混ざった文章でも、行間や字間の見え方を確認できます。</p>
+<h2>${t('sample.h2')}</h2>
+<p>${t('sample.paragraph2')}</p>
 
 <blockquote>
-	<p>引用ブロックの例。出典やメモを引用するときの見た目です。</p>
+	<p>${t('sample.quoteLong')}</p>
 </blockquote>
 
-<h3>見出し 3 (Heading 3)</h3>
+<h3>${t('sample.h3')}</h3>
 <ul>
-	<li>箇条書きの項目 1</li>
-	<li>箇条書きの項目 2
-		<ul><li>ネストした項目</li></ul>
+	<li>${t('sample.bullet1')}</li>
+	<li>${t('sample.bullet2')}
+		<ul><li>${t('sample.nested')}</li></ul>
 	</li>
 </ul>
 <ol>
-	<li>番号付きリスト 1</li>
-	<li>番号付きリスト 2</li>
+	<li>${t('sample.ordered1')}</li>
+	<li>${t('sample.ordered2')}</li>
 </ol>
 
 <ul class="contains-task-list">
-	<li><input type="checkbox" checked disabled> 完了したタスク</li>
-	<li><input type="checkbox" disabled> 未完了のタスク</li>
+	<li><input type="checkbox" checked disabled> ${t('sample.taskDone')}</li>
+	<li><input type="checkbox" disabled> ${t('sample.taskTodo')}</li>
 </ul>
 
-<h3>テーブル (Table)</h3>
+<h3>${t('sample.tableHeading')}</h3>
 <table>
-	<thead><tr><th>列 A</th><th>列 B</th><th>列 C</th></tr></thead>
+	<thead><tr><th>${t('sample.colA')}</th><th>${t('sample.colB')}</th><th>${t('sample.colC')}</th></tr></thead>
 	<tbody>
-		<tr><td>1</td><td>あいうえお</td><td>x</td></tr>
-		<tr><td>2</td><td>かきくけこ</td><td>y</td></tr>
+		<tr><td>1</td><td>${t('sample.cell1')}</td><td>x</td></tr>
+		<tr><td>2</td><td>${t('sample.cell2')}</td><td>y</td></tr>
 	</tbody>
 </table>
 
-<h3>コードブロック (Code block)</h3>
+<h3>${t('sample.codeHeading')}</h3>
 <pre><code>function greet(name) {
-  // コメント
+  // ${t('sample.comment')}
   return \`Hello, \${name}!\`;
 }
 </code></pre>
 
 <hr />
-<p>水平線の下の段落。</p>
+<p>${t('sample.belowRule')}</p>
 `;
 
 const themeStyle = document.getElementById('mlp-theme-style') as HTMLStyleElement;
