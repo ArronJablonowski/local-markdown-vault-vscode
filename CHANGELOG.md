@@ -5,6 +5,36 @@
 All notable changes to this extension are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.0] — 2026-09-05
+
+### Changed
+
+- **The UI now speaks the language VS Code is set to**, defaulting to English.
+  Every menu, button, tooltip and message was previously hardcoded in Japanese,
+  so anyone not reading Japanese met a Japanese UI on install. Language follows
+  VS Code's own display language — not the content of the document — so an
+  English `.md` in a Japanese VS Code still shows a Japanese UI, and nothing you
+  write is ever translated.
+- The CSS-theme preview samples are translated too. They exist to judge line
+  height and letter spacing, which only works in a script you actually read.
+- The Marketplace description now leads with `.drawio` rendering, which no
+  other Markdown extension offers.
+
+### Added
+
+- `.markdown` files open in the live preview, alongside `.md`.
+
+### Fixed
+
+- Removed a leftover `**/temp/readonly/*` file pattern that let this editor
+  claim unrelated files.
+- The "CSS Themes" sidebar view had a blank title (a single space).
+
+### Note on the version number
+
+This release is `0.1.0` rather than `1.0.0`. Search and replace, math, footnotes,
+callouts and export are still missing; `1.0.0` is reserved for when those land.
+
 ## [0.0.12] — 2026-09-02
 
 ### Added
@@ -222,6 +252,36 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 この拡張機能の主な変更点をまとめています。
 バージョン番号は [セマンティック バージョニング](https://semver.org/lang/ja/) に従っています。
+
+## [0.1.0] — 2026-09-05
+
+### 変更
+
+- **UI が VS Code の表示言語に追従するようになりました**（既定は英語）。
+  これまでメニュー・ボタン・ツールチップ・メッセージがすべて日本語固定で、
+  日本語を読まない利用者はインストール直後に日本語の UI に出会っていました。
+  判定に使うのは **VS Code 本体の表示言語**で、開いている文書の中身ではありません。
+  日本語の VS Code で英語の `.md` を開いても UI は日本語のままで、
+  書いた内容が翻訳されることは一切ありません。
+- CSS テーマのプレビュー用サンプル文も翻訳しました。行間や字間を確認するための
+  ものなので、実際に読む文字で表示する方が役に立つためです。
+- Marketplace の説明文を、他のどの Markdown 拡張機能にもない `.drawio` の描画から
+  始まるように書き直しました。
+
+### 追加
+
+- `.md` に加えて `.markdown` もライブプレビューで開くようになりました。
+
+### 修正
+
+- 開発時の名残だった `**/temp/readonly/*` のパターンを削除しました。
+  無関係なファイルをこのエディタが開いてしまう可能性がありました。
+- サイドバーの「CSSテーマ」の見出しが空白 1 文字で、表示されていませんでした。
+
+### バージョン番号について
+
+このリリースは `1.0.0` ではなく `0.1.0` です。検索・置換、数式、脚注、
+コールアウト、書き出しがまだありません。`1.0.0` はそれらが揃ってからにします。
 
 ## [0.0.12] — 2026-09-02
 
