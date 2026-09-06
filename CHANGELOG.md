@@ -7,10 +7,22 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A rendered image could not be edited.** Clicking one placed no caret,
+  because a widget ignores every event unless it says otherwise — so the line
+  never gained a cursor and the `![alt](url)` behind it stayed hidden. Searching
+  for part of the URL had the same result: the view scrolled to the image but
+  left it rendered.
+- **The text cursor was black on dark themes.** `drawSelection()` draws its own
+  caret, whose library default is a hardcoded black; it is now pointed at the
+  same VS Code theme variable the native caret already used.
+
 ### Added
 
 - **Search and replace** (`Ctrl+F`), in a panel that floats over the top-right
-  of the editor the way VS Code's own does. `Enter`/`F3` step through matches,
+  of the editor the way VS Code's own does. Replace is collapsed behind a
+  chevron, since finding is much the more common of the two. `Enter`/`F3` step through matches,
   `Ctrl+D` adds the next occurrence as a cursor, `Esc` closes the panel; case,
   whole-word and regular-expression modes are all available. Searching runs
   against the raw Markdown, so `](url)`, a table's pipes and a heading's `#`
@@ -271,9 +283,20 @@ callouts and export are still missing; `1.0.0` is reserved for when those land.
 
 ## [未リリース]
 
+### 修正
+
+- **画像の URL を編集できませんでした。** 画像をクリックしてもカーソルが置かれず、
+  そのため`![alt](url)`が表示されないままでした(ウィジェットは既定ですべての
+  イベントを無視するためです)。URL の一部を検索した場合も同様で、画像までは
+  移動するものの、画像は描画されたままでした。
+- **ダークテーマでカーソルが黒く見づらい問題を修正しました。** `drawSelection()`が
+  独自に描くカーソルの既定色が黒固定だったためです。従来のカーソルと同じ
+  VS Code のテーマ変数を参照するようにしました。
+
 ### 追加
 
 - **検索・置換**(`Ctrl+F`)。VS Code 標準と同じく、エディタ右上に浮かぶパネルです。
+  置換は矢印を押したときだけ開きます(検索の方が使う頻度が高いため)。
   `Enter`/`F3`で一致箇所を移動、`Ctrl+D`で次の一致をカーソルとして追加、`Esc`で閉じます。
   大文字小文字の区別、単語単位、正規表現に対応しています。検索対象は素の Markdown なので、
   プレビューが隠している`](url)`や表のパイプ、見出しの`#`も検索できます。

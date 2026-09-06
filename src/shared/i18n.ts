@@ -110,6 +110,7 @@ const en = {
 	'search.gotoLine': 'Go to line',
 	'search.go': 'go',
 	'search.onLine': 'on line',
+	'search.toggleReplace': 'Toggle Replace',
 };
 
 /** A message key. Translations are checked against this at compile time. */
@@ -208,6 +209,7 @@ const ja: Record<MessageKey, string> = {
 	'search.gotoLine': '行へ移動',
 	'search.go': '移動',
 	'search.onLine': '行',
+	'search.toggleReplace': '置換の表示を切り替え',
 };
 
 const catalogs: Record<string, Partial<Record<MessageKey, string>>> = { ja };

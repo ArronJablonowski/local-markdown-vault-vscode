@@ -104,3 +104,37 @@ describe('cursorTouchesRange with a search match', () => {
 		expect(cursorTouchesRange(inside, from, to)).toBe(true);
 	});
 });
+
+describe('cursorTouchesRange for an inline image', () => {
+	// `![alt](assets/pic.png)` mid-paragraph: the reported case where searching
+	// for part of the URL jumped to the image but left it rendered, so the URL
+	// could not be edited.
+	const IMG_DOC = 'before ![alt](assets/pic.png) after\n';
+	const imgFrom = IMG_DOC.indexOf('![');
+	const imgTo = IMG_DOC.indexOf(')') + 1;
+
+	function imgState(anchor: number, head = anchor): EditorState {
+		return EditorState.create({
+			doc: IMG_DOC,
+			selection: { anchor, head },
+			extensions: [searchRevealExtension],
+		});
+	}
+
+	beforeEach(() => {
+		setPointerDownForTesting(false);
+		setSuppressForTesting(false);
+	});
+
+	it('reveals the image when a search match lands on its URL', () => {
+		const urlAt = IMG_DOC.indexOf('assets/pic.png');
+		const match = markAsMatch(imgState(urlAt, urlAt + 'assets'.length));
+		expect(cursorTouchesRange(match, imgFrom, imgTo)).toBe(true);
+	});
+
+	it('does not reveal it for an ordinary sweep over the same text', () => {
+		const urlAt = IMG_DOC.indexOf('assets/pic.png');
+		const swept = imgState(urlAt, urlAt + 'assets'.length);
+		expect(cursorTouchesRange(swept, imgFrom, imgTo)).toBe(false);
+	});
+});

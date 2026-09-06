@@ -37,7 +37,7 @@ A custom editor built on CodeMirror 6. Headings, emphasis, blockquotes, lists, t
 `Ctrl+B` toggles the selection between plain text and `**bold**`; `Ctrl+I` does the same for `*italic*`. Works with no selection too (inserts an empty pair and places the cursor inside) and with multiple cursors at once.
 
 ### Search and replace
-`Ctrl+F` opens a Find/Replace panel that floats over the top-right of the editor, the way VS Code's own does. `Enter` and `F3` step through matches, `Ctrl+D` selects the next occurrence as an extra cursor, and `Esc` closes the panel. Case sensitivity, whole-word and regular-expression modes are all there.
+`Ctrl+F` opens a Find panel that floats over the top-right of the editor, the way VS Code's own does. Replace is behind the chevron on its left, so the common case stays compact. `Enter` and `F3` step through matches, `Ctrl+D` selects the next occurrence as an extra cursor, and `Esc` closes the panel. Case sensitivity, whole-word and regular-expression modes are all there.
 
 Search runs against the **raw Markdown** — the text the file actually holds — so `](url)`, a table's pipes and a heading's `#` are all findable even while the preview is hiding them. A match landing inside hidden syntax reveals that syntax, so you can always see what was found.
 
@@ -227,7 +227,7 @@ CodeMirror 6ベースのカスタムエディタです。見出し・強調・�
 `Ctrl+B`で選択範囲を`**太字**`に、`Ctrl+I`で`*斜体*`にトグルできます。選択なしでも空のマーカー対を挿入してカーソルを内側に置きます。複数カーソルにも対応しています。
 
 #### 検索・置換
-`Ctrl+F`でエディタ右上に検索/置換パネルが浮かびます(VS Code標準と同じ位置)。`Enter`と`F3`で一致箇所を移動、`Ctrl+D`で次の一致をカーソルとして追加、`Esc`で閉じます。大文字小文字の区別、単語単位、正規表現にも対応しています。
+`Ctrl+F`でエディタ右上に検索パネルが浮かびます(VS Code標準と同じ位置)。置換は左側の矢印を押すと開くので、よく使う検索だけのときは小さいままです。`Enter`と`F3`で一致箇所を移動、`Ctrl+D`で次の一致をカーソルとして追加、`Esc`で閉じます。大文字小文字の区別、単語単位、正規表現にも対応しています。
 
 検索対象は**素のMarkdown**、つまりファイルに実際に入っている文字列です。そのため`](url)`や表のパイプ、見出しの`#`も、プレビューがそれらを隠している状態のまま検索できます。隠れた記法の中に一致が見つかった場合は、その記法が表示されるので、何が見つかったのか必ず目で確認できます。
 

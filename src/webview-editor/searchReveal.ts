@@ -1,6 +1,7 @@
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { getSearchQuery, searchPanelOpen } from '@codemirror/search';
+import { t } from '../shared/i18n';
 
 /**
  * Makes a search match reveal the Markdown behind it.
@@ -103,6 +104,64 @@ const clearOnPanelClose = EditorView.updateListener.of((update) => {
 	}
 });
 
-export const searchRevealExtension: Extension = [searchSelectionField, markPanelMatches, clearOnPanelClose];
+
 
 export { setSearchSelection, markingSearchSelection, getSearchQuery };
+
+/**
+ * Collapses the panel's replace row until it is asked for.
+ *
+ * @codemirror/search renders find and replace as one flat list of controls, and
+ * always shows both. VS Code shows the replace row only behind a chevron,
+ * because finding is much the more common of the two and the second row is
+ * noise the rest of the time. The panel is not configurable, so the row is
+ * hidden with CSS (`.cm-search:not(.mlp-search-replace-open)`) and this adds the
+ * chevron that toggles the class.
+ *
+ * Injected by watching for the panel's DOM rather than by wrapping the panel
+ * itself, since `search()` gives no hook for either.
+ */
+const REPLACE_OPEN_CLASS = 'mlp-search-replace-open';
+
+function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
+	if (panel.querySelector('.mlp-search-toggle')) return;
+	const toggle = document.createElement('button');
+	toggle.type = 'button';
+	toggle.className = 'mlp-search-toggle';
+	toggle.setAttribute('aria-label', t('search.toggleReplace'));
+	toggle.title = t('search.toggleReplace');
+	toggle.textContent = '\u203a';
+	const sync = () => {
+		const open = panel.classList.contains(REPLACE_OPEN_CLASS);
+		toggle.setAttribute('aria-expanded', String(open));
+	};
+	toggle.addEventListener('click', (event) => {
+		// The panel is inside the editor; without this the click also reaches the
+		// document and moves the caret out of the field the user was typing in.
+		event.preventDefault();
+		panel.classList.toggle(REPLACE_OPEN_CLASS);
+		sync();
+		view.focus();
+	});
+	sync();
+	panel.insertBefore(toggle, panel.firstChild);
+}
+
+/**
+ * Watches for the search panel appearing and adds the chevron to it.
+ *
+ * The panel mounts and unmounts as it is opened and closed, and CodeMirror
+ * rebuilds it rather than reusing one instance, so this re-checks on every
+ * update rather than only once.
+ */
+const replaceToggle = EditorView.updateListener.of((update) => {
+	const panel = update.view.dom.querySelector('.cm-search') as HTMLElement | null;
+	if (panel) decorateSearchPanel(update.view, panel);
+});
+
+export const searchRevealExtension: Extension = [
+	searchSelectionField,
+	markPanelMatches,
+	clearOnPanelClose,
+	replaceToggle,
+];

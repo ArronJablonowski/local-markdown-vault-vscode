@@ -113,6 +113,19 @@ class ImageWidget extends WidgetType {
 		img.addEventListener('error', remeasure);
 		return img;
 	}
+	/**
+	 * Let clicks through, so the image can be edited.
+	 *
+	 * `WidgetType.ignoreEvent` defaults to ignoring *everything*, which meant a
+	 * click on a rendered image never placed a caret: the line kept no cursor, so
+	 * `cursorTouchesRange` stayed false and the `![alt](url)` behind it could not
+	 * be reached by mouse at all. Passing the event on lets CodeMirror put the
+	 * caret at the clicked edge of the widget, which reveals the source the same
+	 * way clicking any other inline construct does.
+	 */
+	ignoreEvent(): boolean {
+		return false;
+	}
 }
 
 // CodeMirror calibrates its "typical line height" estimate (used to figure out

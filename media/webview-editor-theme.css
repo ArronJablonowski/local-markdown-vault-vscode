@@ -318,6 +318,18 @@ html, body {
 	margin: 0.3em 0;
 }
 
+/* `drawSelection()` (enabled for multiple cursors) hides the browser's own
+   caret and draws its own `.cm-cursor` element, whose library default is a
+   hardcoded `1.2px solid black`. CodeMirror only overrides that to a light
+   color under its own `&dark` theme class, which this editor never sets — it
+   follows VS Code's theme through `--vscode-*` variables instead — so on a dark
+   theme the caret was black on a dark background. Point it at the same variable
+   `caret-color` already uses, so it matches whichever theme is active. */
+.cm-cursor,
+.cm-dropCursor {
+	border-left-color: var(--vscode-editorCursor-foreground, var(--vscode-editor-foreground, #528bff)) !important;
+}
+
 /* ── Block widgets ───────────────────────────────────────────────────────
    Spacing wrapper around every block widget (rendered table, Mermaid diagram,
    frontmatter table/error). The gap lives here as `padding` rather than as
@@ -795,27 +807,92 @@ table.mlp-frontmatter td pre {
 .cm-panel.cm-search,
 .cm-panels-top .cm-dialog {
 	position: absolute !important;
-	top: 8px !important;
-	right: 24px !important; /* clears the scrollbar */
+	top: 6px !important;
+	right: 20px !important; /* clears the scrollbar */
 	left: auto !important;
 	z-index: 301 !important;
 	box-sizing: border-box !important;
-	width: 380px !important;
-	max-width: min(380px, calc(100% - 48px)) !important;
-	padding: 6px 28px 6px 8px !important; /* right padding clears the close button */
+	/* The widget sizes to its contents rather than to a fixed width, so the
+	   find-only state is compact and opening replace grows it — the way VS
+	   Code's own widget behaves. */
+	width: auto !important;
+	max-width: calc(100% - 40px) !important;
+	padding: 4px 26px 4px 4px !important; /* right padding clears the close button */
 	background: var(--vscode-editorWidget-background, #252526) !important;
 	color: var(--vscode-editorWidget-foreground, inherit) !important;
 	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.35)) !important;
 	border-radius: 4px !important;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36)) !important;
+	box-shadow: 0 2px 12px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36)) !important;
 	font-size: 12px !important;
-	line-height: 1.9 !important;
+	line-height: normal !important;
+}
+
+/* The library emits the panel as one flat run of controls with a `<br>`
+   separating the find row from the replace row. Flex with wrapping rebuilds VS
+   Code's shape: everything flows on one line, and the `<br>` — given full width
+   — forces the replace controls onto a second line. The chevron is pulled to
+   the left of both by `order`, so it reads as belonging to the whole widget
+   rather than to the find row. */
+.cm-panel.cm-search {
+	display: flex !important;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	padding-left: 26px !important; /* the chevron sits in this gutter */
+}
+.cm-search br {
+	flex-basis: 100%;
+	height: 0;
+	margin: 0;
+}
+/* With the replace row hidden there is nothing after the break, so the break
+   itself would still add an empty second line. */
+.cm-search:not(.mlp-search-replace-open) br {
+	display: none;
+}
+
+/* Chevron that reveals the replace row. Positioned in the padding gutter so it
+   sits centered against the whole widget, as VS Code's does, rather than
+   participating in the flex flow. */
+.mlp-search-toggle {
+	position: absolute;
+	left: 4px;
+	top: 4px;
+	bottom: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	padding: 0;
+	font: inherit;
+	font-size: 14px;
+	line-height: 1;
+	color: var(--vscode-icon-foreground, inherit);
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	transition: transform 120ms ease;
+}
+.mlp-search-toggle:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+.cm-search.mlp-search-replace-open .mlp-search-toggle {
+	transform: rotate(90deg);
+}
+
+/* Find is the common case, so the replace row stays out of the way until the
+   chevron asks for it. */
+.cm-search:not(.mlp-search-replace-open) input[name='replace'],
+.cm-search:not(.mlp-search-replace-open) button[name='replace'],
+.cm-search:not(.mlp-search-replace-open) button[name='replaceAll'] {
+	display: none !important;
 }
 
 .cm-search .cm-textfield,
 .cm-dialog .cm-textfield {
 	font: inherit !important;
-	width: 150px !important;
+	width: 170px !important;
 	box-sizing: border-box !important;
 	padding: 3px 6px !important;
 	color: var(--vscode-input-foreground, inherit) !important;
@@ -828,19 +905,21 @@ table.mlp-frontmatter td pre {
 .cm-search .cm-textfield:focus,
 .cm-dialog .cm-textfield:focus {
 	border-color: var(--vscode-focusBorder, #007fd4) !important;
+	outline: 1px solid var(--vscode-focusBorder, #007fd4) !important;
+	outline-offset: -1px !important;
 }
 
 .cm-search .cm-button {
 	font: inherit !important;
 	font-size: 11px !important;
 	vertical-align: middle !important;
-	margin: 0 0 0 2px !important;
-	padding: 2px 8px !important;
+	margin: 0 !important;
+	padding: 3px 8px !important;
 	color: var(--vscode-button-secondaryForeground, inherit) !important;
 	background: var(--vscode-button-secondaryBackground, rgba(127, 127, 127, 0.2)) !important;
 	background-image: none !important;
 	border: 1px solid var(--vscode-button-border, transparent) !important;
-	border-radius: 2px !important;
+	border-radius: 3px !important;
 	cursor: pointer;
 }
 .cm-search .cm-button:hover {
@@ -849,20 +928,29 @@ table.mlp-frontmatter td pre {
 .cm-search .cm-button:active {
 	background-image: none !important;
 }
+.cm-search .cm-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4) !important;
+	outline-offset: -1px !important;
+}
 
 /* VS Code shows the case/regexp/whole-word toggles as small pressed-look icon
    buttons; approximated here as compact chip-style labels (no codicon glyphs
    available in this context), highlighting via `:has()` when their checkbox
    is checked. */
 .cm-search label {
-	display: inline-block !important;
-	margin: 0 3px 0 0 !important;
+	display: inline-flex !important;
+	align-items: center;
+	margin: 0 !important;
 	padding: 2px 6px !important;
 	font-size: 11px !important;
 	white-space: nowrap !important;
 	border: 1px solid transparent;
-	border-radius: 2px;
+	border-radius: 3px;
 	cursor: pointer;
+	user-select: none;
+}
+.cm-search label:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.15));
 }
 .cm-search label:has(input:checked) {
 	background: var(--vscode-inputOption-activeBackground, rgba(0, 122, 204, 0.3));
@@ -870,20 +958,24 @@ table.mlp-frontmatter td pre {
 	color: var(--vscode-inputOption-activeForeground, inherit);
 }
 .cm-search input[type='checkbox'] {
-	margin: 0 3px 0 0 !important;
+	margin: 0 4px 0 0 !important;
 	vertical-align: middle;
 	accent-color: var(--vscode-inputOption-activeBorder, #007fd4);
 }
 
 .cm-search button[name='close'] {
-	top: 5px !important;
-	right: 6px !important;
-	padding: 2px 4px !important;
+	position: absolute !important;
+	top: 4px !important;
+	right: 4px !important;
+	padding: 0 !important;
+	width: 18px !important;
+	height: 18px !important;
 	font-size: 14px !important;
 	line-height: 1 !important;
 	color: var(--vscode-icon-foreground, inherit) !important;
 	background: transparent !important;
-	border-radius: 2px;
+	border: none !important;
+	border-radius: 3px;
 	cursor: pointer;
 }
 .cm-search button[name='close']:hover {
