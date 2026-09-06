@@ -1,4 +1,5 @@
 import type { EditorState } from '@codemirror/state';
+import { selectionIsSearchMatch } from './searchReveal';
 
 /**
  * Whether a mouse button is currently held down anywhere in the document.
@@ -241,12 +242,17 @@ export function blockCursorTouchesRange(state: EditorState, from: number, to: nu
  *   being selected with pipe text and loses the selection.
  * - Any caret position while the mouse is still down — a drag in progress, which
  *   has not resolved into anything yet. See `pointerDown` above.
+ *
+ * A search match is the exception to the first rule: it is a non-empty
+ * selection that *is* a request to be shown that text, so it reveals the source
+ * the way a caret does. See `selectionIsSearchMatch`.
  */
 export function cursorTouchesRange(state: EditorState, from: number, to: number): boolean {
 	const startLine = state.doc.lineAt(Math.min(from, state.doc.length)).number;
 	const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
+	const searchMatch = selectionIsSearchMatch(state);
 	for (const range of state.selection.ranges) {
-		if (!range.empty) continue;
+		if (!range.empty && !searchMatch) continue;
 		const headLine = state.doc.lineAt(range.head).number;
 		if (headLine >= startLine && headLine <= endLine) {
 			return true;

@@ -93,6 +93,23 @@ const en = {
 	'sample.cell2': 'beta',
 	'sample.belowRule': 'A paragraph below the horizontal rule.',
 	'sample.comment': 'a comment',
+
+	// Labels inside @codemirror/search's own panel, fed to it through
+	// CodeMirror's `phrases` facet so the widget matches the rest of the UI.
+	'search.find': 'Find',
+	'search.replace': 'Replace',
+	'search.next': 'next',
+	'search.previous': 'previous',
+	'search.all': 'all',
+	'search.matchCase': 'match case',
+	'search.regexp': 'regexp',
+	'search.byWord': 'by word',
+	'search.replaceAll': 'replace all',
+	'search.close': 'close',
+	'search.currentMatch': 'current match',
+	'search.gotoLine': 'Go to line',
+	'search.go': 'go',
+	'search.onLine': 'on line',
 };
 
 /** A message key. Translations are checked against this at compile time. */
@@ -176,6 +193,21 @@ const ja: Record<MessageKey, string> = {
 	'sample.cell2': 'かきくけこ',
 	'sample.belowRule': '水平線の下の段落。',
 	'sample.comment': 'コメント',
+
+	'search.find': '検索',
+	'search.replace': '置換',
+	'search.next': '次へ',
+	'search.previous': '前へ',
+	'search.all': 'すべて',
+	'search.matchCase': '大文字と小文字を区別',
+	'search.regexp': '正規表現',
+	'search.byWord': '単語単位',
+	'search.replaceAll': 'すべて置換',
+	'search.close': '閉じる',
+	'search.currentMatch': '現在の一致',
+	'search.gotoLine': '行へ移動',
+	'search.go': '移動',
+	'search.onLine': '行',
 };
 
 const catalogs: Record<string, Partial<Record<MessageKey, string>>> = { ja };

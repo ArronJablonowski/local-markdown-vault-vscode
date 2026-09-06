@@ -769,13 +769,6 @@ table.mlp-frontmatter td pre {
 }
 
 /* ── Search / replace panel (@codemirror/search) ─────────────────────────────
-   CURRENTLY UNUSED: the `search()` extension and its keybindings were pulled
-   out of src/webview-editor/main.ts (feature parked pending a further design
-   pass), so `.cm-search` never mounts and none of this applies right now.
-   Left in place — not deleted — since the panel isn't gone for good, just
-   held back from this release; re-adding the wiring in main.ts picks this
-   styling back up unchanged.
-
    The library's default look is a plain gray bar, full width, that pushes the
    document down — restyled here to float top-right and overlay the content
    instead, like VS Code's own Find/Replace widget, using `--vscode-*` theme

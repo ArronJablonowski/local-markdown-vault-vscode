@@ -5,6 +5,22 @@
 All notable changes to this extension are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Search and replace** (`Ctrl+F`), in a panel that floats over the top-right
+  of the editor the way VS Code's own does. `Enter`/`F3` step through matches,
+  `Ctrl+D` adds the next occurrence as a cursor, `Esc` closes the panel; case,
+  whole-word and regular-expression modes are all available. Searching runs
+  against the raw Markdown, so `](url)`, a table's pipes and a heading's `#`
+  are findable while the preview hides them — and a match inside hidden syntax
+  reveals that syntax, so what was found is always visible.
+- Multiple cursors now actually work. The editor never enabled CodeMirror's
+  multiple-selection support, so the multi-cursor behaviour `Ctrl+B`/`Ctrl+I`
+  already documented had no way to arise, and `Ctrl+D` would have collapsed to
+  a single cursor.
+
 ## [0.1.0] — 2026-09-05
 
 ### Changed
@@ -252,6 +268,20 @@ callouts and export are still missing; `1.0.0` is reserved for when those land.
 
 この拡張機能の主な変更点をまとめています。
 バージョン番号は [セマンティック バージョニング](https://semver.org/lang/ja/) に従っています。
+
+## [未リリース]
+
+### 追加
+
+- **検索・置換**(`Ctrl+F`)。VS Code 標準と同じく、エディタ右上に浮かぶパネルです。
+  `Enter`/`F3`で一致箇所を移動、`Ctrl+D`で次の一致をカーソルとして追加、`Esc`で閉じます。
+  大文字小文字の区別、単語単位、正規表現に対応しています。検索対象は素の Markdown なので、
+  プレビューが隠している`](url)`や表のパイプ、見出しの`#`も検索できます。
+  隠れた記法の中に一致が見つかった場合はその記法が表示されるため、
+  何が見つかったのかを必ず目で確認できます。
+- 複数カーソルが実際に動くようになりました。CodeMirror の複数選択機能が
+  有効になっていなかったため、`Ctrl+B`/`Ctrl+I`の説明にあった複数カーソル対応は
+  そもそも発生しようがなく、`Ctrl+D`も単一カーソルに潰れる状態でした。
 
 ## [0.1.0] — 2026-09-05
 

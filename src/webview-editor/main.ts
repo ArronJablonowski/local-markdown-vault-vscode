@@ -1,7 +1,15 @@
 import { EditorState, Annotation, type Extension, ChangeSet } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import {
+	search,
+	openSearchPanel,
+	closeSearchPanel,
+	findNext,
+	findPrevious,
+	selectNextOccurrence,
+} from '@codemirror/search';
 import { markdown } from '@codemirror/lang-markdown';
 import { GFM } from './gfmTableFix';
 import { livePreviewPlugin, createLinkClickHandler, setImageBaseUri } from './livePreviewPlugin';
@@ -14,6 +22,8 @@ import { toggleEmphasisCommand } from './emphasisShortcuts';
 import { createImagePasteHandler } from './imagePasteHandler';
 import { postToHost, onHostMessage } from './vscodeApi';
 import { setDrawioFilePoster, handleDrawioFileMessage, clearDrawioFileCache } from './drawioFileClient';
+import { searchRevealExtension, markingSearchSelection } from './searchReveal';
+import { t } from '../shared/i18n';
 import { adaptMarkdownCss } from '../shared/cssAdapter';
 import type { TextChange } from '../shared/messages';
 
@@ -83,8 +93,51 @@ function createExtensions(): Extension[] {
 		createImagePasteHandler((atPos, mimeType, dataBase64, needsOwnParagraph) =>
 			postToHost({ type: 'pasteImage', atPos, mimeType, dataBase64, needsOwnParagraph }),
 		),
+		// Without this a state keeps only one selection range, so Mod-d's
+		// multi-cursor search silently collapses to a single cursor — and the
+		// multiple-cursor behaviour Ctrl+B/Ctrl+I already document never had a way
+		// to arise. `drawSelection` renders the extra carets, which the browser's
+		// native selection cannot show.
+		EditorState.allowMultipleSelections.of(true),
+		drawSelection(),
+		// Search matches the raw Markdown, which is what the file actually holds —
+		// so `](url)` and a table's pipes are findable even while the preview
+		// hides them. `searchRevealExtension` is what makes a match inside hidden
+		// syntax actually show itself; see that file.
+		search({ top: true }),
+		searchRevealExtension,
+		// The panel builds its own labels, so they are localized through
+		// CodeMirror's phrases facet rather than by rendering them ourselves.
+		EditorState.phrases.of({
+			Find: t('search.find'),
+			Replace: t('search.replace'),
+			next: t('search.next'),
+			previous: t('search.previous'),
+			all: t('search.all'),
+			'match case': t('search.matchCase'),
+			regexp: t('search.regexp'),
+			'by word': t('search.byWord'),
+			'replace all': t('search.replaceAll'),
+			close: t('search.close'),
+			'current match': t('search.currentMatch'),
+			'Go to line': t('search.gotoLine'),
+			go: t('search.go'),
+			'on line': t('search.onLine'),
+		}),
 		keymap.of([
 			...closeBracketsKeymap,
+			// Bound ahead of the defaults below so Mod-f reaches the panel rather
+			// than any other handler, and so each jump can mark its selection as a
+			// search match. Replace has no default binding in searchKeymap; VS Code
+			// puts it on Mod-Alt-f, and the panel carries both fields either way.
+			{ key: 'Mod-f', run: openSearchPanel },
+			{ key: 'Mod-Alt-f', run: openSearchPanel },
+			{ key: 'F3', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
+			{ key: 'Mod-g', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
+			{ key: 'Mod-d', run: markingSearchSelection(selectNextOccurrence) },
+			// Escape closes the panel; it must not swallow the key when no panel is
+			// open, so `closeSearchPanel`'s own false return is passed through.
+			{ key: 'Escape', run: closeSearchPanel },
 			// Flush any not-yet-sent keystrokes before asking the host to undo/redo —
 			// otherwise the host's document is missing the latest edits when it acts,
 			// undoing the wrong change and leaving the webview's local text duplicated
