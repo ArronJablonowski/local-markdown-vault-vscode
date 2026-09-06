@@ -123,7 +123,61 @@ export { setSearchSelection, markingSearchSelection, getSearchQuery };
  */
 const REPLACE_OPEN_CLASS = 'mlp-search-replace-open';
 
+/**
+ * Glyphs for the find toggles, replacing the library's word labels.
+ *
+ * VS Code marks these three with icons rather than text, and the words wrapped
+ * the panel onto a second line at the widths it usually opens at. Drawn here as
+ * inline paths in the same hand-rolled style as the sidebar's own icons rather
+ * than pulled from an icon font: the webview has no codicon file to reference,
+ * and a whole icon dependency for three 16px glyphs is not worth its licence
+ * and its bytes.
+ *
+ * `Aa` for case, `ab|` (a word between boundaries) for whole word, and `.*` for
+ * regular expressions — the same shorthand VS Code uses.
+ */
+const TOGGLE_ICONS: Record<string, string> = {
+	// "Aa"
+	case: '<path d="M4.4 3h1.5l2.6 7H7.1l-.6-1.7H3.8L3.2 10H1.8L4.4 3zm-.2 4.2h1.9l-.95-2.7-.95 2.7z"/><path d="M12.2 5.3c-1.1 0-1.9.4-2.3 1.2l1 .5c.2-.4.6-.6 1.2-.6.7 0 1 .3 1 .8v.2l-1.5.2c-1.2.2-1.9.7-1.9 1.6 0 .8.7 1.4 1.7 1.4.7 0 1.3-.3 1.7-.8v.7h1.2V7.2c0-1.2-.8-1.9-2.1-1.9zm.9 3.2c0 .7-.5 1.2-1.3 1.2-.4 0-.7-.2-.7-.6 0-.4.3-.6.9-.7l1.1-.2v.3z"/>',
+	// "ab" bracketed by word boundaries
+	word: '<path d="M2 4h1v8H2V4zm11 0h1v8h-1V4z"/><path d="M5.6 6.2c-1 0-1.7.4-2 1.1l.9.4c.2-.3.6-.5 1-.5.6 0 .9.3.9.7v.2l-1.3.2c-1.1.2-1.7.6-1.7 1.4 0 .8.6 1.3 1.5 1.3.6 0 1.1-.2 1.5-.7v.6h1.1V7.9c0-1.1-.7-1.7-1.9-1.7zm.8 2.9c0 .6-.5 1-1.1 1-.4 0-.6-.2-.6-.5s.3-.5.8-.6l.9-.2v.3z"/><path d="M9.3 4.2H8.2v6.7h1.1v-.6c.3.4.8.7 1.4.7 1.2 0 2-1 2-2.5s-.8-2.4-2-2.4c-.6 0-1.1.2-1.4.6V4.2zm1.1 5.7c-.7 0-1.2-.6-1.2-1.5s.5-1.4 1.2-1.4c.7 0 1.1.5 1.1 1.4s-.4 1.5-1.1 1.5z"/>',
+	// ".*"
+	re: '<path d="M3.2 11.4a1.1 1.1 0 1 0 0-2.2 1.1 1.1 0 0 0 0 2.2z"/><path d="M10.4 3.6v2.2l1.9-1.1.6 1.1-1.9 1.1 1.9 1.1-.6 1.1-1.9-1.1v2.2H9.1V8l-1.9 1.1L6.6 8l1.9-1.1L6.6 5.8l.6-1.1L9.1 5.8V3.6h1.3z"/>',
+};
+
+/**
+ * Swaps each toggle's text label for its glyph.
+ *
+ * The label keeps its accessible name through `aria-label` and `title`, so the
+ * text is only removed visually — the checkbox inside it is untouched, which is
+ * what the library reads on commit.
+ */
+function iconifyToggles(panel: HTMLElement): void {
+	for (const label of Array.from(panel.querySelectorAll('label'))) {
+		const checkbox = label.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+		if (!checkbox) continue;
+		const path = TOGGLE_ICONS[checkbox.name];
+		if (!path || label.querySelector('svg')) continue;
+		const name = label.textContent?.trim() ?? checkbox.name;
+		label.title = name;
+		label.setAttribute('aria-label', name);
+		for (const node of Array.from(label.childNodes)) {
+			if (node.nodeType === Node.TEXT_NODE) node.remove();
+		}
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.setAttribute('viewBox', '0 0 16 16');
+		svg.setAttribute('width', '14');
+		svg.setAttribute('height', '14');
+		svg.setAttribute('fill', 'currentColor');
+		svg.setAttribute('aria-hidden', 'true');
+		svg.innerHTML = path;
+		label.appendChild(svg);
+	}
+}
+
+
 function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
+	iconifyToggles(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;
 	const toggle = document.createElement('button');
 	toggle.type = 'button';

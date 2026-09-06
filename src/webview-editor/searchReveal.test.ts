@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EditorState, EditorSelection } from '@codemirror/state';
-import { cursorTouchesRange, setPointerDownForTesting, setSuppressForTesting } from './cmUtils';
+import {
+	cursorTouchesRange,
+	blockCursorTouchesRange,
+	setPointerDownForTesting,
+	setSuppressForTesting,
+} from './cmUtils';
 import { searchRevealExtension, selectionIsSearchMatch, setSearchSelection } from './searchReveal';
 
 const DOC = 'above\n| a | b |\n|---|---|\n| 1 | 2 |\nbelow\n';
@@ -59,10 +64,18 @@ describe('cursorTouchesRange with a search match', () => {
 	});
 
 	it('still ignores an ordinary sweep across the block', () => {
-		// A drag-select across the table is a copy, not a request to edit it.
+		// A drag-select across the table is a copy, not a request to edit it. That
+		// protection is a block-level rule, so it is `blockCursorTouchesRange` that
+		// enforces it — inline constructs deliberately do reveal for a sweep.
 		const state = stateWith(0, DOC.length - 1);
 		const { from, to } = tableRange(state);
-		expect(cursorTouchesRange(state, from, to)).toBe(false);
+		expect(blockCursorTouchesRange(state, from, to)).toBe(false);
+	});
+
+	it('reveals a block when the sweep is a search match', () => {
+		const state = markAsMatch(stateWith(0, DOC.length - 1));
+		const { from, to } = tableRange(state);
+		expect(blockCursorTouchesRange(state, from, to)).toBe(true);
 	});
 
 	it('reveals the block when the selection is a search match inside it', () => {
@@ -132,9 +145,16 @@ describe('cursorTouchesRange for an inline image', () => {
 		expect(cursorTouchesRange(match, imgFrom, imgTo)).toBe(true);
 	});
 
-	it('does not reveal it for an ordinary sweep over the same text', () => {
+	it('also reveals it for a plain drag-select over the URL', () => {
+		// Dragging to select the URL is how it gets copied or replaced, and it
+		// cannot be selected while the image is covering it.
 		const urlAt = IMG_DOC.indexOf('assets/pic.png');
 		const swept = imgState(urlAt, urlAt + 'assets'.length);
+		expect(cursorTouchesRange(swept, imgFrom, imgTo)).toBe(true);
+	});
+
+	it('leaves the image alone for a selection that stops before it', () => {
+		const swept = imgState(0, imgFrom);
 		expect(cursorTouchesRange(swept, imgFrom, imgTo)).toBe(false);
 	});
 });

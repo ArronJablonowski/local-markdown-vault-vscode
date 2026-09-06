@@ -872,7 +872,6 @@ table.mlp-frontmatter td pre {
 	border: none;
 	border-radius: 3px;
 	cursor: pointer;
-	transition: transform 120ms ease;
 }
 .mlp-search-toggle:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
@@ -937,17 +936,40 @@ table.mlp-frontmatter td pre {
    buttons; approximated here as compact chip-style labels (no codicon glyphs
    available in this context), highlighting via `:has()` when their checkbox
    is checked. */
+/* Square icon buttons, like VS Code's — the checkbox itself is hidden and the
+   label's own pressed styling carries the state. */
 .cm-search label {
 	display: inline-flex !important;
 	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
 	margin: 0 !important;
-	padding: 2px 6px !important;
-	font-size: 11px !important;
+	padding: 0 !important;
 	white-space: nowrap !important;
 	border: 1px solid transparent;
 	border-radius: 3px;
 	cursor: pointer;
 	user-select: none;
+}
+.cm-search label svg {
+	display: block;
+	pointer-events: none;
+}
+/* The checkbox stays in the DOM (the panel reads it on commit) but is taken out
+   of view; the label is the control now. */
+.cm-search label input[type='checkbox'] {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	pointer-events: none;
+	margin: 0 !important;
+}
+.cm-search label:focus-within {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: -1px;
 }
 .cm-search label:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.15));
@@ -957,15 +979,12 @@ table.mlp-frontmatter td pre {
 	border-color: var(--vscode-inputOption-activeBorder, #007fd4);
 	color: var(--vscode-inputOption-activeForeground, inherit);
 }
-.cm-search input[type='checkbox'] {
-	margin: 0 4px 0 0 !important;
-	vertical-align: middle;
-	accent-color: var(--vscode-inputOption-activeBorder, #007fd4);
-}
-
 .cm-search button[name='close'] {
 	position: absolute !important;
-	top: 4px !important;
+	/* Centered against the whole widget rather than pinned to the top, so it
+	   stays put as the panel grows when replace opens. */
+	top: 50% !important;
+	transform: translateY(-50%);
 	right: 4px !important;
 	padding: 0 !important;
 	width: 18px !important;

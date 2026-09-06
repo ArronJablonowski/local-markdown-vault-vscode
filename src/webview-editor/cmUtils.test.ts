@@ -43,11 +43,31 @@ describe('cursorTouchesRange', () => {
 	// Sweeping a selection across a rendered block is a copy gesture. Unrendering
 	// it mid-sweep replaces the rows being selected with raw pipe text and loses
 	// the selection the user was making.
-	it('ignores a non-empty selection whose head lands inside the range', () => {
+	// Inline constructs must give up their source to a drag-select: dragging
+	// across an image's `](url)` is how you select that URL, and it cannot be
+	// selected while it is hidden. Blocks keep the copy-sweep protection, but
+	// they get it from `blockCursorTouchesRange` (covered below), not here.
+	it('reveals for a selection that overlaps the range', () => {
 		const state = stateWithSelection(0);
 		const { from, to } = tableRange(state);
 		const head = state.doc.line(3).from + 2;
-		expect(cursorTouchesRange(stateWithSelection(0, head), from, to)).toBe(false);
+		expect(cursorTouchesRange(stateWithSelection(0, head), from, to)).toBe(true);
+	});
+
+	it('ignores a selection that stops short of the range', () => {
+		const state = stateWithSelection(0);
+		const { from } = tableRange(state);
+		// Ends exactly where the range starts: adjacency, not overlap.
+		expect(cursorTouchesRange(stateWithSelection(0, from), from, from + 4)).toBe(false);
+	});
+
+	it('a sweep across a block still leaves the block rendered', () => {
+		// The guarantee that matters for the copy-sweep case, now enforced one
+		// level up.
+		const state = stateWithSelection(0);
+		const { from, to } = tableRange(state);
+		const head = state.doc.line(3).from + 2;
+		expect(blockCursorTouchesRange(stateWithSelection(0, head), from, to)).toBe(false);
 	});
 
 	// A blank line above a table resolves to document position 0, so pressing

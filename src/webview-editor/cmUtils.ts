@@ -213,6 +213,15 @@ export function setPointerDownForTesting(value: boolean): void {
 export function blockCursorTouchesRange(state: EditorState, from: number, to: number): boolean {
 	const touching = cursorTouchesRange(state, from, to);
 	if (!touching) return false;
+	// Sweeping a selection across a block is a copy, not a request to edit it:
+	// unrendering mid-sweep replaces the rows being selected with pipe text and
+	// loses the selection. Inline constructs want the opposite (a drag across an
+	// image's `](url)` is how that URL gets selected), which is why this lives
+	// here rather than in `cursorTouchesRange`. A search match is the exception —
+	// it is a non-empty selection that explicitly asks to be shown.
+	if (!selectionIsSearchMatch(state) && state.selection.ranges.some((range) => !range.empty)) {
+		return false;
+	}
 	// A block already showing its source keeps showing it, whatever the mouse is
 	// doing. The guards below exist to stop a *rendered* block being revealed by
 	// a stray click; applying them to one that is already open made it flip back
@@ -234,29 +243,32 @@ export function blockCursorTouchesRange(state: EditorState, from: number, to: nu
  * True if the caret sits on a line spanned by [from, to] — the condition that
  * makes a rendered block (table, diagram, frontmatter) give way to its source.
  *
- * Two cases deliberately do not count, because both are gestures that want the
- * block left exactly as it is rather than requests to edit it:
+ * A selection counts when it actually overlaps [from, to] — dragging across an
+ * image's `](url)` is a request to select that text, so the source has to be
+ * there to select. A selection that merely *ends* on one of the range's lines
+ * without covering any of it does not: that is a sweep passing through, and
+ * revealing on it would reflow the text under the pointer mid-drag.
  *
- * - A *non-empty* selection, even when its head is inside the block. Sweeping a
- *   selection across a table is a copy; unrendering mid-sweep replaces the rows
- *   being selected with pipe text and loses the selection.
- * - Any caret position while the mouse is still down — a drag in progress, which
- *   has not resolved into anything yet. See `pointerDown` above.
+ * The whole-block protection this used to provide — a sweep across a table is a
+ * copy, not a request to edit it — lives in `blockCursorTouchesRange`, which is
+ * what every block widget consults. Applying it here as well meant no inline
+ * construct could ever be selected by mouse.
  *
- * A search match is the exception to the first rule: it is a non-empty
- * selection that *is* a request to be shown that text, so it reveals the source
- * the way a caret does. See `selectionIsSearchMatch`.
+ * Still deliberately excluded: any caret position while the mouse is down, a
+ * drag in progress that has not resolved into anything yet. See `pointerDown`.
  */
 export function cursorTouchesRange(state: EditorState, from: number, to: number): boolean {
 	const startLine = state.doc.lineAt(Math.min(from, state.doc.length)).number;
 	const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
-	const searchMatch = selectionIsSearchMatch(state);
 	for (const range of state.selection.ranges) {
-		if (!range.empty && !searchMatch) continue;
-		const headLine = state.doc.lineAt(range.head).number;
-		if (headLine >= startLine && headLine <= endLine) {
-			return true;
+		if (range.empty) {
+			const headLine = state.doc.lineAt(range.head).number;
+			if (headLine >= startLine && headLine <= endLine) return true;
+			continue;
 		}
+		// A non-empty selection reveals only what it actually covers. Touching at a
+		// single point (`range.to === from`) is adjacency, not overlap.
+		if (range.from < to && range.to > from) return true;
 	}
 	return false;
 }
