@@ -851,8 +851,13 @@ table.mlp-frontmatter td pre {
 	align-items: stretch;
 	gap: 4px;
 }
+/* A row wraps within itself when it runs short of width — better a find row on
+   two lines than controls pushed outside the widget. What it cannot do is spill
+   into the other row: that boundary is the row elements themselves, not a wrap
+   point, so replace always starts on a line of its own. */
 .cm-search .mlp-search-row {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
 	min-width: 0;
@@ -941,10 +946,11 @@ table.mlp-frontmatter td pre {
    collapse to its content width. */
 .cm-search .cm-textfield {
 	flex: 1 1 0 !important;
-	/* Small enough that the field always has room to absorb a cramped row: a
-	   larger floor would stop it shrinking and push a button onto its own line,
-	   which is the wrapping this layout exists to avoid. */
-	min-width: 3em !important;
+	/* Wide enough to stay usable. The field shrinks first, and only once it is at
+	   this floor do the controls beside it wrap onto a second line of the same
+	   row — which is the better trade at that point, since a field narrower than
+	   this shows too little of the query to be worth keeping on one line. */
+	min-width: 8em !important;
 	width: auto !important;
 }
 
