@@ -141,6 +141,71 @@ const TOGGLE_GLYPHS: Record<string, string> = {
 };
 
 /**
+ * Groups the panel's flat run of controls into a find row and a replace row.
+ *
+ * The library emits every control as a sibling with a bare `<br>` between the
+ * two halves, and leaves them to wrap. Wrapping cannot be trusted to break in
+ * that one place: when the row runs short of width — a zoomed-in editor, a
+ * narrow pane — flex breaks it wherever it happens to run out, which put the
+ * find toggles on the replace line. Moving each half into its own element makes
+ * the split structural, so the rows hold whatever the width.
+ *
+ * Re-run on every update, and cheap when there is nothing to do: the panel is
+ * rebuilt each time it opens, so the rows have to be reformed with it.
+ */
+/**
+ * Which row a given control belongs to.
+ *
+ * Split out from the DOM work so the rule can be tested on its own: `'widget'`
+ * means the control belongs to the panel rather than to either row, and is left
+ * where it is.
+ */
+export function searchRowFor(
+	name: string | null,
+	isChevron: boolean,
+	afterBreak: boolean,
+): 'find' | 'replace' | 'widget' {
+	if (isChevron || name === 'close') return 'widget';
+	return afterBreak ? 'replace' : 'find';
+}
+
+function groupSearchRows(panel: HTMLElement): void {
+	const br = panel.querySelector('br');
+	if (!br) return;
+
+	const findRow = document.createElement('div');
+	findRow.className = 'mlp-search-row mlp-search-row-find';
+	const replaceRow = document.createElement('div');
+	replaceRow.className = 'mlp-search-row mlp-search-row-replace';
+
+	// Everything before the `<br>` belongs to find, everything after it to
+	// replace — except the close button and our own chevron, which belong to the
+	// widget rather than to either row.
+	let seenBreak = false;
+	for (const child of Array.from(panel.childNodes)) {
+		if (child === br) {
+			seenBreak = true;
+			continue;
+		}
+		if (child.nodeType === Node.ELEMENT_NODE) {
+			const el = child as HTMLElement;
+			const row = searchRowFor(
+				el.getAttribute('name'),
+				el.classList.contains('mlp-search-toggle'),
+				seenBreak,
+			);
+			if (row === 'widget') continue;
+			(row === 'replace' ? replaceRow : findRow).appendChild(el);
+			continue;
+		}
+		(seenBreak ? replaceRow : findRow).appendChild(child);
+	}
+	br.remove();
+	panel.insertBefore(replaceRow, panel.firstChild);
+	panel.insertBefore(findRow, replaceRow);
+}
+
+/**
  * Swaps each toggle's text label for its glyph.
  *
  * The label keeps its accessible name through `aria-label` and `title`, so the
@@ -170,6 +235,7 @@ function iconifyToggles(panel: HTMLElement): void {
 
 function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 	iconifyToggles(panel);
+	groupSearchRows(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;
 	const toggle = document.createElement('button');
 	toggle.type = 'button';

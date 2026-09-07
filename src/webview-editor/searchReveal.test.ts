@@ -6,7 +6,12 @@ import {
 	setPointerDownForTesting,
 	setSuppressForTesting,
 } from './cmUtils';
-import { searchRevealExtension, selectionIsSearchMatch, setSearchSelection } from './searchReveal';
+import {
+	searchRevealExtension,
+	searchRowFor,
+	selectionIsSearchMatch,
+	setSearchSelection,
+} from './searchReveal';
 
 const DOC = 'above\n| a | b |\n|---|---|\n| 1 | 2 |\nbelow\n';
 
@@ -156,5 +161,25 @@ describe('cursorTouchesRange for an inline image', () => {
 	it('leaves the image alone for a selection that stops before it', () => {
 		const swept = imgState(0, imgFrom);
 		expect(cursorTouchesRange(swept, imgFrom, imgTo)).toBe(false);
+	});
+});
+
+describe('searchRowFor', () => {
+	it('puts controls before the break in the find row', () => {
+		expect(searchRowFor('next', false, false)).toBe('find');
+		expect(searchRowFor(null, false, false)).toBe('find');
+	});
+
+	it('puts controls after the break in the replace row', () => {
+		expect(searchRowFor('replace', false, true)).toBe('replace');
+		expect(searchRowFor('replaceAll', false, true)).toBe('replace');
+	});
+
+	it('leaves the close button and the chevron on the panel', () => {
+		// These belong to the widget, not to either row, so they keep their own
+		// absolute positioning rather than joining a flex row.
+		expect(searchRowFor('close', false, false)).toBe('widget');
+		expect(searchRowFor('close', false, true)).toBe('widget');
+		expect(searchRowFor(null, true, false)).toBe('widget');
 	});
 });

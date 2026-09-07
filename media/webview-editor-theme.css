@@ -840,38 +840,32 @@ table.mlp-frontmatter td pre {
    Code's shape: everything flows on one line, and the `<br>` — given full width
    — forces the replace controls onto a second line.
 
-   Wrapping is what draws the two rows, but it will also break a row anywhere it
-   runs short of space, which is what put "すべて置換" on a line of its own when
-   the editor was zoomed in. Each row is therefore held together by
-   `flex-shrink` on its own controls (see below): the buttons and toggles keep
-   their size, and the text field alone gives up width, so a row narrows rather
-   than splitting. The `<br>` stays the only place a line can break. */
+   Wrapping alone could not be trusted to break in that one place: a row short
+   of width breaks wherever it runs out, which put the find toggles onto the
+   replace line when the editor was zoomed in. `groupSearchRows` moves each half
+   into a `.mlp-search-row` of its own, so the split is structural — the panel
+   stacks two rows, and each row lays its own controls out. */
 .cm-panel.cm-search {
 	display: flex !important;
-	flex-wrap: wrap;
-	align-items: center;
+	flex-direction: column;
+	align-items: stretch;
 	gap: 4px;
 }
-/* Nothing but the text fields may shrink, and nothing may wrap on its own — so
-   a cramped row squeezes its field instead of dropping a button to the next
-   line. */
+.cm-search .mlp-search-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+/* Nothing but the text fields may shrink, so a cramped row squeezes its field
+   rather than dropping a button out of line. */
 .cm-search .cm-button,
 .cm-search label {
 	flex: 0 0 auto !important;
 }
-/* A flex item that fills the line forces everything after it onto the next
-   one. `flex-basis` alone is not enough: the item can still be shrunk to fit
-   beside its siblings, which is what kept the replace row on line one. Pinning
-   the width and forbidding the shrink is what actually breaks the line. */
-.cm-search br {
-	flex: 0 0 100%;
-	width: 100%;
-	height: 0;
-	margin: 0;
-}
-/* With the replace row hidden there is nothing after the break, so the break
-   itself would still add an empty second line. */
-.cm-search:not(.mlp-search-replace-open) br {
+/* Find is the common case, so the replace row stays out of the way until the
+   chevron asks for it. */
+.cm-search:not(.mlp-search-replace-open) .mlp-search-row-replace {
 	display: none;
 }
 
@@ -925,14 +919,6 @@ table.mlp-frontmatter td pre {
    hover box untouched. */
 .cm-search.mlp-search-replace-open .mlp-search-toggle svg {
 	transform: rotate(90deg);
-}
-
-/* Find is the common case, so the replace row stays out of the way until the
-   chevron asks for it. */
-.cm-search:not(.mlp-search-replace-open) input[name='replace'],
-.cm-search:not(.mlp-search-replace-open) button[name='replace'],
-.cm-search:not(.mlp-search-replace-open) button[name='replaceAll'] {
-	display: none !important;
 }
 
 .cm-search .cm-textfield,
