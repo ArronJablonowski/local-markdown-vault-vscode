@@ -176,7 +176,23 @@ function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 	toggle.className = 'mlp-search-toggle';
 	toggle.setAttribute('aria-label', t('search.toggleReplace'));
 	toggle.title = t('search.toggleReplace');
-	toggle.textContent = '\u203a';
+	// An SVG chevron rather than a `\u203a` character: that glyph is punctuation,
+	// positioned against the text baseline rather than centered on its em box, so
+	// it sits visibly low and slightly right however the button itself is
+	// centered. A path is symmetric about its viewBox, so it lands where it is
+	// put.
+	const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	chevron.setAttribute('viewBox', '0 0 16 16');
+	chevron.setAttribute('width', '16');
+	chevron.setAttribute('height', '16');
+	chevron.setAttribute('fill', 'none');
+	chevron.setAttribute('stroke', 'currentColor');
+	chevron.setAttribute('stroke-width', '1.6');
+	chevron.setAttribute('stroke-linecap', 'round');
+	chevron.setAttribute('stroke-linejoin', 'round');
+	chevron.setAttribute('aria-hidden', 'true');
+	chevron.innerHTML = '<path d="M6.5 4 10.5 8l-4 4"/>';
+	toggle.appendChild(chevron);
 	const sync = () => {
 		const open = panel.classList.contains(REPLACE_OPEN_CLASS);
 		toggle.setAttribute('aria-expanded', String(open));

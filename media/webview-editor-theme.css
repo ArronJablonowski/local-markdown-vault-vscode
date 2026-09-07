@@ -881,14 +881,14 @@ table.mlp-frontmatter td pre {
 	width: 20px;
 	height: 20px;
 	padding: 0;
-	font: inherit;
-	font-size: 14px;
-	line-height: 1;
 	color: var(--vscode-icon-foreground, inherit);
 	background: transparent;
 	border: none;
 	border-radius: 3px;
 	cursor: pointer;
+}
+.mlp-search-toggle svg {
+	display: block;
 }
 .mlp-search-toggle:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
