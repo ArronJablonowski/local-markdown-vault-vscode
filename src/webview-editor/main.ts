@@ -4,8 +4,8 @@ import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import {
 	search,
-	openSearchPanel,
 	closeSearchPanel,
+	searchKeymap,
 	findNext,
 	findPrevious,
 	selectNextOccurrence,
@@ -22,7 +22,11 @@ import { toggleEmphasisCommand } from './emphasisShortcuts';
 import { createImagePasteHandler } from './imagePasteHandler';
 import { postToHost, onHostMessage } from './vscodeApi';
 import { setDrawioFilePoster, handleDrawioFileMessage, clearDrawioFileCache } from './drawioFileClient';
-import { searchRevealExtension, markingSearchSelection } from './searchReveal';
+import {
+	searchRevealExtension,
+	markingSearchSelection,
+	openSearchPanelFocused,
+} from './searchReveal';
 import { t } from '../shared/i18n';
 import { adaptMarkdownCss } from '../shared/cssAdapter';
 import type { TextChange } from '../shared/messages';
@@ -131,14 +135,19 @@ function createExtensions(): Extension[] {
 			// than any other handler, and so each jump can mark its selection as a
 			// search match. Replace has no default binding in searchKeymap; VS Code
 			// puts it on Mod-Alt-f, and the panel carries both fields either way.
-			{ key: 'Mod-f', run: openSearchPanel },
-			{ key: 'Mod-Alt-f', run: openSearchPanel },
+			{ key: 'Mod-f', run: openSearchPanelFocused },
+			{ key: 'Mod-Alt-f', run: openSearchPanelFocused },
 			{ key: 'F3', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
 			{ key: 'Mod-g', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
 			{ key: 'Mod-d', run: markingSearchSelection(selectNextOccurrence) },
 			// Escape closes the panel; it must not swallow the key when no panel is
 			// open, so `closeSearchPanel`'s own false return is passed through.
 			{ key: 'Escape', run: closeSearchPanel },
+			// While focus is inside the panel the editor's own keymap never sees the
+			// key: the panel routes what it receives through the "search-panel"
+			// scope, which only these bindings serve. Without them Escape did
+			// nothing once the field had focus.
+			...searchKeymap.filter((binding) => binding.key === 'Escape'),
 			// Flush any not-yet-sent keystrokes before asking the host to undo/redo —
 			// otherwise the host's document is missing the latest edits when it acts,
 			// undoing the wrong change and leaving the webview's local text duplicated

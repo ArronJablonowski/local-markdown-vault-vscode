@@ -1,6 +1,6 @@
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { getSearchQuery, searchPanelOpen } from '@codemirror/search';
+import { getSearchQuery, openSearchPanel, searchPanelOpen } from '@codemirror/search';
 import { t } from '../shared/i18n';
 
 /**
@@ -107,6 +107,34 @@ const clearOnPanelClose = EditorView.updateListener.of((update) => {
 
 
 export { setSearchSelection, markingSearchSelection, getSearchQuery };
+
+/**
+ * Opens the find panel and puts the caret in its field.
+ *
+ * `openSearchPanel` focuses the input only when the panel is *already* mounted:
+ * on the first press it merely dispatches the effect that creates it, and
+ * returns before the DOM exists. So Ctrl+F opened a panel that the user then had
+ * to click into, and Escape — which the editor handles, not the panel — did not
+ * reach it either. Focusing once the panel has been rendered fixes both.
+ */
+export function openSearchPanelFocused(view: EditorView): boolean {
+	const handled = openSearchPanel(view);
+	if (!handled) return false;
+	// The panel is created by the transaction above, so the field only exists
+	// after the view has updated.
+	view.requestMeasure({
+		read: () => {
+			const input = view.dom.querySelector(
+				'.cm-search input[name="search"]',
+			) as HTMLInputElement | null;
+			if (input && view.root.activeElement !== input) {
+				input.focus();
+				input.select();
+			}
+		},
+	});
+	return true;
+}
 
 /**
  * Collapses the panel's replace row until it is asked for.

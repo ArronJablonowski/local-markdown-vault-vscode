@@ -10,3 +10,8 @@ CLAUDE.md
 Thumbs.db
 sample/assets/
 plans/
+out-test/
+coverage/
+test-results/
+playwright-report/
+.vscode-test/

@@ -21,3 +21,12 @@ repro-*.png
 **/*.map
 **/*.ts
 plans/**
+test/**
+out-test/**
+coverage/**
+test-results/**
+playwright-report/**
+.vscode-test.mjs
+playwright.config.ts
+tsconfig.test.json
+vitest.config.ts
