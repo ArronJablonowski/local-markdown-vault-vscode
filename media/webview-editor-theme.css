@@ -843,7 +843,9 @@ table.mlp-frontmatter td pre {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
-	padding-left: 26px !important; /* the chevron sits in this gutter */
+	/* Matches the chevron's 4px offset plus its 28px width, so the first control
+	   starts clear of it. */
+	padding-left: 32px !important;
 }
 /* A flex item that fills the line forces everything after it onto the next
    one. `flex-basis` alone is not enough: the item can still be shrunk to fit
@@ -872,31 +874,42 @@ table.mlp-frontmatter td pre {
 .mlp-search-toggle {
 	position: absolute;
 	left: 4px;
-	top: 50%;
-	transform: translateY(-50%);
+	/* Anchored to both edges and centered by its own flex box, rather than placed
+	   at `top: 50%` with a transform. A percentage offset resolves against the
+	   containing block's *padding* box, which here is not vertically symmetric —
+	   the panel's padding and its rows' heights differ — so 50% was not the
+	   visual middle. Anchoring to both edges sidesteps that arithmetic. */
+	top: 0;
+	bottom: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 20px;
-	height: 20px;
+	width: 28px;
 	padding: 0;
 	color: var(--vscode-icon-foreground, inherit);
-	background: transparent;
+	background: none;
 	border: none;
-	border-radius: 3px;
 	cursor: pointer;
 }
+/* The hover target is the glyph's own square, not the full-height button, so
+   the highlight reads as a square button rather than a tall strip down the
+   side of the widget. */
 .mlp-search-toggle svg {
 	display: block;
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	padding: 2px;
+	border-radius: 3px;
 }
-.mlp-search-toggle:hover {
+.mlp-search-toggle:hover svg {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
 }
-/* Composed with the centering translate above — a bare `rotate()` here would
-   replace it and drop the button back to the top. */
-.cm-search.mlp-search-replace-open .mlp-search-toggle {
-	transform: translateY(-50%) rotate(90deg);
+/* Rotates the glyph rather than the button, leaving the button's position and
+   hover box untouched. */
+.cm-search.mlp-search-replace-open .mlp-search-toggle svg {
+	transform: rotate(90deg);
 }
 
 /* Find is the common case, so the replace row stays out of the way until the
@@ -1020,24 +1033,45 @@ table.mlp-frontmatter td pre {
 }
 .cm-search button[name='close'] {
 	position: absolute !important;
-	/* Centered against the whole widget rather than pinned to the top, so it
-	   stays put as the panel grows when replace opens. */
-	top: 50% !important;
-	transform: translateY(-50%);
+	/* Anchored to both edges and centered by its own flex box, for the same
+	   reason as the chevron: `top: 50%` resolves against a padding box that is
+	   not vertically symmetric here. Stays put as the panel grows when replace
+	   opens. */
+	top: 0 !important;
+	bottom: 0 !important;
 	right: 4px !important;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
 	padding: 0 !important;
-	width: 18px !important;
-	height: 18px !important;
+	width: 20px !important;
 	font-size: 14px !important;
 	line-height: 1 !important;
 	color: var(--vscode-icon-foreground, inherit) !important;
 	background: transparent !important;
 	border: none !important;
-	border-radius: 3px;
 	cursor: pointer;
 }
-.cm-search button[name='close']:hover {
-	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2)) !important;
+/* The `×` is drawn into a square of its own, so hovering highlights a button
+   rather than the full-height strip the element now spans. */
+.cm-search button[name='close']::before {
+	content: ' d7';
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	border-radius: 3px;
+}
+.cm-search button[name='close'] {
+	font-size: 0 !important; /* hides the library's own text node */
+}
+.cm-search button[name='close']::before {
+	font-size: 14px;
+}
+.cm-search button[name='close']:hover::before {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
 }
 
 /* Match highlight colors — VS Code's own find-match colors instead of the
