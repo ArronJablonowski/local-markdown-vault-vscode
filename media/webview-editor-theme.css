@@ -812,15 +812,16 @@ table.mlp-frontmatter td pre {
 	left: auto !important;
 	z-index: 301 !important;
 	box-sizing: border-box !important;
-	/* The widget sizes to its contents rather than to a fixed width, so the
-	   find-only state is compact and opening replace grows it — the way VS
-	   Code's own widget behaves. */
 	/* A fixed width rather than one that follows the contents: sized to the find
 	   row, it would otherwise grow when replace opens, because that row's two
 	   buttons are wider than the find row's controls. The widget staying exactly
 	   the same width as it expands downward is what VS Code does, and it stops
-	   the panel jumping sideways under the pointer as the chevron is clicked. */
-	width: 420px !important;
+	   the panel jumping sideways under the pointer as the chevron is clicked.
+
+	   In `em` rather than pixels so it tracks the editor's font size: at a fixed
+	   420px a zoomed-in panel could not fit its own find row, and the controls
+	   wrapped wherever they happened to run out of space. */
+	width: 32em !important;
 	max-width: calc(100% - 40px) !important;
 	/* Symmetric horizontal insets: 28px each side clears the chevron on the left
 	   and the close button on the right, each of which is 4px in and 20px wide. */
@@ -837,14 +838,26 @@ table.mlp-frontmatter td pre {
 /* The library emits the panel as one flat run of controls with a `<br>`
    separating the find row from the replace row. Flex with wrapping rebuilds VS
    Code's shape: everything flows on one line, and the `<br>` — given full width
-   — forces the replace controls onto a second line. The chevron is pulled to
-   the left of both by `order`, so it reads as belonging to the whole widget
-   rather than to the find row. */
+   — forces the replace controls onto a second line.
+
+   Wrapping is what draws the two rows, but it will also break a row anywhere it
+   runs short of space, which is what put "すべて置換" on a line of its own when
+   the editor was zoomed in. Each row is therefore held together by
+   `flex-shrink` on its own controls (see below): the buttons and toggles keep
+   their size, and the text field alone gives up width, so a row narrows rather
+   than splitting. The `<br>` stays the only place a line can break. */
 .cm-panel.cm-search {
 	display: flex !important;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
+}
+/* Nothing but the text fields may shrink, and nothing may wrap on its own — so
+   a cramped row squeezes its field instead of dropping a button to the next
+   line. */
+.cm-search .cm-button,
+.cm-search label {
+	flex: 0 0 auto !important;
 }
 /* A flex item that fills the line forces everything after it onto the next
    one. `flex-basis` alone is not enough: the item can still be shrunk to fit
@@ -942,7 +955,10 @@ table.mlp-frontmatter td pre {
    collapse to its content width. */
 .cm-search .cm-textfield {
 	flex: 1 1 0 !important;
-	min-width: 80px !important;
+	/* Small enough that the field always has room to absorb a cramped row: a
+	   larger floor would stop it shrinking and push a button onto its own line,
+	   which is the wrapping this layout exists to avoid. */
+	min-width: 3em !important;
 	width: auto !important;
 }
 
