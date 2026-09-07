@@ -816,7 +816,10 @@ table.mlp-frontmatter td pre {
 	   find-only state is compact and opening replace grows it — the way VS
 	   Code's own widget behaves. */
 	width: auto !important;
-	max-width: calc(100% - 40px) !important;
+	/* Wide enough for the find row, and no wider: the fields below are fixed, so
+	   the widget sizes to them rather than stretching toward the editor's edge
+	   the way the library's full-width bar does. */
+	max-width: min(460px, calc(100% - 40px)) !important;
 	padding: 4px 26px 4px 4px !important; /* right padding clears the close button */
 	background: var(--vscode-editorWidget-background, #252526) !important;
 	color: var(--vscode-editorWidget-foreground, inherit) !important;
@@ -840,8 +843,13 @@ table.mlp-frontmatter td pre {
 	gap: 4px;
 	padding-left: 26px !important; /* the chevron sits in this gutter */
 }
+/* A flex item that fills the line forces everything after it onto the next
+   one. `flex-basis` alone is not enough: the item can still be shrunk to fit
+   beside its siblings, which is what kept the replace row on line one. Pinning
+   the width and forbidding the shrink is what actually breaks the line. */
 .cm-search br {
-	flex-basis: 100%;
+	flex: 0 0 100%;
+	width: 100%;
 	height: 0;
 	margin: 0;
 }
@@ -891,7 +899,7 @@ table.mlp-frontmatter td pre {
 .cm-search .cm-textfield,
 .cm-dialog .cm-textfield {
 	font: inherit !important;
-	width: 170px !important;
+	width: 150px !important;
 	box-sizing: border-box !important;
 	padding: 3px 6px !important;
 	color: var(--vscode-input-foreground, inherit) !important;

@@ -98,6 +98,9 @@ const en = {
 	// CodeMirror's `phrases` facet so the widget matches the rest of the UI.
 	'search.find': 'Find',
 	'search.replace': 'Replace',
+	// The panel uses a capitalized "Replace" for the field's placeholder and a
+	// lowercase "replace" for the button, so both are mapped.
+	'search.replaceButton': 'replace',
 	'search.next': 'next',
 	'search.previous': 'previous',
 	'search.all': 'all',
@@ -197,6 +200,7 @@ const ja: Record<MessageKey, string> = {
 
 	'search.find': '検索',
 	'search.replace': '置換',
+	'search.replaceButton': '置換',
 	'search.next': '次へ',
 	'search.previous': '前へ',
 	'search.all': 'すべて',

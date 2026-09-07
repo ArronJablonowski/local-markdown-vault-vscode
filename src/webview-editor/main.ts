@@ -117,6 +117,7 @@ function createExtensions(): Extension[] {
 			'match case': t('search.matchCase'),
 			regexp: t('search.regexp'),
 			'by word': t('search.byWord'),
+			replace: t('search.replaceButton'),
 			'replace all': t('search.replaceAll'),
 			close: t('search.close'),
 			'current match': t('search.currentMatch'),
