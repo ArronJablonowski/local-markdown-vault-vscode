@@ -815,11 +815,13 @@ table.mlp-frontmatter td pre {
 	/* The widget sizes to its contents rather than to a fixed width, so the
 	   find-only state is compact and opening replace grows it — the way VS
 	   Code's own widget behaves. */
-	width: auto !important;
-	/* Wide enough for the find row, and no wider: the fields below are fixed, so
-	   the widget sizes to them rather than stretching toward the editor's edge
-	   the way the library's full-width bar does. */
-	max-width: min(460px, calc(100% - 40px)) !important;
+	/* A fixed width rather than one that follows the contents: sized to the find
+	   row, it would otherwise grow when replace opens, because that row's two
+	   buttons are wider than the find row's controls. The widget staying exactly
+	   the same width as it expands downward is what VS Code does, and it stops
+	   the panel jumping sideways under the pointer as the chevron is clicked. */
+	width: 420px !important;
+	max-width: calc(100% - 40px) !important;
 	padding: 4px 26px 4px 4px !important; /* right padding clears the close button */
 	background: var(--vscode-editorWidget-background, #252526) !important;
 	color: var(--vscode-editorWidget-foreground, inherit) !important;
@@ -861,16 +863,23 @@ table.mlp-frontmatter td pre {
 
 /* Chevron that reveals the replace row. Positioned in the padding gutter so it
    sits centered against the whole widget, as VS Code's does, rather than
-   participating in the flex flow. */
+   participating in the flex flow.
+
+   Sized as a square and centered with a transform rather than stretched between
+   `top` and `bottom`: spanning the full height made its hover highlight a tall
+   strip down the side of the widget, which grew taller still when replace
+   opened. */
 .mlp-search-toggle {
 	position: absolute;
 	left: 4px;
-	top: 4px;
-	bottom: 4px;
+	top: 50%;
+	transform: translateY(-50%);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
 	padding: 0;
 	font: inherit;
 	font-size: 14px;
@@ -884,8 +893,10 @@ table.mlp-frontmatter td pre {
 .mlp-search-toggle:hover {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
 }
+/* Composed with the centering translate above — a bare `rotate()` here would
+   replace it and drop the button back to the top. */
 .cm-search.mlp-search-replace-open .mlp-search-toggle {
-	transform: rotate(90deg);
+	transform: translateY(-50%) rotate(90deg);
 }
 
 /* Find is the common case, so the replace row stays out of the way until the
@@ -909,6 +920,17 @@ table.mlp-frontmatter td pre {
 	outline: none !important;
 	vertical-align: middle !important;
 }
+/* In the panel the field takes whatever space its row's buttons leave. Both
+   fields flex the same way, so find and replace stay aligned with each other
+   even though the buttons beside them differ in width. Scoped to `.cm-search`
+   because `.cm-dialog` (go-to-line) is not a flex container and would just
+   collapse to its content width. */
+.cm-search .cm-textfield {
+	flex: 1 1 0 !important;
+	min-width: 80px !important;
+	width: auto !important;
+}
+
 .cm-search .cm-textfield:focus,
 .cm-dialog .cm-textfield:focus {
 	border-color: var(--vscode-focusBorder, #007fd4) !important;
