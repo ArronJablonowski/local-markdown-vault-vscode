@@ -12,6 +12,8 @@ import type { Page } from '@playwright/test';
 const HOST_STUB = [
 	"window.mlpLocale = 'en';",
 	"window.mlpNonce = 'test';",
+	"window.mlpMermaidChunkUri = 'https://example.invalid/mermaid-chunk.js';",
+	"window.mlpAwsShapesUri = 'https://example.invalid/aws4-shapes.json';",
 	'window.__posted = [];',
 	'window.acquireVsCodeApi = function () {',
 	'  return {',
@@ -39,6 +41,22 @@ const ROOT = join(__dirname, '..', '..');
 export async function mountEditor(page: Page, text: string): Promise<void> {
 	const script = readFileSync(join(ROOT, 'dist', 'webview-editor.js'), 'utf8');
 	const style = readFileSync(join(ROOT, 'media', 'webview-editor-theme.css'), 'utf8');
+
+	// The Mermaid bundle is fetched lazily by URI, and the AWS shape table by
+	// `fetch`. Serving both from the page's own origin lets the diagram widgets
+	// run for real rather than being stubbed into always-failing.
+	await page.route('**/mermaid-chunk.js', (route) =>
+		route.fulfill({
+			contentType: 'application/javascript',
+			body: readFileSync(join(ROOT, 'dist', 'mermaid-chunk.js'), 'utf8'),
+		}),
+	);
+	await page.route('**/aws4-shapes.json', (route) =>
+		route.fulfill({
+			contentType: 'application/json',
+			body: readFileSync(join(ROOT, 'dist', 'aws4-shapes.json'), 'utf8'),
+		}),
+	);
 
 	await page.setContent(`<!DOCTYPE html>
 <html lang="en">
@@ -82,12 +100,26 @@ ${style}
 					version: 0,
 					baseUri: 'https://example.invalid/',
 					css: '',
+					codeTheme: 'dark-plus',
 				},
 			}),
 		);
 	}, text);
 
 	await page.waitForSelector('.cm-content');
+}
+
+/**
+ * Sends a message to the webview as the host would.
+ *
+ * The webview's whole input surface is `window.postMessage`, so this is how a
+ * test drives anything the host normally supplies — syntax-highlight tokens, a
+ * CSS theme, an external edit.
+ */
+export async function postToWebview(page: Page, message: unknown): Promise<void> {
+	await page.evaluate((data) => {
+		window.dispatchEvent(new MessageEvent('message', { data }));
+	}, message);
 }
 
 /** Opens the find panel and waits for it to mount. */

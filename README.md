@@ -164,6 +164,13 @@ With the `watch` task running, changing the code and reloading the Extension Dev
 
 ### Manual verification steps
 
+Most of what follows is now automated — see `npm run test:all` and the `test`
+skill. Steps 2-8 and 12-14 run in the integration and e2e suites; what is left
+genuinely manual is step 1 (the editor-title icon) and step 11 (state surviving
+a restart). The list is kept because it still describes what the extension is
+supposed to do, and because a suite that has never been read is easy to trust
+too much.
+
 `sample/sample.md` covers headings (h1–h6), bold, italic, strikethrough, inline code, blockquotes, lists, task lists, links, images, horizontal rules, a `python` code block, `mermaid` blocks (small and large diagrams), and tables (including one with blank cells, and one directly under a list item with no blank line before it). Walk through the following:
 
 1. Open `sample/sample.md` in the normal text editor and confirm the toggle icon appears at the top right of the editor title bar.
