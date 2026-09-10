@@ -5,35 +5,23 @@
 All notable changes to this extension are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Fixed
-
-- **A rendered image could not be edited.** Clicking one placed no caret,
-  because a widget ignores every event unless it says otherwise — so the line
-  never gained a cursor and the `![alt](url)` behind it stayed hidden. Searching
-  for part of the URL had the same result: the view scrolled to the image but
-  left it rendered.
-- **The text cursor was black on dark themes.** `drawSelection()` draws its own
-  caret, whose library default is a hardcoded black; it is now pointed at the
-  same VS Code theme variable the native caret already used.
+## [0.2.0] — 2026-09-10
 
 ### Added
 
 - **Search and replace** (`Ctrl+F`), in a panel that floats over the top-right
   of the editor the way VS Code's own does. Replace is collapsed behind a
-  chevron, since finding is much the more common of the two. `Enter`/`F3` step through matches,
-  `Ctrl+D` adds the next occurrence as a cursor, `Esc` closes the panel; case,
-  whole-word and regular-expression modes are all available. Searching runs
-  against the raw Markdown, so `](url)`, a table's pipes and a heading's `#`
-  are findable while the preview hides them — and a match inside hidden syntax
-  reveals that syntax, so what was found is always visible.
-- Multiple cursors now actually work. The editor never enabled CodeMirror's
+  chevron, since finding is much the more common of the two. `Enter`/`F3` step
+  through matches, `Ctrl+D` adds the next occurrence as a cursor, `Esc` closes
+  the panel; case, whole-word and regular-expression modes are all available.
+  Searching runs against the raw Markdown, so `](url)`, a table's pipes and a
+  heading's `#` are findable while the preview hides them — and a match inside
+  hidden syntax reveals that syntax, so what was found is always visible.
+- **Multiple cursors now actually work.** The editor never enabled CodeMirror's
   multiple-selection support, so the multi-cursor behaviour `Ctrl+B`/`Ctrl+I`
   already documented had no way to arise, and `Ctrl+D` would have collapsed to
   a single cursor.
-
-## [0.1.0] — 2026-09-05
+- `.markdown` files open in the live preview, alongside `.md`.
 
 ### Changed
 
@@ -48,20 +36,25 @@ This project follows [Semantic Versioning](https://semver.org/).
 - The Marketplace description now leads with `.drawio` rendering, which no
   other Markdown extension offers.
 
-### Added
-
-- `.markdown` files open in the live preview, alongside `.md`.
-
 ### Fixed
 
+- **A rendered image could not be edited.** Clicking one placed no caret,
+  because a widget ignores every event unless it says otherwise — so the line
+  never gained a cursor and the `![alt](url)` behind it stayed hidden. Dragging
+  across the URL to select it had the same problem, and searching for part of
+  it scrolled to the image but left it rendered.
+- **The text cursor was black on dark themes.** The editor draws its own caret
+  to support multiple cursors, and the library default for that is a hardcoded
+  black; it now follows the VS Code theme like the native caret already did.
 - Removed a leftover `**/temp/readonly/*` file pattern that let this editor
   claim unrelated files.
 - The "CSS Themes" sidebar view had a blank title (a single space).
 
 ### Note on the version number
 
-This release is `0.1.0` rather than `1.0.0`. Search and replace, math, footnotes,
-callouts and export are still missing; `1.0.0` is reserved for when those land.
+`0.1.0` was prepared but never published, so its changes are listed here.
+Search and replace is one of the things `1.0.0` is waiting on; math, footnotes,
+callouts and export are still missing.
 
 ## [0.0.12] — 2026-09-02
 
@@ -281,17 +274,7 @@ callouts and export are still missing; `1.0.0` is reserved for when those land.
 この拡張機能の主な変更点をまとめています。
 バージョン番号は [セマンティック バージョニング](https://semver.org/lang/ja/) に従っています。
 
-## [未リリース]
-
-### 修正
-
-- **画像の URL を編集できませんでした。** 画像をクリックしてもカーソルが置かれず、
-  そのため`![alt](url)`が表示されないままでした(ウィジェットは既定ですべての
-  イベントを無視するためです)。URL の一部を検索した場合も同様で、画像までは
-  移動するものの、画像は描画されたままでした。
-- **ダークテーマでカーソルが黒く見づらい問題を修正しました。** `drawSelection()`が
-  独自に描くカーソルの既定色が黒固定だったためです。従来のカーソルと同じ
-  VS Code のテーマ変数を参照するようにしました。
+## [0.2.0] — 2026-09-10
 
 ### 追加
 
@@ -302,15 +285,14 @@ callouts and export are still missing; `1.0.0` is reserved for when those land.
   プレビューが隠している`](url)`や表のパイプ、見出しの`#`も検索できます。
   隠れた記法の中に一致が見つかった場合はその記法が表示されるため、
   何が見つかったのかを必ず目で確認できます。
-- 複数カーソルが実際に動くようになりました。CodeMirror の複数選択機能が
+- **複数カーソルが実際に動くようになりました。** CodeMirror の複数選択機能が
   有効になっていなかったため、`Ctrl+B`/`Ctrl+I`の説明にあった複数カーソル対応は
   そもそも発生しようがなく、`Ctrl+D`も単一カーソルに潰れる状態でした。
-
-## [0.1.0] — 2026-09-05
+- `.md` に加えて `.markdown` もライブプレビューで開くようになりました。
 
 ### 変更
 
-- **UI が VS Code の表示言語に追従するようになりました**（既定は英語）。
+- **UI が VS Code の表示言語に追従するようになりました**(既定は英語)。
   これまでメニュー・ボタン・ツールチップ・メッセージがすべて日本語固定で、
   日本語を読まない利用者はインストール直後に日本語の UI に出会っていました。
   判定に使うのは **VS Code 本体の表示言語**で、開いている文書の中身ではありません。
@@ -321,20 +303,24 @@ callouts and export are still missing; `1.0.0` is reserved for when those land.
 - Marketplace の説明文を、他のどの Markdown 拡張機能にもない `.drawio` の描画から
   始まるように書き直しました。
 
-### 追加
-
-- `.md` に加えて `.markdown` もライブプレビューで開くようになりました。
-
 ### 修正
 
+- **画像の URL を編集できませんでした。** 画像をクリックしてもカーソルが置かれず、
+  そのため`![alt](url)`が表示されないままでした(ウィジェットは既定ですべての
+  イベントを無視するためです)。ドラッグして URL を選択しようとした場合も同様で、
+  URL の一部を検索した場合は画像までは移動するものの、画像は描画されたままでした。
+- **ダークテーマでカーソルが黒く見づらい問題を修正しました。** 複数カーソルのために
+  エディタが独自にカーソルを描くようになり、その既定色が黒固定だったためです。
+  従来と同じく VS Code のテーマ色に追従するようにしました。
 - 開発時の名残だった `**/temp/readonly/*` のパターンを削除しました。
   無関係なファイルをこのエディタが開いてしまう可能性がありました。
 - サイドバーの「CSSテーマ」の見出しが空白 1 文字で、表示されていませんでした。
 
 ### バージョン番号について
 
-このリリースは `1.0.0` ではなく `0.1.0` です。検索・置換、数式、脚注、
-コールアウト、書き出しがまだありません。`1.0.0` はそれらが揃ってからにします。
+`0.1.0` は用意しましたが公開しなかったため、その内容もここにまとめています。
+検索・置換は `1.0.0` の条件の 1 つです。数式・脚注・コールアウト・書き出しは
+まだありません。
 
 ## [0.0.12] — 2026-09-02
 
