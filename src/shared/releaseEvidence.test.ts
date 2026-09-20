@@ -147,6 +147,8 @@ describe('release security evidence', () => {
 		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'vsix-smoke.test.ts'), 'utf8');
 		expect(runner).toContain("'--install-extension', vsix");
 		expect(runner).toContain("['trusted', 'restricted']");
+		expect(runner).toContain('resolveCliPathFromVSCodeExecutablePath(executable)');
+		expect(runner).toContain("process.platform === 'win32'");
 		expect(runner).toContain('`--extensionDevelopmentPath=${harness}`');
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');

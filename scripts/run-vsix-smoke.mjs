@@ -3,7 +3,7 @@ import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { downloadAndUnzipVSCode, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-electron';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -16,7 +16,8 @@ const harness = resolve(root, 'test/vsix-harness');
 const testFile = resolve(root, 'out-test/integration/vsix-smoke.test.js');
 await Promise.all([access(vsix), access(runner), access(harness), access(testFile)]);
 const executable = await downloadAndUnzipVSCode('stable');
-const cli = await findCli(executable);
+const cli = resolveCliPathFromVSCodeExecutablePath(executable);
+await access(cli);
 
 for (const mode of ['trusted', 'restricted']) {
 	await runMode(mode);
@@ -44,14 +45,13 @@ async function runMode(mode) {
 			}, null, 2)),
 		]);
 
-		await run(executable, [
-			cli,
+		await run(cli, [
 			'--install-extension', vsix,
 			'--force',
 			`--user-data-dir=${userDataDir}`,
 			`--extensions-dir=${extensionsDir}`,
 			'--disable-telemetry',
-		], { ELECTRON_RUN_AS_NODE: '1' });
+		], {}, process.platform === 'win32');
 
 		const testOptions = JSON.stringify({
 			mochaOpts: { ui: 'tdd', timeout: 60_000 },
@@ -89,30 +89,16 @@ async function runMode(mode) {
 	}
 }
 
-async function run(command, args, extraEnv = {}) {
+async function run(command, args, extraEnv = {}, shell = false) {
 	const env = { ...process.env };
 	delete env.ELECTRON_RUN_AS_NODE;
 	Object.assign(env, extraEnv);
 	await new Promise((resolveRun, rejectRun) => {
-		const child = spawn(command, args, { cwd: root, stdio: 'inherit', env });
+		const child = spawn(command, args, { cwd: root, stdio: 'inherit', env, shell });
 		child.once('error', rejectRun);
 		child.once('exit', (code, signal) => {
 			if (code === 0) resolveRun();
 			else rejectRun(new Error(`VSIX smoke process exited with ${code ?? signal ?? 'an unknown status'}.`));
 		});
 	});
-}
-
-async function findCli(executable) {
-	const executableDirectory = dirname(executable);
-	const candidates = process.platform === 'darwin'
-		? [resolve(executableDirectory, '..', 'Resources', 'app', 'out', 'cli.js')]
-		: [resolve(executableDirectory, 'resources', 'app', 'out', 'cli.js')];
-	for (const candidate of candidates) {
-		try {
-			await access(candidate);
-			return candidate;
-		} catch { /* Try the next platform layout. */ }
-	}
-	throw new Error(`Could not locate the bundled VS Code CLI beside ${executable}.`);
 }

@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Launch packaged-VSIX installation through the official platform-aware VS Code CLI resolver, including the Windows `code.cmd` archive layout, while retaining isolated trusted and Restricted Mode profiles.
 - Make path-containment and source-boundary security tests platform-neutral by deriving fixture paths with the host path API and normalizing checked-out source line endings, allowing the same assertions to run on Windows, macOS, and Linux.
 - Keep an opaque open-file lease for each newly written attachment until its editor transaction commits or rolls back, preventing immediate Linux inode reuse from making identity-based cleanup delete another writer's replacement file.
 - Refresh immutable GitHub Actions pins to the current official Node 24-based releases, removing the hosted runner's Node 20 deprecation path without using mutable version tags.
