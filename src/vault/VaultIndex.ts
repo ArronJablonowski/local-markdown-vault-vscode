@@ -95,6 +95,22 @@ export class VaultIndex implements vscode.Disposable {
 		return searchVaultRecords(this.all(), query, limit);
 	}
 
+	/** Exposed only through the non-production extension test API. */
+	get cacheUri(): vscode.Uri {
+		return this.storageUri;
+	}
+
+	/** Commits any pending cache update for extension-host privacy inspection. */
+	async flushCache(): Promise<void> {
+		if (this.persistTimer) {
+			clearTimeout(this.persistTimer);
+			this.persistTimer = undefined;
+			await this.persist();
+			return;
+		}
+		await this.persistQueue;
+	}
+
 	/**
 	 * Commits debounced and in-flight open-document metadata before a user-facing
 	 * search selects candidates. Unsaved text therefore wins deterministically

@@ -17,6 +17,8 @@ interface DevelopmentApi {
 	getVaultRecentPaths(): readonly string[];
 	getVaultIndexRecords(): readonly VaultIndexRecord[];
 	getVaultStorageIdentity(): { id: string; canonicalRootUri: string; legacyIds: readonly string[] } | undefined;
+	getVaultCacheUri(): vscode.Uri | undefined;
+	flushVaultIndexCache(): Promise<void>;
 	cancelVaultIndexRebuild(): Promise<void>;
 	getCodeTokenizationRunCount(): number;
 	getVaultTreeRevision(): number;
@@ -270,6 +272,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 					canonicalRootUri: index.vault.canonicalRootUri.toString(),
 					legacyIds: index.legacyIds,
 				} : undefined;
+			},
+			getVaultCacheUri: () => vaultRegistration.getIndex()?.cacheUri,
+			flushVaultIndexCache: async () => {
+				const index = vaultRegistration.getIndex();
+				if (!index) throw new Error('Document Vault is unavailable.');
+				await index.flushCache();
 			},
 			cancelVaultIndexRebuild: async () => {
 				const index = vaultRegistration.getIndex();

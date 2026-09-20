@@ -27,6 +27,8 @@ interface DevelopmentApi {
 	getVaultIndexRecords(): readonly IndexRecord[];
 	getVaultRecentPaths(): readonly string[];
 	getVaultStorageIdentity(): { id: string; canonicalRootUri: string; legacyIds: readonly string[] } | undefined;
+	getVaultCacheUri(): vscode.Uri | undefined;
+	flushVaultIndexCache(): Promise<void>;
 	searchVault(query: string, limit?: number): Promise<readonly SearchResult[]>;
 }
 
@@ -176,6 +178,64 @@ suite('local knowledge navigation', () => {
 		assert.ok(negatedMatching.some((result) => result.record.path === relative));
 		const negatedNonmatching = await api.searchVault('-property:status=ready');
 		assert.ok(!negatedNonmatching.some((result) => result.record.path === relative));
+	});
+
+	test('persists only structural metadata and rebuilds search after cache deletion', async () => {
+		const folder = await makeFixture();
+		const note = vscode.Uri.joinPath(folder, 'Disposable Cache Privacy.md');
+		const relative = relativePath(note);
+		const propertySecret = 'cache-property-secret-7f31';
+		const taskSecret = 'cache-task-secret-8a42';
+		const bodySecret = 'cache-body-secret-9b53';
+		await vscode.workspace.fs.writeFile(note, bytes([
+			'---',
+			'aliases: [Disposable Privacy Alias]',
+			'password: ' + propertySecret,
+			'---',
+			'# Cache privacy heading',
+			'',
+			'- [ ] ' + taskSecret,
+			'',
+			'This searchable sentence contains ' + bodySecret + '.',
+		].join('\n')));
+
+		await waitFor(() => api.getVaultIndexRecords().some((record) => record.path === relative));
+		assert.ok((await api.searchVault(bodySecret)).some((result) => result.record.path === relative));
+		await api.flushVaultIndexCache();
+
+		const cacheUri = api.getVaultCacheUri();
+		assert.ok(cacheUri, 'development cache location is unavailable');
+		const firstCache = new TextDecoder('utf-8', { fatal: true }).decode(await vscode.workspace.fs.readFile(cacheUri));
+		assert.ok(!firstCache.includes(propertySecret), 'persisted cache retained a frontmatter value');
+		assert.ok(!firstCache.includes(taskSecret), 'persisted cache retained task text');
+		assert.ok(!firstCache.includes(bodySecret), 'persisted cache retained a body-derived search token');
+		const firstEnvelope = JSON.parse(firstCache) as { records: Array<{
+			path: string;
+			properties: Record<string, unknown>;
+			tasks: Array<{ text: string }>;
+			searchTokens: string[];
+		}> };
+		const persisted = firstEnvelope.records.find((record) => record.path === relative);
+		assert.ok(persisted, 'persisted cache omitted the fixture record');
+		assert.strictEqual(persisted.properties.password, null);
+		assert.ok(persisted.tasks.every((task) => task.text === ''));
+		assert.ok(!persisted.searchTokens.includes(bodySecret));
+
+		await vscode.workspace.fs.delete(cacheUri, { useTrash: false });
+		await vscode.commands.executeCommand('mdLivePreview.vault.rebuildIndex');
+		const rebuilt = await api.searchVault(bodySecret);
+		const result = rebuilt.find((candidate) => candidate.record.path === relative);
+		assert.ok(result, 'cache-free rebuild did not restore body search');
+		await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', relative, result.line);
+		const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+		assert.ok(input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom);
+		assert.strictEqual(input.uri.toString(), note.toString(), 'cache-free rebuild did not restore navigation');
+
+		await api.flushVaultIndexCache();
+		const rebuiltCache = new TextDecoder('utf-8', { fatal: true }).decode(await vscode.workspace.fs.readFile(cacheUri));
+		for (const secret of [propertySecret, taskSecret, bodySecret]) {
+			assert.ok(!rebuiltCache.includes(secret), `rebuilt cache retained ${secret}`);
+		}
 	});
 
 	test('does not open an indexed note replaced by an outside-vault symlink', async () => {
