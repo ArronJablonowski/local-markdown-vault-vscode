@@ -9,7 +9,7 @@
 | Document status | Approved implementation roadmap |
 | Audience | Project owner, maintainers, security reviewers, and implementation engineers |
 | Last researched | 2026-09-19 |
-| Delivery model | Local-only VS Code extension |
+| Delivery model | Local-only VS Code extension; macOS-first developer preview |
 
 ## 1. Executive summary
 
@@ -20,6 +20,8 @@ The product will treat one local VS Code workspace folder as a vault. It will ne
 Security is the release gate, not a parallel enhancement. Before vault or rendering capabilities expand, the extension must block unsolicited network access, validate all webview messages, confine filesystem access to the canonical vault root, sanitize generated SVG, apply resource limits, and support VS Code Restricted Mode. Opening a malicious Markdown file must not execute code, contact a remote host, invoke a command, or read or write outside the vault.
 
 The roadmap intentionally targets the parts of Obsidian that support local writing and knowledge management. It does not attempt to clone the entire Obsidian application.
+
+The first user-facing developer preview supports macOS. The implementation remains portable and continues to run hosted Windows and Linux checks, but those operating systems are not support claims until their manual filesystem, Trash, accessibility, and packaged-extension qualification is completed in Phase 4.
 
 ## 2. Product vision and principles
 
@@ -553,7 +555,7 @@ Deliver URL and network policy, path confinement, runtime schemas, CSP tightenin
 
 Deliver the native tree, safe filesystem operations, automatic transactional link rewriting, attachments, watchers, exclusions, settings, and vault-level tests.
 
-**Done:** every `VLT-*` requirement passes on Windows, macOS, and Linux; link updates are one-step undoable; no operation escapes the vault; and external filesystem changes converge without restart.
+**Done for the macOS developer preview:** every `VLT-*` requirement passes on macOS; link updates are one-step undoable; no operation escapes the vault; and external filesystem changes converge without restart. Hosted Windows and Linux automation must stay green, while manual support qualification for those platforms is deferred to Phase 4.
 
 ### Phase 2 Editor parity
 
@@ -569,7 +571,7 @@ Deliver the incremental index, Quick Switcher, vault search, aliases, backlinks,
 
 ### Phase 4 Release quality
 
-Finish localization, accessibility, migration notes, user and contributor documentation, Marketplace metadata, release packaging, security review, and cross-platform validation.
+Finish localization, accessibility, migration notes, user and contributor documentation, Marketplace metadata, release packaging, security review, and manual Windows/Linux support qualification in addition to the macOS preview evidence.
 
 **Done:** every `A11Y-*` requirement passes; all supported locales have complete source strings; the production VSIX reproduces the tested behavior; and no critical or high release-blocking issue remains.
 

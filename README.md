@@ -2,7 +2,7 @@
 
 Secure, local-only Markdown editing for Visual Studio Code, with an Obsidian-style Live Preview and a workspace Document Vault.
 
-> **Project status:** active pre-release development. Install from source or a locally built VSIX. This extension is not yet published to the Visual Studio Marketplace.
+> **Project status:** usable macOS developer preview in active pre-release development. Install from source or a locally built VSIX. Windows and Linux qualification is planned later, and the extension is not yet published to the Visual Studio Marketplace.
 
 Local Markdown Vault keeps notes and attachments as ordinary files in one local VS Code workspace. It does not provide cloud sync, accounts, telemetry, publishing, or background uploads.
 
@@ -54,6 +54,7 @@ The first supported vault model is exactly one local `file:` workspace folder. M
 ## Requirements
 
 - Visual Studio Code 1.90 or newer
+- macOS for the initially supported developer preview
 - A local folder opened as a VS Code workspace
 - Node.js 24 LTS and npm to build from source
 - Git to clone the repository
@@ -169,6 +170,7 @@ Additional references:
 
 ## Known limitations
 
+- macOS is the only initially supported preview platform. Windows and Linux run in the automated portability matrix but remain unsupported until their manual filesystem, Trash, accessibility, and packaged-extension reviews are completed later in the development lifecycle.
 - Only one local workspace folder is supported as a vault.
 - Case-only rename transactions pass the automated Windows, macOS, and Linux matrix. Native macOS Trash movement, native text/vault transaction undo/redo, and real Live Preview keyboard undo/redo are automated on macOS; assistive-technology verification and Windows/Linux Trash behavior still require manual platform sign-off.
 - VoiceOver, NVDA, and Orca checks remain part of the manual pre-release matrix.
