@@ -246,7 +246,11 @@ suite('Document Vault filesystem transactions', () => {
 		const previous = configuration.inspect<string>('sortOrder')?.workspaceValue;
 		try {
 			await configuration.update('sortOrder', 'createdNewest', vscode.ConfigurationTarget.Workspace);
-			assert.deepStrictEqual(await api.getVaultTreePaths(fixtureRelative), [
+			const paths = await waitForVaultTreePaths(api, fixtureRelative, (current) =>
+				current.includes(`${fixtureRelative}/Newer.md`)
+				&& current.includes(`${fixtureRelative}/Older.md`),
+			);
+			assert.deepStrictEqual(paths, [
 				`${fixtureRelative}/Newer.md`,
 				`${fixtureRelative}/Older.md`,
 			]);
@@ -816,6 +820,22 @@ async function waitForCondition(predicate: () => boolean, message: string, timeo
 		await new Promise<void>((resolve) => setTimeout(resolve, 25));
 	} while (Date.now() < deadline);
 	assert.fail(message);
+}
+
+async function waitForVaultTreePaths(
+	api: Pick<DevelopmentApi, 'getVaultTreePaths'>,
+	parentPath: string,
+	predicate: (paths: readonly string[]) => boolean,
+	timeoutMs = 5_000,
+): Promise<readonly string[]> {
+	const deadline = Date.now() + timeoutMs;
+	let paths: readonly string[] = [];
+	do {
+		paths = await api.getVaultTreePaths(parentPath);
+		if (predicate(paths)) return paths;
+		await new Promise<void>((resolve) => setTimeout(resolve, 25));
+	} while (Date.now() < deadline);
+	assert.fail(`Document Vault tree did not converge within ${timeoutMs} ms; last paths: ${JSON.stringify(paths)}`);
 }
 
 function bytes(text: string): Uint8Array {
