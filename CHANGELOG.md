@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Made Quick Switcher flush pending open-document metadata before opening and refresh while its index changes, so newly typed unsaved aliases and note metadata appear deterministically.
 - Made Restricted Mode integration-profile cleanup retry transient Windows file locks so a passing extension-host run cannot fail solely because VS Code is still releasing `agenthost.log`.
 
 - Generate every scripted webview CSP nonce from the host cryptographic random-number generator instead of `Math.random()`.

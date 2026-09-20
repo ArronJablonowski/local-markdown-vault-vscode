@@ -534,6 +534,10 @@ async function showQuickSwitcher(
 	isCurrent: () => boolean,
 	trackPicker: <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>) => () => void,
 ): Promise<void> {
+	// Quick Switcher is an index-backed user action, so an unsaved alias or note
+	// title must win even when the command lands inside the document debounce.
+	await index.flushDocumentUpdates();
+	if (!isCurrent()) return;
 	const picker = vscode.window.createQuickPick<VaultQuickPickItem>();
 	const untrack = trackPicker(picker);
 	picker.title = vscode.l10n.t('Quick Switcher');
@@ -542,14 +546,16 @@ async function showQuickSwitcher(
 	picker.matchOnDetail = true;
 	const update = () => {
 		const query = picker.value.trim();
-		const records = query ? searchQuickSwitcherRecords(index.all(), query, 100) : recentRecords(index, context);
+		const allRecords = index.all();
+		const records = query ? searchQuickSwitcherRecords(allRecords, query, 100) : recentRecords(index, context);
 		const items: VaultQuickPickItem[] = records.map((record) => recordItem(record, Boolean(query)));
 		if (vscode.workspace.isTrusted && query && !validateVaultRelativeNotePath(query) &&
-			!hasExactQuickSwitcherRecord(index.all(), query)) {
+			!hasExactQuickSwitcherRecord(allRecords, query)) {
 			items.push({ label: `$(new-file) ${vscode.l10n.t('Create "{0}"', query)}`, createName: query });
 		}
 		picker.items = items;
 	};
+	const indexSubscription = index.onDidChange(update);
 	picker.onDidChangeValue(update);
 	picker.onDidAccept(async () => {
 		if (!isCurrent()) return picker.hide();
@@ -579,6 +585,7 @@ async function showQuickSwitcher(
 		}
 	});
 	picker.onDidHide(() => {
+		indexSubscription.dispose();
 		untrack();
 		picker.dispose();
 	});
