@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Made Restricted Mode integration-profile cleanup retry transient Windows file locks so a passing extension-host run cannot fail solely because VS Code is still releasing `agenthost.log`.
+
 - Generate every scripted webview CSP nonce from the host cryptographic random-number generator instead of `Math.random()`.
 - Strip XML Base attributes from renderer SVG so fragment-only Mermaid or draw.io references cannot be rebased to a remote resource.
 - Validate renderer SVG URL attributes by namespace-local name as well as serialized prefix, preventing a renamed XLink prefix from bypassing external-resource removal.

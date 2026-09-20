@@ -62,5 +62,14 @@ try {
 		});
 	});
 } finally {
-	await rm(profileRoot, { recursive: true, force: true });
+	// On Windows, VS Code's agent host can keep its log file open briefly after
+	// the main process reports a clean exit. Let Node retry the known transient
+	// EBUSY/EPERM/ENOTEMPTY failures instead of turning passing tests into a
+	// false-negative release result.
+	await rm(profileRoot, {
+		recursive: true,
+		force: true,
+		maxRetries: 10,
+		retryDelay: 250,
+	});
 }
