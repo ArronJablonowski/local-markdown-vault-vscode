@@ -67,7 +67,7 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => document.lineAt(0).text === '# Title one two', 'second redo did not restore the final text');
 	});
 
-	test('keeps Live Preview keyboard undo and redo synchronized with the TextDocument', async () => {
+	test('keeps Live Preview keyboard edits, save, and external changes synchronized', async () => {
 		const fixture = await makeFixture('live-preview');
 		const note = await service.createNote(fixture, 'Focused Live Preview');
 		const original = '# Live Preview\n';
@@ -88,11 +88,22 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => document.getText().includes(inserted), 'macOS keyboard input did not reach Live Preview');
 		const edited = document.getText();
 		assert.notStrictEqual(edited, original);
+		assert.strictEqual(document.isDirty, true, 'Live Preview keyboard input did not mark the document dirty');
 
 		await frame.page().keyboard.press('Meta+z');
 		await waitFor(() => document.getText() === original, 'Cmd+Z did not undo the Live Preview edit in the TextDocument');
 		await frame.page().keyboard.press('Meta+Shift+z');
 		await waitFor(() => document.getText() === edited, 'Cmd+Shift+Z did not redo the Live Preview edit in the TextDocument');
+
+		await frame.page().keyboard.press('Meta+s');
+		await waitFor(() => !document.isDirty, 'Cmd+S did not save the Live Preview document');
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), edited);
+
+		const external = '# External Live Preview update\n';
+		await vscode.workspace.fs.writeFile(note, bytes(external));
+		await waitFor(() => document.getText() === external, 'the TextDocument did not receive the external file change');
+		await waitFor(async () => (await editor.textContent())?.includes('External Live Preview update') === true,
+			'Live Preview did not render the external file change');
 	});
 
 	test('undoes and redoes a vault move and link rewrite as one unit', async () => {

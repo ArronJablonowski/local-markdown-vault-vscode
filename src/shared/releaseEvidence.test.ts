@@ -280,6 +280,8 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("frame.locator('.cm-content')");
 		expect(testSource).toContain("keyboard.press('Meta+z')");
 		expect(testSource).toContain("keyboard.press('Meta+Shift+z')");
+		expect(testSource).toContain("keyboard.press('Meta+s')");
+		expect(testSource).toContain('Live Preview did not render the external file change');
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});
