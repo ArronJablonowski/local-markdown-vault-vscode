@@ -182,6 +182,20 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('bounds every hosted workflow job with an explicit timeout', () => {
+		const workflowDirectory = join(ROOT, '.github', 'workflows');
+		for (const name of readdirSync(workflowDirectory).filter((candidate) => /\.ya?ml$/i.test(candidate))) {
+			const source = readFileSync(join(workflowDirectory, name), 'utf8');
+			const jobs = [...source.matchAll(/^\s+runs-on:\s*.+$/gm)];
+			const timeouts = [...source.matchAll(/^\s+timeout-minutes:\s*(\d+)\s*$/gm)].map((match) => Number(match[1]));
+			expect(timeouts.length, `${name} has a job without an explicit timeout`).toBe(jobs.length);
+			for (const timeout of timeouts) {
+				expect(timeout, `${name} has an invalid or excessive job timeout`).toBeGreaterThan(0);
+				expect(timeout, `${name} has an invalid or excessive job timeout`).toBeLessThanOrEqual(30);
+			}
+		}
+	});
+
 	it('keeps reference-machine performance budgets out of variable hosted runners', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;
