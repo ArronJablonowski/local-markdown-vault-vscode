@@ -383,6 +383,7 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("await editor.press('Tab')");
 		expect(testSource).toContain("chromium.connectOverCDP(`http://127.0.0.1:${port}`)");
 		expect(testSource).toContain(".mlp-wikilink[data-href=\"wikilink:Packaged%20Target\"]");
+		expect(testSource).toContain('the installed VSIX did not expose its local wikilink preview through keyboard focus');
 		expect(testSource).toContain("executeCommand('mdLivePreview.vault.focus')");
 		expect(testSource).toContain("executeCommand('mdLivePreview.quickSwitcher')");
 		expect(testSource).toContain("executeCommand('mdLivePreview.backlinks.focus')");

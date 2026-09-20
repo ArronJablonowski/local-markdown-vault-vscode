@@ -107,6 +107,16 @@ suite('Installed VSIX clean-profile smoke', () => {
 
 		const link = frame.locator('.mlp-wikilink[data-href="wikilink:Packaged%20Target"]');
 		await link.waitFor({ state: 'visible', timeout: 5_000 });
+		await focusControlWithKeyboard(frame, '.mlp-wikilink[data-href="wikilink:Packaged%20Target"]');
+		const preview = frame.locator('.mlp-wikilink-hover[role="tooltip"]');
+		await preview.waitFor({ state: 'visible', timeout: 5_000 });
+		const previewId = await preview.getAttribute('id');
+		assert.ok(previewId?.startsWith('mlp-wikilink-preview-'),
+			'the installed VSIX did not give its keyboard wikilink preview a stable accessible identity');
+		assert.strictEqual(await link.getAttribute('aria-describedby'), previewId,
+			'the installed VSIX did not associate its local wikilink preview with keyboard focus');
+		assert.match(await preview.textContent() ?? '', /Packaged Target/,
+			'the installed VSIX did not expose its local wikilink preview through keyboard focus');
 		await link.click();
 		await waitFor(() => activeTabUri()?.toString() === target.toString(),
 			'the installed VSIX did not navigate its rendered wikilink');
