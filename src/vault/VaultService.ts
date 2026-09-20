@@ -459,7 +459,11 @@ export class VaultService {
 	 * before invoking VS Code's trash-only filesystem operation. There is
 	 * deliberately no permanent-delete fallback.
 	 */
-	async moveToTrash(uri: vscode.Uri, symbolicLink: boolean): Promise<void> {
+	async moveToTrash(
+		uri: vscode.Uri,
+		symbolicLink: boolean,
+		isCurrent: () => boolean = () => true,
+	): Promise<void> {
 		await this.assertMutationSource(uri, symbolicLink);
 		const parent = vscode.Uri.file(dirname(uri.fsPath));
 		const parentBefore = await this.statEntryInside(parent);
@@ -475,7 +479,7 @@ export class VaultService {
 			entryAfter.isSymbolicLink() !== symbolicLink) {
 			throw new Error('The vault item changed before it could be moved to trash.');
 		}
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
 	}
 

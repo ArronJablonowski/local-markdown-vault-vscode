@@ -48,7 +48,7 @@ interface VaultServiceApi {
 	assertExpandableDirectory(uri: vscode.Uri): Promise<void>;
 	readFileInside(uri: vscode.Uri, maxBytes: number): Promise<{ bytes: Uint8Array; mtimeMs: number; size: number }>;
 	assertMutationSource(uri: vscode.Uri, symbolicLink: boolean): Promise<void>;
-	moveToTrash(uri: vscode.Uri, symbolicLink: boolean): Promise<void>;
+	moveToTrash(uri: vscode.Uri, symbolicLink: boolean, isCurrent?: () => boolean): Promise<void>;
 	resolveLocalImage(contextPath: string, authoredPath: string, maxBytes?: number): Promise<vscode.Uri>;
 	resolveLinkedAttachment(authoredTarget: string): Promise<vscode.Uri>;
 }
@@ -315,6 +315,16 @@ suite('Document Vault filesystem transactions', () => {
 		} finally {
 			await rm(outside, { recursive: true, force: true });
 		}
+	});
+
+	test('keeps an item when the active-vault trash commit guard is rejected', async () => {
+		const fixture = await makeFixture();
+		const note = await service.createNote(fixture, 'Keep me');
+		await assert.rejects(
+			service.moveToTrash(note, false, () => false),
+			/Document Vault changed/,
+		);
+		await vscode.workspace.fs.stat(note);
 	});
 
 	test('opens ordinary vault files but not symlink targets outside the vault', async () => {

@@ -160,9 +160,16 @@ describe('host security boundaries', () => {
 		expect(command.indexOf('assertMutationSource(')).toBeLessThan(
 			command.indexOf('const confirm = await vscode.window.showWarningMessage'),
 		);
-		expect(command).toContain('await service.moveToTrash(item.uri');
+		expect(command).toContain('await service.moveToTrash(');
+		expect(command).toContain('() => provider.service === service && vscode.workspace.isTrusted');
 		expect(service).toContain('await this.assertMutationSource(uri, symbolicLink)');
 		expect(service.match(/assertMutationSource\(uri, symbolicLink\)/g)).toHaveLength(2);
+		const trashMethod = service.slice(service.indexOf('async moveToTrash('), service.indexOf('\n\t/**', service.indexOf('async moveToTrash(')));
+		expect(trashMethod).toContain('isCurrent: () => boolean');
+		expect(trashMethod).toContain('this.assertOperationCurrent(isCurrent)');
+		expect(trashMethod.indexOf('this.assertOperationCurrent(isCurrent)')).toBeLessThan(
+			trashMethod.indexOf('vscode.workspace.fs.delete'),
+		);
 		expect(service).toContain('useTrash: true');
 		expect(command).not.toContain('useTrash: false');
 		expect(service).not.toContain('useTrash: false');
@@ -340,7 +347,7 @@ describe('host security boundaries', () => {
 	it('keeps operating-system trash execution inside the vault service boundary', () => {
 		const registration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
 		const service = readFileSync(join(ROOT, 'src', 'vault', 'VaultService.ts'), 'utf8');
-		expect(registration).toContain('await service.moveToTrash(item.uri');
+		expect(registration).toContain('await service.moveToTrash(');
 		expect(registration).not.toContain('workspace.fs.delete(item.uri');
 		expect(service).toContain("await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true })");
 		expect(service).not.toContain('useTrash: false');

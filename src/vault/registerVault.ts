@@ -422,7 +422,11 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			);
 			if (confirm !== vscode.l10n.t('Move to Trash') || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
-				await service.moveToTrash(item.uri, Boolean(item.fileType & vscode.FileType.SymbolicLink));
+				await service.moveToTrash(
+					item.uri,
+					Boolean(item.fileType & vscode.FileType.SymbolicLink),
+					() => provider.service === service && vscode.workspace.isTrusted,
+				);
 				if (provider.service !== service) return;
 				provider.refresh();
 				announceVaultCompletion(vscode.l10n.t('Moved "{0}" to Trash.', label));

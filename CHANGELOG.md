@@ -1,5 +1,7 @@
 # Changelog
 
+- Revalidate the active vault and Workspace Trust at the trash commit boundary so a trust or workspace transition cannot authorize a delayed deletion.
+
 [日本語](#日本語) | English
 
 All notable changes to this extension are documented here.
