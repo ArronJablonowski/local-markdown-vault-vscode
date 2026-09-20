@@ -533,12 +533,13 @@ suite('Document Vault filesystem transactions', () => {
 		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(destination)), destinationText);
 	});
 
-	test('reports both relative endpoints when a case-only source changes at the staging boundary', async () => {
+	test('reports both relative endpoints when a case-only source changes at the staging boundary', async function () {
 		const fixture = await makeFixture();
 		const source = await service.createNote(fixture, 'Case Race');
 		const sourceText = '# source moved externally\n';
 		await vscode.workspace.fs.writeFile(source, bytes(sourceText));
 		const destination = vscode.Uri.joinPath(fixture, 'case race.md');
+		if (!await service.aliasesEntry(destination, await service.statEntryInside(source))) this.skip();
 		const external = vscode.Uri.joinPath(fixture, 'Case Race.external.md');
 		const sourcePath = source.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/');
 		const destinationPath = destination.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/');
