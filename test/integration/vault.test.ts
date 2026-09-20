@@ -57,6 +57,8 @@ interface VaultServiceApi {
 interface DevelopmentApi {
 	getVaultService(): VaultServiceApi | undefined;
 	getVaultIndexRecords(): readonly { path: string }[];
+	getVaultCacheUri(): vscode.Uri | undefined;
+	flushVaultIndexCache(): Promise<void>;
 	cancelVaultIndexRebuild(): Promise<void>;
 	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
 	renameOrMoveMany(requests: readonly {
@@ -735,6 +737,11 @@ suite('Document Vault filesystem transactions', () => {
 		const relativeNote = service.rootUri.toString() === fixture.toString()
 			? 'Plain note.md'
 			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Plain note.md`;
+		await api.flushVaultIndexCache();
+		const cacheUri = api.getVaultCacheUri();
+		assert.ok(cacheUri, 'the rebuildable metadata cache is unavailable');
+		await vscode.workspace.fs.delete(cacheUri, { useTrash: false });
+		await assertMissing(cacheUri);
 		await vscode.commands.executeCommand('mdLivePreview.vault.rebuildIndex');
 		assert.ok(api.getVaultIndexRecords().some((record) => record.path === relativeNote), 'rebuilt index omitted the note');
 		assertBytesEqual(await vscode.workspace.fs.readFile(note), noteBytes, 'metadata rebuild changed Markdown bytes');

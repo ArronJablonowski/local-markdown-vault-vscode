@@ -114,7 +114,7 @@ reported as automated evidence.
 - [x] Keyboard-driven Live Preview undo and redo preserve one logical edit per step and never diverge from the backing `TextDocument`.
 - [ ] Existing Markdown, relative links, local attachments, CSS themes, split editors, and external edits behave as documented.
 - [ ] An existing Obsidian vault opens without changing `.obsidian/`; disabling the extension leaves all notes usable.
-- [ ] Deleting the metadata cache and selecting **Rebuild Vault Index** never changes note or attachment files.
+- [x] Deleting the metadata cache and selecting **Rebuild Vault Index** never changes note or attachment files.
 - [x] Inspect a generated metadata cache and confirm it contains no frontmatter values, task text, or body-derived search tokens; startup rebuild still restores complete search and navigation behavior.
 
 The macOS move/link and real Live Preview keyboard transactions are covered by `npm run test:integration:focused:macos`. The runner targets its isolated workbench over a loopback-only debugging endpoint, clicks the shipped CodeMirror editor, dispatches keyboard events, and verifies the authoritative `TextDocument` after edit, undo, and redo.
