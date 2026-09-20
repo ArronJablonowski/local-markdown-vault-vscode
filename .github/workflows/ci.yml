@@ -38,6 +38,14 @@ jobs:
       - run: xvfb-run -a npm run test:integration:restricted
       - run: npm run package
       - run: xvfb-run -a npm run test:vsix
+      - name: Retain tested preview VSIX
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: local-markdown-vault-${{ github.sha }}
+          path: local-markdown-vault-*.vsix
+          if-no-files-found: error
+          retention-days: 14
 
   supply-chain:
     runs-on: ubuntu-24.04

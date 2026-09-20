@@ -391,6 +391,11 @@ describe('release security evidence', () => {
 			const source = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
 			expect(source, `${name} omits the packaged VSIX smoke gate`).toContain('npm run test:vsix');
 		}
+		const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+		expect(ci).toContain("name: local-markdown-vault-${{ github.sha }}");
+		expect(ci).toContain('if-no-files-found: error');
+		expect(ci).toContain('retention-days: 14');
+		expect(ci.indexOf('npm run test:vsix')).toBeLessThan(ci.indexOf('name: Retain tested preview VSIX'));
 	});
 
 	it('measures large-note viewport trials independently and keeps the reference budget out of hosted CI', () => {
