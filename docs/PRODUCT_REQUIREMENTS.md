@@ -493,7 +493,7 @@ If the reference environment cannot meet a budget, the phase does not silently w
 
 Before implementation begins:
 
-1. Run `npm ci` from the committed lockfile.
+1. Run the dependency-policy verifier, then `npm ci --ignore-scripts` from the committed lockfile.
 2. Run type checking and compilation.
 3. Run unit, integration, and end-to-end suites.
 4. Build the production bundle and VSIX package.

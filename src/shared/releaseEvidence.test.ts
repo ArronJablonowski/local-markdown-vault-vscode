@@ -50,6 +50,26 @@ describe('release security evidence', () => {
 		expect(command).not.toMatch(/--output-file\s+-\b/);
 	});
 
+	it('verifies dependency provenance before script-free installation', () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+			scripts?: Record<string, string>;
+		};
+		expect(manifest.scripts?.['security:dependencies']).toBe('node scripts/verify-dependency-policy.mjs');
+		const verifier = readFileSync(join(ROOT, 'scripts', 'verify-dependency-policy.mjs'), 'utf8');
+		expect(verifier).toContain("resolved.protocol === 'https:'");
+		expect(verifier).toContain("resolved.origin === 'https://registry.npmjs.org'");
+		expect(verifier).toContain('/^sha512-');
+		expect(verifier).toContain('approvedProductionLicenses');
+		expect(verifier).toContain('approvedInstallScriptPackages');
+		for (const name of ['ci.yml', 'release-validation.yml']) {
+			const workflow = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
+			expect(workflow).toContain('npm run security:dependencies');
+			for (const install of workflow.matchAll(/run:\s*(npm ci[^\r\n]*)/g)) {
+				expect(install[1], `${name} permits dependency lifecycle scripts`).toContain('--ignore-scripts');
+			}
+		}
+	});
+
 	it('verifies the contents of every production VSIX after packaging', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

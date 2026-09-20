@@ -95,6 +95,7 @@ redistributed under its own license. The principal ones are:
 | [RE2JS](https://github.com/le0pard/re2js) | MIT |
 | [D3](https://d3js.org/) | ISC |
 | [yaml](https://eemeli.org/yaml/) | ISC |
+| [khroma](https://github.com/fabiospampinato/khroma) | MIT; its npm metadata omits the license field, so the pinned package's bundled `LICENSE` is reviewed explicitly |
 
 Most are MIT licensed. Those under other licenses, most of them reached through
 Mermaid, are listed in full:

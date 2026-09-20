@@ -67,7 +67,8 @@ Using SSH:
 ```bash
 git clone git@github.com:ArronJablonowski/local-markdown-vault-vscode.git
 cd local-markdown-vault-vscode
-npm ci
+npm run security:dependencies
+npm ci --ignore-scripts
 ```
 
 Or using HTTPS:
@@ -75,10 +76,13 @@ Or using HTTPS:
 ```bash
 git clone https://github.com/ArronJablonowski/local-markdown-vault-vscode.git
 cd local-markdown-vault-vscode
-npm ci
+npm run security:dependencies
+npm ci --ignore-scripts
 ```
 
-`npm ci` installs the exact dependency versions recorded in `package-lock.json`.
+The policy check verifies the lockfile source, integrity, production licenses,
+and reviewed install-script set. `npm ci --ignore-scripts` then installs the
+exact locked dependencies without executing package lifecycle scripts.
 
 ### 2. Run in a Development Extension Host
 
@@ -142,7 +146,8 @@ The internal setting and command prefix remains `mdLivePreview` for compatibilit
 ## Development
 
 ```bash
-npm ci                 # reproducible dependency installation
+npm run security:dependencies # verify lockfile and dependency policy
+npm ci --ignore-scripts       # install without package lifecycle scripts
 npm run compile        # build the extension and webviews
 npm test               # unit tests
 npm run test:e2e       # browser end-to-end tests

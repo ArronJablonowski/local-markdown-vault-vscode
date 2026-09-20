@@ -536,6 +536,7 @@
     "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
     "package": "vsce package --no-dependencies && node scripts/verify-vsix.mjs",
     "package:verify": "node scripts/verify-vsix.mjs",
+    "security:dependencies": "node scripts/verify-dependency-policy.mjs",
     "security:audit": "npm audit --audit-level=high",
     "security:sbom": "cyclonedx-npm --package-lock-only --omit dev --output-reproducible --validate --output-format JSON --output-file local-markdown-vault.cdx.json",
     "watch:esbuild": "node esbuild.js --watch",
@@ -583,11 +584,5 @@
     "mermaid": "^11.4.1",
     "re2js": "2.8.6",
     "yaml": "^2.9.0"
-  },
-  "allowScripts": {
-    "esbuild@0.28.2": true,
-    "@vscode/vsce-sign": false,
-    "fsevents": false,
-    "keytar": false
   }
 }

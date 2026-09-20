@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - run: npm run security:dependencies
       - run: npm ci --ignore-scripts
       - run: npm run security:audit
       - run: npm run security:sbom
@@ -44,7 +45,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm run security:dependencies
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       # The published performance budget is measured on the documented
       # reference machine. Shared hosted runners are too variable to be valid

@@ -58,6 +58,13 @@ Reports should be acknowledged within three business days. The maintainer will v
 
 A security release must include a regression test, dependency and secret scans, a reviewed lockfile, a generated SBOM, and a concise advisory describing affected versions and mitigations. Public disclosure should occur only after a fixed package is available, unless active exploitation requires earlier warning.
 
+Dependency installation first runs `npm run security:dependencies`, which
+requires a version-3 lockfile, an exact root-manifest match, HTTPS npm-registry
+sources, SHA-512 integrity for every package, approved production licenses, and
+an exact reviewed set of packages that declare install scripts. CI then uses
+`npm ci --ignore-scripts`; compilation, tests, packaging, and VSIX validation
+must succeed without executing dependency lifecycle scripts.
+
 ## Local diagnostics
 
 Diagnostics are disabled by default and are never uploaded. A user may enable
