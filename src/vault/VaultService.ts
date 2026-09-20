@@ -619,9 +619,14 @@ export class VaultService {
 	}
 
 	/** Moves a case-only rename to a collision-resistant sibling used by VS Code's native undo stack. */
-	async stageCaseOnlyRename(source: vscode.Uri, destination: vscode.Uri): Promise<vscode.Uri> {
-		this.assertWorkspaceCurrent();
+	async stageCaseOnlyRename(
+		source: vscode.Uri,
+		destination: vscode.Uri,
+		isCurrent: () => boolean = () => true,
+	): Promise<vscode.Uri> {
+		this.assertOperationCurrent(isCurrent);
 		await this.assertCaseRenamePair(source, destination);
+		this.assertOperationCurrent(isCurrent);
 		const parent = dirname(source.fsPath);
 		const sourceName = basename(source.fsPath);
 		const destinationName = basename(destination.fsPath);
@@ -633,10 +638,11 @@ export class VaultService {
 		for (let attempt = 0; attempt < 32; attempt++) {
 			const temporary = vscode.Uri.file(resolve(parent, `.mdlp-case-rename-${randomUUID()}.tmp`));
 			if (entries.includes(basename(temporary.fsPath))) continue;
-			this.assertWorkspaceCurrent();
+			this.assertOperationCurrent(isCurrent);
 			await vscode.workspace.fs.rename(source, temporary, { overwrite: false });
 			try {
 				await this.assertExactEntry(temporary);
+				this.assertOperationCurrent(isCurrent);
 			} catch (error) {
 				try {
 					await vscode.workspace.fs.rename(temporary, source, { overwrite: false });

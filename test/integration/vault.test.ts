@@ -83,6 +83,11 @@ interface DevelopmentApi {
 		destination: vscode.Uri;
 		isFolder: boolean;
 	}[], beforeCaseRenameStage: () => Thenable<void>): Promise<boolean>;
+	renameOrMoveManyWithStaleCaseStage(requests: readonly {
+		source: vscode.Uri;
+		destination: vscode.Uri;
+		isFolder: boolean;
+	}[]): Promise<boolean>;
 }
 
 suite('Document Vault filesystem transactions', () => {
@@ -667,6 +672,24 @@ suite('Document Vault filesystem transactions', () => {
 		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(external)), sourceText);
 		await assertMissing(source);
 		await assertMissing(destination);
+	});
+
+	test('rejects a stale generation before case-only staging mutates the source', async function () {
+		if (process.platform === 'linux') this.skip();
+		const fixture = await makeFixture();
+		const source = await service.createNote(fixture, 'GuardedCase');
+		await vscode.workspace.fs.writeFile(source, bytes('# guarded case\n'));
+		const destination = vscode.Uri.joinPath(fixture, 'guardedcase.md');
+
+		await assert.rejects(
+			api.renameOrMoveManyWithStaleCaseStage([{ source, destination, isFolder: false }]),
+			/Document Vault changed before the move could be applied/,
+		);
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(source)), '# guarded case\n');
+		const names = (await vscode.workspace.fs.readDirectory(fixture)).map(([name]) => name);
+		assert.ok(names.includes('GuardedCase.md'), `source casing changed before commit: ${names.join(', ')}`);
+		assert.ok(!names.includes('guardedcase.md'), `destination casing appeared before commit: ${names.join(', ')}`);
+		assert.ok(!names.some((name) => name.startsWith('.mdlp-case-rename-')), `temporary rename leaked: ${names.join(', ')}`);
 	});
 
 	test('moves a read-only note without changing its bytes or permissions', async function () {

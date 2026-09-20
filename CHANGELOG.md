@@ -1,5 +1,7 @@
 # Changelog
 
+- Prevent case-only rename staging and automatic dirty-document saves after the active vault or Workspace Trust becomes stale, while retaining exact rollback if authorization changes during staging.
+
 - Recheck active-vault and Workspace Trust authorization before every note, folder, intermediate-directory, and attachment filesystem creation, in addition to the existing post-write commit checks.
 
 - Bind the exclusive attachment-write primitive to the active vault and Workspace Trust at commit time, removing the exact file before returning when authorization becomes stale.

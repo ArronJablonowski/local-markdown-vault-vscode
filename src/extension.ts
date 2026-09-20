@@ -33,6 +33,7 @@ interface DevelopmentApi {
 		requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0],
 		beforeCaseRenameStage: () => Thenable<void>,
 	): Promise<boolean>;
+	renameOrMoveManyWithStaleCaseStage(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
 }
 
 function getActiveMarkdownUri(): vscode.Uri | undefined {
@@ -302,7 +303,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 				renameOrMoveManyWithStaleGeneration: async (requests) => {
 					const service = vaultRegistration.getService();
 					if (!service) throw new Error('Document Vault is unavailable.');
-					return new LinkRewriteService(service, { isCurrent: () => false }).renameOrMoveMany(requests);
+					let current = true;
+					return new LinkRewriteService(service, {
+						isCurrent: () => current,
+						beforePreconditionCheck: async () => { current = false; },
+					}).renameOrMoveMany(requests);
 				},
 				renameOrMoveManyBeforeCheck: async (requests, beforePreconditionCheck) => {
 					const service = vaultRegistration.getService();
@@ -313,6 +318,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 					const service = vaultRegistration.getService();
 					if (!service) throw new Error('Document Vault is unavailable.');
 					return new LinkRewriteService(service, { beforeCaseRenameStage }).renameOrMoveMany(requests);
+				},
+				renameOrMoveManyWithStaleCaseStage: async (requests) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					let current = true;
+					return new LinkRewriteService(service, {
+						isCurrent: () => current,
+						beforeCaseRenameStage: async () => { current = false; },
+					}).renameOrMoveMany(requests);
 				},
 			};
 	}

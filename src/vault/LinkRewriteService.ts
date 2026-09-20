@@ -82,6 +82,7 @@ export class LinkRewriteService {
 	): Promise<boolean> {
 		if (requests.length === 0) return true;
 		if (requests.length > 256) throw new Error('At most 256 vault items can be moved at once.');
+		this.assertCurrent();
 		const plans = requests.map(({ source, destination, isFolder }) => {
 			const oldPath = this.vault.relativePath(source);
 			const newPath = this.vault.relativePath(destination);
@@ -157,11 +158,12 @@ export class LinkRewriteService {
 		try {
 			await this.saveDirtyCaseRenameSources(resolvedPlans);
 			if (resolvedPlans.some((plan) => plan.caseOnly)) await this.beforeCaseRenameStage?.();
+			this.assertCurrent();
 			for (const plan of resolvedPlans) {
 				if (plan.caseOnly) {
 					let temporary: vscode.Uri;
 					try {
-						temporary = await this.vault.stageCaseOnlyRename(plan.source, plan.destination);
+						temporary = await this.vault.stageCaseOnlyRename(plan.source, plan.destination, this.isCurrent);
 					} catch (error) {
 						if (error instanceof Error && error.message === 'A source or destination changed while the move was being prepared.') {
 							throw new VaultTransactionConflictError(
@@ -180,8 +182,7 @@ export class LinkRewriteService {
 			}
 			const replayRequests = requests.map((request) => ({ ...request }));
 			this.caseRenames.register(stagedCaseRenames, () => this.renameOrMoveMany(replayRequests));
-			this.vault.assertWorkspaceCurrent();
-			if (!this.isCurrent()) throw new Error('The Document Vault changed before the move could be applied.');
+			this.assertCurrent();
 			const applied = await this.applyEdit(edit);
 			if (!applied) {
 				this.caseRenames.unregister(stagedCaseRenames);
@@ -212,6 +213,7 @@ export class LinkRewriteService {
 	}[]): Promise<void> {
 		for (const plan of plans) {
 			if (!plan.caseOnly) continue;
+			this.assertCurrent();
 			const document = vscode.workspace.textDocuments.find(
 				(candidate) => candidate.uri.toString() === plan.source.toString(),
 			);
@@ -219,6 +221,11 @@ export class LinkRewriteService {
 				throw new Error('The open note could not be saved before applying its case-only rename.');
 			}
 		}
+	}
+
+	private assertCurrent(): void {
+		this.vault.assertWorkspaceCurrent();
+		if (!this.isCurrent()) throw new Error('The Document Vault changed before the move could be applied.');
 	}
 
 	/**
