@@ -1,6 +1,6 @@
 # Changelog
 
-- Add a real-host macOS hostile-Markdown journey proving that raw HTML stays inert and editable, `javascript:`, `command:`, and unsafe data URLs never remain active, and default-blocked remote media emits no sentinel network request.
+- Add a real-host macOS hostile-Markdown journey proving that raw HTML stays inert and editable, `javascript:`, `command:`, unsafe data URLs, and outside-vault file URLs never remain active; default-blocked remote media emits no sentinel network request; and traversal attempts cannot disclose or modify an adjacent outside-vault canary.
 
 - Add a reproducible macOS-only desktop integration runner for native text undo/redo, real Live Preview keyboard edit/undo/redo/save and external-change synchronization with the backing `TextDocument`, one-step vault move/link undo/redo, and case-only rename undo/replay/inverse behavior without requiring Accessibility permission.
 

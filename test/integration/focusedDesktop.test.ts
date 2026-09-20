@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import { chromium, type Browser, type Frame, type Page } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
@@ -88,7 +89,7 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => document.getText().includes(inserted), 'macOS keyboard input did not reach Live Preview');
 		const edited = document.getText();
 		assert.notStrictEqual(edited, original);
-		assert.strictEqual(document.isDirty, true, 'Live Preview keyboard input did not mark the document dirty');
+		await waitFor(() => document.isDirty, 'Live Preview keyboard input did not mark the document dirty');
 
 		await frame.page().keyboard.press('Meta+z');
 		await waitFor(() => document.getText() === original, 'Cmd+Z did not undo the Live Preview edit in the TextDocument');
@@ -111,6 +112,12 @@ suite('focused macOS desktop transactions', () => {
 		const note = await service.createNote(fixture, 'Hostile Live Preview');
 		const sentinelHost = 'mdlp-security.invalid';
 		const sentinel = `host-probe-${Date.now()}`;
+		const outsideName = `.mdlp-outside-${Date.now()}.md`;
+		const outsideParent = vscode.Uri.joinPath(service.rootUri, '..');
+		const outsideUri = vscode.Uri.joinPath(outsideParent, outsideName);
+		const outsideSecret = `outside-secret-${randomUUID()}`;
+		await vscode.workspace.fs.writeFile(outsideUri, bytes(outsideSecret));
+		const outsideEntriesBefore = await entryNames(outsideParent);
 		const remoteUrl = `https://${sentinelHost}/${sentinel}.png`;
 		const source = [
 			'# Hostile Live Preview',
@@ -121,6 +128,9 @@ suite('focused macOS desktop transactions', () => {
 			'[command](command:workbench.action.files.newUntitledFile)',
 			'[data](data:text/html,<script>alert(document.domain)</script>)',
 			'[outside](../../../../../../etc/passwd)',
+			`![outside file URI](${outsideUri.toString()})`,
+			`![[../../${outsideName}]]`,
+			`[encoded outside](..%2F..%2F${encodeURIComponent(outsideName)})`,
 			'',
 		].join('\n');
 		await vscode.workspace.fs.writeFile(note, bytes(source));
@@ -152,13 +162,33 @@ suite('focused macOS desktop transactions', () => {
 				.filter((href) => /^(?:javascript|command|data):/i.test(href)));
 			assert.deepStrictEqual(unsafeLinks, [], 'hostile Markdown retained an active unsafe URL');
 			assert.strictEqual(
+				await frame.locator('[src^="file:"], [href^="file:"]').count(),
+				0,
+				'an outside-vault file URI remained active in the real webview',
+			);
+			assert.strictEqual(
 				await frame.locator(`[src*="${sentinelHost}"], [href*="${sentinelHost}"]`).count(),
 				0,
 				'default-blocked remote media retained an active network URL',
 			);
+			assert.ok(
+				!(await frame.locator('body').textContent())?.includes(outsideSecret),
+				'opening hostile Markdown disclosed outside-vault file contents',
+			);
+			assert.strictEqual(
+				new TextDecoder().decode(await vscode.workspace.fs.readFile(outsideUri)),
+				outsideSecret,
+				'opening hostile Markdown modified an outside-vault canary',
+			);
+			assert.deepStrictEqual(
+				await entryNames(outsideParent),
+				outsideEntriesBefore,
+				'opening hostile Markdown created or removed an adjacent outside-vault entry',
+			);
 			assert.deepStrictEqual(sentinelRequests, [], 'opening hostile Markdown emitted a remote sentinel request');
 		} finally {
 			page.off('request', recordRequest);
+			await vscode.workspace.fs.delete(outsideUri, { useTrash: false });
 		}
 	});
 
@@ -283,7 +313,7 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 async function entryNames(directory: vscode.Uri): Promise<string[]> {
-	return (await vscode.workspace.fs.readDirectory(directory)).map(([name]) => name);
+	return (await vscode.workspace.fs.readDirectory(directory)).map(([name]) => name).sort();
 }
 
 async function waitFor(

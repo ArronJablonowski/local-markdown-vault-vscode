@@ -18,6 +18,7 @@ const debugPort = await reservePort();
 try {
 	await Promise.all([mkdir(settingsDir, { recursive: true }), mkdir(extensionsDir, { recursive: true })]);
 	await writeFile(join(settingsDir, 'settings.json'), JSON.stringify({
+		'files.autoSave': 'off',
 		'workbench.startupEditor': 'none',
 		'update.mode': 'none',
 	}, null, 2));

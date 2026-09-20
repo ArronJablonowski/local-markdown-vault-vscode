@@ -285,6 +285,9 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("page.on('request', recordRequest)");
 		expect(testSource).toContain("'raw Markdown HTML executed in the real webview'");
 		expect(testSource).toContain("'hostile Markdown retained an active unsafe URL'");
+		expect(testSource).toContain("'opening hostile Markdown disclosed outside-vault file contents'");
+		expect(testSource).toContain("'opening hostile Markdown modified an outside-vault canary'");
+		expect(testSource).toContain("'opening hostile Markdown created or removed an adjacent outside-vault entry'");
 		expect(testSource).toContain("'opening hostile Markdown emitted a remote sentinel request'");
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
