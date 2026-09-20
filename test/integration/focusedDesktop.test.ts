@@ -6,6 +6,20 @@ import { chromium, type Browser, type Frame, type Page } from 'playwright';
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 let debugBrowser: Browser | undefined;
 
+const SECURITY_CORPUS = [
+	{ file: 'malicious.md', visibleText: 'Hostile Markdown must remain inert' },
+	{ file: 'malicious-yaml-alias.md', visibleText: 'The editor must stay responsive' },
+	{ file: 'hostile-html-and-urls.md', visibleText: 'URL and HTML boundary fixture' },
+	{ file: 'hostile-diagrams.md', visibleText: 'Diagram boundary fixture' },
+	{ file: 'hostile-yaml-depth.md', visibleText: 'Deep YAML must leave the editor usable' },
+	{
+		file: 'hostile-malformed-syntax.md',
+		visibleText: 'The editor remains usable after malformed syntax.',
+		repeatText: '![[Repeated missing embed]] ',
+		repeatCount: 4096,
+	},
+] as const;
+
 interface VaultServiceApi {
 	rootUri: vscode.Uri;
 	createFolder(parent: vscode.Uri, name: string): Promise<vscode.Uri>;
@@ -27,6 +41,7 @@ suite('focused macOS desktop transactions', () => {
 
 	let api: DevelopmentApi;
 	let service: VaultServiceApi;
+	let extensionUri: vscode.Uri;
 	const fixtures: vscode.Uri[] = [];
 
 	suiteSetup(async function () {
@@ -34,6 +49,7 @@ suite('focused macOS desktop transactions', () => {
 		await bringIsolatedWorkbenchToFront();
 		const extension = vscode.extensions.getExtension<DevelopmentApi>(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);
+		extensionUri = extension.extensionUri;
 		api = await extension.activate();
 		const resolved = api.getVaultService();
 		assert.ok(resolved, 'the focused workspace must be a local single-folder vault');
@@ -192,6 +208,66 @@ suite('focused macOS desktop transactions', () => {
 		}
 	});
 
+	test('opens the checked-in malicious Markdown corpus without code, network, command, or vault escape', async () => {
+		const fixture = await makeFixture('security-corpus');
+		const outsideName = `.mdlp-corpus-outside-${Date.now()}.md`;
+		const outsideParent = vscode.Uri.joinPath(service.rootUri, '..');
+		const outsideUri = vscode.Uri.joinPath(outsideParent, outsideName);
+		const outsideSecret = `corpus-outside-secret-${randomUUID()}`;
+		await vscode.workspace.fs.writeFile(outsideUri, bytes(outsideSecret));
+		const outsideEntriesBefore = await entryNames(outsideParent);
+		const page = await getWorkbenchPage();
+		const hostileRequests: string[] = [];
+		const hostileHosts = ['network.invalid', 'evil.invalid', 'tracker.invalid', 'safe.invalid'];
+		const recordRequest = (request: { url(): string }) => {
+			if (hostileHosts.some((host) => request.url().includes(host))) hostileRequests.push(request.url());
+		};
+		page.on('request', recordRequest);
+		try {
+			for (const [index, entry] of SECURITY_CORPUS.entries()) {
+				const corpusUri = vscode.Uri.joinPath(extensionUri, 'test', 'security-corpus', entry.file);
+				let source = new TextDecoder().decode(await vscode.workspace.fs.readFile(corpusUri));
+				if ('repeatText' in entry) source += `\n${entry.repeatText.repeat(entry.repeatCount)}\n`;
+				source += `\n![outside file URI](${outsideUri.toString()})\n![[../../${outsideName}]]\n`;
+				const note = await service.createNote(fixture, `Corpus ${index + 1}`);
+				await vscode.workspace.fs.writeFile(note, bytes(source));
+				await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+				await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+				const frame = await connectToLivePreviewFrame(entry.visibleText);
+				await new Promise((resolve) => setTimeout(resolve, 300));
+
+				assert.ok((await frame.locator('.cm-content').textContent())?.includes(entry.visibleText),
+					`${entry.file} did not remain visible and editable`);
+				assert.strictEqual(await frame.locator([
+					'.cm-content script', '.cm-content iframe', '.cm-content object', '.cm-content embed',
+					'.cm-content form', '.cm-content foreignObject', '.mlp-mermaid-wrap script',
+					'.mlp-mermaid-wrap foreignObject', '.mlp-drawio-wrap script', '.mlp-drawio-wrap foreignObject',
+				].join(', ')).count(), 0, `${entry.file} created active hostile DOM`);
+				assert.deepStrictEqual(await frame.evaluate(() => ({
+					script: (window as unknown as { __markdownScriptRan?: boolean }).__markdownScriptRan,
+					handler: (window as unknown as { __markdownHandlerRan?: boolean }).__markdownHandlerRan,
+				})), { script: undefined, handler: undefined }, `${entry.file} executed hostile Markdown code`);
+				const activeUnsafeUrls = await frame.locator('[href], [src], [action]').evaluateAll((elements, blockedHosts) => elements
+					.flatMap((element) => ['href', 'src', 'action'].map((name) => element.getAttribute(name) ?? ''))
+					.filter((value) => /^(?:javascript|command|data|file):/i.test(value)
+						|| blockedHosts.some((host) => value.includes(host))), hostileHosts);
+				assert.deepStrictEqual(activeUnsafeUrls, [], `${entry.file} retained an active hostile URL`);
+				assert.ok(!(await frame.locator('body').textContent())?.includes(outsideSecret),
+					`${entry.file} disclosed outside-vault file contents`);
+			}
+
+			assert.strictEqual(page.isClosed(), false, 'the corpus command URL closed the VS Code workbench');
+			assert.deepStrictEqual(hostileRequests, [], 'the checked-in corpus emitted an unsolicited network request');
+			assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(outsideUri)), outsideSecret,
+				'the checked-in corpus modified an outside-vault canary');
+			assert.deepStrictEqual(await entryNames(outsideParent), outsideEntriesBefore,
+				'the checked-in corpus created or removed an adjacent outside-vault entry');
+		} finally {
+			page.off('request', recordRequest);
+			await vscode.workspace.fs.delete(outsideUri, { useTrash: false });
+		}
+	});
+
 	test('undoes and redoes a vault move and link rewrite as one unit', async () => {
 		const fixture = await makeFixture('move');
 		const archive = await service.createFolder(fixture, 'Archive');
@@ -257,14 +333,16 @@ function bytes(value: string): Uint8Array {
 	return new TextEncoder().encode(value);
 }
 
-async function connectToLivePreviewFrame(): Promise<Frame> {
+async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> {
 	const browser = await connectToDebugBrowser();
 	const deadline = Date.now() + 10_000;
 	while (Date.now() < deadline) {
 		for (const context of browser.contexts()) {
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
-					if (await frame.locator('.cm-content').count() > 0) return frame;
+					const editor = frame.locator('.cm-content');
+					if (await editor.count() === 0) continue;
+					if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
 				}
 			}
 		}

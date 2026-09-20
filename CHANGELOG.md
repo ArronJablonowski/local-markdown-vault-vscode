@@ -1,5 +1,7 @@
 # Changelog
 
+- Exercise all six checked-in malicious Markdown fixtures in the real macOS VS Code custom editor, including the 4,096-embed stress case, while observing requests and proving no code execution, command-triggered workbench closure, active unsafe URL, outside-vault disclosure or mutation, or adjacent filesystem change.
+
 - Tighten the webview CSP review: remove inline-style permission from Outline, nonce every live-theme-preview style block, retain CSS-only inline permission solely for CodeMirror runtime layout and isolated theme-card rendering, and regression-test the exact resource roots and network directives.
 
 - Add a real-host macOS hostile-Markdown journey proving that raw HTML stays inert and editable, `javascript:`, `command:`, unsafe data URLs, and outside-vault file URLs never remain active; default-blocked remote media emits no sentinel network request; and traversal attempts cannot disclose or modify an adjacent outside-vault canary.

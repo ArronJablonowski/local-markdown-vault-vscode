@@ -311,6 +311,15 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("'opening hostile Markdown modified an outside-vault canary'");
 		expect(testSource).toContain("'opening hostile Markdown created or removed an adjacent outside-vault entry'");
 		expect(testSource).toContain("'opening hostile Markdown emitted a remote sentinel request'");
+		expect(testSource).toContain("'the checked-in corpus emitted an unsolicited network request'");
+		expect(testSource).toContain("'the checked-in corpus modified an outside-vault canary'");
+		expect(testSource).toContain("'the corpus command URL closed the VS Code workbench'");
+		expect(testSource).toContain('SECURITY_CORPUS.entries()');
+		const corpusManifest = JSON.parse(readFileSync(
+			join(ROOT, 'test', 'security-corpus', 'manifest.json'),
+			'utf8',
+		)) as Array<{ file: string }>;
+		for (const entry of corpusManifest) expect(testSource).toContain(`file: '${entry.file}'`);
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});
