@@ -30,8 +30,8 @@ unchecked below.
 | Production package | `local-markdown-vault-0.2.0.vsix`: 57 files, 3.48 MB (3,652,676 compressed bytes; 14,329,473 uncompressed bytes); archive verifier passed after a clean `npm ci --ignore-scripts`, including the packaged Obsidian compatibility contract |
 | VSIX SHA-256 | `8388ce9e9c78f450b3ad093f8c88be28872d4a6ee0a8025e5dc2d9af8ce8479d` |
 | Five-run CPU benchmark | 10,000 notes/130,000 links: 332.1 ms index p95, 6.8 ms incremental p95, 24.6 ms search p95, 8.9 ms Quick Switcher p95 |
-| Five-run filesystem benchmark | 10,000 items/1 GiB: 829.6 ms cold-index maximum; create/edit/rename/delete tree-and-index convergence maxima of 168.6/165.1/172.8/164.6 ms; during a full rebuild, a real note typed and saved in 72.1 ms with 24.8 ms maximum event-loop delay and no data loss, closing PERF-005 on the reference machine; the rebuild path compiles exclusion patterns once, performs bounded cache encoding, skips incremental case-alias scans, and coalesces persistence without weakening exact-case watcher reconciliation |
-| Extension-host large-note gate | Four isolated clean-profile 1 MiB note runs recorded 41.7/31.9/38.7/14.1 ms maximum event-loop delay; all met the 100 ms PERF-004 continuous-blocking budget |
+| Five-run filesystem benchmark | 10,000 items/1 GiB: 805.8 ms cold-index maximum; create/edit/rename/delete tree-and-index convergence maxima of 170.8/163.9/166.8/158.9 ms; during a full rebuild, a real note typed and saved in 144.6 ms with 20.9 ms maximum event-loop delay and no data loss, closing PERF-005 on the reference machine; the rebuild path compiles exclusion patterns once, performs bounded cache encoding, skips incremental case-alias scans, and coalesces persistence without weakening exact-case watcher reconciliation |
+| Extension-host large-note gate | Five isolated clean-profile 1 MiB note runs recorded 41.7/31.9/38.7/14.1/16.6 ms maximum event-loop delay; all met the 100 ms PERF-004 continuous-blocking budget |
 | Automated clean-profile VSIX suite | Current artifact passed 4 trusted and 4 Restricted Mode checks after installation into separate isolated profiles; the target extension loaded from the VSIX directory, not the development checkout |
 | Dependency policy, audit, and SBOM | 797 lockfile packages and 182 production packages passed manifest parity, HTTPS registry, SHA-512 integrity, license, and exact install-script-set checks; dependency lifecycle scripts remained disabled; 0 vulnerabilities; reproducible CycloneDX SBOM validated |
 
@@ -76,7 +76,7 @@ reported as automated evidence.
 - [x] Verify dependency policy, then install exactly from the lockfile with `npm ci --ignore-scripts`.
 - [x] Run type checking with `npm run typecheck`.
 - [x] Run all unit and performance tests with `npm test`.
-- [ ] On the documented reference machine, run the opt-in 10,000-item/1 GiB filesystem gate with `npm run test:performance:filesystem`.
+- [x] On the documented reference machine, run the opt-in 10,000-item/1 GiB filesystem gate with `npm run test:performance:filesystem`.
 - [x] Run the trusted and genuinely untrusted extension-host suites with `npm run test:integration` and `npm run test:integration:restricted`.
 - [x] Run all browser and malicious-content tests with `npm run test:e2e`.
 - [x] Create the production package with `npm run package`, then run `npm run test:vsix`; the archive verifier and clean-profile trusted/Restricted Mode packaged-extension suites must pass.

@@ -83,15 +83,15 @@ Latest five clean-cache runs recorded on 2026-09-20:
 
 | Measurement | Samples (ms) | p95 | PRD budget |
 | --- | --- | ---: | ---: |
-| Cold filesystem index | 806.6, 791.3, 763.2, 763.3, 760.6 | 806.6 ms | 3000 ms |
-| Create convergence | 99.2, 165.7, 152.5, 162.2, 164.2 | 165.7 ms | 500 ms |
-| Edit convergence | 150.4, 165.7, 169.0, 173.8, 161.6 | 173.8 ms | 500 ms |
-| Rename convergence | 167.0, 165.9, 166.9, 163.1, 163.7 | 167.0 ms | 500 ms |
-| Delete convergence | 157.0, 158.8, 160.4, 159.8, 161.6 | 161.6 ms | 500 ms |
+| Cold filesystem index | 805.8, 800.0, 765.0, 764.8, 774.1 | 805.8 ms | 3000 ms |
+| Create convergence | 99.7, 164.3, 164.0, 149.7, 170.8 | 170.8 ms | 500 ms |
+| Edit convergence | 163.7, 156.2, 163.9, 161.9, 161.3 | 163.9 ms | 500 ms |
+| Rename convergence | 166.7, 166.8, 162.1, 164.6, 164.9 | 166.8 ms | 500 ms |
+| Delete convergence | 156.9, 154.7, 157.0, 157.4, 158.9 | 158.9 ms | 500 ms |
 
 While a complete 8,000-note rebuild had deliberately cleared the atomic live
-index, the same run typed into and saved an ordinary note in 112.1 ms. A 5 ms
-probe recorded only 5.8 ms maximum event-loop delay during that interaction;
+index, the same run typed into and saved an ordinary note in 144.6 ms. A 5 ms
+probe recorded only 20.9 ms maximum event-loop delay during that interaction;
 the saved bytes remained intact and the rebuild restored all 8,000 records.
 The test independently fails at 500 ms interaction latency or 100 ms continuous
 blocking. This closes the direct reference-machine evidence for **PERF-005**.
@@ -103,8 +103,8 @@ hosted-runner contention cannot redefine the published performance baseline.
 The latest isolated run also rewrote a fixture note to
 exactly 1 MiB, waits for the incremental index to converge, and opens it in
 Live Preview while a 5 ms event-loop probe records the longest scheduling
-delay. The 2026-09-20 run recorded 14.1 ms; three earlier independent
-clean-profile runs on 2026-09-19 recorded 41.7, 31.9, and 38.7 ms. Each is below
+delay. The latest 2026-09-20 run recorded 16.6 ms; four earlier independent
+clean-profile runs recorded 41.7, 31.9, 38.7, and 14.1 ms. Each is below
 the **PERF-004** 100 ms continuous-blocking budget.
 The scenario opens the large note before its small diagnostic control so the
 measurement does not benefit from a pre-warmed editor.
