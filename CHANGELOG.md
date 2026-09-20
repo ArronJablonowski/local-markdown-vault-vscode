@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Moved hosted CI and cross-platform release validation from end-of-life Node.js 20 to Node.js 24 LTS and documented the source-build requirement.
 - Upgraded the immutable CodeQL workflow pin from the approaching-retirement v3 action to CodeQL Action v4.38.1.
 - Made Quick Switcher flush pending open-document metadata before opening and refresh while its index changes, so newly typed unsaved aliases and note metadata appear deterministically.
 - Made Restricted Mode integration-profile cleanup retry transient Windows file locks so a passing extension-host run cannot fail solely because VS Code is still releasing `agenthost.log`.

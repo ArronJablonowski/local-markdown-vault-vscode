@@ -162,6 +162,17 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('runs hosted build and release gates on the supported Node LTS', () => {
+		for (const name of ['ci.yml', 'release-validation.yml']) {
+			const source = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
+			const versions = [...source.matchAll(/node-version:\s*(\d+)/g)].map((match) => Number(match[1]));
+			expect(versions.length, `${name} does not select a Node.js runtime`).toBeGreaterThan(0);
+			expect(versions, `${name} uses an unsupported Node.js runtime`).toEqual(
+				Array.from({ length: versions.length }, () => 24),
+			);
+		}
+	});
+
 	it('keeps reference-machine performance budgets out of variable hosted runners', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;
