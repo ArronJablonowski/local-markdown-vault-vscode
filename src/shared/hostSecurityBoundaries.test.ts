@@ -209,6 +209,26 @@ describe('host security boundaries', () => {
 		expect(switcher).toContain('if (!isCurrent() || provider.service !== service || !vscode.workspace.isTrusted) return;');
 	});
 
+	it('rolls back exact creations when the active vault changes at commit time', () => {
+		const service = readFileSync(join(ROOT, 'src', 'vault', 'VaultService.ts'), 'utf8');
+		const exclusive = service.slice(service.indexOf('\tasync createFileExclusive('), service.indexOf('\n\t/** Removes only'));
+		const finalIdentityCheck = exclusive.lastIndexOf('await this.assertOpenedFileInside(target, writtenIdentity)');
+		expect(finalIdentityCheck).toBeGreaterThan(0);
+		expect(exclusive.indexOf('this.assertWorkspaceCurrent();', finalIdentityCheck)).toBeGreaterThan(finalIdentityCheck);
+		for (const method of ['createNote(', 'createNoteAtRelativePath(', 'createFolder(']) {
+			const start = service.indexOf(`\tasync ${method}`);
+			const end = service.indexOf('\n\tasync ', start + 1);
+			const body = service.slice(start, end);
+			expect(body, `${method} has no commit-time active-vault guard`).toContain('isCurrent: () => boolean');
+			expect(body, `${method} does not check its commit guard`).toContain('assertOperationCurrent(isCurrent)');
+			expect(body, `${method} has no rollback path`).toMatch(/removeCreatedFile|rollbackCreatedDirectories/);
+		}
+		const rollback = service.slice(service.indexOf('async function rollbackCreatedDirectories('));
+		expect(rollback).toContain('sameFileIdentity(current, directory.identity)');
+		expect(rollback).toContain('await rmdir(directory.path)');
+		expect(rollback).not.toMatch(/recursive\s*:\s*true/);
+	});
+
 	it('enforces mutation-source containment inside the link-rewrite transaction boundary', () => {
 		const service = readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8');
 		expect(service).toContain('await this.vault.assertMutationSource(');

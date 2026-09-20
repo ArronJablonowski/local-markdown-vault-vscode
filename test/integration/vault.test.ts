@@ -8,10 +8,10 @@ const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 
 interface VaultServiceApi {
 	rootUri: vscode.Uri;
-	createFolder(parent: vscode.Uri, name: string): Promise<vscode.Uri>;
-	createNote(parent: vscode.Uri, name: string): Promise<vscode.Uri>;
-	createNoteAtRelativePath(path: string): Promise<vscode.Uri>;
-	ensureDirectoryInside(uri: vscode.Uri): Promise<vscode.Uri>;
+	createFolder(parent: vscode.Uri, name: string, isCurrent?: () => boolean): Promise<vscode.Uri>;
+	createNote(parent: vscode.Uri, name: string, isCurrent?: () => boolean): Promise<vscode.Uri>;
+	createNoteAtRelativePath(path: string, isCurrent?: () => boolean): Promise<vscode.Uri>;
+	ensureDirectoryInside(uri: vscode.Uri, isCurrent?: () => boolean): Promise<vscode.Uri>;
 	createFileExclusive(parent: vscode.Uri, name: string, bytes: Uint8Array, maxBytes?: number): Promise<{
 		uri: vscode.Uri;
 		cleanupToken: string;
@@ -232,6 +232,34 @@ suite('Document Vault filesystem transactions', () => {
 		} finally {
 			await rm(outside, { recursive: true, force: true });
 		}
+	});
+
+	test('rolls back exact note and directory creations rejected at the active-vault commit boundary', async () => {
+		const fixture = await makeFixture();
+		const staleNote = vscode.Uri.joinPath(fixture, 'Stale note.md');
+		await assert.rejects(
+			service.createNote(fixture, 'Stale note', () => false),
+			/Document Vault changed/,
+		);
+		await assertMissing(staleNote);
+
+		const staleFolder = vscode.Uri.joinPath(fixture, 'Stale folder');
+		await assert.rejects(
+			service.createFolder(fixture, 'Stale folder', () => false),
+			/Document Vault changed/,
+		);
+		await assertMissing(staleFolder);
+
+		const fixtureRelative = fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/');
+		let commitChecks = 0;
+		await assert.rejects(
+			service.createNoteAtRelativePath(
+				`${fixtureRelative}/Nested/Deep/Stale nested note`,
+				() => ++commitChecks < 3,
+			),
+			/Document Vault changed/,
+		);
+		await assertMissing(vscode.Uri.joinPath(fixture, 'Nested'));
 	});
 
 	test('sorts created dates by birth time rather than later metadata changes', async () => {

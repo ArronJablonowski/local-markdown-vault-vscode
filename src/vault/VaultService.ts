@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { constants as fsConstants, type Stats } from 'node:fs';
-import { lstat, mkdir, open, readdir, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, rename, rmdir, stat, unlink, type FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { isPathInside, resolveVaultRelativePath } from '../shared/pathContainment';
@@ -30,6 +30,11 @@ export interface VaultFileContents {
 	readonly mtimeMs: number;
 	readonly size: number;
 	readonly identity: CreatedVaultFile['identity'];
+}
+
+interface CreatedVaultDirectory {
+	readonly path: string;
+	readonly identity: Stats;
 }
 
 export class VaultService {
@@ -68,6 +73,11 @@ export class VaultService {
 		if (!isCurrentVaultWorkspace(folders, this.rootUri.toString())) {
 			throw new Error('The Document Vault changed before the operation completed.');
 		}
+	}
+
+	private assertOperationCurrent(isCurrent: () => boolean): void {
+		this.assertWorkspaceCurrent();
+		if (!isCurrent()) throw new Error('The Document Vault changed before the operation completed.');
 	}
 
 	relativePath(uri: vscode.Uri): string | undefined {
@@ -129,6 +139,7 @@ export class VaultService {
 			}
 			openedIdentity = writtenIdentity;
 			await this.assertOpenedFileInside(target, writtenIdentity);
+			this.assertWorkspaceCurrent();
 			const cleanupToken = randomUUID();
 			const uri = vscode.Uri.file(target);
 			this.createdFileLeases.set(cleanupToken, { uri, handle });
@@ -211,14 +222,20 @@ export class VaultService {
 		}
 	}
 
-	async createNote(parent: vscode.Uri, requestedName: string): Promise<vscode.Uri> {
+	async createNote(parent: vscode.Uri, requestedName: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
 		const name = noteFileName(requestedName);
 		const created = await this.createFileExclusive(parent, name, new Uint8Array(), 0);
-		await this.releaseCreatedFile(created);
-		return created.uri;
+		try {
+			this.assertOperationCurrent(isCurrent);
+			await this.releaseCreatedFile(created);
+			return created.uri;
+		} catch (error) {
+			await this.removeCreatedFile(created);
+			throw error;
+		}
 	}
 
-	async createNoteAtRelativePath(requestedPath: string): Promise<vscode.Uri> {
+	async createNoteAtRelativePath(requestedPath: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
 		const normalized = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
 		if (!normalized || normalized.startsWith('/') || /^[a-z]:/i.test(normalized)) {
 			throw new Error('The note path must be relative to the Document Vault.');
@@ -235,19 +252,36 @@ export class VaultService {
 			throw new Error('The destination is outside the Document Vault.');
 		}
 		const parent = vscode.Uri.file(dirname(target));
-		await this.ensureDirectoryInside(parent);
-		const created = await this.createFileExclusive(parent, basename(target), new Uint8Array(), 0);
-		await this.releaseCreatedFile(created);
-		return created.uri;
+		const ensured = await this.ensureDirectoryInsideTracked(parent, isCurrent);
+		let created: CreatedVaultFile | undefined;
+		try {
+			created = await this.createFileExclusive(ensured.uri, basename(target), new Uint8Array(), 0);
+			this.assertOperationCurrent(isCurrent);
+			await this.releaseCreatedFile(created);
+			return created.uri;
+		} catch (error) {
+			if (created) await this.removeCreatedFile(created);
+			await rollbackCreatedDirectories(ensured.created);
+			throw error;
+		}
 	}
 
-	async createFolder(parent: vscode.Uri, name: string): Promise<vscode.Uri> {
+	async createFolder(parent: vscode.Uri, name: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
 		this.assertWorkspaceCurrent();
 		const target = this.childPath(parent, name);
 		await this.assertCanonicalParent(target);
 		this.assertWorkspaceCurrent();
 		await mkdir(target);
-		return (await this.assertDirectoryInside(target)).uri;
+		let created: CreatedVaultDirectory | undefined;
+		try {
+			const directory = await this.assertDirectoryInside(target);
+			created = { path: target, identity: directory.identity };
+			this.assertOperationCurrent(isCurrent);
+			return directory.uri;
+		} catch (error) {
+			if (created) await rollbackCreatedDirectories([created]);
+			throw error;
+		}
 	}
 
 	/**
@@ -255,28 +289,47 @@ export class VaultService {
 	 * segments. Recursive mkdir is deliberately avoided because it can traverse
 	 * a parent that was replaced after a single up-front containment check.
 	 */
-	async ensureDirectoryInside(uri: vscode.Uri): Promise<vscode.Uri> {
+	async ensureDirectoryInside(uri: vscode.Uri, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
+		return (await this.ensureDirectoryInsideTracked(uri, isCurrent)).uri;
+	}
+
+	private async ensureDirectoryInsideTracked(
+		uri: vscode.Uri,
+		isCurrent: () => boolean,
+	): Promise<{ uri: vscode.Uri; created: CreatedVaultDirectory[] }> {
 		this.assertWorkspaceCurrent();
 		const path = this.relativePath(uri);
 		if (path === undefined) throw new Error('The directory is outside the Document Vault.');
 		if (!path) {
 			await this.assertExistingInside(this.rootUri);
-			return this.rootUri;
+			this.assertOperationCurrent(isCurrent);
+			return { uri: this.rootUri, created: [] };
 		}
 		let current = this.rootUri;
-		for (const segment of path.split('/')) {
-			this.assertWorkspaceCurrent();
-			const target = this.childPath(current, segment);
-			await this.assertCanonicalParent(target);
-			this.assertWorkspaceCurrent();
-			try {
-				await mkdir(target);
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+		const created: CreatedVaultDirectory[] = [];
+		try {
+			for (const segment of path.split('/')) {
+				this.assertWorkspaceCurrent();
+				const target = this.childPath(current, segment);
+				await this.assertCanonicalParent(target);
+				this.assertWorkspaceCurrent();
+				let made = false;
+				try {
+					await mkdir(target);
+					made = true;
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+				}
+				const directory = await this.assertDirectoryInside(target);
+				if (made) created.push({ path: target, identity: directory.identity });
+				this.assertOperationCurrent(isCurrent);
+				current = directory.uri;
 			}
-			current = (await this.assertDirectoryInside(target)).uri;
+			return { uri: current, created };
+		} catch (error) {
+			await rollbackCreatedDirectories(created);
+			throw error;
 		}
-		return current;
 	}
 
 	private async assertDirectoryInside(target: string): Promise<{ uri: vscode.Uri; identity: Stats }> {
@@ -707,5 +760,22 @@ async function removeIfSameFile(target: string, identity: Stats): Promise<void> 
 		if (sameFileIdentity(current, identity)) await unlink(target);
 	} catch {
 		// The path was already removed or replaced; never chase it during cleanup.
+	}
+}
+
+async function rollbackCreatedDirectories(directories: readonly CreatedVaultDirectory[]): Promise<void> {
+	for (let index = directories.length - 1; index >= 0; index--) {
+		const directory = directories[index];
+		try {
+			const current = await lstat(directory.path);
+			if (!current.isSymbolicLink() && current.isDirectory() && sameFileIdentity(current, directory.identity)) {
+				// rmdir is intentionally non-recursive: concurrent user content makes
+				// rollback stop safely instead of deleting anything it did not create.
+				await rmdir(directory.path);
+			}
+		} catch {
+			// The directory was removed, replaced, or became non-empty. Never chase
+			// a replacement and never turn rollback into recursive deletion.
+		}
 	}
 }

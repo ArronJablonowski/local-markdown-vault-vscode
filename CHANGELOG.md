@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Roll back the exact newly created note, folder, or intermediate note path when its active-vault or Workspace Trust commit guard becomes stale; directory rollback is identity-checked, reverse-order, and deliberately non-recursive.
 - Bind native vault commands, Quick Switcher creation, and indexed-note navigation to the vault that started them, rechecking Workspace Trust at mutation commit boundaries so a workspace change cannot act on or reveal a stale vault.
 - Make the created-date sort integration probe wait for the watcher-driven tree refresh to converge, eliminating a Linux CI race without weakening the production stale-read guard.
 - Cancel an in-progress metadata reset/rebuild when its workspace changes, preventing stale success notices and old-vault work from suppressing recent-note tracking in the new vault.

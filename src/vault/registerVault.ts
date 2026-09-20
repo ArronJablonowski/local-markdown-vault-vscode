@@ -302,7 +302,11 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			});
 			if (!name || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
-				const uri = await service.createNote(parent, name);
+				const uri = await service.createNote(
+					parent,
+					name,
+					() => provider.service === service && vscode.workspace.isTrusted,
+				);
 				if (provider.service !== service || !vscode.workspace.isTrusted) return;
 				provider.refresh();
 				await vscode.commands.executeCommand('vscode.open', uri);
@@ -322,7 +326,11 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			});
 			if (!name || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
-				const uri = await service.createFolder(parent, name);
+				const uri = await service.createFolder(
+					parent,
+					name,
+					() => provider.service === service && vscode.workspace.isTrusted,
+				);
 				if (provider.service !== service || !vscode.workspace.isTrusted) return;
 				provider.refresh();
 				announceVaultCompletion(vscode.l10n.t('Folder "{0}" created.', service.relativePath(uri) ?? name));
@@ -630,7 +638,10 @@ async function showQuickSwitcher(
 				return;
 			}
 			try {
-				const uri = await service.createNoteAtRelativePath(selected.createName);
+				const uri = await service.createNoteAtRelativePath(
+					selected.createName,
+					() => isCurrent() && provider.service === service && vscode.workspace.isTrusted,
+				);
 				if (!isCurrent() || provider.service !== service || !vscode.workspace.isTrusted) return;
 				await vscode.commands.executeCommand('vscode.open', uri);
 				announceVaultCompletion(vscode.l10n.t(

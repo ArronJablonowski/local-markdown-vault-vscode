@@ -552,7 +552,11 @@ export class DocumentSyncSession {
 			if (!resolution.available || resolution.service.rootUri.toString() !== workspaceRoot.toString()) return;
 			if (!vscode.workspace.isTrusted) return;
 			try {
-				uri = await resolution.service.createNoteAtRelativePath(target);
+				uri = await resolution.service.createNoteAtRelativePath(
+					target,
+					() => vscode.workspace.isTrusted
+						&& localWorkspaceVaultRoot(this.document.uri)?.toString() === workspaceRoot.toString(),
+				);
 			} catch {
 				void vscode.window.showErrorMessage(vscode.l10n.t('The note could not be created safely.'));
 				return;
@@ -679,7 +683,11 @@ export class DocumentSyncSession {
 			return;
 		}
 		try {
-			assetsDir = await vaultService.ensureDirectoryInside(assetsDir);
+			assetsDir = await vaultService.ensureDirectoryInside(
+				assetsDir,
+				() => vscode.workspace.isTrusted
+					&& localWorkspaceVaultRoot(this.document.uri)?.toString() === workspaceRoot.toString(),
+			);
 		} catch {
 			void vscode.window.showWarningMessage(
 				vscode.l10n.t('The attachment folder resolves outside the workspace, so the image was not saved.'),
