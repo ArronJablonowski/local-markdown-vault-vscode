@@ -4,6 +4,7 @@
 - Preserve valid structured vault-search results in the native picker after the extension query engine evaluates `tag:`, `task:`, `property:`, and other filters; VS Code's secondary fuzzy matcher no longer hides rows whose rendered text does not repeat the query syntax.
 - Extend the installed-VSIX smoke gate with an isolated disabled-extension profile: an existing Obsidian-style vault opens in VS Code's ordinary text editor, Markdown remains byte-identical, and `.obsidian/app.json` remains byte-identical in trusted, Restricted Mode, and disabled runs.
 - Localize the Command Palette category and add AST-backed localization gates covering every manifest command, setting, view, and trust description plus argument completeness and placeholder parity for all extension-host and webview English/Japanese messages.
+- Add a real macOS compatibility journey proving that an encoded relative Markdown link opens its in-vault target, a local PNG reaches Live Preview only through validated host-delivered bytes, two split custom editors mount for the same note, and an external replacement converges in both panes.
 
 - Reconcile externally created, renamed, and deleted folders in both the native Document Vault tree and the local metadata index, including Unicode and emoji paths. Directory-renamed notes are matched by verified filesystem identity, overlapping subtree scans recheck every candidate, and a bounded debounced prune closes provider event-coalescing races without changing note bytes.
 

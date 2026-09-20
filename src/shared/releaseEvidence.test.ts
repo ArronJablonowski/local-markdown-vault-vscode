@@ -313,6 +313,10 @@ describe('release security evidence', () => {
 		expect(testSource).toContain('vault-search keyboard acceptance did not open the body-text result');
 		expect(testSource).toContain('the native Backlinks view did not distinguish the unlinked mention');
 		expect(testSource).toContain('Backlinks source activation did not open the linked note');
+		expect(testSource).toContain('keeps relative links, local attachments, split editors, and external edits compatible');
+		expect(testSource).toContain('validated local attachment bytes did not reach Live Preview');
+		expect(testSource).toContain('relative Markdown link did not open its in-vault target');
+		expect(testSource).toContain('external file replacement did not converge in both split Live Preview panes');
 		const vaultRegistration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
 		expect(vaultRegistration).toContain('alwaysShow: true');
 		expect(testSource).toContain("page.on('request', recordRequest)");

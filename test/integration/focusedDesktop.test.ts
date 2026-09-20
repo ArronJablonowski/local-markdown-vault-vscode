@@ -213,6 +213,63 @@ suite('focused macOS desktop transactions', () => {
 		await assertNativeQuickPickQuery(page, `tag:${tagRoot}`, 'Desktop Tagged Source');
 	});
 
+	test('keeps relative links, local attachments, split editors, and external edits compatible', async () => {
+		const fixture = await makeFixture('compatibility');
+		const source = await service.createNote(fixture, 'Compatibility Source');
+		const target = await service.createNote(fixture, 'Relative Target');
+		const image = vscode.Uri.joinPath(fixture, 'pixel.png');
+		const marker = `split-external-${Date.now()}`;
+		const initial = [
+			'# Compatibility source',
+			'',
+			'[Open relative target](Relative%20Target.md)',
+			'',
+			'![local attachment](pixel.png)',
+			'',
+		].join('\n');
+		await vscode.workspace.fs.writeFile(target, bytes('# Relative target\n'));
+		await vscode.workspace.fs.writeFile(image, Uint8Array.from(Buffer.from(
+			'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+			'base64',
+		)));
+		await vscode.workspace.fs.writeFile(source, bytes(initial));
+		await vscode.commands.executeCommand('vscode.openWith', source, 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		let frame = await connectToLivePreviewFrame('Compatibility source');
+		const localImage = frame.locator('.mlp-image');
+		await waitFor(async () => (await localImage.getAttribute('src'))?.startsWith('blob:') === true,
+			'validated local attachment bytes did not reach Live Preview');
+		await frame.locator('.cm-content').click();
+		await frame.page().keyboard.press('ControlOrMeta+Home');
+		const relativeLink = frame.locator('.mlp-link[data-href="Relative%20Target.md"]');
+		await relativeLink.waitFor({ state: 'visible', timeout: 5_000 });
+		await relativeLink.click();
+		await waitFor(() => activeTabUri()?.toString() === target.toString(),
+			'relative Markdown link did not open its in-vault target');
+
+		await vscode.commands.executeCommand('vscode.openWith', source, 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.splitEditorRight');
+		await waitFor(() => vscode.window.tabGroups.all.filter((group) => group.tabs.some((tab) => {
+			const input = tab.input;
+			return input instanceof vscode.TabInputCustom
+				&& input.viewType === 'mdLivePreview.editor'
+				&& input.uri.toString() === source.toString();
+		})).length === 2, 'Live Preview did not open in two split editor groups');
+		await waitFor(async () => (await livePreviewFrames('Compatibility source')).length === 2,
+			'the split Live Preview webviews did not both mount');
+
+		const external = `${initial}\n${marker}\n`;
+		await vscode.workspace.fs.writeFile(source, bytes(external));
+		await waitFor(async () => {
+			const frames = await livePreviewFrames('Compatibility source');
+			if (frames.length !== 2) return false;
+			return (await Promise.all(frames.map(async (candidate) =>
+				(await candidate.locator('.cm-content').textContent())?.includes(marker) === true))).every(Boolean);
+		}, 'external file replacement did not converge in both split Live Preview panes', 10_000);
+		frame = await connectToLivePreviewFrame(marker);
+		assert.ok((await frame.locator('.cm-content').textContent())?.includes(marker));
+	});
+
 	test('opens hostile Markdown without script execution, active unsafe URLs, or remote requests', async () => {
 		const fixture = await makeFixture('hostile');
 		const note = await service.createNote(fixture, 'Hostile Live Preview');
@@ -492,6 +549,21 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	assert.fail('could not find the active Live Preview CodeMirror frame');
+}
+
+async function livePreviewFrames(expectedText: string): Promise<Frame[]> {
+	const browser = await connectToDebugBrowser();
+	const matches: Frame[] = [];
+	for (const context of browser.contexts()) {
+		for (const page of context.pages()) {
+			for (const frame of page.frames()) {
+				if (frame.isDetached()) continue;
+				const editor = frame.locator('.cm-content');
+				if (await editor.count() > 0 && (await editor.textContent())?.includes(expectedText)) matches.push(frame);
+			}
+		}
+	}
+	return matches;
 }
 
 async function bringIsolatedWorkbenchToFront(): Promise<void> {
