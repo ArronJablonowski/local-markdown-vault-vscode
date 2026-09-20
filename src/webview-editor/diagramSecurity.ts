@@ -92,6 +92,7 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 		}
 		for (const attribute of Array.from(element.attributes)) {
 			const name = attribute.name.toLowerCase();
+			const localName = attribute.localName.toLowerCase();
 			const value = attribute.value.trim();
 			const decodedValue = decodeCssForSecurity(value);
 			if (
@@ -102,11 +103,18 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 				// apparently local reference into a remote renderer dependency.
 				name === 'xml:base' ||
 				(attribute.namespaceURI === XML_NAMESPACE && attribute.localName.toLowerCase() === 'base') ||
-				(URL_ATTRIBUTES.has(name) && !value.startsWith('#')) ||
+				// Namespace prefixes are attacker-controlled. Test the local name
+				// too so an alias such as `evil:href` bound to XLink cannot evade
+				// external-resource removal.
+				((URL_ATTRIBUTES.has(name) || URL_ATTRIBUTES.has(localName)) && !value.startsWith('#')) ||
 				(/url\s*\(/i.test(decodedValue) && !/^url\(#[A-Za-z0-9_.:-]+\)$/i.test(decodedValue)) ||
 				(name === 'style' && unsafeSvgCss(decodedValue, false))
 			) {
-				element.removeAttribute(attribute.name);
+				if (attribute.namespaceURI) {
+					element.removeAttributeNS(attribute.namespaceURI, attribute.localName);
+				} else {
+					element.removeAttribute(attribute.name);
+				}
 			}
 		}
 		if (element === root) sanitizeSvgViewport(root);

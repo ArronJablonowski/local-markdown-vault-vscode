@@ -27,8 +27,8 @@ unchecked below.
 | Targeted vault losslessness suite | 1 test passed: index reset/rebuild preserved Markdown, binary attachment, and `.obsidian/app.json` bytes and created no vault-local extension folder |
 | Targeted hidden-panel idleness suite | 1 real-host test passed: background edits caused no syntax tokenization while hidden and refreshed after reveal |
 | Restricted Mode extension-host suite | 4 tests passed in a fresh profile with `workspace.isTrusted === false`, including forged vault-folder and custom-CSS creation commands |
-| Production package | `local-markdown-vault-0.2.0.vsix`: 57 files, 3.48 MB (3,652,943 compressed bytes; 14,329,587 uncompressed bytes); archive verifier passed after a clean `npm ci --ignore-scripts`, including the packaged Obsidian compatibility contract |
-| VSIX SHA-256 | `2a12f0e1e3989f752eec371effbf05e2d572dc111f40a999a5f1f76e8c83eed4` |
+| Production package | `local-markdown-vault-0.2.0.vsix`: 57 files, 3.48 MB (3,653,016 compressed bytes; 14,329,862 uncompressed bytes); archive verifier passed after a clean `npm ci --ignore-scripts`, including the packaged Obsidian compatibility contract |
+| VSIX SHA-256 | `b9e851105ae00d276040e1668c74e9c975fe27c0c6c8991ee334d57ce7f75ad5` |
 | Five-run CPU benchmark | 10,000 notes/130,000 links: 332.1 ms index p95, 6.8 ms incremental p95, 24.6 ms search p95, 8.9 ms Quick Switcher p95 |
 | Five-run filesystem benchmark | 10,000 items/1 GiB: 805.8 ms cold-index maximum; create/edit/rename/delete tree-and-index convergence maxima of 170.8/163.9/166.8/158.9 ms; during a full rebuild, a real note typed and saved in 144.6 ms with 20.9 ms maximum event-loop delay and no data loss, closing PERF-005 on the reference machine; the rebuild path compiles exclusion patterns once, performs bounded cache encoding, skips incremental case-alias scans, and coalesces persistence without weakening exact-case watcher reconciliation |
 | Extension-host large-note gate | Five isolated clean-profile 1 MiB note runs recorded 41.7/31.9/38.7/14.1/16.6 ms maximum event-loop delay; all met the 100 ms PERF-004 continuous-blocking budget |
