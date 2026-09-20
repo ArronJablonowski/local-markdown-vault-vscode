@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { HostToPreviewMessage, PreviewToHostMessage, ThemeKind } from '../shared/messages';
 import { MAX_STYLE_BYTES, StyleStore } from './styleStore';
 import { validatePreviewToHostMessage } from '../shared/auxMessageValidation';
+import { createCspNonce } from '../shared/cspNonce';
 import { diagnosticEventRateLimited } from '../diagnostics';
 import { escapeAttribute } from '../shared/i18n';
 
@@ -181,7 +182,7 @@ export class StylePreviewController {
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview-preview.js'),
 		);
-		const nonce = getNonce();
+		const nonce = createCspNonce();
 		const documentTitle = vscode.l10n.t('Style Preview');
 		return `<!DOCTYPE html>
 <html lang="${escapeAttribute(vscode.env.language)}">
@@ -346,13 +347,4 @@ export function selectorAtOffset(css: string, offset: number): string | null {
 	if (bestPrelude) return clean(css.slice(bestPrelude.preludeStart, bestPrelude.preludeEnd));
 
 	return null;
-}
-
-function getNonce(): string {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }

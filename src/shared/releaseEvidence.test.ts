@@ -39,6 +39,22 @@ describe('release security evidence', () => {
 		expect(provider).not.toMatch(/connect-src[^;]*https:/);
 	});
 
+	it('uses one cryptographically secure nonce generator for every scripted webview', () => {
+		const providers = [
+			join(ROOT, 'src', 'editor', 'MarkdownLivePreviewProvider.ts'),
+			join(ROOT, 'src', 'sidebar', 'OutlineViewProvider.ts'),
+			join(ROOT, 'src', 'sidebar', 'StyleManagerViewProvider.ts'),
+			join(ROOT, 'src', 'sidebar', 'StylePreviewController.ts'),
+		];
+		for (const provider of providers) {
+			const source = readFileSync(provider, 'utf8');
+			expect(source).toContain('createCspNonce()');
+			expect(source).not.toContain('Math.random()');
+		}
+		const nonceSource = readFileSync(join(ROOT, 'src', 'shared', 'cspNonce.ts'), 'utf8');
+		expect(nonceSource).toContain("randomBytes(CSP_NONCE_BYTES).toString('base64url')");
+	});
+
 	it('writes a validated SBOM to a deterministic standalone artifact', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

@@ -42,14 +42,19 @@ test.describe('diagram widgets', () => {
 		});
 		const hostileRenderer = `window.mlpMermaid = {
 			initialize: function () {},
-			render: async function () { return { svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="window.__svgRan=1"><script>window.__svgRan=2<\\/script><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">hostile</div></foreignObject><style>.mlp-code-mode-btn, body { --renderer-escaped:yes }</style><style id="host-escape">:host { position:fixed!important; inset:0 }</style><style id="network-style">rect { background-image:image-set("https://tracker.invalid/pixel" 1x) }</style><a href="https://tracker.invalid/x"><text>link</text></a><rect style="fill:url(https://tracker.invalid/pixel)" width="10" height="10"/></svg>' }; }
+			render: async function () { return { svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="window.__svgRan=1"><script>window.__svgRan=2<\\/script><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">hostile</div></foreignObject><style>.mlp-code-mode-btn, body { --renderer-escaped:yes }</style><style id="host-escape">:host { position:fixed!important; inset:0 }</style><style id="network-style">rect { background-image:image-set("https://tracker.invalid/pixel" 1x) }</style><a href="https://tracker.invalid/x"><text>link</text></a><g xml:base="https://tracker.invalid/external.svg"><path id="local-shape" d="M0 0h1v1z"/><use href="#local-shape"/></g><rect style="fill:url(https://tracker.invalid/pixel)" width="10" height="10"/></svg>' }; }
 		};`;
 		await mountEditor(page, 'Intro\n\n```mermaid\ngraph TD; A-->B\n```\n', { mermaidChunk: hostileRenderer });
 		await expect(page.locator('.mlp-mermaid-wrap svg')).toBeVisible({ timeout: 10_000 });
 		await expect(page.locator('.mlp-mermaid-wrap script, .mlp-mermaid-wrap foreignObject')).toHaveCount(0);
-		await expect(page.locator('.mlp-mermaid-wrap [onload], .mlp-mermaid-wrap [href]')).toHaveCount(0);
+		await expect(page.locator('.mlp-mermaid-wrap [onload], .mlp-mermaid-wrap [href^="http"]')).toHaveCount(0);
 		await expect(page.locator('.mlp-mermaid-wrap style#host-escape')).toHaveCount(0);
 		await expect(page.locator('.mlp-mermaid-wrap style#network-style')).toHaveCount(0);
+		expect(await page.locator('.mlp-mermaid-wrap svg').evaluate((svg) =>
+			Array.from(svg.querySelectorAll('*')).some((element) =>
+				element.hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'base')),
+		)).toBe(false);
+		await expect(page.locator('.mlp-mermaid-wrap use[href="#local-shape"]')).toHaveCount(1);
 		await expect(page.locator('.mlp-mermaid-wrap .mlp-code-mode-btn')).toBeVisible();
 		expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe('none');
 		expect(await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--renderer-escaped'))).toBe('');

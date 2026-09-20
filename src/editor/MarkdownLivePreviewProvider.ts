@@ -6,6 +6,7 @@ import { escapeAttribute } from '../shared/i18n';
 import type { RemoteMediaPolicy, VaultNoteSummary } from '../shared/messages';
 import { resolveWorkspaceRemoteMediaPolicy } from '../shared/securitySettings';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
+import { createCspNonce } from '../shared/cspNonce';
 
 function remoteMediaPolicy(resource: vscode.Uri): RemoteMediaPolicy {
 	const inspected = vscode.workspace
@@ -156,7 +157,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		const awsShapesUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'aws4-shapes.json'),
 		);
-		const nonce = getNonce();
+		const nonce = createCspNonce();
 		const remoteImageSource = remoteMedia === 'https' ? ' https:' : '';
 		const documentTitle = vscode.l10n.t('Markdown Live Preview');
 
@@ -199,13 +200,4 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 </body>
 </html>`;
 	}
-}
-
-function getNonce(): string {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }

@@ -31,6 +31,7 @@ const FORBIDDEN_SVG_ELEMENTS = new Set([
 ]);
 
 const URL_ATTRIBUTES = new Set(['href', 'xlink:href', 'src']);
+const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 
 export class DiagramLimitError extends Error {}
 
@@ -96,6 +97,11 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 			if (
 				name.startsWith('on') ||
 				name === 'srcdoc' ||
+				// A fragment-only `href="#shape"` is safe only when the SVG
+				// cannot redefine its base URI. XML Base would otherwise turn an
+				// apparently local reference into a remote renderer dependency.
+				name === 'xml:base' ||
+				(attribute.namespaceURI === XML_NAMESPACE && attribute.localName.toLowerCase() === 'base') ||
 				(URL_ATTRIBUTES.has(name) && !value.startsWith('#')) ||
 				(/url\s*\(/i.test(decodedValue) && !/^url\(#[A-Za-z0-9_.:-]+\)$/i.test(decodedValue)) ||
 				(name === 'style' && unsafeSvgCss(decodedValue, false))

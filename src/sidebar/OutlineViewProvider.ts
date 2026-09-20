@@ -3,6 +3,7 @@ import type { HostToOutlineMessage, OutlineToHostMessage } from '../shared/messa
 import type { MarkdownLivePreviewProvider } from '../editor/MarkdownLivePreviewProvider';
 import { escapeAttribute } from '../shared/i18n';
 import { validateOutlineToHostMessage } from '../shared/auxMessageValidation';
+import { createCspNonce } from '../shared/cspNonce';
 import { diagnosticEventRateLimited } from '../diagnostics';
 
 const REFRESH_DEBOUNCE_MS = 150;
@@ -79,7 +80,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'webview-outline-style.css'),
 		);
-		const nonce = getNonce();
+		const nonce = createCspNonce();
 		const documentTitle = vscode.l10n.t('Outline');
 
 		return `<!DOCTYPE html>
@@ -96,13 +97,4 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
 	}
-}
-
-function getNonce(): string {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }

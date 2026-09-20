@@ -4,6 +4,7 @@ import { StyleStore } from './styleStore';
 import { StylePreviewController } from './StylePreviewController';
 import { escapeAttribute } from '../shared/i18n';
 import { validateSidebarToHostMessage } from '../shared/auxMessageValidation';
+import { createCspNonce } from '../shared/cspNonce';
 import { diagnosticEventRateLimited } from '../diagnostics';
 
 const CONFIG_SECTION = 'mdLivePreview';
@@ -175,7 +176,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'webview-sidebar-style.css'),
 		);
-		const nonce = getNonce();
+		const nonce = createCspNonce();
 		const documentTitle = vscode.l10n.t('CSS Themes');
 
 		return `<!DOCTYPE html>
@@ -192,13 +193,4 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
 	}
-}
-
-function getNonce(): string {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }
