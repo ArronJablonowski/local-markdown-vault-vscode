@@ -48,6 +48,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	readonly onDidChangeTreeData = this.changeEmitter.event;
 	private resolution: VaultResolution = { available: false, reason: 'noWorkspace' };
 	private watcher: vscode.FileSystemWatcher | undefined;
+	private generation = 0;
 
 	async initialize(isCurrent: () => boolean = () => true): Promise<void> {
 		const resolution = await VaultService.resolve();
@@ -82,6 +83,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	refresh(element?: VaultNode): void {
+		this.generation++;
 		this.changeEmitter.fire(element);
 	}
 
@@ -99,25 +101,30 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	async getChildren(element?: VaultNode): Promise<VaultNode[]> {
-		if (!this.resolution.available) return element ? [] : [new VaultUnavailableItem(this.resolution.reason)];
+		const resolution = this.resolution;
+		const generation = this.generation;
+		if (!resolution.available) return element ? [] : [new VaultUnavailableItem(resolution.reason)];
 		if (element instanceof VaultUnavailableItem) return [];
-		const parent = element instanceof VaultEntry ? element.uri : this.resolution.service.rootUri;
+		const service = resolution.service;
+		const parent = element instanceof VaultEntry ? element.uri : service.rootUri;
 		if (element instanceof VaultEntry && (element.fileType & vscode.FileType.SymbolicLink)) return [];
 		let entries: readonly (readonly [string, vscode.FileType])[];
 		try {
-			entries = await this.resolution.service.readDirectoryInside(parent);
+			entries = await service.readDirectoryInside(parent);
 		} catch {
 			return [];
 		}
-		const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', this.resolution.service.rootUri).get<string[]>('exclude', []);
-		const parentPath = this.resolution.service.relativePath(parent) ?? '';
+		if (generation !== this.generation || this.service !== service) return [];
+		const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<string[]>('exclude', []);
+		const parentPath = service.relativePath(parent);
+		if (parentPath === undefined) return [];
 		const isExcluded = compileVaultExclusions(exclude);
 		const visible = entries.filter(([name]) => !isExcluded(parentPath ? `${parentPath}/${name}` : name));
 		const nodes = visible.map(([name, type]) => {
 			const path = parentPath ? `${parentPath}/${name}` : name;
 			return new VaultEntry(vscode.Uri.joinPath(parent, name), type, parent, path);
 		});
-		return this.sort(nodes);
+		return this.sort(nodes, service, generation);
 	}
 
 	getParent(element: VaultNode): VaultNode | undefined {
@@ -133,27 +140,30 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	async entryForUri(uri: vscode.Uri): Promise<VaultEntry | undefined> {
-		if (!this.resolution.available) return undefined;
+		const resolution = this.resolution;
+		const generation = this.generation;
+		if (!resolution.available) return undefined;
+		const service = resolution.service;
 		let canonical: vscode.Uri;
 		try {
-			canonical = await this.resolution.service.canonicalExistingUri(uri);
+			canonical = await service.canonicalExistingUri(uri);
 		} catch {
 			return undefined;
 		}
-		const path = this.resolution.service.relativePath(canonical);
-		const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', this.resolution.service.rootUri).get<string[]>('exclude', []);
+		if (generation !== this.generation || this.service !== service) return undefined;
+		const path = service.relativePath(canonical);
+		const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<string[]>('exclude', []);
 		if (path === undefined || !path || isVaultPathExcluded(path, exclude)) return undefined;
 		return new VaultEntry(canonical, vscode.FileType.File, vscode.Uri.file(dirname(canonical.fsPath)), path);
 	}
 
-	private async sort(nodes: VaultEntry[]): Promise<VaultEntry[]> {
-		if (!this.resolution.available) return nodes;
-		const order = vscode.workspace.getConfiguration('mdLivePreview.vault', this.resolution.service.rootUri).get<string>('sortOrder', 'nameAsc');
+	private async sort(nodes: VaultEntry[], service: VaultService, generation: number): Promise<VaultEntry[]> {
+		if (generation !== this.generation || this.service !== service) return [];
+		const order = vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<string>('sortOrder', 'nameAsc');
 		const direction = order.endsWith('Desc') || order.endsWith('Newest') ? -1 : 1;
 		if (order.startsWith('name')) {
 			return nodes.sort((a, b) => folderFirst(a, b) || direction * basename(a.uri.fsPath).localeCompare(basename(b.uri.fsPath), undefined, { numeric: true, sensitivity: 'base' }));
 		}
-		const service = this.resolution.service;
 		const stats = new Map<string, { created: number; modified: number }>();
 		await Promise.all(nodes.map(async (node) => {
 			try {
@@ -161,11 +171,13 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 				stats.set(node.uri.toString(), { created: stat.birthtimeMs, modified: stat.mtimeMs });
 			} catch { /* item changed while sorting */ }
 		}));
+		if (generation !== this.generation || this.service !== service) return [];
 		const created = order.startsWith('created');
 		return nodes.sort((a, b) => folderFirst(a, b) || direction * (((stats.get(a.uri.toString())?.[created ? 'created' : 'modified']) ?? 0) - ((stats.get(b.uri.toString())?.[created ? 'created' : 'modified']) ?? 0)));
 	}
 
 	dispose(): void {
+		this.generation++;
 		this.watcher?.dispose();
 		this.changeEmitter.dispose();
 	}

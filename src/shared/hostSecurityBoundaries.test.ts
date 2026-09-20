@@ -224,9 +224,19 @@ describe('host security boundaries', () => {
 		expect(providers).toContain('() => generation !== this.generation || index !== this.index');
 	});
 
+	it('discards asynchronous Document Vault tree results after their vault generation changes', () => {
+		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
+		expect(tree).toContain('private generation = 0');
+		expect(tree).toContain('const resolution = this.resolution');
+		expect(tree).toContain('const service = resolution.service');
+		expect(tree.match(/generation !== this\.generation \|\| this\.service !== service/g)?.length).toBeGreaterThanOrEqual(3);
+		expect(tree).toContain('return this.sort(nodes, service, generation)');
+		expect(tree).not.toContain('return this.sort(nodes);');
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
-		expect(tree).toContain('await this.resolution.service.readDirectoryInside(parent)');
+		expect(tree).toContain('await service.readDirectoryInside(parent)');
 		expect(tree).not.toContain('workspace.fs.readDirectory(parent)');
 		expect(tree).toContain('await service.statEntryInside(node.uri)');
 		expect(tree).not.toContain('workspace.fs.stat(node.uri)');

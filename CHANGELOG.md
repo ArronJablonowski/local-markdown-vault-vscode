@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Bind asynchronous Document Vault directory reads, date sorts, and active-file resolution to the current vault generation so an old workspace cannot surface stale filenames after a workspace switch or refresh.
 - Bind asynchronous Backlinks and Broken Links calculations to the current vault generation, cancel ongoing old-vault reads and obsolete broken-link scans, and discard stale results after index, active-note, filter, sort, or watcher changes.
 - Validate public Backlinks, Broken Links, and Tags command arguments at runtime, require targets to exist in the current vault index, and reject malformed paths, line numbers, tag-query injection, and stale tags before navigation or search UI opens.
 - Harden opt-in local diagnostics so embedded, quoted, space-containing, and encoded absolute paths plus credential-like strings are redacted as whole values, while malformed event and field names cannot smuggle sensitive fragments into the bounded log.
