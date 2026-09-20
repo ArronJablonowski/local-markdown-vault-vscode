@@ -168,8 +168,8 @@ Additional references:
 ## Known limitations
 
 - Only one local workspace folder is supported as a vault.
-- Case-only rename undo/redo still needs cross-platform release validation.
-- Windows, Linux, VoiceOver, NVDA, and Orca checks remain part of the pre-release matrix.
+- Case-only rename transactions pass the automated Windows, macOS, and Linux matrix; focused undo/redo and operating-system trash behavior still require manual platform sign-off.
+- VoiceOver, NVDA, and Orca checks remain part of the manual pre-release matrix.
 - Large-vault performance depends on storage, exclusions, note size, and available system resources.
 - The extension is under active security hardening and is not yet declared production-ready for hostile files.
 
