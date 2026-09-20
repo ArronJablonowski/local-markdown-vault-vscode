@@ -42,7 +42,10 @@ Security fixes are made on the current development branch and the latest Marketp
 
 ## Reporting a vulnerability
 
-Do not publish exploit details in a public issue. Use the repository's **Security → Advisories → New draft security advisory** flow to report the problem privately. Include:
+Do not publish exploit details in a public issue. Use the repository's private
+[**Report a vulnerability** form](https://github.com/ArronJablonowski/local-markdown-vault-vscode/security/advisories/new).
+The form is also available from **Security → Advisories → Report a
+vulnerability**. Include:
 
 - the affected version and operating system;
 - the smallest Markdown, SVG, XML, CSS, or message payload that reproduces it;
