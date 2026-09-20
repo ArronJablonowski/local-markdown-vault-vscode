@@ -129,6 +129,25 @@ describe('release security evidence', () => {
 		expect(vscodeIgnore.split(/\r?\n/)).toContain('!docs/OBSIDIAN_COMPATIBILITY.md');
 	});
 
+	it('ships reproducible contributor setup and security-boundary guidance', () => {
+		expect(readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim()).toBe('24');
+		const contributing = readFileSync(join(ROOT, 'CONTRIBUTING.md'), 'utf8');
+		for (const required of [
+			'npm run security:dependencies',
+			'npm ci --ignore-scripts',
+			'npm run test:integration:restricted',
+			'npm run test:vsix',
+			'VaultService.ts',
+			'runtime validators',
+			'Do not add telemetry',
+			'reporting process in [SECURITY.md]',
+		]) {
+			expect(contributing).toContain(required);
+		}
+		const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+		expect(readme).toContain('[Contributing and development workflow](CONTRIBUTING.md)');
+	});
+
 	it('retains the SBOM in CI but excludes it from source control and the VSIX', () => {
 		const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
 		const release = readFileSync(join(ROOT, '.github', 'workflows', 'release-validation.yml'), 'utf8');

@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Add a contributor guide and Node 24 version marker covering secure dependency installation, architectural trust boundaries, required validation, malicious-fixture handling, and review expectations.
 - Classify spelling-only renames by verified filesystem identity instead of the operating-system name, so case-sensitive Linux/macOS volumes use normal atomic moves and reject a distinct same-folded destination while truly case-insensitive providers retain the guarded staging path.
 - Bound every hosted CI, security, dependency-review, and release-validation job to 30 minutes or less, with a regression gate that rejects any future unbounded workflow job.
 - Pinned Linux CI, security scanning, dependency review, and release-matrix jobs to Ubuntu 24.04 so `ubuntu-latest` cannot silently change the validated platform.

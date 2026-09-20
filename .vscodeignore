@@ -22,6 +22,8 @@ package-lock.json
 local-markdown-vault.cdx.json
 markdown-live-preview-editor.cdx.json
 .gitignore
+.nvmrc
+CONTRIBUTING.md
 CLAUDE.md
 repro-*.png
 **/.eslintrc.json

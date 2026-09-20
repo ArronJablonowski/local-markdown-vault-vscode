@@ -159,6 +159,7 @@ Useful release and security checks are documented in [docs/RELEASE_CHECKLIST.md]
 
 Additional references:
 
+- [Contributing and development workflow](CONTRIBUTING.md)
 - [Obsidian compatibility](docs/OBSIDIAN_COMPATIBILITY.md)
 - [Migration and rollback](docs/MIGRATION.md)
 - [Accessibility](docs/ACCESSIBILITY.md)
