@@ -311,6 +311,14 @@ html, body {
 	transform: rotate(45deg);
 }
 
+/* Tasks use a custom-drawn checkbox so the browser cannot supply its normal
+   native focus ring. Keep keyboard focus visible in every VS Code theme,
+   including high contrast, without changing the line's layout. */
+.mlp-checkbox:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
+}
+
 /* ── Rules, links, images ────────────────────────────────────────────────── */
 .mlp-hr {
 	display: inline-block;

@@ -12,6 +12,15 @@ const NOTE_SOURCE = [
 	'',
 	'[[Packaged Target]]',
 	'',
+	'> [!NOTE]- Packaged details',
+	'> Keyboard-reachable callout.',
+	'',
+	'- [ ] Packaged task',
+	'',
+	'| name | value |',
+	'| --- | ---: |',
+	'| alpha | 1 |',
+	'',
 	'![Packaged local image](pixel.png)',
 	'',
 	'![Blocked remote image](https://mdlp-vsix.invalid/tracker.png)',
@@ -120,6 +129,72 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.commands.executeCommand('mdLivePreview.tags.focus');
 		await page.getByRole('treeitem', { name: /^Tag packaged, 1 note\(s\)$/ })
 			.waitFor({ state: 'visible', timeout: 5_000 });
+	});
+
+	(mode === 'trusted' ? test : test.skip)('keeps packaged controls reachable in high contrast at 200 percent zoom', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root, 'the VSIX smoke workspace is unavailable');
+		const page = await getWorkbenchPage();
+		await page.bringToFront();
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.joinPath(root, 'README.md'), 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		const frame = await connectToLivePreviewFrame('Packaged smoke');
+		await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
+
+		const workbench = vscode.workspace.getConfiguration('workbench');
+		const previousTheme = workbench.inspect<string>('colorTheme')?.globalValue;
+		const highContrastTheme = findHighContrastTheme();
+		await vscode.commands.executeCommand('workbench.action.zoomReset');
+		const baselineWidth = await page.evaluate(() => window.innerWidth);
+		try {
+			await workbench.update('colorTheme', highContrastTheme, vscode.ConfigurationTarget.Global);
+			await waitFor(() => frame.evaluate(() => document.body.classList.contains('vscode-high-contrast')),
+				'the packaged webview did not receive the real VS Code high-contrast theme', 15_000);
+			for (let index = 0; index < 4; index++) {
+				await vscode.commands.executeCommand('workbench.action.zoomIn');
+				await delay(100);
+			}
+			await waitFor(async () => baselineWidth / await page.evaluate(() => window.innerWidth) >= 1.9,
+				'the packaged workbench did not reach at least 200 percent effective zoom', 10_000);
+
+			for (const selector of ['.mlp-checkbox', '.mlp-callout-header', '.mlp-table-cell', '.mlp-code-mode-btn']) {
+				const control = frame.locator(selector).first();
+				await control.waitFor({ state: 'visible', timeout: 5_000 });
+				await control.scrollIntoViewIfNeeded();
+				await focusControlWithKeyboard(frame, selector);
+				assert.strictEqual(await control.evaluate((element) => document.activeElement === element), true,
+					`${selector} could not receive keyboard focus at 200 percent zoom`);
+				const focusAndBounds = await control.evaluate((element) => {
+					const style = getComputedStyle(element);
+					const bounds = element.getBoundingClientRect();
+					return {
+						outlineStyle: style.outlineStyle,
+						outlineWidth: Number.parseFloat(style.outlineWidth),
+						focusVisible: element.matches(':focus-visible'),
+						outlineColor: style.outlineColor,
+						visible: bounds.width > 0 && bounds.height > 0 && bounds.right > 0 && bounds.bottom > 0 &&
+							bounds.left < window.innerWidth && bounds.top < window.innerHeight,
+					};
+				});
+				assert.ok(focusAndBounds.visible, `${selector} was clipped out of the zoomed viewport`);
+				assert.notStrictEqual(focusAndBounds.outlineStyle, 'none',
+					`${selector} had no visible focus style: ${JSON.stringify(focusAndBounds)}`);
+				// Chromium reports CSS-pixel widths after applying the workbench zoom;
+				// a declared 1px outline is just under 1 CSS px at this scale.
+				assert.ok(focusAndBounds.outlineWidth > 0.5,
+					`${selector} had no visible focus width: ${JSON.stringify(focusAndBounds)}`);
+			}
+			const sourceButtons = frame.locator('.mlp-code-mode-btn');
+			assert.ok(await sourceButtons.count() >= 2, 'rendered blocks did not retain source-mode escape controls');
+			for (let index = 0; index < await sourceButtons.count(); index++) {
+				assert.ok(await sourceButtons.nth(index).getAttribute('aria-label'),
+					'a source-mode escape control had no accessible name');
+			}
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.zoomReset');
+			await workbench.update('colorTheme', previousTheme, vscode.ConfigurationTarget.Global);
+		}
 	});
 
 	(mode === 'restricted' ? test : test.skip)('blocks packaged vault mutations in Restricted Mode', async () => {
@@ -235,6 +310,52 @@ function activeTabUri(): vscode.Uri | undefined {
 
 function visibleWorkbenchRow(page: Page, text: string) {
 	return page.locator('.monaco-list-row:visible').filter({ hasText: text });
+}
+
+function findHighContrastTheme(): string {
+	for (const extension of vscode.extensions.all) {
+		const themes = extension.packageJSON?.contributes?.themes;
+		if (!Array.isArray(themes)) continue;
+		for (const theme of themes) {
+			if (theme?.uiTheme !== 'hc-black') continue;
+			if (typeof theme.id === 'string' && theme.id) return theme.id;
+			if (typeof theme.label === 'string' && theme.label) return theme.label;
+		}
+	}
+	assert.fail('VS Code did not expose a built-in high-contrast theme');
+}
+
+async function focusControlWithKeyboard(frame: Frame, selector: string): Promise<void> {
+	const prepared = await frame.evaluate((targetSelector) => {
+		const target = document.querySelector<HTMLElement>(targetSelector);
+		if (!target) return false;
+		const style = getComputedStyle(target);
+		if (style.display === 'none' || style.visibility === 'hidden' || target.getClientRects().length === 0) return false;
+		return true;
+	}, selector);
+	assert.ok(prepared, `${selector} was not present in the keyboard tab order`);
+	const visited: string[] = [];
+	// Tab remains an indentation command while editing. Escape temporarily puts
+	// CodeMirror into tab-focus mode so the following real Tab key reaches the
+	// rendered controls rather than becoming a synthetic focus assertion.
+	const editor = frame.locator('.cm-content');
+	await editor.focus();
+	await editor.press('Escape');
+	await editor.press('Tab');
+	visited.push(await frame.evaluate(() => {
+		const active = document.activeElement as HTMLElement | null;
+		return active ? `${active.tagName.toLowerCase()}.${active.className}` : 'none';
+	}));
+	if (await frame.evaluate((targetSelector) => document.activeElement?.matches(targetSelector) === true, selector)) return;
+	for (let index = 1; index < 200; index++) {
+		await frame.locator(':focus').press('Tab');
+		if (visited.length < 40) visited.push(await frame.evaluate(() => {
+			const active = document.activeElement as HTMLElement | null;
+			return active ? `${active.tagName.toLowerCase()}.${active.className}` : 'none';
+		}));
+		if (await frame.evaluate((targetSelector) => document.activeElement?.matches(targetSelector) === true, selector)) return;
+	}
+	assert.fail(`${selector} could not be reached through the packaged webview's keyboard tab order: ${visited.join(' -> ')}`);
 }
 
 async function waitFor(check: () => boolean | Promise<boolean>, message: string, timeoutMs = 10_000): Promise<void> {

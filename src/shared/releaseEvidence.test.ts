@@ -376,6 +376,11 @@ describe('release security evidence', () => {
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');
 		expect(testSource).toContain('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views');
+		expect(testSource).toContain('keeps packaged controls reachable in high contrast at 200 percent zoom');
+		expect(testSource).toContain("document.body.classList.contains('vscode-high-contrast')");
+		expect(testSource).toContain("executeCommand('workbench.action.zoomIn')");
+		expect(testSource).toContain("await editor.press('Escape')");
+		expect(testSource).toContain("await editor.press('Tab')");
 		expect(testSource).toContain("chromium.connectOverCDP(`http://127.0.0.1:${port}`)");
 		expect(testSource).toContain(".mlp-wikilink[data-href=\"wikilink:Packaged%20Target\"]");
 		expect(testSource).toContain("executeCommand('mdLivePreview.vault.focus')");

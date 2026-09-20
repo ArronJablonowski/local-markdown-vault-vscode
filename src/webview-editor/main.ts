@@ -1,6 +1,6 @@
 import { EditorState, Annotation, type Extension, ChangeSet, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, indentWithTab, temporarilySetTabFocusMode } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import {
 	search,
@@ -229,6 +229,12 @@ function createExtensions(): Extension[] {
 			{ key: 'Mod-i', run: toggleEmphasisCommand('*') },
 			indentWithTab,
 			...defaultKeymap,
+			// Tab indents Markdown, matching the requested Obsidian-style editing
+			// behavior. Once the default Escape actions have had a chance to close a
+			// panel or simplify a selection, a further Escape temporarily releases
+			// Tab to the browser so keyboard users can reach rendered controls and
+			// then leave the webview without a focus trap.
+			{ key: 'Escape', run: temporarilySetTabFocusMode },
 		]),
 		EditorView.updateListener.of((update) => {
 			if (update.docChanged) {

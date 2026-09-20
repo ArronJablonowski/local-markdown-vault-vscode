@@ -34,6 +34,7 @@ enhancement.
 
 | Surface | Keyboard operation |
 | --- | --- |
+| Live Preview focus | Tab indents Markdown while editing. Press Escape, then Tab to move from the editor into rendered controls; continue with Tab or Shift+Tab. `Ctrl+M` (`Shift+Option+M` on macOS) toggles CodeMirror's persistent Tab-focus mode. |
 | Document Vault | Arrow keys navigate; Enter opens; F2 renames; Delete moves to Trash (`Cmd+Backspace` on macOS); context-menu **Move Vault Item…** opens a searchable folder picker. |
 | Quick Switcher | `Ctrl+O` / `Cmd+O`, type to filter, arrows select, Enter opens or explicitly creates a note, Escape closes. |
 | Vault Search | `Ctrl+Shift+F` / `Cmd+Shift+F` while the editor or Vault has focus; type to filter, arrows select, Enter opens, Escape closes. |
@@ -51,6 +52,13 @@ content using WCAG 2 A/AA, WCAG 2.1 AA, and WCAG 2.2 AA rules. It also focuses
 every enabled interactive control at 200 percent zoom in high-contrast mode.
 Unit and integration tests verify localized strings, command contributions,
 keyboard shortcuts, and safe error states.
+
+The clean-profile packaged-VSIX gate additionally selects VS Code's real
+built-in high-contrast theme, drives the workbench to at least 200 percent
+effective zoom, and follows the Escape-then-Tab path through task, callout,
+table, and source-mode controls. It verifies visible focus, viewport access,
+accessible source-control names, and restores the disposable profile's theme
+and zoom afterward.
 
 Automated scans do not prove screen-reader usability. A release is not signed
 off solely because Axe reports no critical violations.
