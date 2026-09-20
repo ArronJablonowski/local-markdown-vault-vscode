@@ -1,8 +1,12 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync as readFileSyncNative } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(__dirname, '..', '..');
+
+function readFileSync(path: string, encoding: 'utf8'): string {
+	return readFileSyncNative(path, encoding).replace(/\r\n?/g, '\n');
+}
 
 describe('host security boundaries', () => {
 	it('never delegates a local vault resource to the operating-system opener', () => {

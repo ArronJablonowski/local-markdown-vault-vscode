@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { join, resolve } from 'node:path';
 import { resolveAttachmentFolder, validateAttachmentFolder } from './attachmentPath';
 
 describe('attachment folder paths', () => {
@@ -11,10 +12,14 @@ describe('attachment folder paths', () => {
 	});
 
 	it('resolves beneath the vault root', () => {
-		expect(resolveAttachmentFolder('/vault', '/vault/notes/daily', 'assets/images')).toBe('/vault/notes/daily/assets/images');
+		const vault = resolve('vault-test-root');
+		const noteDirectory = join(vault, 'notes', 'daily');
+		expect(resolveAttachmentFolder(vault, noteDirectory, 'assets/images')).toBe(
+			join(noteDirectory, 'assets', 'images'),
+		);
 	});
 
 	it('rejects a note directory outside the vault', () => {
-		expect(() => resolveAttachmentFolder('/vault', '/other', 'assets')).toThrow();
+		expect(() => resolveAttachmentFolder(resolve('vault-test-root'), resolve('other-root'), 'assets')).toThrow();
 	});
 });

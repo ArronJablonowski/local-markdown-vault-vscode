@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { resolve } from 'node:path';
 import { isPathInside, normalizePathForCompare, resolveVaultRelativePath } from './pathContainment';
 
 describe('normalizePathForCompare', () => {
@@ -23,9 +24,11 @@ describe('normalizePathForCompare', () => {
 });
 
 describe('resolveVaultRelativePath', () => {
+	const root = resolve('vault-test-root');
+
 	it('resolves ordinary nested paths and the vault root', () => {
-		expect(resolveVaultRelativePath('/vault', 'Folder/Note.md', false)).toBe('/vault/Folder/Note.md');
-		expect(resolveVaultRelativePath('/vault', '', false)).toBe('/vault');
+		expect(resolveVaultRelativePath(root, 'Folder/Note.md', false)).toBe(resolve(root, 'Folder', 'Note.md'));
+		expect(resolveVaultRelativePath(root, '', false)).toBe(root);
 	});
 
 	it.each([
@@ -33,11 +36,11 @@ describe('resolveVaultRelativePath', () => {
 		'/absolute.md', '\\\\server\\share.md', 'C:/absolute.md', 'C:relative.md',
 		'Folder/Note.md\0suffix', 'Folder/Note.md\nnext',
 	])('rejects unsafe vault-relative path %o', (path) => {
-		expect(resolveVaultRelativePath('/vault', path, false)).toBeUndefined();
+		expect(resolveVaultRelativePath(root, path, false)).toBeUndefined();
 	});
 
 	it('does not reinterpret percent-encoded filename characters', () => {
-		expect(resolveVaultRelativePath('/vault', '%2e%2e/Note.md', false)).toBe('/vault/%2e%2e/Note.md');
+		expect(resolveVaultRelativePath(root, '%2e%2e/Note.md', false)).toBe(resolve(root, '%2e%2e', 'Note.md'));
 	});
 });
 
