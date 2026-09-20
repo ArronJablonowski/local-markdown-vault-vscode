@@ -12,6 +12,7 @@ import { hasExactQuickSwitcherRecord, searchQuickSwitcherRecords } from './quick
 import { validatedRecentPaths, vaultStateKey } from './vaultStateKey';
 import { isBacklinkFilter, isBacklinkSort, migrateVaultScopedState } from './vaultStateMigration';
 import { classifyVaultWorkspace } from './vaultWorkspace';
+import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './knowledgeCommandValidation';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -169,16 +170,23 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			if (rebuilt) announceVaultCompletion(vscode.l10n.t('Document Vault index rebuilt.'));
 			else vscode.window.setStatusBarMessage(vscode.l10n.t('Document Vault index rebuild canceled.'), 3_000);
 		}),
-		vscode.commands.registerCommand('mdLivePreview.openIndexedPath', async (path: string, line?: number) => {
-			if (index?.get(path)) await openIndexedRecord(index, index.get(path)!, context, line);
+		vscode.commands.registerCommand('mdLivePreview.openIndexedPath', async (path: unknown, line?: unknown) => {
+			const targetIndex = index;
+			const request = validateOpenIndexedPathArguments(path, line);
+			const record = request && targetIndex?.get(request.path);
+			if (targetIndex && record) await openIndexedRecord(targetIndex, record, context, request.line);
 		}),
-		vscode.commands.registerCommand('mdLivePreview.searchTag', async (tag: string) => {
+		vscode.commands.registerCommand('mdLivePreview.searchTag', async (tag: unknown) => {
 			const targetIndex = index;
 			const generation = vaultGeneration;
-			if (targetIndex) await showVaultSearch(
+			const requestedTag = validateSearchTagArgument(tag);
+			const exists = requestedTag && targetIndex?.all().some((record) =>
+				record.tags.some((indexedTag) => indexedTag === requestedTag || indexedTag.startsWith(`${requestedTag}/`)),
+			);
+			if (targetIndex && requestedTag && exists) await showVaultSearch(
 				targetIndex,
 				context,
-				`tag:${tag}`,
+				`tag:${requestedTag}`,
 				() => generation === vaultGeneration && targetIndex === index,
 				trackVaultPicker,
 			);

@@ -204,6 +204,16 @@ describe('host security boundaries', () => {
 		}
 	});
 
+	it('validates native knowledge-view command arguments and requires current indexed capabilities', () => {
+		const vault = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		expect(vault).toContain("registerCommand('mdLivePreview.openIndexedPath', async (path: unknown, line?: unknown)");
+		expect(vault).toContain('validateOpenIndexedPathArguments(path, line)');
+		expect(vault).toContain('targetIndex?.get(request.path)');
+		expect(vault).toContain("registerCommand('mdLivePreview.searchTag', async (tag: unknown)");
+		expect(vault).toContain('validateSearchTagArgument(tag)');
+		expect(vault).toContain('record.tags.some((indexedTag) => indexedTag === requestedTag');
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
 		expect(tree).toContain('await this.resolution.service.readDirectoryInside(parent)');

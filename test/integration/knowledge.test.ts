@@ -114,6 +114,37 @@ suite('local knowledge navigation', () => {
 		assert.strictEqual(api.getVaultRecentPaths()[0], relative);
 	});
 
+	test('rejects forged knowledge-view command arguments before navigation', async () => {
+		const folder = await makeFixture();
+		const guard = vscode.Uri.joinPath(folder, 'Knowledge Command Guard.md');
+		const target = vscode.Uri.joinPath(folder, 'Knowledge Command Target.md');
+		const relative = relativePath(target);
+		await vscode.workspace.fs.writeFile(guard, bytes('# Guard\n'));
+		await vscode.workspace.fs.writeFile(target, bytes('---\ntags: [secure/nested]\n---\n# Target\n'));
+		await waitFor(() => api.getVaultIndexRecords().some((record) => record.path === relative));
+		await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(guard));
+
+		for (const args of [
+			[{}, undefined],
+			[relative, 0],
+			[relative, Number.NaN],
+			[relative, 10_000_001],
+			['../outside.md', 1],
+		] as const) {
+			await assert.doesNotReject(async () => {
+				await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', ...args);
+			});
+		}
+		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), guard.toString());
+
+		for (const tag of [{}, '', 'secure OR path:any', '#secure', 'missing']) {
+			await assert.doesNotReject(async () => {
+				await vscode.commands.executeCommand('mdLivePreview.searchTag', tag);
+			});
+		}
+		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), guard.toString());
+	});
+
 	test('indexes property names without values and verifies value filters from the note', async () => {
 		const folder = await makeFixture();
 		const note = vscode.Uri.joinPath(folder, 'Property Privacy.md');
