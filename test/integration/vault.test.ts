@@ -138,6 +138,43 @@ suite('Document Vault filesystem transactions', () => {
 
 	});
 
+	test('rejects malformed vault commands and ignores forged entry metadata', async () => {
+		const fixture = await makeFixture();
+		const note = await service.createNote(fixture, 'ForgedCommandTarget');
+		await vscode.workspace.fs.writeFile(note, bytes('# Secure target\n'));
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+		for (const command of [
+			'mdLivePreview.vault.open',
+			'mdLivePreview.vault.newNote',
+			'mdLivePreview.vault.newFolder',
+			'mdLivePreview.vault.rename',
+			'mdLivePreview.vault.move',
+			'mdLivePreview.vault.delete',
+			'mdLivePreview.vault.copyRelativePath',
+			'mdLivePreview.vault.revealInOS',
+		]) {
+			await assert.doesNotReject(async () => { await vscode.commands.executeCommand(command, {}); });
+		}
+
+		await assert.doesNotReject(async () => {
+			await vscode.commands.executeCommand('mdLivePreview.vault.open', {
+				uri: note,
+				parentUri: fixture,
+				fileType: vscode.FileType.Directory,
+				vaultPath: 'forged.md',
+			});
+		});
+		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), note.toString());
+
+		await vscode.commands.executeCommand(
+			'mdLivePreview.vault.delete',
+			{ uri: note },
+			[{ uri: note }, {}],
+		);
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), '# Secure target\n');
+	});
+
 	test('counts descendants and rejects a symlink escape', async () => {
 		const fixture = await makeFixture();
 		const nested = await service.createFolder(fixture, 'Nested');

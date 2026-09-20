@@ -187,6 +187,23 @@ describe('host security boundaries', () => {
 		expect(command.indexOf('assertMutationSource(')).toBeLessThan(command.indexOf("executeCommand('revealFileInOS'"));
 	});
 
+	it('re-resolves native-tree command and drag payloads through the active vault', () => {
+		const vault = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		expect(vault).toContain('async function resolveCommandEntry(provider: VaultTreeProvider, value: unknown)');
+		expect(vault).toContain("'uri' in value && value.uri instanceof vscode.Uri");
+		expect(vault).toContain('const stat = await service.statEntryInside(uri)');
+		expect(vault).toContain('async function resolveCommandEntries(');
+		expect(vault).toContain("selected !== undefined && !Array.isArray(selected)");
+		expect(vault).toContain('if (values.length > 256) return []');
+		expect(vault).toContain('resolved.some((value) => value === undefined)');
+		expect(vault).toContain('target === undefined ? undefined : await resolveCommandEntry(this.provider, target)');
+		for (const command of ['open', 'newNote', 'newFolder', 'rename', 'move', 'delete', 'copyRelativePath', 'revealInOS']) {
+			expect(vault).toMatch(new RegExp(
+				`registerCommand\\('mdLivePreview\\.vault\\.${command}', async \\(entry\\??: unknown`,
+			));
+		}
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
 		expect(tree).toContain('await this.resolution.service.readDirectoryInside(parent)');
@@ -227,7 +244,7 @@ describe('host security boundaries', () => {
 		const sync = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
 		expect(sync.match(/service\.assertRegularFileInside\(uri\)/g)?.length).toBeGreaterThanOrEqual(2);
 		const registration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
-		expect(registration).toContain('await service.assertRegularFileInside(entry.uri)');
+		expect(registration).toContain('await service.assertRegularFileInside(item.uri)');
 	});
 
 	it('does not send or mutate custom CSS through the sidebar in Restricted Mode', () => {

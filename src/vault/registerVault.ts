@@ -108,11 +108,12 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 	};
 	await updateContext();
 
-	const selectedParent = (entry?: VaultEntry): vscode.Uri | undefined => {
+	const selectedParent = async (entry?: unknown): Promise<vscode.Uri | undefined> => {
 		const service = provider.service;
 		if (!service) return undefined;
-		if (!entry) return service.rootUri;
-		return entry.fileType & vscode.FileType.Directory ? entry.uri : entry.parentUri;
+		if (entry === undefined) return service.rootUri;
+		const resolved = await resolveCommandEntry(provider, entry);
+		return resolved && resolved.fileType & vscode.FileType.Directory ? resolved.uri : resolved?.parentUri;
 	};
 
 	const requireTrusted = (): boolean => {
@@ -229,22 +230,23 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 		vscode.commands.registerCommand('mdLivePreview.vault.collapseAll', async () => {
 			await vscode.commands.executeCommand('workbench.actions.treeView.mdLivePreview.vault.collapseAll');
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.open', async (entry: VaultEntry) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.open', async (entry: unknown) => {
 			const service = provider.service;
-			if (!(entry?.uri instanceof vscode.Uri) || !service || service.relativePath(entry.uri) === undefined) return;
+			const item = await resolveCommandEntry(provider, entry);
+			if (!item || !service) return;
 			try {
 				// Tree items are discovered lexically so a symlink remains visible and
 				// can be renamed or moved as a link. Opening follows the target, so it
 				// requires the stronger canonical containment check first.
-				await service.assertRegularFileInside(entry.uri);
-				await vscode.commands.executeCommand('vscode.open', entry.uri);
+				await service.assertRegularFileInside(item.uri);
+				await vscode.commands.executeCommand('vscode.open', item.uri);
 			} catch {
 				void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be opened securely.'));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.newNote', async (entry?: VaultEntry) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.newNote', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const parent = selectedParent(entry);
+			const parent = await selectedParent(entry);
 			const service = provider.service;
 			if (!parent || !service) return;
 			const name = await vscode.window.showInputBox({
@@ -262,9 +264,9 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the note.')));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.newFolder', async (entry?: VaultEntry) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.newFolder', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const parent = selectedParent(entry);
+			const parent = await selectedParent(entry);
 			const service = provider.service;
 			if (!parent || !service) return;
 			const name = await vscode.window.showInputBox({
@@ -280,9 +282,9 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the folder.')));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.rename', async (entry?: VaultEntry) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.rename', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const item = entry ?? tree.selection[0];
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			const service = provider.service;
 			if (!item || !service) return;
 			const currentName = basenameLabel(item.uri);
@@ -312,9 +314,9 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not rename the vault item.')));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.move', async (entry?: VaultEntry, selected?: VaultEntry[]) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.move', async (entry?: unknown, selected?: unknown) => {
 			if (!requireTrusted()) return;
-			const items = selected?.length ? selected : entry ? [entry] : tree.selection;
+			const items = await resolveCommandEntries(provider, entry, selected, tree.selection);
 			if (items.length === 0 || !provider.service) return;
 			try {
 				const parent = await pickMoveDestination(provider, items);
@@ -325,11 +327,11 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not move the vault item.')));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.delete', async (entry?: VaultEntry, selected?: VaultEntry[]) => {
+		vscode.commands.registerCommand('mdLivePreview.vault.delete', async (entry?: unknown, selected?: unknown) => {
 			if (!requireTrusted()) return;
 			const service = provider.service;
 			if (!service) return;
-			const items = selected?.length ? selected : entry ? [entry] : tree.selection;
+			const items = await resolveCommandEntries(provider, entry, selected, tree.selection);
 			if (items.length === 0) return;
 			if (items.length !== 1) {
 				void vscode.window.showWarningMessage(vscode.l10n.t('Move one vault item to trash at a time to avoid partial operations.'));
@@ -369,13 +371,13 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				void vscode.window.showErrorMessage(vscode.l10n.t('The item could not be moved to trash. No permanent delete was attempted.'));
 			}
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.copyRelativePath', async (entry?: VaultEntry) => {
-			const item = entry ?? tree.selection[0];
+		vscode.commands.registerCommand('mdLivePreview.vault.copyRelativePath', async (entry?: unknown) => {
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			const relative = item && provider.service?.relativePath(item.uri);
 			if (relative !== undefined) await vscode.env.clipboard.writeText(relative);
 		}),
-		vscode.commands.registerCommand('mdLivePreview.vault.revealInOS', async (entry?: VaultEntry) => {
-			const item = entry ?? tree.selection[0];
+		vscode.commands.registerCommand('mdLivePreview.vault.revealInOS', async (entry?: unknown) => {
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			const service = provider.service;
 			if (!item || !service) return;
 			try {
@@ -838,11 +840,20 @@ class VaultDragAndDropController implements vscode.TreeDragAndDropController<Vau
 			void vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to move Document Vault files.'));
 			return;
 		}
-		const transferred = dataTransfer.get(VAULT_TREE_MIME)?.value as readonly VaultEntry[] | undefined;
-		if (!transferred?.length) return;
+		const resolvedTarget = target === undefined ? undefined : await resolveCommandEntry(this.provider, target);
+		if (target !== undefined && !resolvedTarget) return;
+		const transferred = await resolveCommandEntries(
+			this.provider,
+			undefined,
+			dataTransfer.get(VAULT_TREE_MIME)?.value,
+			[],
+		);
+		if (transferred.length === 0) return;
 		const service = this.provider.service;
 		if (!service) return;
-		const parent = target && target.fileType & vscode.FileType.Directory ? target.uri : target?.parentUri ?? service.rootUri;
+		const parent = resolvedTarget && resolvedTarget.fileType & vscode.FileType.Directory
+			? resolvedTarget.uri
+			: resolvedTarget?.parentUri ?? service.rootUri;
 		try {
 			const moved = await moveVaultEntries(this.provider, transferred, parent);
 			if (moved > 0) announceVaultCompletion(vscode.l10n.t('{0} vault item(s) moved.', moved));
@@ -852,6 +863,43 @@ class VaultDragAndDropController implements vscode.TreeDragAndDropController<Vau
 	}
 
 	dispose(): void {}
+}
+
+async function resolveCommandEntries(
+	provider: VaultTreeProvider,
+	entry: unknown,
+	selected: unknown,
+	fallback: readonly VaultEntry[],
+): Promise<readonly VaultEntry[]> {
+	if (selected !== undefined && !Array.isArray(selected)) return [];
+	const values = Array.isArray(selected) && selected.length > 0
+		? selected
+		: entry !== undefined ? [entry] : fallback;
+	if (values.length > 256) return [];
+	const resolved = await Promise.all(values.map((value) => resolveCommandEntry(provider, value)));
+	if (resolved.some((value) => value === undefined)) return [];
+	return resolved as VaultEntry[];
+}
+
+async function resolveCommandEntry(provider: VaultTreeProvider, value: unknown): Promise<VaultEntry | undefined> {
+	const uri = value instanceof VaultEntry
+		? value.uri
+		: typeof value === 'object' && value !== null && 'uri' in value && value.uri instanceof vscode.Uri
+			? value.uri
+			: undefined;
+	const service = provider.service;
+	if (!uri || !service) return undefined;
+	try {
+		const path = service.relativePath(uri);
+		if (!path) return undefined;
+		const stat = await service.statEntryInside(uri);
+		const fileType = stat.isSymbolicLink()
+			? vscode.FileType.SymbolicLink
+			: stat.isDirectory() ? vscode.FileType.Directory : vscode.FileType.File;
+		return new VaultEntry(uri, fileType, vscode.Uri.file(dirname(uri.fsPath)), path);
+	} catch {
+		return undefined;
+	}
 }
 
 /**

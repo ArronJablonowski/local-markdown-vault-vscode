@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Re-resolve native-tree command arguments and drag payloads through the active vault, ignoring supplied file-type and parent metadata while safely rejecting malformed, stale, outside-vault, and oversized selections.
 - Replay an undone case-only rename as a fresh validated vault transaction instead of asking VS Code to replay its canonicalized temporary URI, preserving current-content link rewriting and one-step undo while avoiding the known case-insensitive redo rejection; retire that replay after any intervening document or file mutation, matching VS Code's native redo semantics.
 - Add a contributor guide and Node 24 version marker covering secure dependency installation, architectural trust boundaries, required validation, malicious-fixture handling, and review expectations.
 - Classify spelling-only renames by verified filesystem identity instead of the operating-system name, so case-sensitive Linux/macOS volumes use normal atomic moves and reject a distinct same-folded destination while truly case-insensitive providers retain the guarded staging path.
