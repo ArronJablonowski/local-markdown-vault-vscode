@@ -9,7 +9,7 @@ import { LinkRewriteService } from './vault/LinkRewriteService';
 import type { VaultIndexRecord } from './vault/VaultIndex';
 import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSearchService';
 import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
-import { disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
+import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
 
 interface DevelopmentApi {
@@ -36,6 +36,7 @@ interface DevelopmentApi {
 		beforeCaseRenameStage: () => Thenable<void>,
 	): Promise<boolean>;
 	renameOrMoveManyWithStaleCaseStage(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
+	settleCaseRenameTransactions(): Promise<void>;
 }
 
 function getActiveMarkdownUri(): vscode.Uri | undefined {
@@ -335,6 +336,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 						isCurrent: () => current,
 						beforeCaseRenameStage: async () => { current = false; },
 					}).renameOrMoveMany(requests);
+				},
+				settleCaseRenameTransactions: async () => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					await caseRenameCoordinatorFor(service).settle();
 				},
 			};
 	}

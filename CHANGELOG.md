@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a reproducible macOS-only focused-window integration runner for native text undo/redo, one-step vault move/link undo/redo, and case-only rename undo/replay/inverse behavior.
+
 - Add a two-launch isolated-profile integration gate proving that deletion of the rebuildable cache is recovered at the next VS Code startup, restoring private body search and navigation from Markdown without persisting sensitive values or changing `.obsidian` settings.
 
 - Add a macOS extension-host probe proving that an authorized vault deletion moves the exact unchanged Markdown file into the operating-system Trash and cleans up only its UUID-named test artifact.

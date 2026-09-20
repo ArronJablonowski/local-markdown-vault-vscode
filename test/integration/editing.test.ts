@@ -37,12 +37,6 @@ suite('document editing', () => {
 		return editor;
 	}
 
-	async function insert(document: vscode.TextDocument, offset: number, text: string): Promise<void> {
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(document.uri, document.positionAt(offset), text);
-		assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
-	}
-
 	test('an edit reaches disk when the document is saved', async () => {
 		const editor = await openText();
 		// Line 2 is "Body."; insert before the period.
@@ -50,39 +44,6 @@ suite('document editing', () => {
 		await editor.document.save();
 		const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
 		assert.ok(text.includes('Body edited.'), `unexpected file contents: ${JSON.stringify(text)}`);
-	});
-
-	test.skip('undo steps back exactly one edit in a focused desktop window', async () => {
-		const document = (await openText()).document;
-		await insert(document, 7, ' one');
-		await insert(document, 11, ' two');
-		assert.strictEqual(document.lineAt(0).text, '# Title one two');
-
-		await vscode.commands.executeCommand('undo');
-		await waitFor(() => document.lineAt(0).text !== '# Title one two');
-		assert.strictEqual(
-			document.lineAt(0).text,
-			'# Title one',
-			'undo did not step back exactly one edit',
-		);
-	});
-
-	test.skip('redo steps forward exactly one edit in a focused desktop window', async () => {
-		const document = (await openText()).document;
-		await insert(document, 7, ' one');
-		await insert(document, 11, ' two');
-		await vscode.commands.executeCommand('undo');
-		await vscode.commands.executeCommand('undo');
-		await waitFor(() => document.lineAt(0).text === '# Title');
-		assert.strictEqual(document.lineAt(0).text, '# Title');
-
-		await vscode.commands.executeCommand('redo');
-		await waitFor(() => document.lineAt(0).text === '# Title one');
-		assert.strictEqual(
-			document.lineAt(0).text,
-			'# Title one',
-			'redo did not step forward exactly one edit',
-		);
 	});
 
 	test('undo past the beginning leaves the document alone', async () => {

@@ -72,9 +72,10 @@ Unicode/emoji filenames compare by canonical Unicode segments, and
 a rejected final workspace edit restores the original casing without leaving a
 temporary staging file. Closed Markdown inputs are snapshot before commit, so
 an external change after link planning aborts the move without overwriting the
-newer content. Because an isolated extension-host window cannot dispatch VS Code's
-focus-dependent public `undo` command, the Windows focused undo/redo journey
-remains an explicit manual release gate rather than being
+newer content. The dedicated macOS reference-machine gate launches an isolated
+VS Code profile, brings that exact desktop process to the foreground, and
+exercises VS Code's public `undo` and `redo` commands. The Windows focused
+undo/redo journey remains an explicit manual release gate rather than being
 reported as automated evidence.
 
 ## Automated gates
@@ -104,14 +105,14 @@ reported as automated evidence.
 ## Data-integrity and compatibility gate
 
 - [ ] Create, rename, multi-move, folder-move, and trash flows pass for Unicode, emoji, collisions, case-only rename, dirty open notes, and external filesystem changes.
-- [ ] A move and all affected Markdown/wikilink rewrites undo in one step; redo reapplies them in one step; forced failures leave no partial changes.
+- [x] A move and all affected Markdown/wikilink rewrites undo in one step; redo reapplies them in one step; forced failures leave no partial changes.
 - [ ] Keyboard-driven Live Preview undo and redo preserve one logical edit per step and never diverge from the backing `TextDocument`.
 - [ ] Existing Markdown, relative links, local attachments, CSS themes, split editors, and external edits behave as documented.
 - [ ] An existing Obsidian vault opens without changing `.obsidian/`; disabling the extension leaves all notes usable.
 - [ ] Deleting the metadata cache and selecting **Rebuild Vault Index** never changes note or attachment files.
 - [x] Inspect a generated metadata cache and confirm it contains no frontmatter values, task text, or body-derived search tokens; startup rebuild still restores complete search and navigation behavior.
 
-The undo/redo items require a foreground VS Code session. Extension-host command tests alone are insufficient because some headless hosts do not dispatch the UI `undo` and `redo` commands to the editor widget.
+The macOS move/link transaction is covered by `npm run test:integration:focused:macos`, which requires and verifies a foreground VS Code window. The remaining Live Preview keyboard item also requires a foreground custom-editor journey; extension-host command tests alone do not prove the webview keyboard path.
 
 ## Product and accessibility gate
 

@@ -264,6 +264,22 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('keeps the focused macOS transaction gate explicit and reproducible', () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+			scripts?: Record<string, string>;
+		};
+		expect(manifest.scripts?.['test:integration:focused:macos'])
+			.toContain('node scripts/run-focused-macos-integration.mjs');
+		const runner = readFileSync(join(ROOT, 'scripts', 'run-focused-macos-integration.mjs'), 'utf8');
+		expect(runner).toContain("process.platform !== 'darwin'");
+		expect(runner).toContain("MDLP_FOCUSED_DESKTOP_TEST: '1'");
+		expect(runner).toContain("spawnSync('osascript'");
+		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'focusedDesktop.test.ts'), 'utf8');
+		expect(testSource).toContain('vscode.window.state.focused');
+		expect(testSource).toContain('one undo did not restore the source and link');
+		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
+	});
+
 	it('installs and tests the packaged VSIX in isolated trusted and untrusted profiles', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

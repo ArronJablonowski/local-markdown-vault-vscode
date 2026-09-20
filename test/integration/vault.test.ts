@@ -900,12 +900,6 @@ suite('Document Vault filesystem transactions', () => {
 
 	});
 
-	// The isolated extension host has no foreground OS window, so VS Code's
-	// public `undo` command is intentionally inert. The focused-desktop journey
-	// remains in the release checklist; browser coverage verifies that Live
-	// Preview flushes pending input and routes undo/redo to the host.
-	test.skip('undoes and redoes a vault move as one focused-desktop operation', () => undefined);
-
 	async function makeFixture(): Promise<vscode.Uri> {
 		const fixture = await service.createFolder(service.rootUri, `.vault-test-${Date.now()}-${fixtures.length}`);
 		fixtures.push(fixture);
