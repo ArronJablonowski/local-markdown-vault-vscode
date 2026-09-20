@@ -304,11 +304,17 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("keyboard.press('Meta+Shift+z')");
 		expect(testSource).toContain("keyboard.press('Meta+s')");
 		expect(testSource).toContain('Live Preview did not render the external file change');
-		expect(testSource).toContain('drives Quick Switcher and vault search through native keyboard pickers');
+		expect(testSource).toContain('drives native knowledge pickers and views with keyboard navigation');
 		expect(testSource).toContain("executeCommand('mdLivePreview.quickSwitcher')");
 		expect(testSource).toContain("executeCommand('mdLivePreview.vaultSearch')");
+		expect(testSource).toContain("executeCommand('mdLivePreview.backlinks.focus')");
+		expect(testSource).toContain("executeCommand('mdLivePreview.tags.focus')");
 		expect(testSource).toContain('Quick Switcher keyboard acceptance did not open the aliased note');
 		expect(testSource).toContain('vault-search keyboard acceptance did not open the body-text result');
+		expect(testSource).toContain('the native Backlinks view did not distinguish the unlinked mention');
+		expect(testSource).toContain('Backlinks source activation did not open the linked note');
+		const vaultRegistration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		expect(vaultRegistration).toContain('alwaysShow: true');
 		expect(testSource).toContain("page.on('request', recordRequest)");
 		expect(testSource).toContain("'raw Markdown HTML executed in the real webview'");
 		expect(testSource).toContain("'hostile Markdown retained an active unsafe URL'");

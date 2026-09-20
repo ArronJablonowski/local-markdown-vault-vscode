@@ -124,17 +124,34 @@ suite('focused macOS desktop transactions', () => {
 			'Live Preview did not render the external file change');
 	});
 
-	test('drives Quick Switcher and vault search through native keyboard pickers', async () => {
+	test('drives native knowledge pickers and views with keyboard navigation', async () => {
 		const fixture = await makeFixture('knowledge-pickers');
 		const quickTarget = await service.createNote(fixture, 'Desktop Picker Target');
 		const searchTarget = await service.createNote(fixture, 'Desktop Search Target');
+		const knowledgeTarget = await service.createNote(fixture, 'Desktop Knowledge Target');
+		const linkedSource = await service.createNote(fixture, 'Desktop Linked Source');
+		const unlinkedSource = await service.createNote(fixture, 'Desktop Unlinked Source');
+		const taggedSource = await service.createNote(fixture, 'Desktop Tagged Source');
 		const quickRelative = service.rootUri.fsPath === fixture.fsPath
 			? 'Desktop Picker Target.md'
 			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Picker Target.md`;
 		const searchRelative = service.rootUri.fsPath === fixture.fsPath
 			? 'Desktop Search Target.md'
 			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Search Target.md`;
+		const knowledgeRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Knowledge Target.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Knowledge Target.md`;
+		const linkedRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Linked Source.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Linked Source.md`;
+		const unlinkedRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Unlinked Source.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Unlinked Source.md`;
+		const taggedRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Tagged Source.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Tagged Source.md`;
 		const searchPhrase = `desktop-copper-${Date.now()}`;
+		const tagRoot = `desktop-evidence-${Date.now()}`;
 		await vscode.workspace.fs.writeFile(quickTarget, bytes([
 			'---',
 			'aliases: [Desktop Picker Alias]',
@@ -142,9 +159,19 @@ suite('focused macOS desktop transactions', () => {
 			'# Quick target',
 		].join('\n')));
 		await vscode.workspace.fs.writeFile(searchTarget, bytes(`# Search target\n\n${searchPhrase}\n`));
+		await vscode.workspace.fs.writeFile(knowledgeTarget, bytes('# Desktop knowledge target\n'));
+		await vscode.workspace.fs.writeFile(linkedSource, bytes('A linked mention: [[Desktop Knowledge Target]].\n'));
+		await vscode.workspace.fs.writeFile(unlinkedSource, bytes('An unlinked Desktop Knowledge Target mention.\n'));
+		await vscode.workspace.fs.writeFile(taggedSource, bytes([
+			'---',
+			`tags: [${tagRoot}/nested]`,
+			'---',
+			'# Desktop tagged source',
+		].join('\n')));
 		await waitFor(() => {
 			const paths = api.getVaultIndexRecords().map((record) => record.path);
-			return paths.includes(quickRelative) && paths.includes(searchRelative);
+			return [quickRelative, searchRelative, knowledgeRelative, linkedRelative, unlinkedRelative, taggedRelative]
+				.every((path) => paths.includes(path));
 		}, 'knowledge-picker notes did not reach the local index');
 
 		const page = await getWorkbenchPage();
@@ -158,6 +185,32 @@ suite('focused macOS desktop transactions', () => {
 		await chooseNativeQuickPick(page, searchPhrase, 'Desktop Search Target');
 		await waitFor(() => activeTabUri()?.toString() === searchTarget.toString(),
 			'vault-search keyboard acceptance did not open the body-text result');
+
+		await vscode.commands.executeCommand('mdLivePreview.quickSwitcher');
+		await observeAndCancelNativeQuickPick(page, 'Desktop Search Target');
+
+		const knowledgeDocument = await vscode.workspace.openTextDocument(knowledgeTarget);
+		await vscode.window.showTextDocument(knowledgeDocument);
+		await vscode.commands.executeCommand('mdLivePreview.backlinks.focus');
+		const linkedRow = page.getByRole('treeitem', {
+			name: /^Linked mention in .*Desktop Linked Source\.md, line 1$/,
+		});
+		const unlinkedRow = page.getByRole('treeitem', {
+			name: /^Unlinked mention in .*Desktop Unlinked Source\.md, line 1$/,
+		});
+		await linkedRow.waitFor({ state: 'visible', timeout: 5_000 });
+		await unlinkedRow.waitFor({ state: 'visible', timeout: 5_000 });
+		assert.match(await unlinkedRow.innerText(), /unlinked mention/i,
+			'the native Backlinks view did not distinguish the unlinked mention');
+		await linkedRow.click();
+		await waitFor(() => activeTabUri()?.toString() === linkedSource.toString(),
+			'Backlinks source activation did not open the linked note');
+
+		await vscode.commands.executeCommand('mdLivePreview.tags.focus');
+		const tagRow = visibleWorkbenchRow(page, `#${tagRoot}`);
+		await tagRow.waitFor({ state: 'visible', timeout: 5_000 });
+		await tagRow.click();
+		await assertNativeQuickPickQuery(page, `tag:${tagRoot}`, 'Desktop Tagged Source');
 	});
 
 	test('opens hostile Markdown without script execution, active unsafe URLs, or remote requests', async () => {
@@ -487,6 +540,31 @@ async function entryNames(directory: vscode.Uri): Promise<string[]> {
 function activeTabUri(): vscode.Uri | undefined {
 	const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 	return input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom ? input.uri : undefined;
+}
+
+function visibleWorkbenchRow(page: Page, text: string) {
+	return page.locator('.monaco-list-row:visible').filter({ hasText: text });
+}
+
+async function observeAndCancelNativeQuickPick(page: Page, expectedItemText: string): Promise<void> {
+	const widget = page.locator('.quick-input-widget:visible');
+	await widget.waitFor({ state: 'visible', timeout: 5_000 });
+	await widget.locator('.monaco-list-row').filter({ hasText: expectedItemText })
+		.waitFor({ state: 'visible', timeout: 5_000 });
+	await widget.locator('.quick-input-box input').press('Escape');
+	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
+}
+
+async function assertNativeQuickPickQuery(page: Page, query: string, expectedItemText: string): Promise<void> {
+	const widget = page.locator('.quick-input-widget:visible');
+	await widget.waitFor({ state: 'visible', timeout: 5_000 });
+	const input = widget.locator('.quick-input-box input');
+	await waitFor(async () => await input.inputValue() === query,
+		`native picker query did not equal ${query}`);
+	await widget.locator('.monaco-list-row').filter({ hasText: expectedItemText })
+		.waitFor({ state: 'visible', timeout: 5_000 });
+	await input.press('Escape');
+	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
 async function chooseNativeQuickPick(

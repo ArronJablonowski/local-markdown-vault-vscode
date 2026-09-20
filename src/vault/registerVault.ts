@@ -739,6 +739,11 @@ function searchResultItem(result: VaultSearchResult): VaultQuickPickItem {
 		label: `$(markdown) ${result.record.basename}`,
 		description: result.line ? `${result.record.path}:${result.line}` : result.record.path,
 		detail: context || undefined,
+		// The extension query engine has already evaluated structured filters such
+		// as tag:, task:, and property:. VS Code's secondary fuzzy filter cannot
+		// infer those matches from the rendered label and would otherwise hide
+		// valid results whose metadata is not repeated in the picker row.
+		alwaysShow: true,
 		record: result.record,
 		matchLine: result.line,
 	};
