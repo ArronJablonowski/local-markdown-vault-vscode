@@ -162,6 +162,23 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('keeps reference-machine performance budgets out of variable hosted runners', () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+			scripts?: Record<string, string>;
+		};
+		expect(manifest.scripts?.['test:deterministic'])
+			.toBe('vitest run --exclude src/vault/vaultPerformance.test.ts');
+		for (const name of ['ci.yml', 'release-validation.yml']) {
+			const source = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
+			expect(source).toContain('npm run test:deterministic');
+			expect(source).not.toMatch(/run:\s*npm test\s*(?:\r?\n|$)/);
+		}
+		const performance = readFileSync(join(ROOT, 'src', 'vault', 'vaultPerformance.test.ts'), 'utf8');
+		expect(performance).toContain('expect(elapsed).toBeLessThan(3_000)');
+		expect(performance).toContain('expect(elapsed).toBeLessThan(500)');
+		expect(performance).toContain('expect(p95).toBeLessThan(200)');
+	});
+
 	it('runs a real untrusted-workspace extension-host gate in CI and release validation', () => {
 		const runner = readFileSync(join(ROOT, 'scripts', 'run-restricted-integration.mjs'), 'utf8');
 		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'restricted.test.ts'), 'utf8');

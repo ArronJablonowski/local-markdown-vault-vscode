@@ -52,7 +52,7 @@ jobs:
       # reference machine. Shared hosted runners are too variable to be valid
       # performance evidence, but all deterministic unit tests still run here.
       - name: Unit tests excluding reference-machine benchmarks
-        run: npx vitest run --exclude src/vault/vaultPerformance.test.ts
+        run: npm run test:deterministic
       - run: npm run compile
       - name: VS Code integration tests (Linux)
         if: runner.os == 'Linux'

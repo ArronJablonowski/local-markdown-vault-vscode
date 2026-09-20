@@ -525,6 +525,7 @@
     "compile": "node esbuild.js && tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "test:deterministic": "vitest run --exclude src/vault/vaultPerformance.test.ts",
     "test:watch": "vitest",
     "test:related": "vitest related --run",
     "test:coverage": "vitest run --coverage.enabled",

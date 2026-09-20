@@ -20,7 +20,9 @@ jobs:
       - run: npm run security:dependencies
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      - run: npm test
+      # Product performance budgets are measured on the documented reference
+      # machine. Shared runners execute every deterministic unit/security test.
+      - run: npm run test:deterministic
       - run: npm run compile
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
