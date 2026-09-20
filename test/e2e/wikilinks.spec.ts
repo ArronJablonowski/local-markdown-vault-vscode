@@ -110,6 +110,11 @@ test.describe('Obsidian-style wikilinks', () => {
 		await page.keyboard.press('ControlOrMeta+a');
 		await page.keyboard.type('Start [[Pri');
 		await expect(page.locator('.cm-completionLabel', { hasText: 'Primary' })).toBeVisible();
+		// Visibility can precede CodeMirror's selected-option state by one render
+		// under load. Enter is specified to accept the selected completion, so wait
+		// for that accessible state rather than racing the tooltip transition.
+		await expect(page.locator('.cm-tooltip-autocomplete [role="option"][aria-selected="true"] .cm-completionLabel'))
+			.toHaveText('Primary');
 		await page.keyboard.press('Enter');
 		// CodeMirror may wrap one logical line into multiple visual `.cm-line`
 		// nodes while the completion tooltip is closing. Assert the authoritative
