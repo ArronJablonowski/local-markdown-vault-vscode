@@ -40,14 +40,14 @@ installed-VSIX evidence described below.
 | Five-run CPU benchmark | 10,000 notes/130,000 links: 332.1 ms index p95, 6.8 ms incremental p95, 24.6 ms search p95, 8.9 ms Quick Switcher p95 |
 | Five-run filesystem benchmark | 10,000 items/1 GiB: 805.8 ms cold-index maximum; create/edit/rename/delete tree-and-index convergence maxima of 170.8/163.9/166.8/158.9 ms; during a full rebuild, a real note typed and saved in 144.6 ms with 20.9 ms maximum event-loop delay and no data loss, closing PERF-005 on the reference machine; the rebuild path compiles exclusion patterns once, performs bounded cache encoding, skips incremental case-alias scans, and coalesces persistence without weakening exact-case watcher reconciliation |
 | Extension-host large-note gate | Five isolated clean-profile 1 MiB note runs recorded 41.7/31.9/38.7/14.1/16.6 ms maximum event-loop delay; all met the 100 ms PERF-004 continuous-blocking budget |
-| Automated clean-profile VSIX suite | Current artifact passed 4 trusted and 4 Restricted Mode checks after installation into separate isolated profiles; the target extension loaded from the VSIX directory, not the development checkout |
+| Automated clean-profile VSIX suite | Current artifact passed 4 trusted, 4 Restricted Mode, and 1 disabled-extension check in separate isolated profiles; the target extension loaded from the VSIX directory rather than the development checkout when enabled, the disabled profile opened the note in VS Code's ordinary text editor, and all three modes preserved exact Markdown and `.obsidian/app.json` bytes |
 | Dependency policy, audit, and SBOM | 797 lockfile packages and 182 production packages passed manifest parity, HTTPS registry, SHA-512 integrity, license, and exact install-script-set checks; dependency lifecycle scripts remained disabled; 0 vulnerabilities; reproducible CycloneDX SBOM validated |
 
 The isolated profile and extension directory were moved to the operating-system
 Trash after the smoke test. No development extension was loaded during those
 packaged-VSIX checks. The trusted run used a temporary isolated profile with
 workspace trust disabled in that profile only; it did not alter the user's VS Code
-settings. The current VSIX passed both clean-profile smoke paths, but the release
+settings. The current VSIX passed all three clean-profile smoke paths, but the release
 remains unsigned while the manual filesystem, trash, accessibility,
 and independent-review gates below are incomplete.
 
@@ -114,7 +114,7 @@ reported as automated evidence.
 - [x] A move and all affected Markdown/wikilink rewrites undo in one step; redo reapplies them in one step; forced failures leave no partial changes.
 - [x] Keyboard-driven Live Preview undo and redo preserve one logical edit per step and never diverge from the backing `TextDocument`.
 - [ ] Existing Markdown, relative links, local attachments, CSS themes, split editors, and external edits behave as documented.
-- [ ] An existing Obsidian vault opens without changing `.obsidian/`; disabling the extension leaves all notes usable.
+- [x] An existing Obsidian vault opens without changing `.obsidian/`; disabling the extension leaves all notes usable. The installed-VSIX suite verifies exact Markdown and `.obsidian/app.json` bytes after trusted, Restricted Mode, and disabled runs, and the disabled profile opens the note in VS Code's ordinary text editor.
 - [x] Deleting the metadata cache and selecting **Rebuild Vault Index** never changes note or attachment files.
 - [x] Inspect a generated metadata cache and confirm it contains no frontmatter values, task text, or body-derived search tokens; startup rebuild still restores complete search and navigation behavior.
 

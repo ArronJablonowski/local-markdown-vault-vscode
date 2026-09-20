@@ -7,9 +7,10 @@ import { downloadAndUnzipVSCode, resolveCliPathFromVSCodeExecutablePath } from '
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
-if (typeof manifest.name !== 'string' || typeof manifest.version !== 'string') {
-	throw new Error('package.json does not contain a package name and version.');
+if (typeof manifest.name !== 'string' || typeof manifest.version !== 'string' || typeof manifest.publisher !== 'string') {
+	throw new Error('package.json does not contain a publisher, name, and version.');
 }
+const extensionId = `${manifest.publisher}.${manifest.name}`;
 const vsix = resolve(root, `${manifest.name}-${manifest.version}.vsix`);
 const runner = resolve(root, 'node_modules/@vscode/test-cli/out/runner.cjs');
 const harness = resolve(root, 'test/vsix-harness');
@@ -19,7 +20,7 @@ const executable = await downloadAndUnzipVSCode('stable');
 const cli = resolveCliPathFromVSCodeExecutablePath(executable);
 await access(cli);
 
-for (const mode of ['trusted', 'restricted']) {
+for (const mode of ['trusted', 'restricted', 'disabled']) {
 	await runMode(mode);
 }
 
@@ -29,14 +30,18 @@ async function runMode(mode) {
 	const extensionsDir = join(profileRoot, 'extensions');
 	const workspaceDir = join(profileRoot, 'workspace');
 	const settingsDir = join(userDataDir, 'User');
+	const noteSource = '# Packaged smoke\n\n```mermaid\ngraph TD\n  A --> B\n```\n';
+	const obsidianSource = '{"livePreview":true,"legacyEditor":false,"theme":"moonstone"}\n';
 	try {
 		await Promise.all([
 			mkdir(settingsDir, { recursive: true }),
 			mkdir(extensionsDir, { recursive: true }),
 			mkdir(workspaceDir, { recursive: true }),
+			mkdir(join(workspaceDir, '.obsidian'), { recursive: true }),
 		]);
 		await Promise.all([
-			writeFile(join(workspaceDir, 'README.md'), '# Packaged smoke\n\n```mermaid\ngraph TD\n  A --> B\n```\n'),
+			writeFile(join(workspaceDir, 'README.md'), noteSource),
+			writeFile(join(workspaceDir, '.obsidian', 'app.json'), obsidianSource),
 			writeFile(join(settingsDir, 'settings.json'), JSON.stringify({
 				'security.workspace.trust.enabled': mode === 'restricted',
 				'security.workspace.trust.startupPrompt': 'never',
@@ -59,7 +64,7 @@ async function runMode(mode) {
 			preload: [],
 			files: [testFile],
 		});
-		await run(executable, [
+		const launchArguments = [
 			workspaceDir,
 			'--no-sandbox',
 			'--disable-gpu-sandbox',
@@ -72,12 +77,20 @@ async function runMode(mode) {
 			`--extensions-dir=${extensionsDir}`,
 			`--extensionTestsPath=${runner}`,
 			`--extensionDevelopmentPath=${harness}`,
-		], {
+		];
+		if (mode === 'disabled') launchArguments.push('--disable-extension', extensionId);
+		await run(executable, launchArguments, {
 			VSCODE_TEST_OPTIONS: testOptions,
 			MDLP_VSIX_SMOKE_MODE: mode,
 			MDLP_VSIX_EXTENSIONS_DIR: extensionsDir,
 			MDLP_VSIX_VERSION: manifest.version,
 		});
+		if (await readFile(join(workspaceDir, 'README.md'), 'utf8') !== noteSource) {
+			throw new Error(`${mode} VSIX smoke changed the Markdown note bytes.`);
+		}
+		if (await readFile(join(workspaceDir, '.obsidian', 'app.json'), 'utf8') !== obsidianSource) {
+			throw new Error(`${mode} VSIX smoke changed .obsidian/app.json.`);
+		}
 	} finally {
 		// Electron helper processes can finish a fraction after the main process
 		// exits and recreate an otherwise empty user-data directory. Repeat the

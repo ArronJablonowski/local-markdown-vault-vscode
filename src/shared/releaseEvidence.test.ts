@@ -351,7 +351,7 @@ describe('release security evidence', () => {
 		expect(testSource).toContain('external Unicode folder rename changed note bytes');
 	});
 
-	it('installs and tests the packaged VSIX in isolated trusted and untrusted profiles', () => {
+	it('tests the packaged VSIX in isolated trusted, untrusted, and disabled profiles', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;
 		};
@@ -359,12 +359,16 @@ describe('release security evidence', () => {
 		const runner = readFileSync(join(ROOT, 'scripts', 'run-vsix-smoke.mjs'), 'utf8');
 		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'vsix-smoke.test.ts'), 'utf8');
 		expect(runner).toContain("'--install-extension', vsix");
-		expect(runner).toContain("['trusted', 'restricted']");
+		expect(runner).toContain("['trusted', 'restricted', 'disabled']");
+		expect(runner).toContain("launchArguments.push('--disable-extension', extensionId)");
+		expect(runner).toContain('changed .obsidian/app.json');
 		expect(runner).toContain('resolveCliPathFromVSCodeExecutablePath(executable)');
 		expect(runner).toContain("process.platform === 'win32'");
 		expect(runner).toContain('`--extensionDevelopmentPath=${harness}`');
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');
+		expect(testSource).toContain('leaves an Obsidian vault usable as ordinary files when disabled');
+		expect(testSource).toContain("instanceof vscode.TabInputText");
 		for (const name of ['ci.yml', 'release-validation.yml']) {
 			const source = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
 			expect(source, `${name} omits the packaged VSIX smoke gate`).toContain('npm run test:vsix');

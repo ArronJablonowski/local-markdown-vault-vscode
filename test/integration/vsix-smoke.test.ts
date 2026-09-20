@@ -5,6 +5,9 @@ import { isAbsolute, relative } from 'node:path';
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 const mode = process.env.MDLP_VSIX_SMOKE_MODE;
 const vsixOnly = mode === 'trusted' || mode === 'restricted' ? test : test.skip;
+const disabledOnly = mode === 'disabled' ? test : test.skip;
+const NOTE_SOURCE = '# Packaged smoke\n\n```mermaid\ngraph TD\n  A --> B\n```\n';
+const OBSIDIAN_SOURCE = '{"livePreview":true,"legacyEditor":false,"theme":"moonstone"}\n';
 
 suite('Installed VSIX clean-profile smoke', () => {
 	vsixOnly('loads the packaged extension rather than the development checkout', async () => {
@@ -59,5 +62,23 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.commands.executeCommand('mdLivePreview.vault.newFolder');
 		const after = (await vscode.workspace.fs.readDirectory(root)).map(([name]) => name).sort();
 		assert.deepStrictEqual(after, before, 'the packaged extension mutated an untrusted workspace');
+	});
+
+	disabledOnly('leaves an Obsidian vault usable as ordinary files when disabled', async () => {
+		assert.strictEqual(vscode.extensions.getExtension(EXTENSION_ID), undefined,
+			'the target extension remained enabled in the disabled-profile smoke test');
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root, 'the disabled VSIX smoke workspace is unavailable');
+		const note = vscode.Uri.joinPath(root, 'README.md');
+		const document = await vscode.workspace.openTextDocument(note);
+		assert.strictEqual(document.getText(), NOTE_SOURCE, 'the disabled extension left unreadable or changed Markdown');
+		await vscode.window.showTextDocument(document);
+		assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText,
+			'the disabled extension prevented the note from opening in VS Code\'s text editor');
+		assert.strictEqual(
+			new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, '.obsidian', 'app.json'))),
+			OBSIDIAN_SOURCE,
+			'the disabled extension changed Obsidian settings',
+		);
 	});
 });
