@@ -320,6 +320,9 @@ describe('release security evidence', () => {
 			'utf8',
 		)) as Array<{ file: string }>;
 		for (const entry of corpusManifest) expect(testSource).toContain(`file: '${entry.file}'`);
+		expect(testSource).toContain("configuration.update('remoteMedia', 'https', vscode.ConfigurationTarget.Workspace)");
+		expect(testSource).toContain("'workspace HTTPS opt-in did not emit the expected image request'");
+		expect(testSource).toContain("'revoking the workspace opt-in did not restore the blocked-media fallback'");
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});

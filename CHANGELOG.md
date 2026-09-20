@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a real-host macOS network-policy journey proving that an HTTPS image activates only after an explicit workspace-scoped opt-in, emits exactly its expected intercepted request, and returns immediately to blocked-media state when the opt-in is revoked without changing the tracked workspace settings.
+
 - Exercise all six checked-in malicious Markdown fixtures in the real macOS VS Code custom editor, including the 4,096-embed stress case, while observing requests and proving no code execution, command-triggered workbench closure, active unsafe URL, outside-vault disclosure or mutation, or adjacent filesystem change.
 
 - Tighten the webview CSP review: remove inline-style permission from Outline, nonce every live-theme-preview style block, retain CSS-only inline permission solely for CodeMirror runtime layout and isolated theme-card rendering, and regression-test the exact resource roots and network directives.

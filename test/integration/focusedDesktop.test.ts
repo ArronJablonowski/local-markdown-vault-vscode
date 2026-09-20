@@ -268,6 +268,58 @@ suite('focused macOS desktop transactions', () => {
 		}
 	});
 
+	test('allows HTTPS media only through an explicit workspace opt-in and revokes it live', async () => {
+		const fixture = await makeFixture('remote-media');
+		const note = await service.createNote(fixture, 'Remote Media Policy');
+		const visibleText = 'Remote media policy';
+		const marker = `remote-opt-in-${Date.now()}`;
+		const remoteUrl = `https://mdlp-opt-in.invalid/${marker}.png`;
+		await vscode.workspace.fs.writeFile(note, bytes(`# ${visibleText}\n\n![${marker}](${remoteUrl})\n`));
+		const settingsUri = vscode.Uri.joinPath(service.rootUri, '.vscode', 'settings.json');
+		const originalSettings = await vscode.workspace.fs.readFile(settingsUri);
+		const configuration = vscode.workspace.getConfiguration('mdLivePreview', note);
+		assert.strictEqual(configuration.inspect('remoteMedia')?.workspaceValue, undefined,
+			'the focused fixture must begin without a remote-media workspace opt-in');
+
+		const page = await getWorkbenchPage();
+		const requests: string[] = [];
+		const routePattern = 'https://mdlp-opt-in.invalid/**';
+		await page.route(routePattern, async (route) => {
+			requests.push(route.request().url());
+			await route.abort();
+		});
+		try {
+			await configuration.update('remoteMedia', 'https', vscode.ConfigurationTarget.Workspace);
+			await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview', note)
+				.inspect('remoteMedia')?.workspaceValue === 'https', 'workspace HTTPS opt-in did not apply');
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			let frame = await connectToLivePreviewFrame(visibleText);
+			await waitFor(async () => requests.includes(remoteUrl), 'workspace HTTPS opt-in did not emit the expected image request');
+			assert.strictEqual(await frame.locator(`img[src="${remoteUrl}"]`).count(), 1,
+				'workspace HTTPS opt-in did not produce the expected remote image');
+
+			await configuration.update('remoteMedia', undefined, vscode.ConfigurationTarget.Workspace);
+			await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview', note)
+				.inspect('remoteMedia')?.workspaceValue === undefined, 'workspace HTTPS opt-in did not revoke');
+			await waitFor(async () => {
+				try {
+					frame = await connectToLivePreviewFrame(visibleText);
+					return await frame.locator(`img[src="${remoteUrl}"]`).count() === 0
+						&& await frame.locator('.mlp-image-blocked').count() > 0;
+				} catch {
+					return false;
+				}
+			}, 'revoking the workspace opt-in did not restore the blocked-media fallback', 10_000);
+		} finally {
+			await page.unroute(routePattern);
+			if (vscode.workspace.getConfiguration('mdLivePreview', note).inspect('remoteMedia')?.workspaceValue !== undefined) {
+				await configuration.update('remoteMedia', undefined, vscode.ConfigurationTarget.Workspace);
+			}
+			await vscode.workspace.fs.writeFile(settingsUri, originalSettings);
+		}
+	});
+
 	test('undoes and redoes a vault move and link rewrite as one unit', async () => {
 		const fixture = await makeFixture('move');
 		const archive = await service.createFolder(fixture, 'Archive');
@@ -340,6 +392,7 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 		for (const context of browser.contexts()) {
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
+					if (frame.isDetached()) continue;
 					const editor = frame.locator('.cm-content');
 					if (await editor.count() === 0) continue;
 					if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
