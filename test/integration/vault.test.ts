@@ -416,20 +416,22 @@ suite('Document Vault filesystem transactions', () => {
 		);
 	});
 
-	test('removes an exclusive file rejected by its active-vault commit guard', async () => {
+	test('removes an exclusive file rejected after writing by its active-vault commit guard', async () => {
 		const fixture = await makeFixture();
 		const assets = await service.createFolder(fixture, 'Guarded assets');
 		const rejected = vscode.Uri.joinPath(assets, 'rejected.png');
+		let commitChecks = 0;
 		await assert.rejects(
 			service.createFileExclusive(
 				assets,
 				'rejected.png',
 				Uint8Array.from([137, 80, 78, 71]),
 				20 * 1024 * 1024,
-				() => false,
+				() => ++commitChecks < 4,
 			),
 			/Document Vault changed/,
 		);
+		assert.strictEqual(commitChecks, 4, 'the guard did not reject at the post-write commit boundary');
 		await assertMissing(rejected);
 	});
 

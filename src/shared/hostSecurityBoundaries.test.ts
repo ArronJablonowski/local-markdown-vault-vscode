@@ -222,6 +222,10 @@ describe('host security boundaries', () => {
 		const finalIdentityCheck = exclusive.lastIndexOf('await this.assertOpenedFileInside(target, writtenIdentity)');
 		expect(finalIdentityCheck).toBeGreaterThan(0);
 		expect(exclusive).toContain('isCurrent: () => boolean');
+		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);')).toBeLessThan(exclusive.indexOf('await open('));
+		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);', exclusive.indexOf('await open('))).toBeLessThan(
+			exclusive.indexOf('await handle.writeFile(bytes)'),
+		);
 		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);', finalIdentityCheck)).toBeGreaterThan(finalIdentityCheck);
 		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);', finalIdentityCheck)).toBeLessThan(
 			exclusive.indexOf('this.createdFileLeases.set'),
@@ -239,6 +243,10 @@ describe('host security boundaries', () => {
 			expect(body, `${method} does not check its commit guard`).toContain('assertOperationCurrent(isCurrent)');
 			expect(body, `${method} has no rollback path`).toMatch(/removeCreatedFile|rollbackCreatedDirectories/);
 		}
+		const createFolder = service.slice(service.indexOf('\tasync createFolder('), service.indexOf('\n\t/**', service.indexOf('\tasync createFolder(')));
+		expect(createFolder.indexOf('assertOperationCurrent(isCurrent)')).toBeLessThan(createFolder.indexOf('await mkdir(target)'));
+		const ensureDirectory = service.slice(service.indexOf('\tprivate async ensureDirectoryInsideTracked('), service.indexOf('\n\tasync ', service.indexOf('\tprivate async ensureDirectoryInsideTracked(')));
+		expect(ensureDirectory.indexOf('assertOperationCurrent(isCurrent)')).toBeLessThan(ensureDirectory.indexOf('await mkdir(target)'));
 		const rollback = service.slice(service.indexOf('async function rollbackCreatedDirectories('));
 		expect(rollback).toContain('sameFileIdentity(current, directory.identity)');
 		expect(rollback).toContain('await rmdir(directory.path)');

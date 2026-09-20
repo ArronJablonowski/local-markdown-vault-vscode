@@ -116,11 +116,11 @@ export class VaultService {
 		maxBytes = 20 * 1024 * 1024,
 		isCurrent: () => boolean = () => true,
 	): Promise<CreatedVaultFile> {
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		if (bytes.byteLength > maxBytes) throw new Error('The file exceeds the size limit.');
 		const target = this.childPath(parent, name);
 		await this.assertCanonicalParent(target);
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		const noFollow = typeof fsConstants.O_NOFOLLOW === 'number' ? fsConstants.O_NOFOLLOW : 0;
 		const handle = await open(
 			target,
@@ -132,7 +132,7 @@ export class VaultService {
 			openedIdentity = await handle.stat();
 			if (!openedIdentity.isFile()) throw new Error('The attachment destination is not a regular file.');
 			await this.assertOpenedFileInside(target, openedIdentity);
-			this.assertWorkspaceCurrent();
+			this.assertOperationCurrent(isCurrent);
 			await handle.writeFile(bytes);
 			const writtenIdentity = await handle.stat();
 			if (!sameFileIdentity(openedIdentity, writtenIdentity) || writtenIdentity.size !== bytes.byteLength) {
@@ -268,10 +268,10 @@ export class VaultService {
 	}
 
 	async createFolder(parent: vscode.Uri, name: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		const target = this.childPath(parent, name);
 		await this.assertCanonicalParent(target);
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		await mkdir(target);
 		let created: CreatedVaultDirectory | undefined;
 		try {
@@ -298,7 +298,7 @@ export class VaultService {
 		uri: vscode.Uri,
 		isCurrent: () => boolean,
 	): Promise<{ uri: vscode.Uri; created: CreatedVaultDirectory[] }> {
-		this.assertWorkspaceCurrent();
+		this.assertOperationCurrent(isCurrent);
 		const path = this.relativePath(uri);
 		if (path === undefined) throw new Error('The directory is outside the Document Vault.');
 		if (!path) {
@@ -310,10 +310,10 @@ export class VaultService {
 		const created: CreatedVaultDirectory[] = [];
 		try {
 			for (const segment of path.split('/')) {
-				this.assertWorkspaceCurrent();
+				this.assertOperationCurrent(isCurrent);
 				const target = this.childPath(current, segment);
 				await this.assertCanonicalParent(target);
-				this.assertWorkspaceCurrent();
+				this.assertOperationCurrent(isCurrent);
 				let made = false;
 				try {
 					await mkdir(target);
