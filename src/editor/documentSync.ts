@@ -719,7 +719,14 @@ export class DocumentSyncSession {
 			for (let attempt = 0; attempt < 100; attempt++) {
 				const fileName = generateImageFileName(names, timestamp, image.ext);
 				try {
-					createdFile = await vaultService.createFileExclusive(assetsDir, fileName, image.bytes);
+					createdFile = await vaultService.createFileExclusive(
+						assetsDir,
+						fileName,
+						image.bytes,
+						MAX_PASTED_IMAGE_BYTES,
+						() => vscode.workspace.isTrusted
+							&& localWorkspaceVaultRoot(this.document.uri)?.toString() === workspaceRoot.toString(),
+					);
 					names.add(fileName);
 					break;
 				} catch (error) {

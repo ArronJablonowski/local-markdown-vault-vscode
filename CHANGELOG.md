@@ -1,5 +1,7 @@
 # Changelog
 
+- Bind the exclusive attachment-write primitive to the active vault and Workspace Trust at commit time, removing the exact file before returning when authorization becomes stale.
+
 - Revalidate the active vault and Workspace Trust at the trash commit boundary so a trust or workspace transition cannot authorize a delayed deletion.
 
 [日本語](#日本語) | English

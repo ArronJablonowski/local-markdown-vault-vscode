@@ -114,6 +114,7 @@ export class VaultService {
 		name: string,
 		bytes: Uint8Array,
 		maxBytes = 20 * 1024 * 1024,
+		isCurrent: () => boolean = () => true,
 	): Promise<CreatedVaultFile> {
 		this.assertWorkspaceCurrent();
 		if (bytes.byteLength > maxBytes) throw new Error('The file exceeds the size limit.');
@@ -139,7 +140,7 @@ export class VaultService {
 			}
 			openedIdentity = writtenIdentity;
 			await this.assertOpenedFileInside(target, writtenIdentity);
-			this.assertWorkspaceCurrent();
+			this.assertOperationCurrent(isCurrent);
 			const cleanupToken = randomUUID();
 			const uri = vscode.Uri.file(target);
 			this.createdFileLeases.set(cleanupToken, { uri, handle });
@@ -224,7 +225,7 @@ export class VaultService {
 
 	async createNote(parent: vscode.Uri, requestedName: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
 		const name = noteFileName(requestedName);
-		const created = await this.createFileExclusive(parent, name, new Uint8Array(), 0);
+		const created = await this.createFileExclusive(parent, name, new Uint8Array(), 0, isCurrent);
 		try {
 			this.assertOperationCurrent(isCurrent);
 			await this.releaseCreatedFile(created);
@@ -255,7 +256,7 @@ export class VaultService {
 		const ensured = await this.ensureDirectoryInsideTracked(parent, isCurrent);
 		let created: CreatedVaultFile | undefined;
 		try {
-			created = await this.createFileExclusive(ensured.uri, basename(target), new Uint8Array(), 0);
+			created = await this.createFileExclusive(ensured.uri, basename(target), new Uint8Array(), 0, isCurrent);
 			this.assertOperationCurrent(isCurrent);
 			await this.releaseCreatedFile(created);
 			return created.uri;

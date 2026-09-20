@@ -221,7 +221,16 @@ describe('host security boundaries', () => {
 		const exclusive = service.slice(service.indexOf('\tasync createFileExclusive('), service.indexOf('\n\t/** Removes only'));
 		const finalIdentityCheck = exclusive.lastIndexOf('await this.assertOpenedFileInside(target, writtenIdentity)');
 		expect(finalIdentityCheck).toBeGreaterThan(0);
-		expect(exclusive.indexOf('this.assertWorkspaceCurrent();', finalIdentityCheck)).toBeGreaterThan(finalIdentityCheck);
+		expect(exclusive).toContain('isCurrent: () => boolean');
+		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);', finalIdentityCheck)).toBeGreaterThan(finalIdentityCheck);
+		expect(exclusive.indexOf('this.assertOperationCurrent(isCurrent);', finalIdentityCheck)).toBeLessThan(
+			exclusive.indexOf('this.createdFileLeases.set'),
+		);
+		const paste = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
+		const pasteCall = paste.slice(paste.indexOf('createdFile = await vaultService.createFileExclusive('), paste.indexOf('names.add(fileName);'));
+		expect(pasteCall).toContain('MAX_PASTED_IMAGE_BYTES');
+		expect(pasteCall).toContain('vscode.workspace.isTrusted');
+		expect(pasteCall).toContain('localWorkspaceVaultRoot(this.document.uri)?.toString() === workspaceRoot.toString()');
 		for (const method of ['createNote(', 'createNoteAtRelativePath(', 'createFolder(']) {
 			const start = service.indexOf(`\tasync ${method}`);
 			const end = service.indexOf('\n\tasync ', start + 1);

@@ -12,7 +12,7 @@ interface VaultServiceApi {
 	createNote(parent: vscode.Uri, name: string, isCurrent?: () => boolean): Promise<vscode.Uri>;
 	createNoteAtRelativePath(path: string, isCurrent?: () => boolean): Promise<vscode.Uri>;
 	ensureDirectoryInside(uri: vscode.Uri, isCurrent?: () => boolean): Promise<vscode.Uri>;
-	createFileExclusive(parent: vscode.Uri, name: string, bytes: Uint8Array, maxBytes?: number): Promise<{
+	createFileExclusive(parent: vscode.Uri, name: string, bytes: Uint8Array, maxBytes?: number, isCurrent?: () => boolean): Promise<{
 		uri: vscode.Uri;
 		cleanupToken: string;
 		identity: { dev: number; ino: number; birthtimeMs: number; ctimeMs: number };
@@ -414,6 +414,23 @@ suite('Document Vault filesystem transactions', () => {
 			originalBytes,
 			'rollback remained authorized after the creation was committed',
 		);
+	});
+
+	test('removes an exclusive file rejected by its active-vault commit guard', async () => {
+		const fixture = await makeFixture();
+		const assets = await service.createFolder(fixture, 'Guarded assets');
+		const rejected = vscode.Uri.joinPath(assets, 'rejected.png');
+		await assert.rejects(
+			service.createFileExclusive(
+				assets,
+				'rejected.png',
+				Uint8Array.from([137, 80, 78, 71]),
+				20 * 1024 * 1024,
+				() => false,
+			),
+			/Document Vault changed/,
+		);
+		await assertMissing(rejected);
 	});
 
 	test('rejects attachment creation through a symlinked directory', async () => {
