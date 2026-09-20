@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Strip XML Base attributes from renderer SVG so fragment-only Mermaid or draw.io references cannot be rebased to a remote resource.
 - Validate renderer SVG URL attributes by namespace-local name as well as serialized prefix, preventing a renamed XLink prefix from bypassing external-resource removal.
 - Restrict Mermaid and draw.io output to an explicit reviewed SVG element-and-attribute allowlist, removing unknown renderer vocabulary before insertion.
+- Serialize debounced open-document index updates and flush them before vault search candidate selection, so immediate searches deterministically include unsaved edits.
 - Keep strict reference-machine latency budgets in `npm test` and the opt-in filesystem benchmark, while hosted CI runs the complete deterministic suite without treating shared-runner contention as product-performance evidence.
 - Add a deterministic dependency-policy gate for manifest/lockfile parity, HTTPS registry provenance, SHA-512 integrity, production licenses, and the exact install-script package set; CI and documented source installation now use `npm ci --ignore-scripts`, with compilation and packaging proven to work without dependency lifecycle execution.
 - Launch packaged-VSIX installation through the official platform-aware VS Code CLI resolver, including the Windows `code.cmd` archive layout, while retaining isolated trusted and Restricted Mode profiles.

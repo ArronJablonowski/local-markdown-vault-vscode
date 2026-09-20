@@ -25,7 +25,11 @@ export class VaultIndex implements vscode.Disposable {
 	private persistTimer: ReturnType<typeof setTimeout> | undefined;
 	private persistQueue: Promise<void> = Promise.resolve();
 	private persistSequence = 0;
-	private readonly documentTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly documentTimers = new Map<string, {
+		timer: ReturnType<typeof setTimeout>;
+		document: vscode.TextDocument;
+	}>();
+	private readonly documentUpdates = new Map<string, Promise<void>>();
 	private readonly rootHash: string;
 	private readonly storageUri: vscode.Uri;
 	private readonly legacyStorageUris: readonly vscode.Uri[];
@@ -68,10 +72,12 @@ export class VaultIndex implements vscode.Disposable {
 			}),
 			vscode.workspace.onDidCloseTextDocument((document) => {
 				const key = document.uri.toString();
-				const timer = this.documentTimers.get(key);
-				if (timer) clearTimeout(timer);
+				const scheduled = this.documentTimers.get(key);
+				if (scheduled) clearTimeout(scheduled.timer);
 				this.documentTimers.delete(key);
-				if (this.isIndexedMarkdown(document.uri)) void this.updateUri(document.uri);
+				if (this.isIndexedMarkdown(document.uri)) {
+					void this.queueDocumentOperation(key, () => this.updateUri(document.uri));
+				}
 			}),
 		);
 		if (rebuildError) throw rebuildError;
@@ -87,6 +93,22 @@ export class VaultIndex implements vscode.Disposable {
 
 	search(query: string, limit = 100): VaultIndexRecord[] {
 		return searchVaultRecords(this.all(), query, limit);
+	}
+
+	/**
+	 * Commits debounced and in-flight open-document metadata before a user-facing
+	 * search selects candidates. Unsaved text therefore wins deterministically
+	 * even when search begins in the narrow gap between the timer firing and its
+	 * asynchronous containment check completing.
+	 */
+	async flushDocumentUpdates(): Promise<void> {
+		const scheduled = [...this.documentTimers.entries()];
+		for (const [key, entry] of scheduled) {
+			clearTimeout(entry.timer);
+			this.documentTimers.delete(key);
+			void this.runDocumentUpdate(entry.document);
+		}
+		await Promise.all([...this.documentUpdates.values()]);
 	}
 
 	/** Reads current note text on demand; content is never retained in the index or cache. */
@@ -265,11 +287,30 @@ export class VaultIndex implements vscode.Disposable {
 	private scheduleDocumentUpdate(document: vscode.TextDocument): void {
 		const key = document.uri.toString();
 		const existing = this.documentTimers.get(key);
-		if (existing) clearTimeout(existing);
-		this.documentTimers.set(key, setTimeout(() => {
+		if (existing) clearTimeout(existing.timer);
+		const timer = setTimeout(() => {
 			this.documentTimers.delete(key);
-			if (!document.isClosed) void this.updateDocument(document);
-		}, 100));
+			void this.runDocumentUpdate(document);
+		}, 100);
+		this.documentTimers.set(key, { timer, document });
+	}
+
+	private runDocumentUpdate(document: vscode.TextDocument): Promise<void> {
+		const key = document.uri.toString();
+		return this.queueDocumentOperation(key, async () => {
+			if (!document.isClosed) await this.updateDocument(document);
+		});
+	}
+
+	private queueDocumentOperation(key: string, run: () => Promise<void>): Promise<void> {
+		const prior = this.documentUpdates.get(key) ?? Promise.resolve();
+		const operation = prior.catch(() => undefined).then(run);
+		this.documentUpdates.set(key, operation);
+		const cleanup = () => {
+			if (this.documentUpdates.get(key) === operation) this.documentUpdates.delete(key);
+		};
+		void operation.then(cleanup, cleanup);
+		return operation;
 	}
 
 	private setRecord(path: string, text: string, mtime: number, size: number, notify: boolean): void {
@@ -442,7 +483,7 @@ export class VaultIndex implements vscode.Disposable {
 			void this.persist();
 		}
 		for (const disposable of this.disposables) disposable.dispose();
-		for (const timer of this.documentTimers.values()) clearTimeout(timer);
+		for (const entry of this.documentTimers.values()) clearTimeout(entry.timer);
 		this.documentTimers.clear();
 		this.changedEmitter.dispose();
 		this.failedEmitter.dispose();

@@ -15,6 +15,8 @@ export async function searchVaultWithContext(
 	signal?: AbortSignal,
 ): Promise<VaultSearchResult[]> {
 	if (signal?.aborted) return [];
+	await index.flushDocumentUpdates();
+	if (signal?.aborted) return [];
 	const candidates = index.search(query, Math.max(0, Math.min(limit, 200)));
 	const parsed = parseVaultQuery(query);
 	const requiresAuthoritativeText = parsed?.groups.some((group) => group.some((clause) =>

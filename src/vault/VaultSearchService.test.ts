@@ -30,8 +30,13 @@ describe('authoritative vault search matching', () => {
 
 	it('builds a bounded snippet and nearest heading from on-demand text', async () => {
 		const text = '# Security\n\n# Network policy\nRemote images are blocked by default.\n';
+		let flushed = false;
 		const index = {
-			search: () => [record],
+			flushDocumentUpdates: async () => { flushed = true; },
+			search: () => {
+				expect(flushed).toBe(true);
+				return [record];
+			},
 			readText: async () => text,
 		} as unknown as VaultIndex;
 		await expect(searchVaultWithContext(index, 'remote', 10)).resolves.toEqual([{
@@ -49,6 +54,7 @@ describe('authoritative vault search matching', () => {
 		};
 		const text = '---\nstatus: ready\npassword: hunter2\n---\n# Security\n';
 		const index = {
+			flushDocumentUpdates: async () => undefined,
 			search: (query: string, limit: number) => searchVaultRecords([privateRecord], query, limit),
 			readText: async () => text,
 		} as unknown as VaultIndex;
@@ -68,6 +74,7 @@ describe('authoritative vault search matching', () => {
 		const waiting: Array<() => void> = [];
 		let reads = 0;
 		const index = {
+			flushDocumentUpdates: async () => undefined,
 			search: () => records,
 			readText: async () => {
 				reads++;
@@ -87,6 +94,7 @@ describe('authoritative vault search matching', () => {
 	it('does not begin work for a search cancelled while queued', async () => {
 		let reads = 0;
 		const index = {
+			flushDocumentUpdates: async () => undefined,
 			search: () => [record],
 			readText: async () => { reads++; return 'remote images'; },
 		} as unknown as VaultIndex;
