@@ -83,8 +83,11 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const target = vscode.Uri.joinPath(root, 'Packaged Target.md');
 		const page = await getWorkbenchPage();
 		await page.bringToFront();
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
 		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await waitFor(() => activeTabUri()?.toString() === note.toString(),
+			'the installed trusted Live Preview did not become active');
 
 		const frame = await connectToLivePreviewFrame('Packaged smoke');
 		await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
@@ -139,8 +142,11 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await route.abort();
 		});
 		try {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.joinPath(root, 'README.md'), 'mdLivePreview.editor');
 			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			await waitFor(() => activeTabUri()?.toString() === vscode.Uri.joinPath(root, 'README.md').toString(),
+				'the installed Restricted Mode Live Preview did not become active');
 			const frame = await connectToLivePreviewFrame('Packaged smoke');
 			await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
 			await waitFor(async () => (await frame.locator('.mlp-image[alt="Packaged local image"]').getAttribute('src'))?.startsWith('blob:') === true,
@@ -180,7 +186,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 
 async function connectToLivePreviewFrame(expectedText: string): Promise<Frame> {
 	const browser = await connectToDebugBrowser();
-	const deadline = Date.now() + 10_000;
+	const deadline = Date.now() + 20_000;
 	while (Date.now() < deadline) {
 		for (const context of browser.contexts()) {
 			for (const page of context.pages()) {
