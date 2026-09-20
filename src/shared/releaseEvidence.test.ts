@@ -400,4 +400,18 @@ describe('release security evidence', () => {
 			expect(source, `completion is not announced: ${message}`).toContain(`announceVaultCompletion(${translationCall}`);
 		}
 	});
+
+	it('keeps diagnostics opt-in, local, bounded, and content-redacting', () => {
+		const diagnostics = readFileSync(join(ROOT, 'src', 'diagnostics.ts'), 'utf8');
+		expect(diagnostics).toContain('const MAX_LOG_ENTRIES = 500');
+		expect(diagnostics).toContain('const MAX_LOG_CHARACTERS = 64 * 1024');
+		expect(diagnostics).toContain("get<boolean>('enabled', false)");
+		expect(diagnostics).toContain("vscode.window.createOutputChannel('Local Markdown Vault')");
+		expect(diagnostics).not.toMatch(/\b(?:fetch|https?|writeFile|appendFile|createWriteStream)\b/);
+		const sanitizer = readFileSync(join(ROOT, 'src', 'shared', 'diagnosticSanitizer.ts'), 'utf8');
+		expect(sanitizer).toContain('value instanceof Error');
+		expect(sanitizer).toContain('isSensitiveKey(rawKey)');
+		expect(sanitizer).toContain("return '[absolute-path]'");
+		expect(sanitizer).toContain("return '[url]'");
+	});
 });

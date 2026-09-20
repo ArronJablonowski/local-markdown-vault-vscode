@@ -12,6 +12,7 @@
   "view.tags": "Tags",
   "view.outline": "Outline",
   "view.styleManager": "CSS Themes",
+  "command.category": "Local Markdown Vault",
   "command.openWithLivePreview": "Open with Live Preview",
   "command.openWithSource": "Open Source",
   "command.newStyle": "New CSS Theme",

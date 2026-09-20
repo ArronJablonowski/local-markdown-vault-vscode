@@ -124,12 +124,12 @@ The macOS move/link and real Live Preview keyboard transactions are covered by `
 
 - [x] Wikilinks, aliases, heading/block links, embeds, properties, callouts, math, footnotes, tags, tasks, tables, Quick Switcher, search, backlinks, unlinked mentions, recent notes, and hover previews pass their documented journeys.
 - [ ] Complete the keyboard, focus, screen-reader, high-contrast, and 200 percent zoom checks in `docs/ACCESSIBILITY.md`.
-- [ ] English and Japanese commands, settings, errors, empty states, and accessibility labels contain no unresolved localization placeholders.
-- [ ] Diagnostic logging is off by default, bounded to 500 entries and 64 KiB, remains local, and redacts bodies, URLs, clipboard content, secrets, errors, and absolute paths.
+- [x] English and Japanese commands, settings, errors, empty states, and accessibility labels contain no unresolved localization placeholders. AST-backed gates verify every manifest surface and every literal extension-host and webview call for catalog presence, placeholder parity, and sufficient arguments.
+- [x] Diagnostic logging is off by default, bounded to 500 entries and 64 KiB, remains local, and redacts bodies, URLs, clipboard content, secrets, errors, and absolute paths. Unit tests exercise count/character eviction, field/value limits, credential and path variants, error suppression, and rate limiting; a source gate confines rendering to the local VS Code output channel.
 
 ## Performance and platform evidence
 
-- [ ] Record five clean 10,000-item vault runs and p95 results in `docs/PERFORMANCE.md` without weakening a budget.
+- [x] Record five clean 10,000-item vault runs and p95 results in `docs/PERFORMANCE.md` without weakening a budget. The documented M4 reference runs cover CPU indexing, incremental parsing, indexed search, Quick Switcher, full-filesystem convergence, 1 MiB viewport mounting, and extension-host responsiveness.
 - [ ] Verify Windows, macOS, and Linux on local `file:` workspaces. Record filesystem behavior, trash behavior, case sensitivity, symlink/junction handling, integration results, and the VSIX smoke test below.
 - [x] Run the **Cross-platform release validation** workflow for the candidate commit and retain its three packaged-VSIX artifacts plus the separate release SBOM artifact. A green hosted run supplements but does not replace the manual filesystem and trash checks.
 

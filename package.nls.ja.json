@@ -12,6 +12,7 @@
   "view.tags": "タグ",
   "view.outline": "アウトライン",
   "view.styleManager": "CSSテーマ",
+  "command.category": "Local Markdown Vault",
   "command.openWithLivePreview": "ライブプレビューで開く",
   "command.openWithSource": "ソースを開く",
   "command.newStyle": "新しいCSSスタイル",
