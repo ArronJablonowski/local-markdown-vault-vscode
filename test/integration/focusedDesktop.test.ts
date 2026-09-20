@@ -28,6 +28,7 @@ interface VaultServiceApi {
 
 interface DevelopmentApi {
 	getVaultService(): VaultServiceApi | undefined;
+	getVaultIndexRecords(): readonly { path: string }[];
 	renameOrMoveMany(requests: readonly {
 		source: vscode.Uri;
 		destination: vscode.Uri;
@@ -121,6 +122,42 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => document.getText() === external, 'the TextDocument did not receive the external file change');
 		await waitFor(async () => (await editor.textContent())?.includes('External Live Preview update') === true,
 			'Live Preview did not render the external file change');
+	});
+
+	test('drives Quick Switcher and vault search through native keyboard pickers', async () => {
+		const fixture = await makeFixture('knowledge-pickers');
+		const quickTarget = await service.createNote(fixture, 'Desktop Picker Target');
+		const searchTarget = await service.createNote(fixture, 'Desktop Search Target');
+		const quickRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Picker Target.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Picker Target.md`;
+		const searchRelative = service.rootUri.fsPath === fixture.fsPath
+			? 'Desktop Search Target.md'
+			: `${fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/')}/Desktop Search Target.md`;
+		const searchPhrase = `desktop-copper-${Date.now()}`;
+		await vscode.workspace.fs.writeFile(quickTarget, bytes([
+			'---',
+			'aliases: [Desktop Picker Alias]',
+			'---',
+			'# Quick target',
+		].join('\n')));
+		await vscode.workspace.fs.writeFile(searchTarget, bytes(`# Search target\n\n${searchPhrase}\n`));
+		await waitFor(() => {
+			const paths = api.getVaultIndexRecords().map((record) => record.path);
+			return paths.includes(quickRelative) && paths.includes(searchRelative);
+		}, 'knowledge-picker notes did not reach the local index');
+
+		const page = await getWorkbenchPage();
+		await page.bringToFront();
+		await vscode.commands.executeCommand('mdLivePreview.quickSwitcher');
+		await chooseNativeQuickPick(page, 'Desktop Picker Target', 'Desktop Picker Target', 'Desktop Picker Alias');
+		await waitFor(() => activeTabUri()?.toString() === quickTarget.toString(),
+			'Quick Switcher keyboard acceptance did not open the aliased note');
+
+		await vscode.commands.executeCommand('mdLivePreview.vaultSearch');
+		await chooseNativeQuickPick(page, searchPhrase, 'Desktop Search Target');
+		await waitFor(() => activeTabUri()?.toString() === searchTarget.toString(),
+			'vault-search keyboard acceptance did not open the body-text result');
 	});
 
 	test('opens hostile Markdown without script execution, active unsafe URLs, or remote requests', async () => {
@@ -445,6 +482,36 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 
 async function entryNames(directory: vscode.Uri): Promise<string[]> {
 	return (await vscode.workspace.fs.readDirectory(directory)).map(([name]) => name).sort();
+}
+
+function activeTabUri(): vscode.Uri | undefined {
+	const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+	return input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom ? input.uri : undefined;
+}
+
+async function chooseNativeQuickPick(
+	page: Page,
+	query: string,
+	expectedItemText: string,
+	observedQuery?: string,
+): Promise<void> {
+	const widget = page.locator('.quick-input-widget:visible');
+	await widget.waitFor({ state: 'visible', timeout: 5_000 });
+	const input = widget.locator('.quick-input-box input');
+	if (observedQuery) {
+		await input.fill(observedQuery);
+		await widget.locator('.monaco-list-row').filter({ hasText: expectedItemText })
+			.waitFor({ state: 'visible', timeout: 5_000 });
+	}
+	await input.fill(query);
+	const item = widget.locator('.monaco-list-row').filter({ hasText: expectedItemText });
+	await item.waitFor({ state: 'visible', timeout: 5_000 });
+	assert.strictEqual(await item.count(), 1, `native picker did not uniquely show ${expectedItemText}`);
+	await input.press('ArrowDown');
+	await widget.locator('.monaco-list-row.focused').filter({ hasText: expectedItemText })
+		.waitFor({ state: 'visible', timeout: 5_000 });
+	await input.press('Enter');
+	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
 async function waitFor(

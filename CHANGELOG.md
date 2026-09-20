@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a real macOS VS Code desktop journey for local knowledge navigation: an alias filters the native Quick Switcher, keyboard list navigation opens the existing note, a unique body phrase populates the native vault-search picker, and keyboard acceptance opens the indexed result.
+
 - Reconcile externally created, renamed, and deleted folders in both the native Document Vault tree and the local metadata index, including Unicode and emoji paths. Directory-renamed notes are matched by verified filesystem identity, overlapping subtree scans recheck every candidate, and a bounded debounced prune closes provider event-coalescing races without changing note bytes.
 
 - Strengthen Restricted Mode coverage so the inert diagram/custom-CSS browser gate also types a real plain-Markdown edit and verifies that the validated edit message still crosses the boundary while privileged rendering remains disabled.
