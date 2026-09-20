@@ -327,6 +327,19 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});
 
+	it('keeps external folder watcher reconciliation in the real extension-host gate', () => {
+		const indexSource = readFileSync(join(ROOT, 'src', 'vault', 'VaultIndex.ts'), 'utf8');
+		expect(indexSource).toContain("new vscode.RelativePattern(this.vault.rootUri, '**/*')");
+		expect(indexSource).toContain('prepareRecordIdentity');
+		expect(indexSource).toContain('scheduleMissingRecordPrune');
+		expect(indexSource).toContain('pruneMissingRecords');
+		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'vault.test.ts'), 'utf8');
+		expect(testSource).toContain('converges the tree and index after external Unicode folder create, rename, and delete');
+		expect(testSource).toContain('external Unicode folder rename did not converge in the vault index');
+		expect(testSource).toContain('external folder deletion did not leave the vault index');
+		expect(testSource).toContain('external Unicode folder rename changed note bytes');
+	});
+
 	it('installs and tests the packaged VSIX in isolated trusted and untrusted profiles', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

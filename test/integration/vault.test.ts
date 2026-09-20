@@ -296,6 +296,47 @@ suite('Document Vault filesystem transactions', () => {
 		await vscode.workspace.fs.stat(newer);
 	});
 
+	test('converges the tree and index after external Unicode folder create, rename, and delete', async () => {
+		const fixture = await makeFixture();
+		const fixtureRelative = fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/');
+		const externalFolder = vscode.Uri.joinPath(fixture, 'External Folder');
+		const externalNote = vscode.Uri.joinPath(externalFolder, 'Watched Note.md');
+		const noteBytes = bytes('# External watcher\n\nUnchanged 日本語 🧭.\n');
+		await vscode.workspace.fs.createDirectory(externalFolder);
+		await vscode.workspace.fs.writeFile(externalNote, noteBytes);
+		const originalPath = `${fixtureRelative}/External Folder/Watched Note.md`;
+
+		await waitForCondition(
+			() => api.getVaultIndexRecords().some((record) => record.path === originalPath),
+			'external note creation did not reach the vault index',
+		);
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) => paths.includes(`${fixtureRelative}/External Folder`));
+		await waitForVaultTreePaths(api, `${fixtureRelative}/External Folder`, (paths) => paths.includes(originalPath));
+
+		const renamedFolder = vscode.Uri.joinPath(fixture, '外部 🧭');
+		await vscode.workspace.fs.rename(externalFolder, renamedFolder, { overwrite: false });
+		const renamedPath = `${fixtureRelative}/外部 🧭/Watched Note.md`;
+		await waitForCondition(() => {
+			const paths = api.getVaultIndexRecords().map((record) => record.path);
+			return paths.includes(renamedPath) && !paths.includes(originalPath);
+		}, 'external Unicode folder rename did not converge in the vault index');
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) =>
+			paths.includes(`${fixtureRelative}/外部 🧭`) && !paths.includes(`${fixtureRelative}/External Folder`));
+		await waitForVaultTreePaths(api, `${fixtureRelative}/外部 🧭`, (paths) => paths.includes(renamedPath));
+		assertBytesEqual(
+			await vscode.workspace.fs.readFile(vscode.Uri.joinPath(renamedFolder, 'Watched Note.md')),
+			noteBytes,
+			'external Unicode folder rename changed note bytes',
+		);
+
+		await vscode.workspace.fs.delete(renamedFolder, { recursive: true, useTrash: false });
+		await waitForCondition(
+			() => !api.getVaultIndexRecords().some((record) => record.path === renamedPath),
+			'external folder deletion did not leave the vault index',
+		);
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) => !paths.includes(`${fixtureRelative}/外部 🧭`));
+	});
+
 	test('authorizes only vault-confined mutation sources without following a symlink leaf', async () => {
 		const fixture = await makeFixture();
 		const outside = await mkdtemp(join(tmpdir(), 'mdlp-trash-test-'));

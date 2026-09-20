@@ -1,5 +1,7 @@
 # Changelog
 
+- Reconcile externally created, renamed, and deleted folders in both the native Document Vault tree and the local metadata index, including Unicode and emoji paths. Directory-renamed notes are matched by verified filesystem identity, overlapping subtree scans recheck every candidate, and a bounded debounced prune closes provider event-coalescing races without changing note bytes.
+
 - Strengthen Restricted Mode coverage so the inert diagram/custom-CSS browser gate also types a real plain-Markdown edit and verifies that the validated edit message still crosses the boundary while privileged rendering remains disabled.
 
 - Add a real-host macOS network-policy journey proving that an HTTPS image activates only after an explicit workspace-scoped opt-in, emits exactly its expected intercepted request, and returns immediately to blocked-media state when the opt-in is revoked without changing the tracked workspace settings.

@@ -17,12 +17,16 @@ export interface VaultIndexRecord extends VaultMetadata {
 
 export class VaultIndex implements vscode.Disposable {
 	private readonly records = new Map<string, VaultIndexRecord>();
+	private readonly recordIdentityKeys = new Map<string, string>();
+	private readonly identityPaths = new Map<string, string>();
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly changedEmitter = new vscode.EventEmitter<readonly string[]>();
 	private readonly failedEmitter = new vscode.EventEmitter<unknown>();
 	readonly onDidChange = this.changedEmitter.event;
 	readonly onDidFail = this.failedEmitter.event;
 	private persistTimer: ReturnType<typeof setTimeout> | undefined;
+	private missingRecordPruneTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly missingRecordPruneParents = new Set<string>();
 	private persistQueue: Promise<void> = Promise.resolve();
 	private persistSequence = 0;
 	private readonly documentTimers = new Map<string, {
@@ -65,8 +69,21 @@ export class VaultIndex implements vscode.Disposable {
 		watcher.onDidCreate((uri) => void this.updateUri(uri), undefined, this.disposables);
 		watcher.onDidChange((uri) => void this.updateUri(uri), undefined, this.disposables);
 		watcher.onDidDelete((uri) => this.removeUri(uri), undefined, this.disposables);
+		// Markdown globs do not reliably emit descendant events when another app
+		// renames a directory. Observe structural creates/deletes separately and
+		// reconcile only the affected subtree; ordinary file changes stay on the
+		// cheap Markdown watcher above.
+		const structuralWatcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(this.vault.rootUri, '**/*'),
+			false,
+			true,
+			false,
+		);
+		structuralWatcher.onDidCreate((uri) => void this.updateCreatedDirectory(uri), undefined, this.disposables);
+		structuralWatcher.onDidDelete((uri) => this.removeStructuralRecords(uri), undefined, this.disposables);
 		this.disposables.push(
 			watcher,
+			structuralWatcher,
 			vscode.workspace.onDidChangeTextDocument((event) => {
 				if (this.isIndexedMarkdown(event.document.uri)) this.scheduleDocumentUpdate(event.document);
 			}),
@@ -189,8 +206,7 @@ export class VaultIndex implements vscode.Disposable {
 		// falsely consume the new snapshot's aggregate memory budget.
 		for (const path of this.records.keys()) {
 			if (selectedPaths.has(path)) continue;
-			this.records.delete(path);
-			this.memoryBudget.delete(path);
+			this.deleteRecord(path);
 		}
 		const found = new Set<string>();
 		let cursor = 0;
@@ -216,8 +232,7 @@ export class VaultIndex implements vscode.Disposable {
 		const removed: string[] = [];
 		for (const path of this.records.keys()) {
 			if (!found.has(path)) {
-				this.records.delete(path);
-				this.memoryBudget.delete(path);
+				this.deleteRecord(path);
 				removed.push(path);
 			}
 		}
@@ -238,6 +253,8 @@ export class VaultIndex implements vscode.Disposable {
 		}
 		const removed = [...this.records.keys()];
 		this.records.clear();
+		this.recordIdentityKeys.clear();
+		this.identityPaths.clear();
 		this.memoryBudget.clear();
 		if (removed.length) this.changedEmitter.fire(removed);
 		try { await vscode.workspace.fs.delete(this.storageUri, { useTrash: false }); }
@@ -259,7 +276,7 @@ export class VaultIndex implements vscode.Disposable {
 			const file = await this.vault.readFileInside(uri, MAX_INDEX_FILE_BYTES);
 			const text = new TextDecoder('utf-8', { fatal: true }).decode(file.bytes);
 			if (notify) await this.removeMissingCaseAliases(path, true);
-			this.setRecord(path, text, file.mtimeMs, file.size, notify);
+			this.setRecord(path, text, file.mtimeMs, file.size, notify, file.identity);
 		} catch {
 			this.removeUri(uri, notify);
 		}
@@ -269,12 +286,150 @@ export class VaultIndex implements vscode.Disposable {
 		if (this.indexingDisabled) return;
 		const path = this.vault.relativePath(document.uri);
 		if (path === undefined || (exclusionMatcher ? exclusionMatcher(path) : this.isExcluded(path)) || !isMarkdown(path)) return;
-		try { await this.vault.assertExistingInside(document.uri); }
+		let identity: { dev: number; ino: number; birthtimeMs: number };
+		try {
+			const entry = await this.vault.statEntryInside(document.uri);
+			if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('The indexed note is not a regular file.');
+			identity = entry;
+		}
 		catch { return this.removeUri(document.uri, notify); }
 		const text = document.getText();
 		if (new TextEncoder().encode(text).byteLength > MAX_INDEX_FILE_BYTES) return this.removeUri(document.uri);
 		if (notify) await this.removeMissingCaseAliases(path, true);
-		this.setRecord(path, text, Date.now(), new TextEncoder().encode(text).byteLength, notify);
+		this.setRecord(path, text, Date.now(), new TextEncoder().encode(text).byteLength, notify, identity);
+	}
+
+	private async updateCreatedDirectory(uri: vscode.Uri): Promise<void> {
+		if (this.disposed || this.indexingDisabled) return;
+		try {
+			const entry = await this.vault.statEntryInside(uri);
+			if (!entry.isDirectory() || entry.isSymbolicLink()) return;
+			const discovered = await vscode.workspace.findFiles(
+				new vscode.RelativePattern(uri, '**/*.{md,markdown}'),
+				undefined,
+				MAX_DISCOVERED_MARKDOWN_FILES + 1,
+			);
+			if (this.disposed || this.indexingDisabled) return;
+			const selection = selectIndexCandidates(
+				discovered.slice(0, MAX_DISCOVERED_MARKDOWN_FILES).flatMap((candidate) => {
+					const path = this.vault.relativePath(candidate);
+					return path === undefined ? [] : [{ item: candidate, path }];
+				}),
+				this.exclusions(),
+				discovered.length > MAX_DISCOVERED_MARKDOWN_FILES,
+			);
+			if (selection.kind !== 'ok') throw new Error(selection.kind === 'noteLimit'
+				? 'The vault exceeds the 10,000-note indexing limit.'
+				: 'The vault exceeds the 100,000-file Markdown discovery limit.');
+			if (selection.candidates.length === 0) return;
+			const isExcluded = compileVaultExclusions(this.exclusions());
+			let cursor = 0;
+			const workers = Array.from({ length: Math.min(16, selection.candidates.length) }, async () => {
+				while (!this.disposed && !this.indexingDisabled && cursor < selection.candidates.length) {
+					const candidate = selection.candidates[cursor++].item;
+					await this.updateUri(candidate, false, isExcluded);
+				}
+			});
+			await Promise.all(workers);
+			if (this.disposed || this.indexingDisabled) return;
+			// An older scan of an ancestor can overlap a later child deletion. Verify
+			// every discovered candidate after parsing so that scan cannot resurrect
+			// metadata for a note removed after its bytes were read.
+			let verificationCursor = 0;
+			const verificationWorkers = Array.from({ length: Math.min(16, selection.candidates.length) }, async () => {
+				while (!this.disposed && !this.indexingDisabled && verificationCursor < selection.candidates.length) {
+					const candidate = selection.candidates[verificationCursor++].item;
+					try {
+						const current = await this.vault.statEntryInside(candidate);
+						if (current.isFile() && !current.isSymbolicLink()) continue;
+					} catch { /* a concurrent delete or escape must remove stale metadata */ }
+					this.removeUri(candidate, false);
+				}
+			});
+			await Promise.all(verificationWorkers);
+			if (this.disposed || this.indexingDisabled) return;
+			// A delete/rename notification can race a subtree scan that already
+			// opened one of its descendants. Re-check the directory after every
+			// worker has settled so stale reads can never resurrect removed paths.
+			try {
+				const current = await this.vault.statEntryInside(uri);
+				if (!current.isDirectory() || current.isSymbolicLink()) throw new Error('The reconciled path is no longer a directory.');
+			} catch {
+				this.removeDirectoryRecords(uri);
+				return;
+			}
+			this.changedEmitter.fire([]);
+			this.schedulePersist();
+		} catch (error) {
+			// The directory may have disappeared again before it was inspected.
+			try { await this.vault.statEntryInside(uri); }
+			catch {
+				this.removeDirectoryRecords(uri);
+				return;
+			}
+			this.clearAfterFailedRebuild();
+			this.failedEmitter.fire(error);
+		}
+	}
+
+	private removeDirectoryRecords(uri: vscode.Uri): void {
+		const path = this.vault.relativePath(uri);
+		if (path === undefined || path === '') return;
+		const prefix = `${normalize(path)}/`;
+		const removed: string[] = [];
+		for (const candidate of this.records.keys()) {
+			if (!candidate.startsWith(prefix)) continue;
+			this.deleteRecord(candidate);
+			removed.push(candidate);
+		}
+		if (removed.length === 0) return;
+		this.changedEmitter.fire(removed);
+		this.schedulePersist();
+	}
+
+	private removeStructuralRecords(uri: vscode.Uri): void {
+		// Recursive deletes are provider-dependent: VS Code may report the removed
+		// directory, each removed file, or both. Reconcile both possible shapes.
+		this.removeUri(uri);
+		this.removeDirectoryRecords(uri);
+		this.scheduleMissingRecordPrune(uri);
+	}
+
+	private scheduleMissingRecordPrune(deletedUri: vscode.Uri): void {
+		const deletedPath = this.vault.relativePath(deletedUri);
+		if (deletedPath === undefined) return;
+		const normalizedPath = normalize(deletedPath);
+		const separator = normalizedPath.lastIndexOf('/');
+		this.missingRecordPruneParents.add(separator < 0 ? '' : normalizedPath.slice(0, separator));
+		if (this.missingRecordPruneTimer) clearTimeout(this.missingRecordPruneTimer);
+		// Some providers coalesce a rapid rename followed by deletion into only
+		// the old-path delete. Recheck indexed siblings after the burst settles.
+		this.missingRecordPruneTimer = setTimeout(() => void this.pruneMissingRecords(), 150);
+	}
+
+	private async pruneMissingRecords(): Promise<void> {
+		this.missingRecordPruneTimer = undefined;
+		const parents = [...this.missingRecordPruneParents];
+		this.missingRecordPruneParents.clear();
+		if (this.disposed || this.indexingDisabled || parents.length === 0) return;
+		const candidates = [...this.records.keys()].filter((path) => parents.some((parent) =>
+			parent === '' || path.startsWith(`${parent}/`)));
+		const removed: string[] = [];
+		let cursor = 0;
+		const workers = Array.from({ length: Math.min(16, candidates.length) }, async () => {
+			while (!this.disposed && !this.indexingDisabled && cursor < candidates.length) {
+				const path = candidates[cursor++];
+				try {
+					const current = await this.vault.statEntryInside(this.vault.uriForRelative(path));
+					if (current.isFile() && !current.isSymbolicLink()) continue;
+				} catch { /* missing or escaped records must be pruned */ }
+				if (this.deleteRecord(path)) removed.push(path);
+			}
+		});
+		await Promise.all(workers);
+		if (this.disposed || removed.length === 0) return;
+		this.changedEmitter.fire(removed);
+		this.schedulePersist();
 	}
 
 	/**
@@ -291,8 +446,7 @@ export class VaultIndex implements vscode.Disposable {
 		for (const candidate of this.records.keys()) {
 			if (candidate === normalizedPath || foldPath(candidate) !== foldedPath) continue;
 			if (await this.vault.hasExactEntry(this.vault.uriForRelative(candidate))) continue;
-			this.records.delete(candidate);
-			this.memoryBudget.delete(candidate);
+			this.deleteRecord(candidate);
 			removed.push(candidate);
 		}
 		if (removed.length === 0) return;
@@ -329,27 +483,39 @@ export class VaultIndex implements vscode.Disposable {
 		return operation;
 	}
 
-	private setRecord(path: string, text: string, mtime: number, size: number, notify: boolean): void {
+	private setRecord(
+		path: string,
+		text: string,
+		mtime: number,
+		size: number,
+		notify: boolean,
+		identity?: { dev: number; ino: number; birthtimeMs: number },
+	): void {
 		if (this.indexingDisabled) return;
 		const normalizedPath = normalize(path);
-		if (!this.records.has(normalizedPath) && this.records.size >= MAX_INDEXED_VAULT_NOTES) {
+		const knownIdentityPath = identity
+			? this.identityPaths.get(recordIdentityKey(identity))
+			: undefined;
+		if (!this.records.has(normalizedPath) && !knownIdentityPath && this.records.size >= MAX_INDEXED_VAULT_NOTES) {
 			const error = new Error('The vault exceeds the 10,000-note indexing limit.');
 			this.clearAfterFailedRebuild();
 			this.failedEmitter.fire(error);
 			return;
 		}
+		const renamedFrom = identity ? this.prepareRecordIdentity(normalizedPath, identity) : undefined;
 		let record: VaultIndexRecord;
 		try {
 			const metadata = extractVaultMetadata(normalizedPath, text);
 			record = { ...metadata, mtime, size };
 		} catch {
+			// Filesystem identity remains authoritative when a renamed note becomes
+			// ineligible, so its former path must not retain searchable metadata.
 			// A note that crosses a size/time/parser limit must not leave stale
 			// aliases, backlinks, tags, or search results in memory or the cache.
-			const removed = this.records.delete(normalizedPath);
-			this.memoryBudget.delete(normalizedPath);
+			const removed = this.deleteRecord(normalizedPath) || renamedFrom !== undefined;
 			if (removed) {
 				if (notify) {
-					this.changedEmitter.fire([normalizedPath]);
+					this.changedEmitter.fire(renamedFrom ? [renamedFrom, normalizedPath] : [normalizedPath]);
 					this.schedulePersist();
 				}
 			}
@@ -364,15 +530,51 @@ export class VaultIndex implements vscode.Disposable {
 		}
 		this.records.set(normalizedPath, record);
 		if (notify) {
-			this.changedEmitter.fire([normalizedPath]);
+			this.changedEmitter.fire(renamedFrom ? [renamedFrom, normalizedPath] : [normalizedPath]);
 			this.schedulePersist();
 		}
+	}
+
+	/**
+	 * A directory rename may be reported only as creates at the new descendant
+	 * paths. Match those files to their prior runtime identity so stale old paths
+	 * disappear without an O(vault-size) rescan for every watcher event.
+	 */
+	private prepareRecordIdentity(
+		path: string,
+		identity: { dev: number; ino: number; birthtimeMs: number },
+	): string | undefined {
+		const key = recordIdentityKey(identity);
+		const previousKey = this.recordIdentityKeys.get(path);
+		if (previousKey && previousKey !== key && this.identityPaths.get(previousKey) === path) {
+			this.identityPaths.delete(previousKey);
+		}
+		const previousPath = this.identityPaths.get(key);
+		let renamedFrom: string | undefined;
+		if (previousPath && previousPath !== path) {
+			this.deleteRecord(previousPath);
+			renamedFrom = previousPath;
+		}
+		this.recordIdentityKeys.set(path, key);
+		this.identityPaths.set(key, path);
+		return renamedFrom;
+	}
+
+	private deleteRecord(path: string): boolean {
+		const removed = this.records.delete(path);
+		this.memoryBudget.delete(path);
+		const key = this.recordIdentityKeys.get(path);
+		this.recordIdentityKeys.delete(path);
+		if (key && this.identityPaths.get(key) === path) this.identityPaths.delete(key);
+		return removed;
 	}
 
 	private clearAfterFailedRebuild(): void {
 		this.indexingDisabled = true;
 		const removed = [...this.records.keys()];
 		this.records.clear();
+		this.recordIdentityKeys.clear();
+		this.identityPaths.clear();
 		this.memoryBudget.clear();
 		if (removed.length) this.changedEmitter.fire(removed);
 		this.changedEmitter.fire([]);
@@ -382,8 +584,7 @@ export class VaultIndex implements vscode.Disposable {
 	private removeUri(uri: vscode.Uri, notify = true): void {
 		const path = this.vault.relativePath(uri);
 		const normalizedPath = path === undefined ? undefined : normalize(path);
-		if (normalizedPath !== undefined && this.records.delete(normalizedPath)) {
-			this.memoryBudget.delete(normalizedPath);
+		if (normalizedPath !== undefined && this.deleteRecord(normalizedPath)) {
 			if (notify) {
 				this.changedEmitter.fire([normalizedPath]);
 				this.schedulePersist();
@@ -432,6 +633,8 @@ export class VaultIndex implements vscode.Disposable {
 					const path = normalize(record.path);
 					if (!this.memoryBudget.tryReplace(path, retainedIndexRecordBytes(record))) {
 						this.records.clear();
+						this.recordIdentityKeys.clear();
+						this.identityPaths.clear();
 						this.memoryBudget.clear();
 						return false;
 					}
@@ -498,6 +701,8 @@ export class VaultIndex implements vscode.Disposable {
 			clearTimeout(this.persistTimer);
 			void this.persist();
 		}
+		if (this.missingRecordPruneTimer) clearTimeout(this.missingRecordPruneTimer);
+		this.missingRecordPruneParents.clear();
 		for (const disposable of this.disposables) disposable.dispose();
 		for (const entry of this.documentTimers.values()) clearTimeout(entry.timer);
 		this.documentTimers.clear();
@@ -516,6 +721,10 @@ function normalize(path: string): string {
 
 function foldPath(path: string): string {
 	return path.normalize('NFC').toLowerCase();
+}
+
+function recordIdentityKey(identity: { dev: number; ino: number; birthtimeMs: number }): string {
+	return `${identity.dev}:${identity.ino}:${identity.birthtimeMs}`;
 }
 
 function throwIfCancelled(cancellation: vscode.CancellationToken | undefined): void {
