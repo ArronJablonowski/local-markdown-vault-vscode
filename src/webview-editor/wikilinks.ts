@@ -17,6 +17,7 @@ let vaultNotes: VaultNoteSummary[] = [];
 let currentVaultPath = '';
 let openWikilink: ((href: string) => void) | undefined;
 let embedRevision = 0;
+let wikilinkPreviewSequence = 0;
 const MAX_WIKILINK_COMPLETIONS = 200;
 const MAX_WIKI_IMAGE_DIMENSION = 4096;
 
@@ -384,6 +385,9 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 	private hoverTimer: ReturnType<typeof setTimeout> | undefined;
 	private hoverTarget: HTMLElement | undefined;
 	private hoverPreview: HTMLElement | undefined;
+	private pointerTarget: HTMLElement | undefined;
+	private focusTarget: HTMLElement | undefined;
+	private hoverGeneration = 0;
 	private readonly pointer = (event: MouseEvent) => {
 		if (event.button !== 0) return;
 		const link = (event.target as HTMLElement | null)?.closest('.mlp-wikilink') as HTMLElement | null;
@@ -404,27 +408,49 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 	};
 	private readonly hover = (event: MouseEvent) => {
 		const link = (event.target as HTMLElement | null)?.closest('.mlp-wikilink:not(.mlp-wikilink-unresolved):not(.mlp-wikilink-open-only)') as HTMLElement | null;
-		if (!link || link === this.hoverTarget) return;
-		this.clearHover();
-		this.hoverTarget = link;
-		this.hoverTimer = setTimeout(() => void this.showHover(link), 500);
+		if (!link) return;
+		this.pointerTarget = link;
+		this.syncHoverTarget();
 	};
 	private readonly unhover = (event: MouseEvent) => {
 		const link = (event.target as HTMLElement | null)?.closest('.mlp-wikilink') as HTMLElement | null;
-		if (!link || link !== this.hoverTarget || (event.relatedTarget instanceof Node && link.contains(event.relatedTarget))) return;
-		this.clearHover();
+		if (!link || link !== this.pointerTarget || (event.relatedTarget instanceof Node && link.contains(event.relatedTarget))) return;
+		this.pointerTarget = undefined;
+		this.syncHoverTarget();
 	};
-	private async showHover(link: HTMLElement): Promise<void> {
+	private readonly focus = (event: FocusEvent) => {
+		const link = (event.target as HTMLElement | null)?.closest('.mlp-wikilink:not(.mlp-wikilink-unresolved):not(.mlp-wikilink-open-only)') as HTMLElement | null;
+		if (!link) return;
+		this.focusTarget = link;
+		this.syncHoverTarget();
+	};
+	private readonly blur = (event: FocusEvent) => {
+		const link = (event.target as HTMLElement | null)?.closest('.mlp-wikilink') as HTMLElement | null;
+		if (!link || link !== this.focusTarget || (event.relatedTarget instanceof Node && link.contains(event.relatedTarget))) return;
+		this.focusTarget = undefined;
+		this.syncHoverTarget();
+	};
+	private syncHoverTarget(): void {
+		const next = this.focusTarget ?? this.pointerTarget;
+		if (next === this.hoverTarget) return;
+		this.clearHover();
+		if (!next) return;
+		this.hoverTarget = next;
+		const generation = this.hoverGeneration;
+		this.hoverTimer = setTimeout(() => void this.showHover(next, generation), 500);
+	}
+	private async showHover(link: HTMLElement, generation: number): Promise<void> {
 		const href = link.dataset.href;
-		if (!href?.startsWith('wikilink:') || link !== this.hoverTarget) return;
+		if (!href?.startsWith('wikilink:') || link !== this.hoverTarget || generation !== this.hoverGeneration) return;
 		let body: string;
 		try { body = decodeURIComponent(href.slice('wikilink:'.length)); } catch { return; }
 		try {
 			const result = await readWikiEmbed(body, currentVaultPath);
-			if (link !== this.hoverTarget || !link.isConnected) return;
+			if (link !== this.hoverTarget || generation !== this.hoverGeneration || !link.isConnected) return;
 			const preview = document.createElement('div');
 			preview.className = 'mlp-wikilink-hover';
 			preview.setAttribute('role', 'tooltip');
+			preview.id = `mlp-wikilink-preview-${++wikilinkPreviewSequence}`;
 			const title = document.createElement('div');
 			title.className = 'mlp-wikilink-hover-title';
 			title.textContent = result.sourcePath;
@@ -448,12 +474,19 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 			const previewBox = preview.getBoundingClientRect();
 			preview.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - previewBox.width - 8))}px`;
 			preview.style.top = `${Math.max(8, Math.min(box.bottom + 6, window.innerHeight - previewBox.height - 8))}px`;
+			link.setAttribute('aria-describedby', preview.id);
 			this.hoverPreview = preview;
 		} catch { /* Missing or ambiguous notes simply have no preview. */ }
 	}
 	private clearHover(): void {
+		this.hoverGeneration++;
 		if (this.hoverTimer) clearTimeout(this.hoverTimer);
 		this.hoverTimer = undefined;
+		const target = this.hoverTarget;
+		const previewId = this.hoverPreview?.id;
+		if (target && previewId && target.getAttribute('aria-describedby') === previewId) {
+			target.removeAttribute('aria-describedby');
+		}
 		this.hoverTarget = undefined;
 		this.hoverPreview?.remove();
 		this.hoverPreview = undefined;
@@ -464,6 +497,8 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 		view.dom.addEventListener('keydown', this.keyboard, true);
 		view.dom.addEventListener('mouseover', this.hover, true);
 		view.dom.addEventListener('mouseout', this.unhover, true);
+		view.dom.addEventListener('focus', this.focus, true);
+		view.dom.addEventListener('blur', this.blur, true);
 	}
 	update(update: ViewUpdate) {
 		if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = buildDecorations(update.view);
@@ -473,6 +508,10 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 		this.view.dom.removeEventListener('keydown', this.keyboard, true);
 		this.view.dom.removeEventListener('mouseover', this.hover, true);
 		this.view.dom.removeEventListener('mouseout', this.unhover, true);
+		this.view.dom.removeEventListener('focus', this.focus, true);
+		this.view.dom.removeEventListener('blur', this.blur, true);
+		this.pointerTarget = undefined;
+		this.focusTarget = undefined;
 		this.clearHover();
 	}
 }, { decorations: (plugin) => plugin.decorations });

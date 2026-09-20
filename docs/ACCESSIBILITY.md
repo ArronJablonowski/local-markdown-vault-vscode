@@ -40,7 +40,7 @@ enhancement.
 | Vault Search | `Ctrl+Shift+F` / `Cmd+Shift+F` while the editor or Vault has focus; type to filter, arrows select, Enter opens, Escape closes. |
 | Tasks and callouts | Tab to the control; Space or Enter toggles it. |
 | Properties | Tab into a property; Enter starts editing; Enter commits; Escape cancels and returns focus. Single wikilinks and every item in a wikilink list expose separate named links plus one edit control, so navigation and editing are independently keyboard reachable. Malformed list or typed-number input retains focus and exposes a localized, screen-reader-associated error until corrected. |
-| Footnotes and links | Tab to the link; Enter follows it. Footnote return controls restore the reference location. |
+| Footnotes and links | Tab to the link; focusing a resolved wikilink shows the same delayed, local-only preview as pointer hover and associates it as an accessible description; Enter follows the link. Footnote return controls restore the reference location. |
 | Tables | Tab reaches source-backed cells; arrow keys move through the grid; Enter or F2 starts editing; Tab and Shift+Tab move between cells while editing; Enter commits; Escape cancels; focusing a cell enables the named row and column toolbar operations. |
 | Rendered blocks | Each diagram, table, and property block provides a keyboard-accessible source-mode escape hatch. |
 | CSS Themes | Native radio controls select a theme with Tab, arrow keys, and Space; separately named buttons edit, duplicate, rename, or delete it. |

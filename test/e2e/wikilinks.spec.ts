@@ -173,6 +173,30 @@ test.describe('Obsidian-style wikilinks', () => {
 		expect(remoteRequests).toBe(0);
 	});
 
+	test('shows and associates the same local preview when a wikilink receives keyboard focus', async ({ page }) => {
+		await mountEditor(page, 'Intro\n\n[[Note]]\n', { vaultNotes: notes, currentVaultPath: 'Current.md' });
+		const link = page.locator('.mlp-wikilink');
+		await link.focus();
+		await expect(link).toBeFocused();
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string }> }).__posted.some((message) => message.type === 'readWikiEmbed'))).toBe(true);
+		const requestId = await page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; requestId?: number }> }).__posted
+				.find((message) => message.type === 'readWikiEmbed')!.requestId!);
+		await postToWebview(page, {
+			type: 'wikiEmbed', requestId, sourcePath: 'Note.md', text: '# Keyboard preview\n\nLocal content only.',
+		});
+		const preview = page.locator('.mlp-wikilink-hover');
+		await expect(preview).toBeVisible();
+		await expect(preview).toHaveAttribute('role', 'tooltip');
+		await expect(link).toHaveAttribute('aria-describedby', await preview.getAttribute('id') as string);
+		await expect(preview.locator('h1')).toHaveText('Keyboard preview');
+
+		await page.locator('.cm-content').focus();
+		await expect(preview).toHaveCount(0);
+		await expect(link).not.toHaveAttribute('aria-describedby', /.+/);
+	});
+
 	test('renders bounded raster wikilink embeds and Obsidian dimensions from the local vault root', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n![[Assets/picture.png]] ![[Assets/sized.png|320x180]] ![[Assets/huge.png|9999x1]]\n', {
 			vaultNotes: notes,
