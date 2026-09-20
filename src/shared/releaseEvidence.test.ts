@@ -173,6 +173,15 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('pins Linux workflow jobs to the validated Ubuntu release image', () => {
+		const workflowDirectory = join(ROOT, '.github', 'workflows');
+		for (const name of readdirSync(workflowDirectory).filter((candidate) => /\.ya?ml$/i.test(candidate))) {
+			const source = readFileSync(join(workflowDirectory, name), 'utf8');
+			expect(source, `${name} can silently migrate to a new Ubuntu image`).not.toContain('ubuntu-latest');
+			if (source.includes('ubuntu-')) expect(source).toContain('ubuntu-24.04');
+		}
+	});
+
 	it('keeps reference-machine performance budgets out of variable hosted runners', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;
