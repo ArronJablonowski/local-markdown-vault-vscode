@@ -342,6 +342,21 @@ export class VaultService {
 		return entry;
 	}
 
+	/**
+	 * Reports whether another spelling currently resolves to the same confined
+	 * directory entry. This distinguishes a case-insensitive provider alias from
+	 * two distinct names on a case-sensitive filesystem without guessing from
+	 * the operating system or volume format.
+	 */
+	async aliasesEntry(uri: vscode.Uri, expected: Stats): Promise<boolean> {
+		try {
+			return sameFileIdentity(await this.statEntryInside(uri), expected);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+			throw error;
+		}
+	}
+
 	async assertExpandableDirectory(uri: vscode.Uri): Promise<void> {
 		const entry = await this.statEntryInside(uri);
 		if (entry.isSymbolicLink() || !entry.isDirectory()) {

@@ -663,6 +663,38 @@ suite('Document Vault filesystem transactions', () => {
 
 	});
 
+	test('uses a normal transaction for spelling-only renames on a case-sensitive filesystem', async function () {
+		if (process.platform !== 'linux') this.skip();
+		const fixture = await makeFixture();
+		const source = await service.createNote(fixture, 'LinuxCaseName');
+		const index = await service.createNote(fixture, 'LinuxCaseIndex');
+		await vscode.workspace.fs.writeFile(source, bytes('# Linux case\n'));
+		await vscode.workspace.fs.writeFile(index, bytes('[[LinuxCaseName]]\n'));
+		const destination = vscode.Uri.joinPath(fixture, 'linuxcasename.md');
+
+		assert.strictEqual(await api.renameOrMoveMany([{ source, destination, isFolder: false }]), true);
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(destination)), '# Linux case\n');
+		assert.strictEqual((await vscode.workspace.openTextDocument(index)).getText(), '[[linuxcasename]]\n');
+		const names = (await vscode.workspace.fs.readDirectory(fixture)).map(([name]) => name);
+		assert.ok(!names.some((name) => name.startsWith('.mdlp-case-rename-')), `temporary case-rename file remained: ${names.join(', ')}`);
+	});
+
+	test('rejects a spelling-only destination collision on a case-sensitive filesystem', async function () {
+		if (process.platform !== 'linux') this.skip();
+		const fixture = await makeFixture();
+		const source = await service.createNote(fixture, 'LinuxCollision');
+		const destination = await service.createNote(fixture, 'linuxcollision');
+		await vscode.workspace.fs.writeFile(source, bytes('source\n'));
+		await vscode.workspace.fs.writeFile(destination, bytes('destination\n'));
+
+		await assert.rejects(
+			api.renameOrMoveMany([{ source, destination, isFolder: false }]),
+			/exists at a destination/,
+		);
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(source)), 'source\n');
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(destination)), 'destination\n');
+	});
+
 	test('preserves an open dirty note while enforcing exact case-only filename casing', async function () {
 		if (process.platform === 'linux') this.skip();
 		const fixture = await makeFixture();

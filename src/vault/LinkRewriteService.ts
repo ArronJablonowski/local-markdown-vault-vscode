@@ -90,14 +90,20 @@ export class LinkRewriteService {
 				source,
 				destination,
 				move: { oldPath, newPath, isFolder } satisfies VaultMove,
-				caseOnly: source.fsPath !== destination.fsPath &&
+				caseSpelling: source.fsPath !== destination.fsPath &&
 					source.fsPath.toLowerCase() === destination.fsPath.toLowerCase(),
 			};
 		});
 		assertIndependentMoves(plans.map((plan) => plan.move));
 		const sourceStats = await Promise.all(plans.map((plan) => this.vault.statEntryInside(plan.source)));
-		for (let index = 0; index < plans.length; index++) {
-			const plan = plans[index];
+		const caseOnlyAliases = await Promise.all(plans.map((plan, index) =>
+			plan.caseSpelling
+				? this.vault.aliasesEntry(plan.destination, sourceStats[index])
+				: Promise.resolve(false),
+		));
+		const resolvedPlans = plans.map((plan, index) => ({ ...plan, caseOnly: caseOnlyAliases[index] }));
+		for (let index = 0; index < resolvedPlans.length; index++) {
+			const plan = resolvedPlans[index];
 			await this.vault.assertMutationSource(
 				plan.source,
 				sourceStats[index].isSymbolicLink(),
@@ -112,16 +118,16 @@ export class LinkRewriteService {
 			.get<boolean>('updateLinksOnMove', true);
 		if (updateLinks) await this.addLinkEdits(
 			edit,
-			plans.map((plan) => plan.move),
+			resolvedPlans.map((plan) => plan.move),
 			versions,
 			fileSnapshots,
 		);
 		await this.beforePreconditionCheck?.();
-		for (let index = 0; index < plans.length; index++) {
-			const current = await this.vault.statEntryInside(plans[index].source);
+		for (let index = 0; index < resolvedPlans.length; index++) {
+			const current = await this.vault.statEntryInside(resolvedPlans[index].source);
 			const original = sourceStats[index];
 			if (!sameEntrySnapshot(current, original)) {
-				throw new VaultTransactionConflictError('source', plans[index].move.oldPath);
+				throw new VaultTransactionConflictError('source', resolvedPlans[index].move.oldPath);
 			}
 		}
 		for (const [uriString, version] of versions) {
@@ -142,16 +148,16 @@ export class LinkRewriteService {
 				throw new VaultTransactionConflictError('linkedDocument', this.relativeConflictPath(snapshot.uri));
 			}
 		}
-		for (const plan of plans) {
+		for (const plan of resolvedPlans) {
 			if (!plan.caseOnly && await this.existsInside(plan.destination)) {
 				throw new VaultTransactionConflictError('destination', plan.move.newPath);
 			}
 		}
 		const stagedCaseRenames: StagedCaseRename[] = [];
 		try {
-			await this.saveDirtyCaseRenameSources(plans);
-			if (plans.some((plan) => plan.caseOnly)) await this.beforeCaseRenameStage?.();
-			for (const plan of plans) {
+			await this.saveDirtyCaseRenameSources(resolvedPlans);
+			if (resolvedPlans.some((plan) => plan.caseOnly)) await this.beforeCaseRenameStage?.();
+			for (const plan of resolvedPlans) {
 				if (plan.caseOnly) {
 					let temporary: vscode.Uri;
 					try {

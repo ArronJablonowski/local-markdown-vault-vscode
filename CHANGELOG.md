@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Classify spelling-only renames by verified filesystem identity instead of the operating-system name, so case-sensitive Linux/macOS volumes use normal atomic moves and reject a distinct same-folded destination while truly case-insensitive providers retain the guarded staging path.
+- Bound every hosted CI, security, dependency-review, and release-validation job to 30 minutes or less, with a regression gate that rejects any future unbounded workflow job.
 - Pinned Linux CI, security scanning, dependency review, and release-matrix jobs to Ubuntu 24.04 so `ubuntu-latest` cannot silently change the validated platform.
 - Moved hosted CI and cross-platform release validation from end-of-life Node.js 20 to Node.js 24 LTS and documented the source-build requirement.
 - Upgraded the immutable CodeQL workflow pin from the approaching-retirement v3 action to CodeQL Action v4.38.1.
