@@ -59,9 +59,12 @@ the CodeMirror viewport, verifies that it is editable and contains the first
 heading, then types into it and waits for the bounded host edit message. Every
 run independently enforces the **PERF-004** one-second first-viewport budget.
 
-Five parallel fresh-page runs in the complete browser suite on 2026-09-19
+Five independent fresh-page runs in the complete browser suite on 2026-09-19
 completed in 277.1, 283.3, 283.9, 287.9, and 292.7 ms (292.7 ms p95 on the
-reference machine).
+reference machine). The five trials run serially so the one-second product
+budget never measures five simultaneous 1 MiB editor mounts created by the
+benchmark itself;
+the rest of the browser suite remains fully parallel.
 
 ## Automated filesystem benchmark
 

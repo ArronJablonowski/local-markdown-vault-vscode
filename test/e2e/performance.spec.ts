@@ -12,6 +12,12 @@ function oneMibNote(): string {
 }
 
 test.describe('large-note performance', () => {
+	// Each trial receives a fresh page, but the reference budget measures one
+	// editor mount at a time. Running the five trials concurrently turns this
+	// into a hosted-runner contention test and makes the result worker-count
+	// dependent rather than measuring the extension's first viewport.
+	test.describe.configure({ mode: 'serial' });
+
 	for (let run = 1; run <= 5; run++) {
 		test(`mounts an editable first viewport for a 1 MiB note within one second (run ${run})`, async ({ page }) => {
 			const started = performance.now();

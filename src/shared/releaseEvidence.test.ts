@@ -178,6 +178,12 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('measures large-note viewport trials independently without weakening the budget', () => {
+		const source = readFileSync(join(ROOT, 'test', 'e2e', 'performance.spec.ts'), 'utf8');
+		expect(source).toContain("test.describe.configure({ mode: 'serial' })");
+		expect(source).toContain('expect(elapsedMs).toBeLessThan(1_000)');
+	});
+
 	it('announces completed vault operations through the accessible notification surface', () => {
 		const source = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
 		expect(source).toContain('function announceVaultCompletion(message: string)');
