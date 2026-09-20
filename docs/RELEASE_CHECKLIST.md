@@ -144,7 +144,7 @@ The macOS move/link and real Live Preview keyboard transactions are covered by `
 - [x] Install the newly produced VSIX into a clean profile with no development extension loaded.
 - [ ] Open a trusted single-folder workspace and confirm the vault tree, Live Preview, link navigation, local images, diagrams, index, and knowledge views.
 - [ ] Repeat in Restricted Mode and confirm the documented controls are absent or disabled.
-- [ ] Inspect the packaged file list: source, tests, fixtures, development configuration, and local benchmark data are absent; required licenses, security guidance, accessibility guidance, and migration guidance are present.
+- [x] Inspect the packaged file list: the 57-entry archive contains the compiled runtime, manifest/catalogs, media/vendor assets, licenses/notices, `SECURITY.md`, and the three required release guides; source, tests, fixtures, development configuration, source maps, SBOMs, local benchmark data, symlinks, and secret-key formats are absent. `scripts/verify-vsix.mjs` independently validates CRCs, paths, sizes, required files, and exclusions on every package build.
 - [ ] Confirm no critical/high security, dependency, accessibility, data-loss, undo/redo, or published-performance issue remains.
 
 Any unchecked release blocker keeps the release in development status.
