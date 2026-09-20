@@ -55,6 +55,28 @@ describe('release security evidence', () => {
 		expect(nonceSource).toContain("randomBytes(CSP_NONCE_BYTES).toString('base64url')");
 	});
 
+	it('keeps every webview CSP and local resource root at the reviewed minimum', () => {
+		const editor = readFileSync(join(ROOT, 'src', 'editor', 'MarkdownLivePreviewProvider.ts'), 'utf8');
+		const outline = readFileSync(join(ROOT, 'src', 'sidebar', 'OutlineViewProvider.ts'), 'utf8');
+		const manager = readFileSync(join(ROOT, 'src', 'sidebar', 'StyleManagerViewProvider.ts'), 'utf8');
+		const preview = readFileSync(join(ROOT, 'src', 'sidebar', 'StylePreviewController.ts'), 'utf8');
+		const providers = [editor, outline, manager, preview];
+
+		for (const source of providers) {
+			expect(source).toContain("default-src 'none'");
+			expect(source).not.toContain("'unsafe-eval'");
+			expect(source).not.toMatch(/localResourceRoots[^;]*(?:document|workspace|rootUri)/s);
+		}
+		expect(providers.filter((source) => source.includes("style-src ${webview.cspSource} 'unsafe-inline'")))
+			.toEqual([editor, manager]);
+		expect(outline).toContain("style-src ${webview.cspSource}; script-src 'nonce-${nonce}'");
+		expect(preview).toContain("style-src ${webview.cspSource} 'nonce-${nonce}'");
+		expect(preview.match(/<style nonce="\$\{nonce\}"/g)).toHaveLength(3);
+		expect(editor).toContain('Vault files are never resource roots.');
+		expect(editor).toContain("connect-src ${webview.cspSource};");
+		expect(editor).not.toMatch(/connect-src[^;]*https:/);
+	});
+
 	it('writes a validated SBOM to a deterministic standalone artifact', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

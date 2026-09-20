@@ -87,7 +87,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 <html lang="${escapeAttribute(vscode.env.language)}">
 <head>
 	<meta charset="UTF-8" />
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>${escapeAttribute(documentTitle)}</title>
 </head>

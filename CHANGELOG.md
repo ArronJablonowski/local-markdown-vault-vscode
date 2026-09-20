@@ -1,5 +1,7 @@
 # Changelog
 
+- Tighten the webview CSP review: remove inline-style permission from Outline, nonce every live-theme-preview style block, retain CSS-only inline permission solely for CodeMirror runtime layout and isolated theme-card rendering, and regression-test the exact resource roots and network directives.
+
 - Add a real-host macOS hostile-Markdown journey proving that raw HTML stays inert and editable, `javascript:`, `command:`, unsafe data URLs, and outside-vault file URLs never remain active; default-blocked remote media emits no sentinel network request; and traversal attempts cannot disclose or modify an adjacent outside-vault canary.
 
 - Add a reproducible macOS-only desktop integration runner for native text undo/redo, real Live Preview keyboard edit/undo/redo/save and external-change synchronization with the backing `TextDocument`, one-step vault move/link undo/redo, and case-only rename undo/replay/inverse behavior without requiring Accessibility permission.

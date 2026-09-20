@@ -188,8 +188,8 @@ export class StylePreviewController {
 <html lang="${escapeAttribute(vscode.env.language)}">
 <head>
 	<meta charset="UTF-8" />
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};" />
-	<style>
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};" />
+	<style nonce="${nonce}">
 		html, body { margin: 0; }
 		/* No horizontal scrolling: if content could overflow sideways, blocks (and
 		   thus their highlight ring) would extend past the panel's right edge and
@@ -215,13 +215,13 @@ export class StylePreviewController {
 			display: block !important;
 		}
 	</style>
-	<style id="mlp-theme-style"></style>
+	<style nonce="${nonce}" id="mlp-theme-style"></style>
 	<!-- Placed after the theme style, with !important, so the glow always wins.
 	     A soft "AI" gradient outline: blue and purple are present *at the same
 	     time* as an actual gradient ring (drawn on ::after via the mask border
 	     trick), and the gradient flows around the edge by scrolling its position.
 	     A pale blue+purple box-shadow adds a gentle halo. Colors are kept light. -->
-	<style>
+	<style nonce="${nonce}">
 		.mlp-hl {
 			position: relative !important;
 			border-radius: 6px !important;
