@@ -225,14 +225,21 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.refresh', () => provider.refresh()),
 		vscode.commands.registerCommand('mdLivePreview.vault.expandAll', async () => {
+			const service = provider.service;
+			if (!service) return;
 			const queue = (await provider.getChildren()).filter((node): node is VaultEntry => node instanceof VaultEntry);
+			if (provider.service !== service) return;
 			let visited = 0;
 			while (queue.length && visited < 10_000) {
+				if (provider.service !== service) return;
 				const entry = queue.shift()!;
 				visited++;
 				if (!(entry.fileType & vscode.FileType.Directory) || entry.fileType & vscode.FileType.SymbolicLink) continue;
 				await tree.reveal(entry, { expand: true, focus: false, select: false });
-				queue.push(...(await provider.getChildren(entry)).filter((node): node is VaultEntry => node instanceof VaultEntry));
+				if (provider.service !== service) return;
+				const children = await provider.getChildren(entry);
+				if (provider.service !== service) return;
+				queue.push(...children.filter((node): node is VaultEntry => node instanceof VaultEntry));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.collapseAll', async () => {
@@ -780,23 +787,35 @@ async function pickMoveDestination(
 		uri: service.rootUri,
 	}];
 	const queue = (await provider.getChildren()).filter((node): node is VaultEntry => node instanceof VaultEntry);
+	if (provider.service !== service) return undefined;
 	let visited = 0;
 	while (queue.length) {
+		if (provider.service !== service) return undefined;
 		const entry = queue.shift()!;
 		if (++visited > 10_000) throw new Error('The vault contains too many items to build a destination list.');
 		if (!(entry.fileType & vscode.FileType.Directory) || entry.fileType & vscode.FileType.SymbolicLink) continue;
 		const path = service.relativePath(entry.uri);
 		if (path === undefined || isForbidden(path)) continue;
 		items.push({ label: `$(folder) ${path.split('/').pop()}`, description: path, uri: entry.uri });
-		queue.push(...(await provider.getChildren(entry)).filter((node): node is VaultEntry => node instanceof VaultEntry));
+		const children = await provider.getChildren(entry);
+		if (provider.service !== service) return undefined;
+		queue.push(...children.filter((node): node is VaultEntry => node instanceof VaultEntry));
 		if (visited % 100 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
 	}
-	const selected = await vscode.window.showQuickPick(items, {
-		title: vscode.l10n.t('Move Vault Items'),
-		placeHolder: vscode.l10n.t('Select a destination folder'),
-		matchOnDescription: true,
-	});
-	return selected?.uri;
+	if (provider.service !== service) return undefined;
+	const cancellation = new vscode.CancellationTokenSource();
+	const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => cancellation.cancel());
+	try {
+		const selected = await vscode.window.showQuickPick(items, {
+			title: vscode.l10n.t('Move Vault Items'),
+			placeHolder: vscode.l10n.t('Select a destination folder'),
+			matchOnDescription: true,
+		}, cancellation.token);
+		return provider.service === service ? selected?.uri : undefined;
+	} finally {
+		workspaceListener.dispose();
+		cancellation.dispose();
+	}
 }
 
 async function moveVaultEntries(

@@ -234,6 +234,25 @@ describe('host security boundaries', () => {
 		expect(tree).not.toContain('return this.sort(nodes);');
 	});
 
+	it('cancels vault traversal commands and destination UI after a workspace change', () => {
+		const registration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		const expand = registration.slice(
+			registration.indexOf("registerCommand('mdLivePreview.vault.expandAll'"),
+			registration.indexOf("registerCommand('mdLivePreview.vault.collapseAll'"),
+		);
+		expect(expand).toContain('const service = provider.service');
+		expect(expand.match(/provider\.service !== service/g)?.length).toBeGreaterThanOrEqual(3);
+		const destination = registration.slice(
+			registration.indexOf('async function pickMoveDestination('),
+			registration.indexOf('async function moveVaultEntries('),
+		);
+		expect(destination.match(/provider\.service !== service/g)?.length).toBeGreaterThanOrEqual(3);
+		expect(destination).toContain('new vscode.CancellationTokenSource()');
+		expect(destination).toContain('onDidChangeWorkspaceFolders(() => cancellation.cancel())');
+		expect(destination).toContain('}, cancellation.token)');
+		expect(destination).toContain('provider.service === service ? selected?.uri : undefined');
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
 		expect(tree).toContain('await service.readDirectoryInside(parent)');
