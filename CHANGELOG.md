@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Cancel an in-progress metadata reset/rebuild when its workspace changes, preventing stale success notices and old-vault work from suppressing recent-note tracking in the new vault.
 - Cancel Document Vault expansion and move-destination discovery when the workspace changes, and close the native move picker through an explicit cancellation token before old-vault folder names can remain visible.
 - Bind asynchronous Document Vault directory reads, date sorts, and active-file resolution to the current vault generation so an old workspace cannot surface stale filenames after a workspace switch or refresh.
 - Bind asynchronous Backlinks and Broken Links calculations to the current vault generation, cancel ongoing old-vault reads and obsolete broken-link scans, and discard stale results after index, active-note, filter, sort, or watcher changes.

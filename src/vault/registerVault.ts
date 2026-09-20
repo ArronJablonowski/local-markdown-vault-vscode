@@ -148,25 +148,45 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.rebuildIndex', async () => {
 			const targetIndex = index;
+			const generation = vaultGeneration;
 			if (!targetIndex) return;
 			suppressRecentTracking = true;
 			let rebuilt = false;
 			try {
 				await recentWrite.catch(() => undefined);
+				if (generation !== vaultGeneration || targetIndex !== index) return;
 				await vscode.window.withProgress({
 					location: vscode.ProgressLocation.Notification,
 					title: vscode.l10n.t('Rebuilding Document Vault index…'),
 					cancellable: true,
-				}, async (_progress, cancellation) => {
-					await context.workspaceState.update(recentKey(targetIndex), undefined);
-					await targetIndex.reset(cancellation);
-					rebuilt = true;
+				}, async (_progress, userCancellation) => {
+					const cancellation = new vscode.CancellationTokenSource();
+					if (userCancellation.isCancellationRequested) cancellation.cancel();
+					const userListener = userCancellation.onCancellationRequested(() => cancellation.cancel());
+					const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => cancellation.cancel());
+					try {
+						if (generation !== vaultGeneration || targetIndex !== index) throw new vscode.CancellationError();
+						await context.workspaceState.update(recentKey(targetIndex), undefined);
+						if (cancellation.token.isCancellationRequested || generation !== vaultGeneration || targetIndex !== index) {
+							throw new vscode.CancellationError();
+						}
+						await targetIndex.reset(cancellation.token);
+						if (cancellation.token.isCancellationRequested || generation !== vaultGeneration || targetIndex !== index) {
+							throw new vscode.CancellationError();
+						}
+						rebuilt = true;
+					} finally {
+						workspaceListener.dispose();
+						userListener.dispose();
+						cancellation.dispose();
+					}
 				});
 			} catch (error) {
 				if (!(error instanceof vscode.CancellationError)) throw error;
 			} finally {
 				suppressRecentTracking = false;
 			}
+			if (generation !== vaultGeneration || targetIndex !== index) return;
 			if (rebuilt) announceVaultCompletion(vscode.l10n.t('Document Vault index rebuilt.'));
 			else vscode.window.setStatusBarMessage(vscode.l10n.t('Document Vault index rebuild canceled.'), 3_000);
 		}),

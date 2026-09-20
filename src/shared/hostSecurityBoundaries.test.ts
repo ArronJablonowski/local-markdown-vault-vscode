@@ -253,6 +253,22 @@ describe('host security boundaries', () => {
 		expect(destination).toContain('provider.service === service ? selected?.uri : undefined');
 	});
 
+	it('cancels an index rebuild when its vault generation changes', () => {
+		const registration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		const rebuild = registration.slice(
+			registration.indexOf("registerCommand('mdLivePreview.vault.rebuildIndex'"),
+			registration.indexOf("registerCommand('mdLivePreview.openIndexedPath'"),
+		);
+		expect(rebuild).toContain('const generation = vaultGeneration');
+		expect(rebuild).toContain('new vscode.CancellationTokenSource()');
+		expect(rebuild).toContain('onDidChangeWorkspaceFolders(() => cancellation.cancel())');
+		expect(rebuild).toContain('await targetIndex.reset(cancellation.token)');
+		expect(rebuild.match(/generation !== vaultGeneration \|\| targetIndex !== index/g)?.length).toBeGreaterThanOrEqual(4);
+		expect(rebuild.indexOf('generation !== vaultGeneration || targetIndex !== index')).toBeLessThan(
+			rebuild.indexOf('workspaceState.update(recentKey(targetIndex)'),
+		);
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
 		expect(tree).toContain('await service.readDirectoryInside(parent)');
