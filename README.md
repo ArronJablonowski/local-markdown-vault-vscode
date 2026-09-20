@@ -153,6 +153,7 @@ npm test               # unit tests
 npm run test:e2e       # browser end-to-end tests
 npm run test:integration
 npm run test:integration:cache-restart
+npm run test:integration:focused:macos # requires a foreground macOS desktop
 npm run package        # verify and create the VSIX
 ```
 
@@ -169,7 +170,7 @@ Additional references:
 ## Known limitations
 
 - Only one local workspace folder is supported as a vault.
-- Case-only rename transactions pass the automated Windows, macOS, and Linux matrix. Native macOS Trash movement is automated; focused UI undo/redo, accessibility announcements, and Windows/Linux Trash behavior still require manual platform sign-off.
+- Case-only rename transactions pass the automated Windows, macOS, and Linux matrix. Native macOS Trash movement and focused native text/vault transaction undo/redo are automated; Live Preview keyboard journeys, accessibility announcements, and Windows/Linux Trash behavior still require manual platform sign-off.
 - VoiceOver, NVDA, and Orca checks remain part of the manual pre-release matrix.
 - Large-vault performance depends on storage, exclusions, note size, and available system resources.
 - The extension is under active security hardening and is not yet declared production-ready for hostile files.
