@@ -178,7 +178,8 @@ export class LinkRewriteService {
 					edit.renameFile(plan.source, plan.destination, { overwrite: false, ignoreIfExists: false });
 				}
 			}
-			this.caseRenames.register(stagedCaseRenames);
+			const replayRequests = requests.map((request) => ({ ...request }));
+			this.caseRenames.register(stagedCaseRenames, () => this.renameOrMoveMany(replayRequests));
 			this.vault.assertWorkspaceCurrent();
 			if (!this.isCurrent()) throw new Error('The Document Vault changed before the move could be applied.');
 			const applied = await this.applyEdit(edit);

@@ -104,6 +104,21 @@ describe('host security boundaries', () => {
 		}
 	});
 
+	it('revalidates case-only rename redo and retires it after intervening mutations', () => {
+		const coordinator = readFileSync(join(ROOT, 'src', 'vault', 'CaseRenameCoordinator.ts'), 'utf8');
+		const rewrites = readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8');
+		expect(coordinator).toContain('await entry.coordinator.replayTransaction(entry.transaction)');
+		expect(coordinator).toContain("transaction.state = 'replaying'");
+		expect(coordinator).toContain('if (!await transaction.replay())');
+		expect(rewrites).toContain('this.caseRenames.register(stagedCaseRenames, () => this.renameOrMoveMany(replayRequests))');
+		for (const event of ['onDidChangeTextDocument', 'onDidCreateFiles', 'onDidDeleteFiles']) {
+			expect(coordinator).toContain(`${event}(invalidateCaseRenameRedoHistory`);
+		}
+		expect(coordinator).toContain('onDidRenameFiles((event) => {');
+		expect(coordinator).toContain('invalidateCaseRenameRedoHistory();\n\t\t\t\tthis.finishUndo(event);');
+		expect(coordinator).toContain("transaction.state = 'retired'");
+	});
+
 	it('accepts only one initialization handshake per visible webview lifecycle', () => {
 		const sync = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
 		const readyCase = sync.slice(sync.indexOf("case 'ready':"), sync.indexOf("case 'edit':"));

@@ -9,7 +9,8 @@ export interface StagedCaseRename {
 
 interface CaseRenameTransaction {
 	readonly plans: readonly StagedCaseRename[];
-	state: 'forward' | 'undone';
+	readonly replay?: () => Promise<boolean>;
+	state: 'forward' | 'undone' | 'replaying' | 'retired';
 	preparedTabs?: Map<string, RetargetTab[]>;
 }
 
@@ -37,6 +38,10 @@ export async function executeCaseAwareRedo(run: () => Thenable<unknown>): Promis
 	const entry = [...undoneTransactions].reverse().find(({ transaction }) => transaction.state === 'undone');
 	if (!entry) {
 		await run();
+		return;
+	}
+	if (entry.transaction.replay) {
+		await entry.coordinator.replayTransaction(entry.transaction);
 		return;
 	}
 	await entry.coordinator.prepareTransactionRedo(entry.transaction);
@@ -68,9 +73,11 @@ async function completeRedo(entry: { coordinator: CaseRenameCoordinator; transac
  * so the resource edit's generated inverse is a no-op. The forward operation is
  * instead recorded as `unique-temporary -> name.md`. After its native undo
  * restores the temporary entry, we immediately put the original casing back.
-	 * Before native redo expects the temporary entry again, the editor's validated
-	 * redo handler restages it. Link replacements remain in the very same
-	 * WorkspaceEdit and therefore undo and redo with the filesystem operation.
+ * Redo normally runs the original validated vault operation again as a fresh
+ * WorkspaceEdit. That avoids VS Code canonicalizing its recorded case-only URI
+ * back to the old spelling, while retaining one-step undo and current-content
+ * link planning. The older native-restaging path remains as a fallback for a
+ * transaction registered without a replay operation.
  */
 export class CaseRenameCoordinator implements vscode.Disposable {
 	private readonly disposables: vscode.Disposable[];
@@ -79,13 +86,19 @@ export class CaseRenameCoordinator implements vscode.Disposable {
 
 	constructor(private readonly vault: VaultService) {
 		this.disposables = [
-			vscode.workspace.onDidRenameFiles((event) => this.finishUndo(event)),
+			vscode.workspace.onDidChangeTextDocument(invalidateCaseRenameRedoHistory),
+			vscode.workspace.onDidCreateFiles(invalidateCaseRenameRedoHistory),
+			vscode.workspace.onDidDeleteFiles(invalidateCaseRenameRedoHistory),
+			vscode.workspace.onDidRenameFiles((event) => {
+				invalidateCaseRenameRedoHistory();
+				this.finishUndo(event);
+			}),
 		];
 	}
 
-	register(plans: readonly StagedCaseRename[]): void {
+	register(plans: readonly StagedCaseRename[], replay?: () => Promise<boolean>): void {
 		if (plans.length === 0) return;
-		const transaction: CaseRenameTransaction = { plans: [...plans], state: 'forward' };
+		const transaction: CaseRenameTransaction = { plans: [...plans], replay, state: 'forward' };
 		for (const plan of plans) this.transactions.set(plan.temporary.toString(), transaction);
 	}
 
@@ -99,6 +112,34 @@ export class CaseRenameCoordinator implements vscode.Disposable {
 
 	async settle(): Promise<void> {
 		await this.pending;
+	}
+
+	/** Reapplies an undone case-only move through current vault validation. */
+	async replayTransaction(transaction: CaseRenameTransaction): Promise<void> {
+		await this.pending;
+		if (transaction.state !== 'undone' || !transaction.replay) return;
+		for (const plan of transaction.plans) this.transactions.delete(plan.temporary.toString());
+		removeUndone(this, transaction);
+		transaction.state = 'replaying';
+		try {
+			if (!await transaction.replay()) throw new Error('The case-only redo was rejected.');
+		} catch (error) {
+			transaction.state = 'undone';
+			for (const plan of transaction.plans) this.transactions.set(plan.temporary.toString(), transaction);
+			removeUndone(this, transaction);
+			undoneTransactions.push({ coordinator: this, transaction });
+			updateRedoContext();
+			throw error;
+		}
+	}
+
+	forgetTransaction(transaction: CaseRenameTransaction): void {
+		transaction.state = 'retired';
+		for (const plan of transaction.plans) {
+			if (this.transactions.get(plan.temporary.toString()) === transaction) {
+				this.transactions.delete(plan.temporary.toString());
+			}
+		}
 	}
 
 	private finishUndo(event: vscode.FileRenameEvent): void {
@@ -225,6 +266,14 @@ function updateRedoContext(): void {
 		'mdLivePreview.caseRenameRedoAvailable',
 		undoneTransactions.some(({ transaction }) => transaction.state === 'undone'),
 	);
+}
+
+/** Mirrors VS Code clearing its native redo stack after any intervening mutation. */
+function invalidateCaseRenameRedoHistory(): void {
+	if (undoneTransactions.length === 0) return;
+	const stale = undoneTransactions.splice(0);
+	for (const { coordinator, transaction } of stale) coordinator.forgetTransaction(transaction);
+	updateRedoContext();
 }
 
 function sameProviderPath(actual: vscode.Uri, source: vscode.Uri, destination: vscode.Uri): boolean {
