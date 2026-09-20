@@ -16,12 +16,15 @@
  */
 import type { HostToEditorMessage } from '../shared/messages';
 import { t } from '../shared/i18n';
+export { isDrawioPath } from '../shared/drawioPath';
 
-type Pending = { resolve: (text: string) => void; reject: (err: Error) => void };
+type Pending = { resolve: (text: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> };
 
 const pending = new Map<number, Pending>();
 const cache = new Map<string, Promise<string>>();
 let nextRequestId = 1;
+const MAX_PENDING_DRAWIO_FILES = 4;
+const DRAWIO_REQUEST_TIMEOUT_MS = 10_000;
 
 /** Set by main.ts so this module does not need its own `acquireVsCodeApi`. */
 let post: ((message: unknown) => void) | null = null;
@@ -39,6 +42,7 @@ export function handleDrawioFileMessage(message: HostToEditorMessage): boolean {
 	const entry = pending.get(message.requestId);
 	if (!entry) return true; // a reply for a widget that has since been torn down
 	pending.delete(message.requestId);
+	clearTimeout(entry.timer);
 	if (typeof message.text === 'string') entry.resolve(message.text);
 	else entry.reject(new Error(message.error ?? t('drawio.readFailed')));
 	return true;
@@ -54,8 +58,16 @@ export function readDrawioFile(src: string): Promise<string> {
 			reject(new Error(t('drawio.noConnection')));
 			return;
 		}
+		if (pending.size >= MAX_PENDING_DRAWIO_FILES) {
+			reject(new Error(t('drawio.tooMany')));
+			return;
+		}
 		const requestId = nextRequestId++;
-		pending.set(requestId, { resolve, reject });
+		const timer = setTimeout(() => {
+			pending.delete(requestId);
+			reject(new Error(t('drawio.timeout')));
+		}, DRAWIO_REQUEST_TIMEOUT_MS);
+		pending.set(requestId, { resolve, reject, timer });
 		post({ type: 'readDrawioFile', requestId, src });
 	});
 
@@ -81,14 +93,9 @@ export function invalidateDrawioFile(src: string): void {
 /** Clears every cached read — used when the document itself is re-initialised. */
 export function clearDrawioFileCache(): void {
 	cache.clear();
-}
-
-/** Whether a Markdown image path should be rendered as a draw.io diagram. */
-export function isDrawioPath(src: string): boolean {
-	// `.drawio.svg` and `.drawio.png` are draw.io's "editable export" formats:
-	// they are real SVG/PNG that an <img> renders perfectly well on its own, with
-	// the diagram source merely embedded for round-tripping. Only the bare
-	// `.drawio`/`.dio` XML needs to come through this path.
-	const path = src.split(/[?#]/)[0].toLowerCase();
-	return path.endsWith('.drawio') || path.endsWith('.dio') || path.endsWith('.drawio.xml');
+	for (const request of pending.values()) {
+		clearTimeout(request.timer);
+		request.reject(new Error(t('drawio.readFailed')));
+	}
+	pending.clear();
 }

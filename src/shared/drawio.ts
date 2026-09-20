@@ -83,6 +83,11 @@ export interface DrawioDiagram {
 /** Raised for input this module understands but deliberately cannot render. */
 export class DrawioUnsupportedError extends Error {}
 
+const MAX_DRAWIO_PAGES = 100;
+const MAX_DRAWIO_CELLS_PER_PAGE = 20_000;
+const MAX_DRAWIO_EDGES_PER_PAGE = 10_000;
+const MAX_DRAWIO_PARENT_DEPTH = 100;
+
 /** Padding left around the content's bounding box, in diagram units. */
 const BOUNDS_PADDING = 12;
 
@@ -179,7 +184,7 @@ export function isCompressedDiagramBody(body: string): boolean {
  * The sliver of the DOM this parser needs.
  *
  * The webview has `DOMParser` natively, but the unit tests run under plain Node
- * (see vitest.config.ts) where it does not exist. Depending on this interface
+ * (see vitest.config.mts) where it does not exist. Depending on this interface
  * rather than on `Element` lets the same parsing logic be driven by a tiny
  * stand-in in tests and by the real DOM at runtime, without shipping a DOM
  * implementation to either.
@@ -195,11 +200,12 @@ export interface XmlElement {
 function findAll(root: XmlElement, tagName: string): XmlElement[] {
 	const wanted = tagName.toLowerCase();
 	const found: XmlElement[] = [];
-	const visit = (el: XmlElement) => {
+	const pending: XmlElement[] = [root];
+	while (pending.length > 0) {
+		const el = pending.pop()!;
 		if (el.tagName.toLowerCase() === wanted) found.push(el);
-		for (const child of el.childElements) visit(child);
-	};
-	visit(root);
+		for (let i = el.childElements.length - 1; i >= 0; i--) pending.push(el.childElements[i]);
+	}
 	return found;
 }
 
@@ -291,7 +297,9 @@ function readCell(el: XmlElement, labelOverride?: string): RawCell {
  */
 function collectCells(root: XmlElement): RawCell[] {
 	const cells: RawCell[] = [];
-	const visit = (el: XmlElement) => {
+	const pending: XmlElement[] = [root];
+	while (pending.length > 0) {
+		const el = pending.pop()!;
 		const tag = el.tagName.toLowerCase();
 		if (tag === 'object' || tag === 'userobject') {
 			const inner = el.childElements.find((c) => c.tagName.toLowerCase() === 'mxcell');
@@ -301,16 +309,15 @@ function collectCells(root: XmlElement): RawCell[] {
 				const wrapperId = el.getAttribute('id');
 				if (wrapperId) cell.id = wrapperId;
 				cells.push(cell);
-				return;
+				continue;
 			}
 		}
 		if (tag === 'mxcell') {
 			cells.push(readCell(el));
-			return;
+			continue;
 		}
-		for (const child of el.childElements) visit(child);
-	};
-	visit(root);
+		for (let i = el.childElements.length - 1; i >= 0; i--) pending.push(el.childElements[i]);
+	}
 	return cells;
 }
 
@@ -341,7 +348,11 @@ export function flattenCells(cells: readonly RawCell[]): DrawioShape[] {
 		let y = cell.geometry?.y ?? 0;
 		const seen = new Set<string>([cell.id]);
 		let parentId = cell.parent;
+		let depth = 0;
 		while (parentId && !seen.has(parentId)) {
+			if (++depth > MAX_DRAWIO_PARENT_DEPTH) {
+				throw new DrawioUnsupportedError(t('drawio.parentDepthLimit'));
+			}
 			seen.add(parentId);
 			const parent = byId.get(parentId);
 			// The two implicit root cells (id "0" and "1") are not shapes and
@@ -489,6 +500,9 @@ function isModelRoot(el: XmlElement): boolean {
 
 export function buildDiagram(root: XmlElement): DrawioDiagram {
 	const diagramEls = findAll(root, 'diagram');
+	if (diagramEls.length > MAX_DRAWIO_PAGES) {
+		throw new DrawioUnsupportedError(t('drawio.pageLimit'));
+	}
 	// A fence holding a bare <mxGraphModel> has no <diagram> wrapper at all.
 	const sources: Array<{ name: string; el: XmlElement | undefined; body: string }> =
 		diagramEls.length > 0
@@ -521,7 +535,14 @@ export function buildDiagram(root: XmlElement): DrawioDiagram {
 			continue;
 		}
 		const modelRoot = findFirst(source.el, 'root') ?? source.el;
-		const shapes = flattenCells(collectCells(modelRoot));
+		const cells = collectCells(modelRoot);
+		if (cells.length > MAX_DRAWIO_CELLS_PER_PAGE) {
+			throw new DrawioUnsupportedError(t('drawio.cellLimit'));
+		}
+		if (cells.filter((cell) => cell.isEdge).length > MAX_DRAWIO_EDGES_PER_PAGE) {
+			throw new DrawioUnsupportedError(t('drawio.edgeLimit'));
+		}
+		const shapes = flattenCells(cells);
 		pages.push({ name: source.name, shapes, bounds: computeBounds(shapes) });
 	}
 

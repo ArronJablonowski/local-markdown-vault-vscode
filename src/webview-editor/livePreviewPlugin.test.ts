@@ -77,38 +77,28 @@ describe('readCells', () => {
 });
 
 describe('resolveImageSrc', () => {
-	const baseUri = 'https://file+.vscode-resource.vscode-cdn.net/c%3A/work/repo/notes/';
+	it('blocks remote and data images by default', () => {
+		expect(resolveImageSrc('https://picsum.photos/id/1015/480/270')).toBeUndefined();
+		expect(resolveImageSrc('data:image/png;base64,AAAA')).toBeUndefined();
+		expect(resolveImageSrc('http://example.com/a.png', 'https')).toBeUndefined();
+	});
 
-	it('leaves absolute URLs (https, data) unchanged regardless of baseUri', () => {
-		expect(resolveImageSrc('https://picsum.photos/id/1015/480/270', baseUri)).toBe(
+	it('allows only HTTPS when remote media is explicitly enabled', () => {
+		expect(resolveImageSrc('https://picsum.photos/id/1015/480/270', 'https')).toBe(
 			'https://picsum.photos/id/1015/480/270',
 		);
-		expect(resolveImageSrc('data:image/png;base64,AAAA', baseUri)).toBe('data:image/png;base64,AAAA');
+		for (const malformed of [
+			'https:tracker.invalid/pixel.png',
+			'https:/tracker.invalid/pixel.png',
+			'https:///tracker.invalid/pixel.png',
+			'https:\\tracker.invalid\\pixel.png',
+		]) {
+			expect(resolveImageSrc(malformed, 'https')).toBeUndefined();
+		}
 	});
 
-	it('resolves a relative path against baseUri (regression: pasted images not rendering)', () => {
-		expect(resolveImageSrc('assets/foo.png', baseUri)).toBe(
-			'https://file+.vscode-resource.vscode-cdn.net/c%3A/work/repo/notes/assets/foo.png',
-		);
-	});
-
-	it('returns the src unchanged when no baseUri is set yet', () => {
-		expect(resolveImageSrc('assets/foo.png', '')).toBe('assets/foo.png');
-	});
-
-	// Domain generator (PBT-07): realistic relative asset paths (no leading
-	// slash, no scheme) alongside a fixed, realistic webview base URI.
-	const relativePathArb = fc
-		.array(fc.stringMatching(/^[a-zA-Z0-9_-]{1,10}$/), { minLength: 1, maxLength: 3 })
-		.map((segments) => segments.join('/'));
-
-	it('always resolves a relative path to something starting with baseUri (PBT-03 invariant)', () => {
-		fc.assert(
-			fc.property(relativePathArb, (relPath) => {
-				const resolved = resolveImageSrc(relPath, baseUri);
-				expect(resolved.startsWith(baseUri)).toBe(true);
-			}),
-		);
+	it('never manufactures a webview URL for local content', () => {
+		expect(resolveImageSrc('assets/foo.png')).toBeUndefined();
 	});
 });
 

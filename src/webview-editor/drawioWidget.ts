@@ -7,10 +7,16 @@ import {
 	usesAwsShapes,
 	ensureAwsShapes,
 	DrawioUnsupportedError,
+	DrawioParseError,
 } from './drawioRender';
 import { readDrawioFile } from './drawioFileClient';
 import type { DrawioDiagram } from '../shared/drawio';
 import { t } from '../shared/i18n';
+import { DiagramLimitError, replaceWithIsolatedDiagramSvg } from './diagramSecurity';
+
+function replaceWithSafeSvg(container: HTMLElement, svg: string): void {
+	replaceWithIsolatedDiagramSvg(container, svg);
+}
 
 /**
  * Block widget for a rendered draw.io diagram.
@@ -94,6 +100,7 @@ export class DrawioWidget extends WidgetType {
 			btn.className = 'mlp-mermaid-btn';
 			btn.textContent = label;
 			btn.title = title;
+			if (title) btn.setAttribute('aria-label', title);
 			btn.addEventListener('pointerdown', (e) => e.stopPropagation());
 			btn.addEventListener('click', (e) => {
 				e.preventDefault();
@@ -124,6 +131,7 @@ export class DrawioWidget extends WidgetType {
 		const showError = (message: string) => {
 			canvas.textContent = message;
 			canvas.classList.add('mlp-mermaid-error');
+			canvas.setAttribute('role', 'alert');
 			view.requestMeasure();
 		};
 
@@ -146,7 +154,7 @@ export class DrawioWidget extends WidgetType {
 			// Wrap around rather than clamping: with only a prev/next pair, clamping
 			// leaves the last page a dead end that needs several clicks to escape.
 			pageIndex = ((next % count) + count) % count;
-			canvas.innerHTML = renderParsedDiagram(diagram, pageIndex);
+			replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
 			updatePageControls();
 			if (mode === 'native') resetPanZoom();
 			// A different page is almost never the same height as the one it
@@ -157,11 +165,14 @@ export class DrawioWidget extends WidgetType {
 		function setMode(next: DisplayMode): void {
 			mode = next;
 			container.classList.toggle('mlp-mermaid-native', mode === 'native');
+			canvas.classList.toggle('mlp-diagram-fit', mode === 'fit');
 			zoomInBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomOutBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomResetBtn.style.display = mode === 'native' ? '' : 'none';
 			modeToggleBtn.textContent = mode === 'fit' ? '⤢' : '⤡';
-			modeToggleBtn.title = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
+			const modeTitle = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
+			modeToggleBtn.title = modeTitle;
+			modeToggleBtn.setAttribute('aria-label', modeTitle);
 			if (mode === 'native') resetPanZoom();
 			else applyTransform();
 			view.requestMeasure();
@@ -246,7 +257,7 @@ export class DrawioWidget extends WidgetType {
 		// ── Render ───────────────────────────────────────────────────────────────
 		try {
 			diagram = parseDrawioPages(this.code);
-			canvas.innerHTML = renderParsedDiagram(diagram, 0);
+			replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, 0));
 			updatePageControls();
 			// AWS symbols live in a multi-megabyte table fetched on demand, so the
 			// first render draws plain coloured tiles. Redraw once it arrives —
@@ -255,7 +266,7 @@ export class DrawioWidget extends WidgetType {
 			if (usesAwsShapes(diagram)) {
 				ensureAwsShapes(() => {
 					if (!wrap.isConnected || !diagram) return;
-					canvas.innerHTML = renderParsedDiagram(diagram, pageIndex);
+					replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
 					if (mode === 'native') resetPanZoom();
 					view.requestMeasure();
 				});
@@ -264,10 +275,9 @@ export class DrawioWidget extends WidgetType {
 			// A compressed file is a supported-input problem with a concrete fix, so
 			// its own message is surfaced verbatim rather than folded into a generic
 			// parse failure the user can do nothing about.
-			const message =
-				err instanceof DrawioUnsupportedError
-					? err.message
-					: t('drawio.loadFailed', err instanceof Error ? err.message : String(err));
+			const message = err instanceof DrawioUnsupportedError || err instanceof DrawioParseError || err instanceof DiagramLimitError
+				? err.message
+				: t('drawio.renderFailed');
 			showError(message);
 			updatePageControls();
 		}
@@ -339,8 +349,9 @@ export class DrawioFileWidget extends WidgetType {
 			})
 			.catch((err: unknown) => {
 				if (!host.isConnected) return;
-				canvas.textContent = err instanceof Error ? err.message : String(err);
+				canvas.textContent = t('drawio.readFailed');
 				canvas.classList.add('mlp-mermaid-error');
+				canvas.setAttribute('role', 'alert');
 				view.requestMeasure();
 			});
 

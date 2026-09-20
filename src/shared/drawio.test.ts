@@ -243,6 +243,15 @@ describe('buildDiagram error reporting', () => {
 	it('reports a document with no diagram', () => {
 		expect(() => buildDiagram(parseTestXml('<html><body/></html>'))).toThrow(DrawioUnsupportedError);
 	});
+
+	it('rejects excessive parent-chain depth', () => {
+		const cells = Array.from({ length: 102 }, (_, index) => {
+			const id = `n${index}`;
+			const parent = index === 0 ? '1' : `n${index - 1}`;
+			return `<mxCell id="${id}" vertex="1" parent="${parent}"><mxGeometry x="1" y="1" width="1" height="1" as="geometry"/></mxCell>`;
+		}).join('');
+		expect(() => build(cells)).toThrow(DrawioUnsupportedError);
+	});
 });
 
 describe('computeBounds', () => {

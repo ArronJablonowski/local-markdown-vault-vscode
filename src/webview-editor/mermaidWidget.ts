@@ -3,6 +3,13 @@ import { wrapBlockWidget } from './blockWidgetWrap';
 import { loadMermaidModule, type MermaidApi } from './mermaidLoader';
 import { createCodeModeButton } from './codeModeButton';
 import { t } from '../shared/i18n';
+import {
+	assertDiagramInputWithinLimits,
+	DiagramLimitError,
+	replaceWithIsolatedDiagramSvg,
+} from './diagramSecurity';
+import { renderMermaidBounded } from './mermaidRenderQueue';
+import { mermaidConfiguration } from './mermaidConfiguration';
 
 // The module load is cached by `loadMermaidModule`, but `initialize()` is
 // re-applied on every call (it's cheap) so a diagram rendered after the user
@@ -12,25 +19,7 @@ import { t } from '../shared/i18n';
 async function loadMermaid(): Promise<MermaidApi> {
 	const m = await loadMermaidModule();
 	const isDark = document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast');
-	m.initialize({
-		startOnLoad: false,
-		securityLevel: 'strict',
-		theme: isDark ? 'dark' : 'default',
-		// `useMaxWidth` is left disabled for every diagram type: it only controls
-		// whether Mermaid itself writes an inline `max-width` style on the SVG, and
-		// that inline style always wins over any CSS rule we'd add to scale it back
-		// down. Scaling for "fit" display mode below is done entirely via our own
-		// CSS class instead, so Mermaid's own shrink-to-fit logic is kept off in
-		// both display modes and the inline style is stripped after render.
-		flowchart: { useMaxWidth: false },
-		sequence: { useMaxWidth: false },
-		class: { useMaxWidth: false },
-		state: { useMaxWidth: false },
-		er: { useMaxWidth: false },
-		gantt: { useMaxWidth: false },
-		journey: { useMaxWidth: false },
-		pie: { useMaxWidth: false },
-	});
+	m.initialize(mermaidConfiguration(isDark));
 	return m;
 }
 
@@ -68,7 +57,7 @@ export class MermaidWidget extends WidgetType {
 
 		const canvas = document.createElement('div');
 		canvas.className = 'mlp-mermaid-canvas';
-		canvas.textContent = 'Rendering diagram…';
+		canvas.textContent = t('diagram.rendering');
 		container.appendChild(canvas);
 
 		// ── Display mode ─────────────────────────────────────────────────────────
@@ -115,6 +104,7 @@ export class MermaidWidget extends WidgetType {
 			btn.className = 'mlp-mermaid-btn';
 			btn.textContent = label;
 			btn.title = title;
+			if (title) btn.setAttribute('aria-label', title);
 			// Stop the container's pan/click handlers from also firing.
 			btn.addEventListener('pointerdown', (e) => e.stopPropagation());
 			btn.addEventListener('click', (e) => {
@@ -145,11 +135,14 @@ export class MermaidWidget extends WidgetType {
 		function setMode(next: DisplayMode): void {
 			mode = next;
 			container.classList.toggle('mlp-mermaid-native', mode === 'native');
+			canvas.classList.toggle('mlp-diagram-fit', mode === 'fit');
 			zoomInBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomOutBtn.style.display = mode === 'native' ? '' : 'none';
 			zoomResetBtn.style.display = mode === 'native' ? '' : 'none';
 			modeToggleBtn.textContent = mode === 'fit' ? '⤢' : '⤡';
-			modeToggleBtn.title = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
+			const modeTitle = mode === 'fit' ? t('zoom.toActual') : t('zoom.toFit');
+			modeToggleBtn.title = modeTitle;
+			modeToggleBtn.setAttribute('aria-label', modeTitle);
 			if (mode === 'native') resetPanZoom();
 			else applyTransform();
 			// The two modes have different heights ('native' adds a horizontal
@@ -253,17 +246,25 @@ export class MermaidWidget extends WidgetType {
 
 		// ── Render the diagram ───────────────────────────────────────────────────
 		const code = this.code;
+		try {
+			assertDiagramInputWithinLimits('mermaid', code);
+		} catch (err) {
+			canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
+			canvas.classList.add('mlp-mermaid-error');
+			canvas.setAttribute('role', 'alert');
+			return wrapBlockWidget(wrap);
+		}
 		loadMermaid()
 			.then(async (m) => {
 				const id = `mlp-mermaid-${renderCounter++}`;
-				const { svg } = await m.render(id, code);
-				canvas.innerHTML = svg;
+				const { svg } = await renderMermaidBounded(() => m.render(id, code));
+				const safeSvg = replaceWithIsolatedDiagramSvg(canvas, svg);
 				// Defensive: some diagram types still emit an inline `max-width` style
 				// even with `useMaxWidth: false` in the config above. An inline style
 				// always wins over the stylesheet's `max-width: none`, so strip it
 				// here to guarantee "native" mode renders at true native size; "fit"
 				// mode's own CSS (`.mlp-mermaid-canvas svg`) handles shrinking instead.
-				canvas.querySelector('svg')?.style.removeProperty('max-width');
+				safeSvg.style.removeProperty('max-width');
 				if (mode === 'native') resetPanZoom(); // center once real dimensions are known
 				// Rendering is asynchronous: CodeMirror measured this widget while it
 				// still held the one-line "Rendering diagram…" placeholder, and has no
@@ -274,8 +275,9 @@ export class MermaidWidget extends WidgetType {
 				view.requestMeasure();
 			})
 			.catch((err: unknown) => {
-				canvas.textContent = `Mermaid error: ${err instanceof Error ? err.message : String(err)}`;
+				canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
 				canvas.classList.add('mlp-mermaid-error');
+				canvas.setAttribute('role', 'alert');
 				view.requestMeasure(); // the error text is a different height too
 			});
 

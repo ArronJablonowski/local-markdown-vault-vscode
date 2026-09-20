@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPathInside, normalizePathForCompare } from './pathContainment';
+import { isPathInside, normalizePathForCompare, resolveVaultRelativePath } from './pathContainment';
 
 describe('normalizePathForCompare', () => {
 	it('resolves . and .. segments', () => {
@@ -19,6 +19,25 @@ describe('normalizePathForCompare', () => {
 	// compare as different paths even though the filesystem treats them alike.
 	it('drops a .. that would climb past the root', () => {
 		expect(normalizePathForCompare('/../secret', false)).toBe('secret');
+	});
+});
+
+describe('resolveVaultRelativePath', () => {
+	it('resolves ordinary nested paths and the vault root', () => {
+		expect(resolveVaultRelativePath('/vault', 'Folder/Note.md', false)).toBe('/vault/Folder/Note.md');
+		expect(resolveVaultRelativePath('/vault', '', false)).toBe('/vault');
+	});
+
+	it.each([
+		'../outside.md', 'Folder/../../outside.md', './Note.md', 'Folder//Note.md',
+		'/absolute.md', '\\\\server\\share.md', 'C:/absolute.md', 'C:relative.md',
+		'Folder/Note.md\0suffix', 'Folder/Note.md\nnext',
+	])('rejects unsafe vault-relative path %o', (path) => {
+		expect(resolveVaultRelativePath('/vault', path, false)).toBeUndefined();
+	});
+
+	it('does not reinterpret percent-encoded filename characters', () => {
+		expect(resolveVaultRelativePath('/vault', '%2e%2e/Note.md', false)).toBe('/vault/%2e%2e/Note.md');
 	});
 });
 

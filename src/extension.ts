@@ -3,7 +3,37 @@ import { MarkdownLivePreviewProvider } from './editor/MarkdownLivePreviewProvide
 import { StyleManagerViewProvider } from './sidebar/StyleManagerViewProvider';
 import { StyleStore } from './sidebar/styleStore';
 import { OutlineViewProvider } from './sidebar/OutlineViewProvider';
-import { setGrammarRoot } from './editor/shikiHost';
+import { getCodeTokenizationRunCount, setGrammarRoot } from './editor/shikiHost';
+import { registerVault } from './vault/registerVault';
+import { LinkRewriteService } from './vault/LinkRewriteService';
+import type { VaultIndexRecord } from './vault/VaultIndex';
+import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSearchService';
+import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
+import { disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
+import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
+
+interface DevelopmentApi {
+	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
+	getVaultRecentPaths(): readonly string[];
+	getVaultIndexRecords(): readonly VaultIndexRecord[];
+	getVaultStorageIdentity(): { id: string; canonicalRootUri: string; legacyIds: readonly string[] } | undefined;
+	cancelVaultIndexRebuild(): Promise<void>;
+	getCodeTokenizationRunCount(): number;
+	getVaultTreeRevision(): number;
+	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
+	searchVault(query: string, limit?: number): Promise<readonly VaultSearchResult[]>;
+	renameOrMoveMany(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
+	renameOrMoveManyWithRejectedCommit(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
+	renameOrMoveManyWithStaleGeneration(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
+	renameOrMoveManyBeforeCheck(
+		requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0],
+		beforePreconditionCheck: () => Thenable<void>,
+	): Promise<boolean>;
+	renameOrMoveManyBeforeCaseStage(
+		requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0],
+		beforeCaseRenameStage: () => Thenable<void>,
+	): Promise<boolean>;
+}
 
 function getActiveMarkdownUri(): vscode.Uri | undefined {
 	if (vscode.window.activeTextEditor?.document.languageId === 'markdown') {
@@ -140,20 +170,29 @@ async function syncDefaultEditorAssociation(): Promise<void> {
 	await rootConfig.update('workbench.editorAssociations', associations, vscode.ConfigurationTarget.Global);
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<DevelopmentApi | undefined> {
+	context.subscriptions.push({ dispose: disposeCaseRenameCoordinators });
+	initializeDiagnostics(context);
+	diagnosticEvent('extension.activate', { mode: vscode.ExtensionMode[context.extensionMode] ?? context.extensionMode });
 	// Syntax grammars are read from disk on first use rather than bundled (see
 	// shikiHost.ts); this is the only place that knows where the extension was
 	// installed to.
 	setGrammarRoot(context.extensionPath);
+	const vaultRegistration = await registerVault(context);
 
 	const styleStore = new StyleStore(context);
 	await styleStore.initialize();
 
-	const { disposable: providerDisposable, provider } = MarkdownLivePreviewProvider.register(context, () =>
-		styleStore.getCombinedCssSync(),
+	const { disposable: providerDisposable, provider } = MarkdownLivePreviewProvider.register(
+		context,
+		() => styleStore.getCombinedCssSync(),
+		() => vaultRegistration.getIndex()?.all()
+			.filter((record) => isCanonicalVaultNoteIdentity(record.path, record.basename))
+			.map(createVaultNoteSummary) ?? [],
 	);
 	context.subscriptions.push(providerDisposable);
 	context.subscriptions.push(styleStore.onDidChange(() => provider.broadcastCssChanged()));
+	context.subscriptions.push(vaultRegistration.onDidChangeIndex(() => provider.broadcastVaultNotesChanged()));
 
 	const styleManagerProvider = new StyleManagerViewProvider(context, styleStore);
 	context.subscriptions.push(
@@ -164,6 +203,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(OutlineViewProvider.viewType, outlineProvider));
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('mdLivePreview.caseAwareRedo', () => executeCaseAwareRedo(
+			() => vscode.commands.executeCommand('redo'),
+		)),
 		vscode.commands.registerCommand('mdLivePreview.openWithLivePreview', async () => {
 			const uri = getActiveMarkdownUri();
 			if (!uri) return;
@@ -179,7 +221,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await vscode.commands.executeCommand('vscode.openWith', uri, 'default', viewColumn);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.newStyle', async () => {
-			await styleManagerProvider.createNewStyle();
+			return styleManagerProvider.createNewStyle();
 		}),
 	);
 
@@ -199,9 +241,82 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			if (e.affectsConfiguration('mdLivePreview.defaultEditor')) {
 				void syncDefaultEditorAssociation();
 			}
+			if (
+				e.affectsConfiguration('mdLivePreview.remoteMedia') ||
+				e.affectsConfiguration('mdLivePreview.diagramRendering')
+			) {
+				provider.reloadSecurityPolicy();
+			}
+		}),
+		vscode.workspace.onDidGrantWorkspaceTrust(() => {
+			provider.reloadSecurityPolicy();
+			styleManagerProvider.refreshSecurityPolicy();
 		}),
 	);
 	await syncDefaultEditorAssociation();
+	// Filesystem transaction tests need the live service from the real extension
+	// host. Keep this seam out of installed builds; production consumers receive
+	// no public API and cannot use it to bypass command trust checks.
+	if (context.extensionMode !== vscode.ExtensionMode.Production) {
+		return {
+			getVaultService: () => vaultRegistration.getService(),
+			getVaultRecentPaths: () => vaultRegistration.getRecentPaths(),
+			getVaultIndexRecords: () => vaultRegistration.getIndex()?.all() ?? [],
+			getVaultStorageIdentity: () => {
+				const index = vaultRegistration.getIndex();
+				return index ? {
+					id: index.id,
+					canonicalRootUri: index.vault.canonicalRootUri.toString(),
+					legacyIds: index.legacyIds,
+				} : undefined;
+			},
+			cancelVaultIndexRebuild: async () => {
+				const index = vaultRegistration.getIndex();
+				if (!index) throw new Error('Document Vault is unavailable.');
+				const cancellation = new vscode.CancellationTokenSource();
+				cancellation.cancel();
+				try { await index.reset(cancellation.token); }
+				catch (error) {
+					if (!(error instanceof vscode.CancellationError)) throw error;
+				} finally {
+					cancellation.dispose();
+				}
+			},
+			getCodeTokenizationRunCount,
+			getVaultTreeRevision: () => vaultRegistration.getTreeRevision(),
+			getVaultTreePaths: (parentPath) => vaultRegistration.getTreePaths(parentPath),
+			searchVault: async (query, limit) => {
+				const index = vaultRegistration.getIndex();
+				return index ? searchVaultWithContext(index, query, limit) : [];
+			},
+				renameOrMoveMany: async (requests) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					return new LinkRewriteService(service).renameOrMoveMany(requests);
+				},
+				renameOrMoveManyWithRejectedCommit: async (requests) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					return new LinkRewriteService(service, { applyEdit: async () => false }).renameOrMoveMany(requests);
+				},
+				renameOrMoveManyWithStaleGeneration: async (requests) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					return new LinkRewriteService(service, { isCurrent: () => false }).renameOrMoveMany(requests);
+				},
+				renameOrMoveManyBeforeCheck: async (requests, beforePreconditionCheck) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					return new LinkRewriteService(service, { beforePreconditionCheck }).renameOrMoveMany(requests);
+				},
+				renameOrMoveManyBeforeCaseStage: async (requests, beforeCaseRenameStage) => {
+					const service = vaultRegistration.getService();
+					if (!service) throw new Error('Document Vault is unavailable.');
+					return new LinkRewriteService(service, { beforeCaseRenameStage }).renameOrMoveMany(requests);
+				},
+			};
+	}
+	return undefined;
 }
 
 export function deactivate(): void {

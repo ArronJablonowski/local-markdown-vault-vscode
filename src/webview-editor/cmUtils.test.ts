@@ -6,6 +6,7 @@ import {
 	setPointerDownForTesting,
 	setSuppressForTesting,
 	allowRevealOnce,
+	protectRenderedBlockFromCaret,
 	noteRevealed,
 	clearRevealedForTesting,
 } from './cmUtils';
@@ -178,5 +179,14 @@ describe('blockCursorTouchesRange', () => {
 		expect(blockCursorTouchesRange(stateWithSelection(inside), from, to)).toBe(false);
 		allowRevealOnce();
 		expect(blockCursorTouchesRange(stateWithSelection(inside), from, to)).toBe(true);
+	});
+
+	it('lets an internal keyboard control protect its rendered block', () => {
+		const base = stateWithSelection(0);
+		const { from, to } = tableRange(base);
+		const state = stateWithSelection(base.doc.line(3).from + 2);
+		setSuppressForTesting(false);
+		protectRenderedBlockFromCaret();
+		expect(blockCursorTouchesRange(state, from, to)).toBe(false);
 	});
 });

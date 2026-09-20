@@ -63,19 +63,19 @@ describe('renderInlineInto', () => {
 
 		it('renders a link that carries a title', () => {
 			expect(render('[t](http://x.com "ti")')).toBe(
-				'<a title="ti" data-href="http://x.com" class="mlp-link">t</a>',
+				'<a title="ti" data-href="http://x.com" role="link" tabindex="0" class="mlp-link">t</a>',
 			);
 		});
 
 		it('renders a link nested inside strong emphasis', () => {
 			expect(render('**[t](u)**')).toBe(
-				'<strong class="mlp-strong"><a data-href="u" class="mlp-link">t</a></strong>',
+				'<strong class="mlp-strong"><a data-href="u" role="link" tabindex="0" class="mlp-link">t</a></strong>',
 			);
 		});
 
 		it('renders emphasis nested inside a link label', () => {
 			expect(render('[**b** t](u)')).toBe(
-				'<a data-href="u" class="mlp-link"><strong class="mlp-strong">b</strong> t</a>',
+				'<a data-href="u" role="link" tabindex="0" class="mlp-link"><strong class="mlp-strong">b</strong> t</a>',
 			);
 		});
 
@@ -103,12 +103,12 @@ describe('renderInlineInto', () => {
 	});
 
 	describe('inline HTML', () => {
-		it('honours <br> so a cell can hold a line break', () => {
-			expect(render('x<br>y')).toBe('x<br>y');
+		it('shows <br> literally instead of treating it as active HTML', () => {
+			expect(render('x<br>y')).toBe('x&lt;br&gt;y');
 		});
 
-		it('honours a self-closing <br/>', () => {
-			expect(render('x<br/>y')).toBe('x<br>y');
+		it('shows a self-closing <br/> literally', () => {
+			expect(render('x<br/>y')).toBe('x&lt;br/&gt;y');
 		});
 
 		it('shows any other tag literally rather than injecting it into the webview', () => {
@@ -126,7 +126,7 @@ describe('renderInlineInto', () => {
 		});
 
 		it('promotes a bare URL to a link', () => {
-			expect(render('https://x.com')).toBe('<a data-href="https://x.com" class="mlp-link">https://x.com</a>');
+			expect(render('https://x.com')).toBe('<a data-href="https://x.com" role="link" tabindex="0" class="mlp-link">https://x.com</a>');
 		});
 
 		it('resolves a relative image path through the provided hook', () => {

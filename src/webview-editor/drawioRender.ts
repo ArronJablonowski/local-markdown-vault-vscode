@@ -15,6 +15,9 @@ import { buildDiagram, DrawioUnsupportedError, type DrawioDiagram, type XmlEleme
 import { renderDiagramSvg, DARK_THEME, LIGHT_THEME } from '../shared/drawioSvg';
 import { getLoadedAwsShape, loadAwsShapes, awsShapesReady } from './awsShapes';
 import { t } from '../shared/i18n';
+import { assertDiagramInputWithinLimits, MAX_DRAWIO_XML_ELEMENTS } from './diagramSecurity';
+
+const MAX_DRAWIO_XML_DEPTH = 100;
 
 /**
  * Adapts a live DOM `Element` to the minimal `XmlElement` the parser consumes.
@@ -50,6 +53,7 @@ export class DrawioParseError extends Error {}
  * explicitly, or a broken file renders as a blank diagram with no explanation.
  */
 export function parseDrawioXml(xml: string): DrawioDiagram {
+	assertDiagramInputWithinLimits('drawio', xml);
 	const doc = new DOMParser().parseFromString(xml, 'text/xml');
 	const failure = doc.querySelector('parsererror');
 	if (failure) {
@@ -57,6 +61,17 @@ export function parseDrawioXml(xml: string): DrawioDiagram {
 	}
 	const root = doc.documentElement;
 	if (!root) throw new DrawioParseError(t('drawio.emptyXml'));
+	if (doc.getElementsByTagName('*').length > MAX_DRAWIO_XML_ELEMENTS) {
+		throw new DrawioParseError(t('drawio.xmlElementLimit'));
+	}
+	const pending: Array<{ element: Element; depth: number }> = [{ element: root, depth: 1 }];
+	while (pending.length > 0) {
+		const { element, depth } = pending.pop()!;
+		if (depth > MAX_DRAWIO_XML_DEPTH) {
+			throw new DrawioParseError(t('drawio.xmlDepthLimit'));
+		}
+		for (const child of Array.from(element.children)) pending.push({ element: child, depth: depth + 1 });
+	}
 	return buildDiagram(wrapElement(root));
 }
 

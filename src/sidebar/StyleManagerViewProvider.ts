@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import type { HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
+import type { CodeThemeSetting, DefaultEditorSetting, HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
 import { StyleStore } from './styleStore';
 import { StylePreviewController } from './StylePreviewController';
 import { escapeAttribute } from '../shared/i18n';
+import { validateSidebarToHostMessage } from '../shared/auxMessageValidation';
+import { diagnosticEventRateLimited } from '../diagnostics';
 
 const CONFIG_SECTION = 'mdLivePreview';
 
@@ -43,7 +45,14 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 			],
 		};
 		webviewView.webview.html = this.buildHtml(webviewView.webview);
-		webviewView.webview.onDidReceiveMessage((message: SidebarToHostMessage) => void this.handleMessage(message));
+		webviewView.webview.onDidReceiveMessage((raw: unknown) => {
+			const parsed = validateSidebarToHostMessage(raw);
+			if (!parsed.ok) {
+				diagnosticEventRateLimited('protocol.sidebarMessageRejected', { reason: parsed.reason });
+				return;
+			}
+			void this.handleMessage(parsed.value);
+		});
 		webviewView.onDidDispose(() => {
 			if (this.view === webviewView) {
 				this.view = undefined;
@@ -51,14 +60,24 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		});
 	}
 
-	async createNewStyle(): Promise<void> {
+	async createNewStyle(): Promise<vscode.Uri | undefined> {
+		if (!vscode.workspace.isTrusted) return undefined;
 		const uri = await this.styleStore.createNewStyle();
+		if (!uri) {
+			void vscode.window.showWarningMessage(vscode.l10n.t('At most 1,000 CSS themes can be stored.'));
+			return undefined;
+		}
 		// Open the new file with the live preview beside it, same as the edit action.
 		const name = uri.path.split('/').pop() ?? '';
 		await this.preview.open(name, name);
+		return uri;
 	}
 
 	private async handleMessage(message: SidebarToHostMessage): Promise<void> {
+		if (!vscode.workspace.isTrusted && message.type !== 'ready' && message.type !== 'setSetting') {
+			diagnosticEventRateLimited('protocol.restrictedMutationRejected', { surface: 'sidebar' });
+			return;
+		}
 		switch (message.type) {
 			case 'ready':
 				await this.pushStyles();
@@ -98,7 +117,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 			prompt: vscode.l10n.t('New name (.css is added automatically)'),
 			validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Enter a name') : undefined),
 		});
-		if (input === undefined) return; // cancelled
+		if (input === undefined || !vscode.workspace.isTrusted) return; // cancelled or trust changed
 		try {
 			await this.styleStore.renameStyle(id, input);
 		} catch {
@@ -108,9 +127,11 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 
 	private getSettings(): SidebarSettings {
 		const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+		const defaultEditor = config.get<string>('defaultEditor', 'prompt');
+		const codeTheme = config.get<string>('codeTheme', 'auto');
 		return {
-			defaultEditor: config.get<string>('defaultEditor', 'prompt'),
-			codeTheme: config.get<string>('codeTheme', 'auto'),
+			defaultEditor: (['prompt', 'livePreview', 'default'].includes(defaultEditor) ? defaultEditor : 'prompt') as DefaultEditorSetting,
+			codeTheme: (['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(codeTheme) ? codeTheme : 'auto') as CodeThemeSetting,
 		};
 	}
 
@@ -128,14 +149,23 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 
 	private async pushStyles(): Promise<void> {
 		if (!this.view) return;
-		const styles = await this.styleStore.listEntries();
+		const trustedAtStart = vscode.workspace.isTrusted;
+		const loadedStyles = trustedAtStart ? await this.styleStore.listEntries() : [];
+		const workspaceTrusted = trustedAtStart && vscode.workspace.isTrusted;
+		const styles = workspaceTrusted ? loadedStyles : [];
 		const msg: HostToSidebarMessage = {
 			type: 'init',
 			styles,
 			settings: this.getSettings(),
 			themeKind: this.getThemeKind(),
+			workspaceTrusted,
 		};
 		void this.view.webview.postMessage(msg);
+	}
+
+	refreshSecurityPolicy(): void {
+		void this.pushStyles();
+		this.preview.refreshSecurityPolicy();
 	}
 
 	private buildHtml(webview: vscode.Webview): string {
@@ -146,6 +176,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'webview-sidebar-style.css'),
 		);
 		const nonce = getNonce();
+		const documentTitle = vscode.l10n.t('CSS Themes');
 
 		return `<!DOCTYPE html>
 <html lang="${escapeAttribute(vscode.env.language)}">
@@ -153,13 +184,10 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
-	<title>CSS Themes</title>
+	<title>${escapeAttribute(documentTitle)}</title>
 </head>
 <body>
 	<div id="mlp-sidebar-root"></div>
-	<script nonce="${nonce}">
-		window.mlpLocale = ${JSON.stringify(vscode.env.language)};
-	</script>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

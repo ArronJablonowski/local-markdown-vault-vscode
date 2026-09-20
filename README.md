@@ -1,390 +1,182 @@
-# Markdown Live Preview Editor
+# Local Markdown Vault
 
-[日本語](#日本語) | English
+Secure, local-only Markdown editing for Visual Studio Code, with an Obsidian-style Live Preview and a workspace Document Vault.
 
-[![Version](https://img.shields.io/visual-studio-marketplace/v/t-shoot.markdown-live-preview-editor?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=t-shoot.markdown-live-preview-editor)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/t-shoot.markdown-live-preview-editor)](https://marketplace.visualstudio.com/items?itemName=t-shoot.markdown-live-preview-editor)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/t-shoot.markdown-live-preview-editor)](https://marketplace.visualstudio.com/items?itemName=t-shoot.markdown-live-preview-editor)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+> **Project status:** active pre-release development. Install from source or a locally built VSIX. This extension is not yet published to the Visual Studio Marketplace.
 
-![Live preview rendering syntax highlighting and a Mermaid diagram in place](media/screenshots/code-and-mermaid.png)
+Local Markdown Vault keeps notes and attachments as ordinary files in one local VS Code workspace. It does not provide cloud sync, accounts, telemetry, publishing, or background uploads.
 
-**A VS Code extension that lets you edit the Markdown preview itself, Obsidian-style.**
-Your file keeps its formatted look while you type, but what's actually saved to disk is always plain Markdown.
-**Mermaid and draw.io diagrams** are drawn in place, from the text you write in a fenced code block.
+## What it provides
 
-It is, as far as we know, **the only VS Code Markdown editor that renders `.drawio` files** — including
-AWS architecture shapes — without the draw.io application.
+### Live Preview editor
 
-## Why this extension?
+- CodeMirror-based Markdown editing with formatting rendered in place
+- Source reveal around the cursor and normal text selection behavior
+- Syntax highlighting, document outline, search, and editable tables
+- Local images and attachments, Mermaid diagrams, draw.io diagrams, and themes
+- Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
+- YAML properties, callouts, math, footnotes, tags, and interactive task lists
 
-VS Code's built-in Markdown preview splits the editing source pane and the preview pane side by side.
-This extension merges the two into one.
+### Document Vault
 
-- The preview itself is editable — type directly into the **styled** view
-- Only the line the cursor is on reveals its raw Markdown syntax (`**`, `#`, etc.) — the same experience as Obsidian
-- What's saved to the file on disk is always **plain Markdown**. No proprietary format
-- Works with your existing `.md` files and Git-tracked documents as-is
+- Native VS Code tree for notes, folders, and attachments
+- Create, rename, move, delete/trash, drag-and-drop, sort, refresh, and reveal
+- Automatic Markdown and wikilink updates after file or folder moves
+- Local vault search, Quick Switcher, backlinks, unlinked mentions, recent notes, tags, aliases, and hover previews
+- Incremental metadata index that can be rebuilt from the files in the workspace
 
-## Key features
+### Local-first security
 
-### Live preview editing
-A custom editor built on CodeMirror 6. Headings, emphasis, blockquotes, lists, task lists, links, images, horizontal rules, tables, and more automatically switch between their styled rendering and raw source depending on where your cursor is. `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo work exactly as you'd expect in a normal editor.
+- Remote images are blocked by default
+- Raw HTML is rendered as inert text
+- Dangerous protocols and paths outside the vault are rejected
+- Filesystem paths are canonicalized and checked after symlink resolution
+- Webview messages, pasted images, YAML, diagrams, SVG, XML, and queued work are bounded and validated
+- Mermaid uses strict security mode; generated SVG is sanitized before insertion
+- Restricted Workspace Trust mode disables diagrams, custom CSS, remote media, and vault-wide mutations
+- No extension-managed network requests unless the user explicitly enables HTTPS remote images for the current workspace
 
-![Editing directly in the styled preview](media/screenshots/live-preview-editing.png)
+See [SECURITY.md](SECURITY.md) for the security policy and threat-model summary.
 
-### Bold / italic shortcuts
-`Ctrl+B` toggles the selection between plain text and `**bold**`; `Ctrl+I` does the same for `*italic*`. Works with no selection too (inserts an empty pair and places the cursor inside) and with multiple cursors at once.
+## Scope
 
-### Search and replace
-`Ctrl+F` opens a Find panel that floats over the top-right of the editor, the way VS Code's own does. Replace is behind the chevron on its left, so the common case stays compact. `Enter` and `F3` step through matches, `Ctrl+D` selects the next occurrence as an extra cursor, and `Esc` closes the panel. Case sensitivity, whole-word and regular-expression modes are all there.
+Local Markdown Vault deliberately does not include:
 
-Search runs against the **raw Markdown** — the text the file actually holds — so `](url)`, a table's pipes and a heading's `#` are all findable even while the preview is hiding them. A match landing inside hidden syntax reveals that syntax, so you can always see what was found.
+- Cloud or peer-to-peer synchronization
+- User accounts, telemetry, analytics, or advertising
+- Publishing or hosted note sharing
+- Community plugins
+- Obsidian Canvas or Bases
+- A complete clone of the Obsidian desktop application
 
-### Paste and drag-and-drop images
-Paste an image from your clipboard (e.g. a screenshot) or drag an image file onto the editor, and it's saved into an `assets/` folder next to the `.md` file, with a `![](assets/...)` link inserted at the cursor automatically. File names are generated to avoid collisions.
+The first supported vault model is exactly one local `file:` workspace folder. Multi-root workspaces, arbitrary folders outside the workspace, nested vaults, and remote filesystem providers are deferred.
 
-### Outline (heading list) view
-A dedicated "Outline" view in the activity bar lists every heading (h1–h6) in the active Markdown Live Preview document. Click a heading to jump straight to it. The list follows whichever document tab is active and updates as you edit. (VS Code's built-in Outline panel doesn't support webview-based custom editors, so this extension ships its own.)
+## Requirements
 
-### Syntax-highlighted code blocks
-Fenced code blocks (` ```python `, etc.) are colorized per-language via [Shiki](https://shiki.style/). An `auto` mode follows VS Code's color theme (light/dark), or you can pin a specific palette like GitHub's.
+- Visual Studio Code 1.90 or newer
+- A local folder opened as a VS Code workspace
+- Node.js and npm to build from source
+- Git to clone the repository
 
-### Mermaid diagrams
-` ```mermaid ` fences render as an SVG diagram in place. Hovering the diagram reveals a toolbar: `</>` switches to the Mermaid source for editing, and the zoom controls scale a dense diagram up (drag to pan, `Ctrl`/`⌘`+wheel to zoom) with `↺` returning to the fitted view. Clicking the diagram itself pans it rather than switching to source, so a stray click can't interrupt what you're looking at.
+## Install from source
 
-### Editable tables
-A table renders as a real table and stays that way while you work in it: click a cell to edit that cell in place, `Tab`/`Shift+Tab` to move between cells, `Enter` to commit, `Esc` to discard. Only the edited cell is written back, so the rest of the row's spacing and pipes are left untouched. Dragging across cells selects their text to copy. Thin strips along the table's bottom and right edges add a row or a column. The `</>` button above the table opens the raw Markdown, for the things these can't reach — removing a row, changing the alignment row, repairing a broken table.
+### 1. Clone and install dependencies
 
-### Clickable links
-Clicking a rendered link follows it. A link to a `.md` file or any other file in the workspace is resolved against the document's own folder and opened in the editor, so links between notes work; `https:`, `mailto:` and other schemes are handed to the OS. If the target doesn't exist, you get a message naming the path.
+Using SSH:
 
-### Sidebar CSS theme manager, live-synced while editing
-The "CSS Themes" view in the Primary Sidebar lets you register and switch between multiple CSS snippets that restyle the preview. Saving a CSS file hot-reloads any open preview.
+```bash
+git clone git@github.com:ArronJablonowski/local-markdown-vault-vscode.git
+cd local-markdown-vault-vscode
+npm ci
+```
 
-![Choosing a CSS theme from cards in the sidebar](media/screenshots/css-theme-sidebar.png)
+Or using HTTPS:
 
-Opening a card's edit (pencil) icon shows the CSS file and a sample live preview side by side. **The preview updates on every keystroke**, and whichever rule your cursor sits on (e.g. `h1 { ... }`) glows briefly on the matching preview element, so you can see exactly what a rule affects while you write it.
+```bash
+git clone https://github.com/ArronJablonowski/local-markdown-vault-vscode.git
+cd local-markdown-vault-vscode
+npm ci
+```
 
-![Placing the cursor on an h1 rule glows the matching heading in the preview](media/screenshots/css-highlight-sync.png)
+`npm ci` installs the exact dependency versions recorded in `package-lock.json`.
 
-## Installation
+### 2. Run in a Development Extension Host
 
-1. Search for "Markdown Live Preview Editor" in VS Code's Extensions view and install it
-2. Or from the Marketplace page: [Markdown Live Preview Editor](https://marketplace.visualstudio.com/items?itemName=t-shoot.markdown-live-preview-editor)
-3. Or from the command line:
-   ```
-   code --install-extension t-shoot.markdown-live-preview-editor
-   ```
+```bash
+npm run compile
+code .
+```
 
-## Quick start
+In VS Code, press `F5` and choose **VS Code Extension Development** if prompted. In the new Extension Development Host window, open a local folder, then open a Markdown file.
 
-1. Open a `.md` file (it opens in the normal text editor by default).
-2. Click the toggle icon at the top right of the editor title bar to switch to Live Preview.
-3. Edit directly in the preview. Lines without the cursor show their styled rendering; the line with the cursor shows raw Markdown syntax.
-4. Enable a theme from the "CSS Themes" view in the Primary Sidebar if you like.
-5. Open the "Outline" view in the Primary Sidebar to jump between headings.
+To select the editor manually, run **View: Reopen Editor With...** and choose **Markdown Live Preview**.
 
-To always open `.md` files in Live Preview, change the `mdLivePreview.defaultEditor` setting to `livePreview`.
+### 3. Build and install a VSIX
 
-## Settings
+```bash
+npm run package
+code --install-extension local-markdown-vault-0.2.0.vsix --force
+```
 
-| Setting | Description |
-| --- | --- |
-| `mdLivePreview.codeTheme` | Code highlighting palette (`auto` / `dark-plus` / `light-plus` / `github-dark` / `github-light`). `auto` follows VS Code's color theme (light/dark). |
-| `mdLivePreview.enabledStyles` | The list of currently enabled CSS snippet IDs (normally managed from the sidebar, not edited directly). |
-| `mdLivePreview.defaultEditor` | Controls whether `.md` files default to Markdown Live Preview (`prompt` = keep the normal editor and open Live Preview manually from the toolbar / `livePreview` = always use Live Preview / `default` = always use VS Code's normal text editor). |
+You can also open the Extensions view, choose **... > Install from VSIX...**, and select the generated file. Reload VS Code after installation.
+
+To remove a source-installed build:
+
+```bash
+code --uninstall-extension arronjablonowski.local-markdown-vault
+```
+
+## Using the extension
+
+1. Open one local folder in VS Code. That folder is the vault boundary.
+2. Open a `.md` file with **Markdown Live Preview**.
+3. Open the **Local Markdown Vault** activity-bar view to manage files and use knowledge-navigation tools.
+4. Use `[[Note]]`, `[[Note|Alias]]`, `[[Note#Heading]]`, or `![[Attachment.png]]` for vault links and embeds.
+5. Review workspace trust and security settings before enabling diagrams, custom CSS, or remote media in an unfamiliar workspace.
+
+Common shortcuts:
+
+| Action | macOS | Windows/Linux |
+| --- | --- | --- |
+| Quick Switcher | `Cmd+O` | `Ctrl+O` |
+| Vault search | `Cmd+Shift+F` | `Ctrl+Shift+F` |
+| Save | `Cmd+S` | `Ctrl+S` |
+| Command Palette | `Cmd+Shift+P` | `Ctrl+Shift+P` |
+
+## Important settings
+
+Search for `Local Markdown Vault` or `mdLivePreview` in VS Code Settings.
+
+| Setting | Purpose | Default posture |
+| --- | --- | --- |
+| Remote media | Permit HTTPS images for this workspace | Blocked |
+| Automatic link updates | Rewrite affected links after rename or move | Enabled |
+| Attachment location | Choose where pasted attachments are stored | Inside vault |
+| Vault sort order | Configure Document Vault ordering | Name |
+| Reveal active file | Follow the active note in the vault tree | Enabled |
+| Excluded paths | Omit paths from indexing and navigation | Conservative defaults |
+| Diagram rendering | Enable Mermaid and draw.io rendering | Trust-aware |
+
+The internal setting and command prefix remains `mdLivePreview` for compatibility with existing installations and keybindings.
+
+## Development
+
+```bash
+npm ci                 # reproducible dependency installation
+npm run compile        # build the extension and webviews
+npm test               # unit tests
+npm run test:e2e       # browser end-to-end tests
+npm run test:integration
+npm run lint
+npm run package        # verify and create the VSIX
+```
+
+Useful release and security checks are documented in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md). The full engineering roadmap and acceptance criteria are in [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md).
+
+Additional references:
+
+- [Obsidian compatibility](docs/OBSIDIAN_COMPATIBILITY.md)
+- [Migration and rollback](docs/MIGRATION.md)
+- [Accessibility](docs/ACCESSIBILITY.md)
+- [Security policy](SECURITY.md)
 
 ## Known limitations
 
-- Code highlighting is limited to a curated set of major languages (JS/TS/Python/Java/C/C++/C#/Go/Rust/Ruby/PHP/HTML/CSS/JSON/YAML/Markdown/Bash/SQL/Kotlin/Swift, etc.). Other languages aren't colorized.
-- Table editing covers cell contents, plus adding a row or column. Other structural changes — removing rows and columns, reordering them, changing column alignment — are made in the raw Markdown, reached via the `</>` button.
-- Pasting or dropping multiple images at once only inserts the first one.
+- Only one local workspace folder is supported as a vault.
+- Case-only rename undo/redo still needs cross-platform release validation.
+- Windows, Linux, VoiceOver, NVDA, and Orca checks remain part of the pre-release matrix.
+- Large-vault performance depends on storage, exclusions, note size, and available system resources.
+- The extension is under active security hardening and is not yet declared production-ready for hostile files.
 
-## Feedback and bug reports
+## Reporting bugs and security issues
 
-Please use [GitHub Issues](https://github.com/t-shoot/md-live-preview-editor/issues).
+- General bugs and feature requests: [GitHub Issues](https://github.com/ArronJablonowski/local-markdown-vault-vscode/issues)
+- Security vulnerabilities: follow the private-reporting guidance in [SECURITY.md](SECURITY.md)
 
-## License
+Please include the VS Code version, operating system, extension version, workspace trust state, and minimal reproduction steps. Do not attach private vault contents.
 
-The source code of this extension is licensed under the [MIT License](LICENSE).
+## Project history and license
 
-`.drawio` files are parsed and drawn by this extension's own code — it does not
-bundle or run any part of the draw.io application.
+This project began as a fork of [t-shoot/md-live-preview-editor](https://github.com/t-shoot/md-live-preview-editor). Local Markdown Vault retains compatible Markdown files and credits the upstream project and bundled dependencies in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-What is taken from draw.io is the **outline geometry of the AWS architecture
-shapes** (`dist/aws4-shapes.json`: each shape's width, height and SVG path
-data), so that a diagram using those shapes renders as the intended symbols
-rather than as plain boxes. That geometry is **not** covered by the MIT license:
-it is vendored unmodified from the [draw.io](https://github.com/jgraph/drawio)
-project and redistributed under its terms (see
-[LICENSE-SHAPES](LICENSE-SHAPES) and
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
-
-Amazon Web Services, AWS, and the names of AWS services are trademarks of
-Amazon.com, Inc. or its affiliates. draw.io and diagrams.net are trademarks of
-JGraph Ltd. **This extension is an independent project and is not affiliated
-with, sponsored by, or endorsed by Amazon Web Services or JGraph Ltd.**
-
----
-
-<details>
-<summary><strong>For developers (building or modifying this repository)</strong></summary>
-
-### Setup
-
-```
-npm install
-npm run compile
-```
-
-During development, use the `watch` task already registered in `.vscode/tasks.json` to automatically rebuild and type-check on every save (both the esbuild build and `tsc --noEmit --watch` run in parallel). Run it from VS Code via `Terminal > Run Task... > watch`, or it starts automatically with `F5` (see below).
-
-If you'd like build errors surfaced in VS Code's "Problems" panel, installing the [connor4312.esbuild-problem-matchers](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) extension is recommended (already listed in `.vscode/extensions.json`, so VS Code will offer to install it when you open this folder). The build itself works fine without it.
-
-#### npm scripts
-
-| Script | What it does |
-| --- | --- |
-| `npm run compile` | Full esbuild build + `tsc --noEmit` type check (runs once) |
-| `npm run typecheck` | Type check only |
-| `npm test` | Runs the Vitest test suite once |
-| `npm run test:watch` | Runs Vitest in watch mode |
-| `npm run watch:esbuild` | esbuild in watch mode (build only, no type checking) |
-| `npm run watch:tsc` | `tsc --noEmit --watch` (type checking only, in watch mode) |
-| `npm run vscode:prepublish` | Production (minified) build; runs automatically during packaging (`vsce package`) |
-
-### Running the extension
-
-1. Open this repository in VS Code.
-2. Press `F5` (uses the "Run Extension" configuration in `.vscode/launch.json`; the `watch` task runs automatically first, then a new "Extension Development Host" window opens).
-3. In the new window, open the bundled `sample/sample.md`.
-
-With the `watch` task running, changing the code and reloading the Extension Development Host window (`Ctrl+R`) picks up the latest changes.
-
-### Manual verification steps
-
-Most of what follows is now automated — see `npm run test:all` and the `test`
-skill. Steps 2-8 and 12-14 run in the integration and e2e suites; what is left
-genuinely manual is step 1 (the editor-title icon) and step 11 (state surviving
-a restart). The list is kept because it still describes what the extension is
-supposed to do, and because a suite that has never been read is easy to trust
-too much.
-
-`sample/sample.md` covers headings (h1–h6), bold, italic, strikethrough, inline code, blockquotes, lists, task lists, links, images, horizontal rules, a `python` code block, `mermaid` blocks (small and large diagrams), and tables (including one with blank cells, and one directly under a list item with no blank line before it). Walk through the following:
-
-1. Open `sample/sample.md` in the normal text editor and confirm the toggle icon appears at the top right of the editor title bar.
-2. Click it and confirm it switches to Live Preview. Confirm Live Preview also shows a "back to source" icon that returns to the normal editor.
-3. Confirm that `**`, `#`, `` ` ``, etc. are hidden on lines without the cursor, and shown as raw text only on the line with the cursor.
-4. Confirm a ` ```python ` block is colorized (multiple colors, not a single flat color).
-5. Confirm a ` ```mermaid ` block renders as an SVG diagram when the cursor is away, and reverts to raw text editing when the cursor enters it.
-6. Edit text in Live Preview and confirm the change is reflected on disk in `sample/sample.md` (or in the same file opened in a normal editor tab).
-7. Confirm `Ctrl+Z` undoes exactly one step and `Ctrl+Shift+Z` (or `Ctrl+Y`) redoes exactly one step (no multi-step jumps, no no-ops).
-8. Change `sample/sample.md` from outside (editing it in another tab, `git checkout`, etc.) and confirm Live Preview follows along without crashing or duplicating content.
-9. Open the "CSS Themes" view in the Primary Sidebar, enable the `GitHub-like` or `Obsidian-like` sample styles, and confirm the appearance changes. Confirm editing and saving a CSS file hot-reloads any open Live Preview.
-10. Change the `mdLivePreview.defaultEditor` setting to `livePreview` and confirm `.md` files automatically open in Live Preview (and confirm reverting to `prompt` restores the original behavior).
-11. Restart VS Code, reopen `sample/sample.md` in Live Preview, and confirm state such as the enabled CSS theme persisted.
-12. Confirm the "動作確認用サンプル" section's h4–h6 headings render progressively smaller, same as the other heading levels.
-13. Confirm the "動作確認用サンプル" section's table with blank cells doesn't shift later columns left — blank cells stay in their original column position.
-14. Confirm the "動作確認用サンプル" section's table directly under a bullet item (no blank line before it) renders as an actual table, not raw `|`-delimited text.
-14. Select some text and press `Ctrl+B` / `Ctrl+I`; confirm it toggles `**bold**` / `*italic*` on and back off. With no selection, confirm it inserts an empty pair with the cursor placed inside.
-15. Copy an image (e.g. a screenshot) and paste it into Live Preview; confirm an `assets/` folder is created beside the file, the image is saved into it, and `![](assets/...)` is inserted at the cursor. Try dragging an image file from a file explorer too.
-16. Open the "Outline" view in the Primary Sidebar and confirm it lists the document's headings. Click one and confirm the editor jumps to and scrolls to that heading. Switch between multiple Live Preview tabs and confirm the outline follows the active one. Add or remove a heading and confirm the list updates.
-17. Click a table cell and confirm the table stays rendered while that one cell becomes editable, showing its raw Markdown. Type, then `Tab` to the next cell and `Enter` to commit; confirm only the edited cell changed in the source. Press `Esc` mid-edit and confirm the change is discarded.
-18. Drag across several table cells and confirm the text highlights and copies, and that the table does not revert to `|` syntax. Then click around the table repeatedly — including its outer edge and the lines between rows — and confirm it never flips to raw source.
-19. Confirm the `</>` button above the table opens the raw Markdown, and that `</>` on a Mermaid diagram, on frontmatter, and above a code block (which reveals the ` ``` ` fence lines) does the same for each.
-20. Confirm the `⧉` button on a code block copies the block's contents only — no ` ``` ` fences, and no leading indentation when the block is nested.
-21. On a Mermaid diagram, switch to full size, zoom in a few times, then press `↺`; confirm it returns all the way to the original shrink-to-fit view, not to an intermediate size.
-22. Hover a table and confirm thin strips appear along its bottom and right edges. Click each and confirm a row / a column is added, that the table's column alignment survives, and that a table nested under a list item keeps its indentation. Confirm the strips never cover the table's own border or the line below it.
-23. Click a link to an external URL and confirm it opens in the browser. Add a link to a neighbouring `.md` file (e.g. `[x](./other.md)`), click it, and confirm that file opens in the editor rather than raising an OS "file not found" dialog — and that in neither case does the link revert to its `[label](url)` source. Point a link at a file that doesn't exist and confirm a message naming the path appears.
-
-</details>
-
----
-
-## 日本語
-
-![シンタックスハイライトとMermaidダイアグラムをその場で描画するライブプレビュー](media/screenshots/code-and-mermaid.png)
-
-**Obsidianのライブプレビューのように、Markdownのプレビュー自体を直接編集できるVS Code拡張機能。**
-ファイルの見た目を保ったまま書けて、保存されるのは常に素のMarkdownです。
-**Mermaid図とdraw.io図**は、コードフェンスに書いたテキストがその場で図になります。
-
-知る限り、**`.drawio` ファイルを描画できる唯一の VS Code Markdown エディタ**です。
-draw.io 本体を使わず、AWS アーキテクチャ図形も含めて描画します。
-
-### なぜこの拡張機能?
-
-VS Codeの標準Markdownプレビューは、編集用のソースペインとプレビューペインが左右に分かれています。
-この拡張機能は、その2つを1つにまとめます。
-
-- プレビューそのものが編集可能で、**装飾された見た目のまま**タイプできる
-- カーソルが乗っている行だけ`**`や`#`などのMarkdown記法が生テキストで見える(Obsidianと同じ体験)
-- ファイルとして保存される中身は常に**素のMarkdown**。特殊な独自フォーマットにはならない
-- 既存の`.md`資産やGit管理下のドキュメントをそのまま使える
-
-### 主な機能
-
-#### ライブプレビュー編集
-CodeMirror 6ベースのカスタムエディタです。見出し・強調・引用・リスト・タスクリスト・リンク・画像・水平線・テーブルなどの記法が、装飾された表示とソース表示をカーソル位置に応じて自動的に切り替わります。`Ctrl+Z` / `Ctrl+Shift+Z`によるアンドゥ・リドゥも通常のエディタと同じ感覚で使えます。
-
-![装飾された見た目のまま編集できるライブプレビュー](media/screenshots/live-preview-editing.png)
-
-#### 太字/斜体ショートカット
-`Ctrl+B`で選択範囲を`**太字**`に、`Ctrl+I`で`*斜体*`にトグルできます。選択なしでも空のマーカー対を挿入してカーソルを内側に置きます。複数カーソルにも対応しています。
-
-#### 検索・置換
-`Ctrl+F`でエディタ右上に検索パネルが浮かびます(VS Code標準と同じ位置)。置換は左側の矢印を押すと開くので、よく使う検索だけのときは小さいままです。`Enter`と`F3`で一致箇所を移動、`Ctrl+D`で次の一致をカーソルとして追加、`Esc`で閉じます。大文字小文字の区別、単語単位、正規表現にも対応しています。
-
-検索対象は**素のMarkdown**、つまりファイルに実際に入っている文字列です。そのため`](url)`や表のパイプ、見出しの`#`も、プレビューがそれらを隠している状態のまま検索できます。隠れた記法の中に一致が見つかった場合は、その記法が表示されるので、何が見つかったのか必ず目で確認できます。
-
-#### 画像の貼付・ドラッグ&ドロップ
-クリップボードの画像(スクリーンショットなど)を貼り付けたり、画像ファイルをエディタにドラッグ&ドロップしたりすると、`.md`ファイルと同じ場所の`assets/`フォルダに保存され、カーソル位置に`![](assets/...)`が自動挿入されます。ファイル名は衝突を避けて自動生成されます。
-
-#### アウトライン(見出し一覧)ビュー
-アクティビティバーの専用「アウトライン」ビューに、開いているLive Previewの見出し(h1〜h6)が一覧表示されます。クリックすると該当の見出しへジャンプします。一覧はアクティブなタブに追従し、編集内容にあわせて更新されます。(VS Code標準のアウトラインパネルはWebviewベースのカスタムエディタに対応していないため、この拡張機能独自のビューとして実装しています。)
-
-#### シンタックスハイライト付きコードブロック
-フェンス付きコードブロック(` ```python `など)を[Shiki](https://shiki.style/)で言語ごとに色分け表示します。VS Codeのカラーテーマ(ライト/ダーク)に自動追従する`auto`モードのほか、GitHub配色などを個別に指定することもできます。
-
-#### Mermaidダイアグラム
-` ```mermaid `フェンスをその場でSVG図として描画します。図にマウスを乗せるとツールバーが出ます。`</>`でMermaid記法の編集に切り替わり、拡大・縮小ボタン(ドラッグで移動、`Ctrl`/`⌘`+ホイールで拡大縮小)で細かい図を大きく表示できます。`↺`で元の縮小表示に戻ります。図をクリックしても記法には切り替わらず移動になるので、誤ってクリックしても図が消えません。
-
-#### 編集できるテーブル
-テーブルは表として描画され、作業中もその見た目のままです。セルをクリックするとそのセルだけをその場で編集でき、`Tab`/`Shift+Tab`でセル間を移動、`Enter`で確定、`Esc`で取り消します。書き戻すのは編集したセルだけなので、行のほかの文字や`|`の位置はそのまま保たれます。セルをなぞれば文字を選択してコピーできます。表の下端と右端にある細いバーで、行や列を追加できます。行の削除や列揃えの変更など、これらで届かない部分は、表の上の`</>`ボタンから元のMarkdownを開いて編集します。
-
-#### クリックできるリンク
-描画されたリンクをクリックすると、そのリンク先を開きます。`.md`ファイルなど、ワークスペース内のファイルへのリンクは、その文書自身のフォルダを基準に解決してエディタで開くので、ノート同士のリンクがそのまま使えます。`https:`や`mailto:`などのスキーム付きのリンクはOSに渡します。リンク先が見つからない場合は、パスを添えたメッセージを表示します。
-
-#### サイドバーのCSSテーマ管理、編集中はプレビューと同期ハイライト
-プライマリサイドバーの「CSS Themes」ビューから、プレビューの見た目を変えるCSSスニペットを複数登録・切替できます。CSSファイルを保存すると、開いているプレビューにホットリロードされます。
-
-![サイドバーからCSSテーマをカード形式で選択・切替](media/screenshots/css-theme-sidebar.png)
-
-カードの鉛筆アイコンから編集を開くと、CSSファイルとサンプルのライブプレビューが左右に並びます。**タイプするたびにプレビューが即座に更新され**、さらにカーソルが乗っている規則(例: `h1 { ... }`)に対応する要素がプレビュー側でふわっと光ってハイライトされるので、「このCSSがどこに効いているか」を目で見ながら編集できます。
-
-![CSSエディタでh1規則にカーソルを置くと、プレビュー側の見出しが光ってハイライトされる](media/screenshots/css-highlight-sync.png)
-
-### インストール
-
-1. VS Codeの拡張機能ビューで「Markdown Live Preview Editor」を検索してインストール
-2. またはMarketplaceのページから: [Markdown Live Preview Editor](https://marketplace.visualstudio.com/items?itemName=t-shoot.markdown-live-preview-editor)
-3. またはコマンドラインから:
-   ```
-   code --install-extension t-shoot.markdown-live-preview-editor
-   ```
-
-### クイックスタート
-
-1. `.md`ファイルを開く(既定では通常のテキストエディタで開きます)。
-2. エディタタイトルバー右上の切替アイコン(プレビューを開くボタン)をクリックし、Live Previewに切り替える。
-3. プレビュー上で直接編集する。カーソルが乗っていない行は装飾表示、カーソルが乗った行だけ生のMarkdown記法が見える。
-4. プライマリサイドバーの「CSS Themes」ビューから好みのテーマを有効化する。
-5. プライマリサイドバーの「アウトライン」ビューから見出し間をジャンプできる。
-
-`.md`ファイルを常にLive Previewで開きたい場合は、設定`mdLivePreview.defaultEditor`を`livePreview`に変更してください。
-
-### 設定項目
-
-| 設定キー | 説明 |
-| --- | --- |
-| `mdLivePreview.codeTheme` | コードハイライトの配色(`auto` / `dark-plus` / `light-plus` / `github-dark` / `github-light`)。`auto`はVS Codeのテーマ(ライト/ダーク)に追従します。 |
-| `mdLivePreview.enabledStyles` | 現在有効なCSSスニペットのID一覧(サイドバーから操作するため、通常は直接編集不要)。 |
-| `mdLivePreview.defaultEditor` | `.md`ファイルの既定エディタを Markdown Live Preview にするかどうかを制御します(`prompt`=標準エディタのまま/`livePreview`=常にLive Preview/`default`=常に標準エディタ)。 |
-
-### 既知の制約
-
-- コードハイライトは主要な言語(JS/TS/Python/Java/C/C++/C#/Go/Rust/Ruby/PHP/HTML/CSS/JSON/YAML/Markdown/Bash/SQL/Kotlin/Swiftなど)に限定しています。対象外の言語は色分けされません。
-- テーブルの編集はセルの中身と、行・列の追加までです。行や列の削除・並べ替え、列揃えの変更といったそのほかの構造の変更は、`</>`ボタンから開く元のMarkdownで行います。
-- 画像を複数同時に貼付・ドロップした場合、最初の1枚のみが挿入されます。
-
-### フィードバック・不具合報告
-
-[GitHub Issues](https://github.com/t-shoot/md-live-preview-editor/issues)からお願いします。
-
-### ライセンス
-
-この拡張機能の**ソースコード**は [MIT ライセンス](LICENSE)です。
-
-`.drawio` ファイルの解析と描画は、この拡張機能の独自実装です。draw.io 本体の
-コードは一切同梱も実行もしていません。
-
-draw.io から取り込んでいるのは、**AWS アーキテクチャ図形の輪郭データ**だけです
-（`dist/aws4-shapes.json`。各図形の幅・高さと SVG パスデータ）。これがないと、
-AWS 図形を使った図が単なる四角形として描かれてしまうためです。この図形データは
-**MIT の対象外**で、[draw.io](https://github.com/jgraph/drawio) から**改変せずに**
-取り込み、同プロジェクトの条件のもとで再配布しています
-（[LICENSE-SHAPES](LICENSE-SHAPES) および
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照）。
-
-Amazon Web Services、AWS および AWS の各サービス名は、Amazon.com, Inc. または
-その関連会社の商標です。draw.io および diagrams.net は JGraph Ltd. の商標です。
-**この拡張機能は独立したプロジェクトであり、Amazon Web Services および
-JGraph Ltd. とは提携しておらず、これらによる出資・推奨も受けていません。**
-
----
-
-<details>
-<summary><strong>開発者向け情報(このリポジトリをビルド・改造する場合)</strong></summary>
-
-#### セットアップ
-
-```
-npm install
-npm run compile
-```
-
-開発中は`.vscode/tasks.json`に登録済みの`watch`タスクを使うと、ファイル保存のたびに自動で再ビルド+型チェックされます(esbuildのビルドと`tsc --noEmit --watch`の両方が並行して走ります)。VS Codeで`Terminal > Run Task... > watch`から実行するか、後述の`F5`で自動的に起動します。
-
-エラー内容をVS Codeの「問題」パネルに表示させたい場合は、拡張機能 [connor4312.esbuild-problem-matchers](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) のインストールを推奨します(`.vscode/extensions.json`に登録済みなので、このフォルダを開くとVS Codeが自動でインストールを提案します)。インストールしなくてもビルド自体は問題なく動作します。
-
-##### npm scripts
-
-| スクリプト | 内容 |
-| --- | --- |
-| `npm run compile` | esbuildで一括ビルド + `tsc --noEmit`で型チェック(1回だけ実行) |
-| `npm run typecheck` | 型チェックのみ実行 |
-| `npm test` | Vitestのテストスイートを1回実行 |
-| `npm run test:watch` | Vitestをwatchモードで実行 |
-| `npm run watch:esbuild` | esbuildをwatchモードで実行(ビルドのみ、型チェックはしない) |
-| `npm run watch:tsc` | `tsc --noEmit --watch`で型チェックのみwatch実行 |
-| `npm run vscode:prepublish` | 本番用(minify)ビルド。パッケージング(`vsce package`)時に自動実行される |
-
-#### 実行方法(拡張機能を試す)
-
-1. このリポジトリをVS Codeで開く。
-2. `F5`を押す(`.vscode/launch.json`の"Run Extension"設定が使われ、`watch`タスクが自動実行されたあとに「Extension Development Host」という新しいVS Codeウィンドウが立ち上がります)。
-3. 新しく開いたウィンドウで、同梱の`sample/sample.md`を開く。
-
-`watch`タスクを実行した状態で`F5`すると、コードを変更してもExtension Development Hostのウィンドウで`Ctrl+R`(Reload Window)するだけで最新の変更が反映されます。
-
-#### 動作確認の手順
-
-`sample/sample.md`には見出し(h1〜h6)・太字・斜体・取り消し線・インラインコード・引用・リスト・タスクリスト・リンク・画像・水平線・`python`コードブロック・`mermaid`ブロック(小さい図・大きい図)・テーブル(通常/空白セルを含むもの/箇条書き直下で空行なしのもの)が一通り含まれています。以下を順に確認してください。
-
-1. 通常のテキストエディタで`sample/sample.md`を開き、エディタタイトルバー右上に切替アイコン(プレビューを開くボタン)が表示されることを確認する。
-2. クリックしてLive Previewに切り替わることを確認する。Live Preview側にも「ソースに戻る」アイコンが表示され、クリックで通常エディタに戻れることを確認する。
-3. カーソルが乗っていない行では`**`, `#`, `` ` ``などの記号が隠れ、カーソルが乗った行だけ生テキストで見えることを確認する。
-4. ` ```python `ブロックが単色ではなく複数の色でハイライトされていることを確認する。
-5. ` ```mermaid `ブロックがカーソル外でSVGの図として描画され、カーソルを入れると生テキスト編集に戻ることを確認する。
-6. Live Preview側で文字を編集し、ディスク上の`sample/sample.md`(または同じファイルを別タブで開いた通常エディタ)に変更が反映されることを確認する。
-7. `Ctrl+Z`で1回分だけ戻り、`Ctrl+Shift+Z`(または`Ctrl+Y`)で1回分だけ進むことを確認する(多重に戻ったり、何も起きなかったりしないこと)。
-8. `sample/sample.md`を外部(別タブでの編集や`git checkout`など)から変更し、Live Previewがクラッシュ・内容の重複なく追従することを確認する。
-9. プライマリサイドバーの「CSS Themes」ビューを開き、`GitHub-like`や`Obsidian-like`のサンプルスタイルを有効化して見た目が変わることを確認する。CSSファイルを編集して保存すると、開いているLive Previewにホットリロードされることを確認する。
-10. 設定`mdLivePreview.defaultEditor`を`livePreview`に変更すると、`.md`ファイルを開いたときに自動でLive Previewが使われることを確認する(`prompt`に戻すと元の挙動に戻ることも確認する)。
-11. VS Codeを再起動して`sample/sample.md`を再度Live Previewで開き、有効化したCSSテーマなどの状態が保持されていることを確認する。
-12. 「動作確認用サンプル」の見出しレベル4〜6が、他の見出しと同様に段階的に小さく表示されることを確認する。
-13. 「動作確認用サンプル」の空白セルを含むテーブルで、空白セルの分だけ後続の列が左にずれず、元の列位置のまま表示されることを確認する。
-14. 「動作確認用サンプル」の箇条書き直下(空行なし)のテーブルが、生の`|`区切りテキストのままではなく、実際の表として表示されることを確認する。
-14. 文字を選択して`Ctrl+B` / `Ctrl+I`を押し、`**太字**` / `*斜体*`のオン・オフが切り替わることを確認する。選択なしで押すと、空のマーカー対が挿入されカーソルが内側に置かれることを確認する。
-15. 画像(スクリーンショットなど)をコピーしてLive Previewに貼り付け、`assets/`フォルダが作成され画像が保存され、カーソル位置に`![](assets/...)`が挿入されることを確認する。ファイルエクスプローラーから画像ファイルをドラッグ&ドロップしても同様に動作することを確認する。
-16. プライマリサイドバーの「アウトライン」ビューを開き、見出し一覧が表示されることを確認する。クリックすると該当の見出しへジャンプ・スクロールすることを確認する。複数のLive Previewタブを切り替えると、アウトラインが追従することを確認する。見出しを追加・削除すると一覧が更新されることを確認する。
-17. テーブルのセルをクリックし、表が描画されたままそのセルだけが編集状態になり、生のMarkdownが表示されることを確認する。文字を入力して`Tab`で次のセルへ移動し、`Enter`で確定して、元のMarkdownで編集したセルだけが変わっていることを確認する。編集の途中で`Esc`を押すと変更が取り消されることを確認する。
-18. テーブルのセルをまたいでドラッグし、文字が選択できてコピーできること、そのとき表が`|`記法に戻らないことを確認する。続けてテーブルの外周や行間の線を含めて何度もクリックし、生のソース表示に切り替わらないことを確認する。
-19. テーブル上部の`</>`ボタンで元のMarkdownが開くことを確認する。Mermaid・フロントマター・コードブロック(` ``` `の囲み行が現れる)でも同様に動作することを確認する。
-20. コードブロックの`⧉`ボタンで、` ``` `の囲み行を含まず、入れ子の場合も先頭の字下げを含まない、中身だけがコピーされることを確認する。
-21. Mermaidの図を原寸大に切り替えて数回拡大し、`↺`を押す。途中の大きさで止まらず、最初の縮小表示まで戻ることを確認する。
-22. テーブルにマウスを乗せ、下端と右端に細いバーが出ることを確認する。それぞれをクリックして行・列が追加されること、列揃えが保たれること、箇条書き直下のテーブルでもインデントが崩れないことを確認する。バーがテーブルの枠線や下の行にかぶらないことも確認する。
-23. 外部URLのリンクをクリックし、ブラウザで開くことを確認する。隣のファイルへのリンク(`[x](./other.md)`など)を書いてクリックし、OSの「ファイルが見つかりません」ダイアログではなく、そのファイルがエディタで開くことを確認する。どちらの場合も、リンクが`[表示文字](URL)`のソース表示に戻らないことを確認する。存在しないファイルを指すリンクでは、パスを添えたメッセージが出ることを確認する。
-
-</details>
+Licensed under the [MIT License](LICENSE). Obsidian is a product of Dynalist Inc.; this independent project is not affiliated with or endorsed by Obsidian.

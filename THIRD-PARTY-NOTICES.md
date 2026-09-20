@@ -83,8 +83,8 @@ extension renders — a nominative, descriptive use.
 
 ## Other bundled dependencies
 
-The `dist/*.js` bundles compile in 169 npm packages, each redistributed under
-its own license. The principal ones are:
+The `dist/*.js` bundles compile npm packages into the shipped extension, each
+redistributed under its own license. The principal ones are:
 
 | Component | License |
 | --- | --- |
@@ -92,10 +92,11 @@ its own license. The principal ones are:
 | [Mermaid](https://mermaid.js.org/) | MIT |
 | [Shiki](https://shiki.style/) | MIT |
 | [KaTeX](https://katex.org/) | MIT |
+| [RE2JS](https://github.com/le0pard/re2js) | MIT |
 | [D3](https://d3js.org/) | ISC |
 | [yaml](https://eemeli.org/yaml/) | ISC |
 
-129 of the 169 are MIT. Those under other licenses, most of them reached through
+Most are MIT licensed. Those under other licenses, most of them reached through
 Mermaid, are listed in full:
 
 | Package | License |

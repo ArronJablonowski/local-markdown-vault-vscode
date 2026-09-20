@@ -18,11 +18,36 @@ export interface CodeBlockTokens {
 	tokens: CodeToken[];
 }
 
+export type RemoteMediaPolicy = 'block' | 'https';
+export const EDITOR_PROTOCOL_VERSION = 1;
+
+export interface VaultNoteSummary {
+	path: string;
+	basename: string;
+	aliases: string[];
+	headings: Array<{ text: string; line: number }>;
+	blockIds: string[];
+}
+
+export interface PastedImagePayload {
+	mimeType: string;
+	dataBase64: string;
+}
+
 export type HostToEditorMessage =
-	// `baseUri` is the webview-loadable URI (with a trailing slash) of the
-	// folder containing the document, used to resolve relative image paths
-	// (e.g. `assets/foo.png`) to something the webview is actually allowed to load.
-	| { type: 'init'; text: string; version: number; css: string; codeTheme: string; baseUri: string }
+	| {
+			type: 'init';
+			protocolVersion: typeof EDITOR_PROTOCOL_VERSION;
+			text: string;
+			version: number;
+			css: string;
+			codeTheme: string;
+			remoteMedia: RemoteMediaPolicy;
+			workspaceTrusted: boolean;
+			diagramRenderingAllowed: boolean;
+			vaultNotes: VaultNoteSummary[];
+			currentVaultPath: string;
+	  }
 	| { type: 'externalUpdate'; changes: TextChange[]; version: number }
 	| { type: 'ackEdit'; version: number }
 	| { type: 'codeTokens'; blocks: CodeBlockTokens[] }
@@ -33,7 +58,11 @@ export type HostToEditorMessage =
 	// matches the reply to the widget that asked, since several diagrams in one
 	// document can have requests in flight at the same time.
 	| { type: 'drawioFile'; requestId: number; text?: string; error?: string }
-	| { type: 'setCursor'; pos: number };
+	| { type: 'wikiEmbed'; requestId: number; sourcePath?: string; text?: string; error?: string }
+	| { type: 'localImage'; requestId: number; mimeType?: string; dataBase64?: string; error?: string }
+	| { type: 'setCursor'; pos: number }
+	| { type: 'vaultNotes'; notes: VaultNoteSummary[] }
+	| { type: 'vaultNotesChunk'; generation: number; offset: number; total: number; notes: VaultNoteSummary[] };
 
 export type EditorToHostMessage =
 	| { type: 'ready' }
@@ -42,11 +71,14 @@ export type EditorToHostMessage =
 	| { type: 'redo' }
 	| { type: 'openLink'; href: string }
 	| { type: 'pasteImage'; atPos: number; mimeType: string; dataBase64: string; needsOwnParagraph: boolean }
+	| { type: 'pasteImages'; atPos: number; images: PastedImagePayload[]; needsOwnParagraph: boolean }
 	// A `![](diagram.drawio)` reference: the webview cannot read workspace files
 	// itself, and an <img> cannot render mxGraph XML, so the host reads the file
 	// and sends its text back for the widget to parse. `src` is the raw, relative
 	// path exactly as written in the Markdown; the host resolves it.
-	| { type: 'readDrawioFile'; requestId: number; src: string };
+	| { type: 'readDrawioFile'; requestId: number; src: string }
+	| { type: 'readWikiEmbed'; requestId: number; body: string; contextPath: string }
+	| { type: 'resolveLocalImage'; requestId: number; src: string; contextPath: string };
 
 export interface StyleEntry {
 	id: string;
@@ -57,9 +89,11 @@ export interface StyleEntry {
 }
 
 /** The extension settings the sidebar surfaces and can change. */
+export type DefaultEditorSetting = 'prompt' | 'livePreview' | 'default';
+export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dark' | 'github-light';
 export interface SidebarSettings {
-	defaultEditor: string;
-	codeTheme: string;
+	defaultEditor: DefaultEditorSetting;
+	codeTheme: CodeThemeSetting;
 }
 
 /** Which VS Code theme is active, so previews gate `body.vscode-*` rules correctly. */
@@ -70,6 +104,7 @@ export type HostToSidebarMessage = {
 	styles: StyleEntry[];
 	settings: SidebarSettings;
 	themeKind: ThemeKind;
+	workspaceTrusted: boolean;
 };
 
 export type SidebarToHostMessage =

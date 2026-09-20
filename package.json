@@ -1,9 +1,9 @@
 {
-  "name": "markdown-live-preview-editor",
-  "displayName": "Markdown Live Preview Editor",
-  "description": "Edit the preview itself, Obsidian-style — with Mermaid and draw.io diagrams rendered inline. The only VS Code Markdown editor that draws .drawio files.",
+  "name": "local-markdown-vault",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.2.0",
-  "publisher": "t-shoot",
+  "publisher": "arronjablonowski",
   "license": "MIT",
   "icon": "media/icon-128.png",
   "keywords": [
@@ -41,14 +41,30 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/t-shoot/md-live-preview-editor.git"
+    "url": "https://github.com/ArronJablonowski/local-markdown-vault-vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/t-shoot/md-live-preview-editor/issues"
+    "url": "https://github.com/ArronJablonowski/local-markdown-vault-vscode/issues"
   },
-  "homepage": "https://github.com/t-shoot/md-live-preview-editor#readme",
+  "homepage": "https://github.com/ArronJablonowski/local-markdown-vault-vscode#readme",
   "engines": {
     "vscode": "^1.90.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%capabilities.untrustedWorkspaces%",
+      "restrictedConfigurations": [
+        "mdLivePreview.remoteMedia",
+        "mdLivePreview.vault.attachmentFolder",
+        "mdLivePreview.vault.exclude",
+        "mdLivePreview.diagramRendering"
+      ]
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "%capabilities.virtualWorkspaces%"
+    }
   },
   "categories": [
     "Programming Languages",
@@ -62,7 +78,7 @@
     "customEditors": [
       {
         "viewType": "mdLivePreview.editor",
-        "displayName": "Markdown Live Preview",
+        "displayName": "%editor.displayName%",
         "selector": [
           {
             "filenamePattern": "*.md"
@@ -78,13 +94,29 @@
       "activitybar": [
         {
           "id": "mdLivePreview",
-          "title": "Markdown Live Preview Editor",
+          "title": "%viewContainer.title%",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
       "mdLivePreview": [
+        {
+          "id": "mdLivePreview.vault",
+          "name": "%view.vault%"
+        },
+        {
+          "id": "mdLivePreview.backlinks",
+          "name": "%view.backlinks%"
+        },
+        {
+          "id": "mdLivePreview.brokenLinks",
+          "name": "%view.brokenLinks%"
+        },
+        {
+          "id": "mdLivePreview.tags",
+          "name": "%view.tags%"
+        },
         {
           "id": "mdLivePreview.outline",
           "name": "%view.outline%",
@@ -114,7 +146,154 @@
         "command": "mdLivePreview.newStyle",
         "title": "%command.newStyle%",
         "category": "Markdown Live Preview",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.open",
+        "title": "%command.vault.open%",
+        "category": "Markdown Live Preview"
+      },
+      {
+        "command": "mdLivePreview.vault.newNote",
+        "title": "%command.vault.newNote%",
+        "category": "Markdown Live Preview",
+        "icon": "$(new-file)",
+        "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.newFolder",
+        "title": "%command.vault.newFolder%",
+        "category": "Markdown Live Preview",
+        "icon": "$(new-folder)",
+        "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.refresh",
+        "title": "%command.vault.refresh%",
+        "category": "Markdown Live Preview",
+        "icon": "$(refresh)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vault.expandAll",
+        "title": "%command.vault.expandAll%",
+        "category": "Markdown Live Preview",
+        "icon": "$(expand-all)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vault.collapseAll",
+        "title": "%command.vault.collapseAll%",
+        "category": "Markdown Live Preview",
+        "icon": "$(collapse-all)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vault.delete",
+        "title": "%command.vault.delete%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.rename",
+        "title": "%command.vault.rename%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.move",
+        "title": "%command.vault.move%",
+        "category": "Markdown Live Preview",
+        "icon": "$(move)",
+        "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
+      },
+      {
+        "command": "mdLivePreview.vault.copyRelativePath",
+        "title": "%command.vault.copyRelativePath%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vault.revealInOS",
+        "title": "%command.vault.revealInOS%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.quickSwitcher",
+        "title": "%command.quickSwitcher%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vaultSearch",
+        "title": "%command.vaultSearch%",
+        "category": "Markdown Live Preview",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.vault.rebuildIndex",
+        "title": "%command.vault.rebuildIndex%",
+        "category": "Markdown Live Preview",
+        "icon": "$(sync)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.backlinks.filter",
+        "title": "%command.backlinks.filter%",
+        "category": "Markdown Live Preview",
+        "icon": "$(filter)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.backlinks.sort",
+        "title": "%command.backlinks.sort%",
+        "category": "Markdown Live Preview",
+        "icon": "$(sort-precedence)",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
+        "command": "mdLivePreview.showDiagnostics",
+        "title": "%command.showDiagnostics%",
+        "category": "Markdown Live Preview",
+        "icon": "$(output)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "mdLivePreview.quickSwitcher",
+        "key": "ctrl+o",
+        "mac": "cmd+o",
+        "when": "mdLivePreview.vaultAvailable && (activeCustomEditorId == mdLivePreview.editor || focusedView == mdLivePreview.vault || focusedView == mdLivePreview.backlinks || focusedView == mdLivePreview.brokenLinks || focusedView == mdLivePreview.tags || focusedView == mdLivePreview.outline || focusedView == mdLivePreview.styleManager)"
+      },
+      {
+        "command": "mdLivePreview.vaultSearch",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "mdLivePreview.vaultAvailable && (activeCustomEditorId == mdLivePreview.editor || focusedView == mdLivePreview.vault || focusedView == mdLivePreview.backlinks || focusedView == mdLivePreview.brokenLinks || focusedView == mdLivePreview.tags || focusedView == mdLivePreview.outline || focusedView == mdLivePreview.styleManager)"
+      },
+      {
+        "command": "mdLivePreview.vault.rename",
+        "key": "f2",
+        "when": "mdLivePreview.vaultAvailable && isWorkspaceTrusted && focusedView == mdLivePreview.vault"
+      },
+      {
+        "command": "mdLivePreview.vault.delete",
+        "key": "delete",
+        "mac": "cmd+backspace",
+        "when": "mdLivePreview.vaultAvailable && isWorkspaceTrusted && focusedView == mdLivePreview.vault"
+      },
+      {
+        "command": "mdLivePreview.caseAwareRedo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "editorTextFocus && isWorkspaceTrusted && mdLivePreview.caseRenameRedoAvailable"
+      },
+      {
+        "command": "mdLivePreview.caseAwareRedo",
+        "key": "ctrl+shift+z",
+        "when": "editorTextFocus && isWorkspaceTrusted && mdLivePreview.caseRenameRedoAvailable"
       }
     ],
     "menus": {
@@ -132,14 +311,91 @@
       ],
       "view/title": [
         {
+          "command": "mdLivePreview.vault.newNote",
+          "when": "view == mdLivePreview.vault && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mdLivePreview.vault.newFolder",
+          "when": "view == mdLivePreview.vault && isWorkspaceTrusted",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mdLivePreview.vault.refresh",
+          "when": "view == mdLivePreview.vault",
+          "group": "navigation@3"
+        },
+        {
+          "command": "mdLivePreview.vault.expandAll",
+          "when": "view == mdLivePreview.vault",
+          "group": "navigation@4"
+        },
+        {
+          "command": "mdLivePreview.vault.rebuildIndex",
+          "when": "view == mdLivePreview.vault",
+          "group": "navigation@5"
+        },
+        {
+          "command": "mdLivePreview.backlinks.filter",
+          "when": "view == mdLivePreview.backlinks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mdLivePreview.backlinks.sort",
+          "when": "view == mdLivePreview.backlinks",
+          "group": "navigation@2"
+        },
+        {
           "command": "mdLivePreview.newStyle",
-          "when": "view == mdLivePreview.styleManager",
+          "when": "view == mdLivePreview.styleManager && isWorkspaceTrusted",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mdLivePreview.vault.open",
+          "when": "view == mdLivePreview.vault && viewItem == vaultFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "mdLivePreview.vault.newNote",
+          "when": "view == mdLivePreview.vault && viewItem == vaultFolder && isWorkspaceTrusted",
+          "group": "1_create@1"
+        },
+        {
+          "command": "mdLivePreview.vault.newFolder",
+          "when": "view == mdLivePreview.vault && viewItem == vaultFolder && isWorkspaceTrusted",
+          "group": "1_create@2"
+        },
+        {
+          "command": "mdLivePreview.vault.copyRelativePath",
+          "when": "view == mdLivePreview.vault && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "mdLivePreview.vault.revealInOS",
+          "when": "view == mdLivePreview.vault && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "2_copy@2"
+        },
+        {
+          "command": "mdLivePreview.vault.move",
+          "when": "view == mdLivePreview.vault && isWorkspaceTrusted && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "3_modify@1"
+        },
+        {
+          "command": "mdLivePreview.vault.rename",
+          "when": "view == mdLivePreview.vault && isWorkspaceTrusted && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "3_modify@2"
+        },
+        {
+          "command": "mdLivePreview.vault.delete",
+          "when": "view == mdLivePreview.vault && isWorkspaceTrusted && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "3_modify@3"
         }
       ]
     },
     "configuration": {
-      "title": "Markdown Live Preview",
+      "title": "%config.title%",
       "properties": {
         "mdLivePreview.codeTheme": {
           "type": "string",
@@ -183,6 +439,84 @@
           ],
           "default": "prompt",
           "description": "%config.defaultEditor%"
+        },
+        "mdLivePreview.remoteMedia": {
+          "type": "string",
+          "enum": [
+            "block",
+            "https"
+          ],
+          "enumDescriptions": [
+            "%config.remoteMedia.block%",
+            "%config.remoteMedia.https%"
+          ],
+          "default": "block",
+          "scope": "resource",
+          "description": "%config.remoteMedia%"
+        },
+        "mdLivePreview.vault.updateLinksOnMove": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.vault.updateLinksOnMove%"
+        },
+        "mdLivePreview.vault.attachmentFolder": {
+          "type": "string",
+          "default": "assets",
+          "scope": "resource",
+          "description": "%config.vault.attachmentFolder%"
+        },
+        "mdLivePreview.vault.sortOrder": {
+          "type": "string",
+          "enum": [
+            "nameAsc",
+            "nameDesc",
+            "modifiedNewest",
+            "modifiedOldest",
+            "createdNewest",
+            "createdOldest"
+          ],
+          "default": "nameAsc",
+          "scope": "resource",
+          "description": "%config.vault.sortOrder%"
+        },
+        "mdLivePreview.vault.autoReveal": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.vault.autoReveal%"
+        },
+        "mdLivePreview.vault.exclude": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "default": [
+            ".git",
+            "node_modules",
+            ".DS_Store",
+            "Thumbs.db"
+          ],
+          "scope": "resource",
+          "description": "%config.vault.exclude%"
+        },
+        "mdLivePreview.diagnostics.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "%config.diagnostics.enabled%"
+        },
+        "mdLivePreview.diagramRendering": {
+          "type": "string",
+          "enum": [
+            "safe",
+            "off"
+          ],
+          "default": "safe",
+          "scope": "resource",
+          "description": "%config.diagramRendering%"
         }
       }
     }
@@ -194,27 +528,41 @@
     "test:watch": "vitest",
     "test:related": "vitest related --run",
     "test:coverage": "vitest run --coverage.enabled",
-    "test:integration": "tsc -p tsconfig.test.json && vscode-test",
-    "test:e2e": "playwright test",
-    "test:all": "npm run test:coverage && npm run test:integration && npm run test:e2e",
+    "test:integration": "npm run compile && tsc -p tsconfig.test.json && vscode-test",
+    "test:integration:restricted": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-restricted-integration.mjs",
+    "test:e2e": "npm run compile && playwright test",
+    "test:performance:filesystem": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-filesystem-performance.mjs",
+    "test:vsix": "tsc -p tsconfig.test.json && node scripts/run-vsix-smoke.mjs",
+    "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
+    "package": "vsce package --no-dependencies && node scripts/verify-vsix.mjs",
+    "package:verify": "node scripts/verify-vsix.mjs",
+    "security:audit": "npm audit --audit-level=high",
+    "security:sbom": "cyclonedx-npm --package-lock-only --omit dev --output-reproducible --validate --output-format JSON --output-file local-markdown-vault.cdx.json",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit -p tsconfig.json --watch",
     "vscode:prepublish": "node esbuild.js --production"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@cyclonedx/cyclonedx-npm": "6.0.1",
     "@playwright/test": "^1.63.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.90.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "fast-check": "^4.9.0",
+    "jszip": "3.10.1",
     "mocha": "^12.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "diff": "8.0.3",
+    "serialize-javascript": "7.0.5"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -230,7 +578,16 @@
     "@shikijs/engine-javascript": "^1.24.0",
     "@shikijs/langs": "^1.24.0",
     "@shikijs/themes": "^1.24.0",
+    "dompurify": "3.4.15",
+    "katex": "0.18.7",
     "mermaid": "^11.4.1",
+    "re2js": "2.8.6",
     "yaml": "^2.9.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "@vscode/vsce-sign": false,
+    "fsevents": false,
+    "keytar": false
   }
 }

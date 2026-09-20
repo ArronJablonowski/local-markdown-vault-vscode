@@ -2,13 +2,20 @@ import { EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import type { EditorState } from '@codemirror/state';
+import type { PastedImagePayload } from '../shared/messages';
+import {
+	MAX_PASTED_IMAGE_BYTES,
+	MAX_PASTED_IMAGE_COUNT,
+	MAX_PASTED_IMAGE_OPERATION_BYTES,
+} from '../shared/messageValidation';
 
 export type ImagePasteCallback = (
 	atPos: number,
-	mimeType: string,
-	dataBase64: string,
+	images: PastedImagePayload[],
 	needsOwnParagraph: boolean,
 ) => void;
+
+export type ImagePasteRejection = 'unsupported' | 'empty' | 'tooMany' | 'tooLarge' | 'unreadable';
 
 export interface InsertionPoint {
 	pos: number;
@@ -36,27 +43,56 @@ export function escapeTable(state: EditorState, pos: number): InsertionPoint {
 	return { pos, needsOwnParagraph: false };
 }
 
-// Only the first image among multiple pasted/dropped items is handled — the
-// common case (a single screenshot) covers the vast majority of real use;
-// sequential multi-image insertion is out of scope for this feature.
-function findImageFile(items: DataTransferItemList | undefined | null): File | undefined {
-	if (!items) return undefined;
-	for (let i = 0; i < items.length; i++) {
-		const item = items[i];
-		if (item.kind === 'file' && item.type.startsWith('image/')) {
-			const file = item.getAsFile();
-			if (file) return file;
-		}
+const SUPPORTED_RASTER_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp']);
+
+type ImageFileSelection =
+	| { kind: 'none' }
+	| { kind: 'invalid'; reason: ImagePasteRejection }
+	| { kind: 'valid'; files: File[] };
+
+function validateImageFiles(files: File[], sawImage: boolean): ImageFileSelection {
+	if (!sawImage) return { kind: 'none' };
+	if (files.length === 0) return { kind: 'invalid', reason: 'unreadable' };
+	if (files.length > MAX_PASTED_IMAGE_COUNT) return { kind: 'invalid', reason: 'tooMany' };
+	let totalBytes = 0;
+	for (const file of files) {
+		if (!SUPPORTED_RASTER_MIMES.has(file.type.toLowerCase())) return { kind: 'invalid', reason: 'unsupported' };
+		if (!Number.isSafeInteger(file.size) || file.size < 0) return { kind: 'invalid', reason: 'unreadable' };
+		if (file.size === 0) return { kind: 'invalid', reason: 'empty' };
+		if (file.size > MAX_PASTED_IMAGE_BYTES ||
+			totalBytes > MAX_PASTED_IMAGE_OPERATION_BYTES - file.size) return { kind: 'invalid', reason: 'tooLarge' };
+		totalBytes += file.size;
 	}
-	return undefined;
+	return { kind: 'valid', files };
 }
 
-function findImageFileInList(files: FileList | undefined | null): File | undefined {
-	if (!files) return undefined;
-	for (let i = 0; i < files.length; i++) {
-		if (files[i].type.startsWith('image/')) return files[i];
+function selectImageItems(items: DataTransferItemList | undefined | null): ImageFileSelection {
+	if (!items) return { kind: 'none' };
+	const files: File[] = [];
+	let sawImage = false;
+	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+		if (item.kind === 'file' && item.type.toLowerCase().startsWith('image/')) {
+			sawImage = true;
+			const file = item.getAsFile();
+			if (!file) return { kind: 'invalid', reason: 'unreadable' };
+			files.push(file);
+		}
 	}
-	return undefined;
+	return validateImageFiles(files, sawImage);
+}
+
+export function selectDroppedImageFiles(files: FileList | undefined | null): ImageFileSelection {
+	if (!files) return { kind: 'none' };
+	const images: File[] = [];
+	let sawImage = false;
+	for (let i = 0; i < files.length; i++) {
+		if (files[i].type.toLowerCase().startsWith('image/')) {
+			sawImage = true;
+			images.push(files[i]);
+		}
+	}
+	return validateImageFiles(images, sawImage);
 }
 
 // `FileReader.readAsDataURL` is used (rather than hand-rolling base64 from
@@ -76,24 +112,47 @@ function readAsBase64(file: File): Promise<string> {
 	});
 }
 
-/** Intercepts pasting/dropping an image, handing its position + MIME type + base64 data to `onImage`. */
-export function createImagePasteHandler(onImage: ImagePasteCallback) {
+async function readImages(files: File[]): Promise<PastedImagePayload[]> {
+	const images: PastedImagePayload[] = [];
+	// Read sequentially so a maximum-sized operation never creates several
+	// simultaneous FileReader buffers on the webview's UI thread.
+	for (const file of files) images.push({ mimeType: file.type, dataBase64: await readAsBase64(file) });
+	return images;
+}
+
+/** Intercepts a bounded image batch and hands one atomic operation to the host. */
+export function createImagePasteHandler(
+	onImages: ImagePasteCallback,
+	onRejected: (reason: ImagePasteRejection) => void = () => undefined,
+) {
 	return EditorView.domEventHandlers({
 		paste(event, view) {
-			const file = findImageFile(event.clipboardData?.items);
-			if (!file) return false; // not an image — let normal text paste proceed untouched
+			const selection = selectImageItems(event.clipboardData?.items);
+			if (selection.kind === 'none') return false; // not an image — let normal text paste proceed untouched
 			event.preventDefault();
+			if (selection.kind === 'invalid') {
+				onRejected(selection.reason);
+				return true;
+			}
 			const { pos, needsOwnParagraph } = escapeTable(view.state, view.state.selection.main.from);
-			void readAsBase64(file).then((dataBase64) => onImage(pos, file.type, dataBase64, needsOwnParagraph));
+			void readImages(selection.files)
+				.then((images) => onImages(pos, images, needsOwnParagraph))
+				.catch(() => onRejected('unreadable'));
 			return true;
 		},
 		drop(event, view) {
-			const file = findImageFileInList(event.dataTransfer?.files);
-			if (!file) return false;
+			const selection = selectDroppedImageFiles(event.dataTransfer?.files);
+			if (selection.kind === 'none') return false;
 			event.preventDefault();
+			if (selection.kind === 'invalid') {
+				onRejected(selection.reason);
+				return true;
+			}
 			const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
 			const { pos, needsOwnParagraph } = escapeTable(view.state, dropPos);
-			void readAsBase64(file).then((dataBase64) => onImage(pos, file.type, dataBase64, needsOwnParagraph));
+			void readImages(selection.files)
+				.then((images) => onImages(pos, images, needsOwnParagraph))
+				.catch(() => onRejected('unreadable'));
 			return true;
 		},
 	});

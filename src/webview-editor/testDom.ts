@@ -1,6 +1,6 @@
 // A minimal DOM stand-in for unit-testing the widget renderers.
 //
-// The test environment is plain Node (see vitest.config.ts) — the webview code
+// The test environment is plain Node (see vitest.config.mts) — the webview code
 // under test only ever needs `document.createElement` / `createTextNode` plus
 // child appending and a few attributes, so a real DOM implementation would be a
 // heavyweight dependency for a very small surface. This provides exactly that

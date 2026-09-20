@@ -1,5 +1,6 @@
 import type { HostToOutlineMessage, OutlineToHostMessage } from '../shared/messages';
 import { t } from '../shared/i18n';
+import { validateHostToOutlineMessage } from '../shared/auxMessageValidation';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -47,8 +48,10 @@ function renderHeadings(headings: Array<{ level: number; text: string; line: num
 	root.appendChild(list);
 }
 
-window.addEventListener('message', (event: MessageEvent<HostToOutlineMessage>) => {
-	const message = event.data;
+window.addEventListener('message', (event: MessageEvent<unknown>) => {
+	const parsed = validateHostToOutlineMessage(event.data);
+	if (!parsed.ok) return;
+	const message = parsed.value;
 	switch (message.type) {
 		case 'update':
 			renderHeadings(message.headings);

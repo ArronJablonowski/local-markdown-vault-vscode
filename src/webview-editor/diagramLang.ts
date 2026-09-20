@@ -23,7 +23,19 @@ export type DiagramKind = 'mermaid' | 'drawio';
  */
 const DRAWIO_LANGS = new Set(['drawio', 'diagrams.net', 'diagramsnet', 'mxgraph']);
 
+let diagramRenderingAllowed = true;
+
+/** Restricted Mode treats diagram source as inert fenced code. */
+export function setDiagramRenderingAllowed(allowed: boolean): void {
+	diagramRenderingAllowed = allowed;
+}
+
+export function isDiagramRenderingAllowed(): boolean {
+	return diagramRenderingAllowed;
+}
+
 export function isDiagramLang(lang: string): DiagramKind | null {
+	if (!diagramRenderingAllowed) return null;
 	if (lang === 'mermaid') return 'mermaid';
 	if (DRAWIO_LANGS.has(lang)) return 'drawio';
 	return null;

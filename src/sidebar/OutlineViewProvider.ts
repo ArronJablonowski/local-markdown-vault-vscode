@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import type { HostToOutlineMessage, OutlineToHostMessage } from '../shared/messages';
 import type { MarkdownLivePreviewProvider } from '../editor/MarkdownLivePreviewProvider';
 import { escapeAttribute } from '../shared/i18n';
+import { validateOutlineToHostMessage } from '../shared/auxMessageValidation';
+import { diagnosticEventRateLimited } from '../diagnostics';
 
 const REFRESH_DEBOUNCE_MS = 150;
 
@@ -31,7 +33,14 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 			],
 		};
 		webviewView.webview.html = this.buildHtml(webviewView.webview);
-		webviewView.webview.onDidReceiveMessage((message: OutlineToHostMessage) => this.handleMessage(message));
+		webviewView.webview.onDidReceiveMessage((raw: unknown) => {
+			const parsed = validateOutlineToHostMessage(raw);
+			if (!parsed.ok) {
+				diagnosticEventRateLimited('protocol.outlineMessageRejected', { reason: parsed.reason });
+				return;
+			}
+			this.handleMessage(parsed.value);
+		});
 		webviewView.onDidDispose(() => {
 			if (this.view === webviewView) {
 				this.view = undefined;
@@ -71,6 +80,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'webview-outline-style.css'),
 		);
 		const nonce = getNonce();
+		const documentTitle = vscode.l10n.t('Outline');
 
 		return `<!DOCTYPE html>
 <html lang="${escapeAttribute(vscode.env.language)}">
@@ -78,13 +88,10 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
-	<title>Outline</title>
+	<title>${escapeAttribute(documentTitle)}</title>
 </head>
 <body>
 	<div id="mlp-outline-root"></div>
-	<script nonce="${nonce}">
-		window.mlpLocale = ${JSON.stringify(vscode.env.language)};
-	</script>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

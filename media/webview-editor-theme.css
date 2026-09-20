@@ -6,6 +6,21 @@ html, body {
 	color: var(--vscode-editor-foreground);
 }
 
+.mlp-document-limit {
+	box-sizing: border-box;
+	max-width: 48rem;
+	margin: 4rem auto;
+	padding: 1.5rem;
+	color: var(--vscode-foreground, var(--vscode-editor-foreground));
+	font-family: var(--vscode-font-family, sans-serif);
+	line-height: 1.5;
+}
+
+.mlp-document-limit h1 {
+	font-size: 1.35rem;
+	margin: 0 0 1rem;
+}
+
 #mlp-root {
 	height: 100%;
 }
@@ -312,6 +327,140 @@ html, body {
 	text-decoration: underline;
 }
 
+.mlp-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
+}
+
+#mlp-image-paste-warning {
+	position: fixed;
+	right: 12px;
+	bottom: 12px;
+	z-index: 20;
+	max-width: min(420px, calc(100vw - 24px));
+	padding: 8px 10px;
+	border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-editorWarning-foreground, #cca700));
+	border-radius: 4px;
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-editor-foreground));
+	background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background, #252526));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+}
+
+.mlp-wikilink {
+	text-decoration: none;
+	border-bottom: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+	cursor: pointer;
+}
+
+.mlp-wikilink-unresolved {
+	color: var(--vscode-editorWarning-foreground, #cca700);
+	text-decoration: underline dotted;
+}
+
+.mlp-wikilink-embed::before {
+	content: "↳";
+	margin-right: 0.2em;
+	opacity: 0.7;
+}
+
+.mlp-line-callout {
+	background: color-mix(in srgb, var(--vscode-textBlockQuote-background, #7f7f7f1a) 75%, transparent);
+	border-left: 3px solid var(--vscode-textLink-foreground, #3794ff);
+	padding-left: 0.75em;
+	padding-right: 0.75em;
+}
+
+.mlp-line-callout-first {
+	border-radius: 4px 4px 0 0;
+	padding-top: 0.45em;
+}
+
+.mlp-line-callout-last {
+	border-radius: 0 0 4px 4px;
+	padding-bottom: 0.45em;
+}
+
+.mlp-callout-warning,
+.mlp-callout-caution,
+.mlp-callout-danger,
+.mlp-callout-error {
+	border-left-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.mlp-callout-header {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45em;
+	width: 100%;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+}
+
+.mlp-callout-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
+}
+
+.mlp-callout-title { flex: 1; }
+.mlp-callout-chevron { font-size: 1.2em; }
+.mlp-callout-content-collapsed { display: none !important; }
+
+.mlp-math {
+	color: var(--vscode-editor-foreground);
+}
+
+.mlp-math-inline math { vertical-align: middle; }
+
+.mlp-math-block {
+	padding: 0.75em 0;
+	text-align: center;
+	overflow-x: auto;
+}
+
+.mlp-math-block math { margin: 0 auto; }
+
+.mlp-math-error {
+	color: var(--vscode-errorForeground, #f48771);
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 0.9em;
+}
+
+.mlp-footnote-reference,
+.mlp-footnote-definition-label {
+	border: 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	font: inherit;
+	cursor: pointer;
+}
+
+.mlp-footnote-reference {
+	padding: 0 0.15em;
+	font-size: 0.8em;
+	text-decoration: underline;
+}
+
+.mlp-line-footnote-definition {
+	font-size: 0.92em;
+	color: var(--vscode-descriptionForeground, #a0a0a0);
+}
+
+.mlp-footnote-definition-label {
+	min-width: 2em;
+	padding: 0 0.35em 0 0;
+}
+
+.mlp-footnote-reference:focus-visible,
+.mlp-footnote-definition-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+}
+
 .mlp-image {
 	max-width: 100%;
 	border-radius: 4px;
@@ -370,8 +519,33 @@ html, body {
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 4px;
 	padding-bottom: 3px;
+}
+.mlp-table-action-btn {
+	min-width: 24px;
+	height: 20px;
+	padding: 0 5px;
+	font: 11px/1 var(--vscode-editor-font-family, monospace);
+	color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground, #ccc));
+	background: var(--vscode-button-secondaryBackground, rgba(127, 127, 127, 0.14));
+	border: 1px solid var(--vscode-contrastBorder, rgba(127, 127, 127, 0.35));
+	border-radius: 3px;
+	cursor: pointer;
+}
+.mlp-table-action-btn:hover:not(:disabled),
+.mlp-table-action-btn:focus-visible:not(:disabled) {
+	color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground, #fff));
+	background: var(--vscode-button-secondaryHoverBackground, rgba(127, 127, 127, 0.3));
+}
+.mlp-table-action-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: 1px;
+}
+.mlp-table-action-btn:disabled {
+	opacity: 0.35;
+	cursor: default;
 }
 /* Positioned box that puts a code-mode button in a block's top-right corner
    (see withCodeModeButton in codeModeButton.ts). Used by the blocks that have
@@ -501,6 +675,95 @@ html, body {
 	outline: 1px solid var(--vscode-focusBorder, #0078d4);
 	outline-offset: 1px;
 }
+.mlp-tag,
+.mlp-property-tag {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent);
+	border-radius: 999px;
+	padding: 0 0.28em;
+	text-decoration: none;
+}
+.mlp-frontmatter td[role="button"] {
+	cursor: text;
+}
+.mlp-frontmatter td[role="button"]:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: -2px;
+}
+.mlp-property-input {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 8em;
+	padding: 2px 4px;
+	font: inherit;
+	color: var(--vscode-input-foreground, inherit);
+	background: var(--vscode-input-background, transparent);
+	border: 1px solid var(--vscode-focusBorder, #0078d4);
+	border-radius: 2px;
+}
+.mlp-property-input[aria-invalid="true"] {
+	border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground, #f48771));
+}
+.mlp-property-error {
+	margin-top: 3px;
+	color: var(--vscode-errorForeground, #f48771);
+	font-size: 0.9em;
+}
+
+.mlp-wiki-note-embed {
+	display: block;
+	margin: 0.6em 0;
+	padding: 0.65em 0.8em;
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, rgba(127, 127, 127, 0.4)));
+	border-left: 3px solid var(--vscode-textLink-foreground, #3794ff);
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.06));
+}
+.mlp-wiki-note-embed-nested {
+	margin-left: 0.5em;
+}
+.mlp-wiki-embed-source {
+	display: inline-block;
+	margin-bottom: 0.35em;
+	font-size: 0.85em;
+	font-weight: 600;
+}
+.mlp-wiki-embed-content > :first-child { margin-top: 0; }
+.mlp-wiki-embed-content > :last-child { margin-bottom: 0; }
+.mlp-wiki-embed-status {
+	color: var(--vscode-descriptionForeground, #aaa);
+	font-style: italic;
+}
+.mlp-wiki-embed-error {
+	color: var(--vscode-errorForeground, #f48771);
+}
+.mlp-wikilink-hover {
+	position: fixed;
+	z-index: 1000;
+	width: min(420px, calc(100vw - 16px));
+	max-height: min(360px, calc(100vh - 16px));
+	overflow: auto;
+	padding: 10px 12px;
+	color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground, #ddd));
+	background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background, #252526));
+	border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-widget-border, #454545));
+	border-radius: 5px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+	pointer-events: none;
+}
+.mlp-wikilink-hover-title {
+	margin-bottom: 0.35em;
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground, #aaa);
+}
+.mlp-wikilink-hover-content > :first-child { margin-top: 0; }
+.mlp-wikilink-hover-content > :last-child { margin-bottom: 0; }
+.mlp-embed-raw-html {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
 table.mlp-table {
 	border-collapse: collapse;
 	width: 100%;
@@ -543,6 +806,13 @@ table.mlp-table th, table.mlp-table td {
 	height: 34px;
 	box-sizing: border-box;
 	vertical-align: middle;
+}
+/* A focused-but-not-yet-editing cell is the keyboard selection used by the
+   structural toolbar. Keep that state visible without changing table geometry. */
+table.mlp-table th.mlp-table-cell:focus-visible:not(.mlp-table-cell-editing),
+table.mlp-table td.mlp-table-cell:focus-visible:not(.mlp-table-cell-editing) {
+	outline: 2px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: -2px;
 }
 /* The cell being edited shows its raw Markdown. The outline marks it the way a
    spreadsheet marks its active cell; `outline` rather than `border` so it costs
@@ -605,6 +875,45 @@ table.mlp-frontmatter td pre {
 	font-family: var(--vscode-editor-font-family, monospace);
 	white-space: pre-wrap;
 }
+
+.mlp-property-number { font-variant-numeric: tabular-nums; }
+
+.mlp-property-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35em;
+}
+
+.mlp-property-chip,
+.mlp-property-link {
+	display: inline-block;
+	padding: 0.08em 0.45em;
+	border-radius: 999px;
+	background: var(--vscode-badge-background, #4d4d4d);
+	color: var(--vscode-badge-foreground, #fff);
+}
+
+.mlp-property-link { color: var(--vscode-textLink-foreground, #3794ff); }
+.mlp-property-link-cell {
+	display: flex;
+	align-items: center;
+	gap: 0.35em;
+}
+.mlp-property-edit {
+	border: 0;
+	border-radius: 3px;
+	padding: 0.08em 0.35em;
+	color: var(--vscode-icon-foreground, currentColor);
+	background: transparent;
+	cursor: pointer;
+}
+.mlp-property-edit:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2)); }
+.mlp-property-edit:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 1px;
+}
+.mlp-property-date time,
+.mlp-property-datetime time { font-variant-numeric: tabular-nums; }
 
 .mlp-frontmatter-error {
 	margin: 0; /* spacing lives on the `.mlp-block` wrapper */
@@ -1091,4 +1400,23 @@ table.mlp-frontmatter td pre {
 }
 .cm-searchMatch-selected {
 	background: var(--vscode-editor-findMatchBackground, rgba(255, 165, 0, 0.5)) !important;
+}
+#mlp-css-warning {
+	position: fixed;
+	top: 0.5rem;
+	right: 0.75rem;
+	z-index: 1000;
+	max-width: min(32rem, calc(100vw - 1.5rem));
+	box-sizing: border-box;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+	border-radius: 4px;
+	background: var(--vscode-inputValidation-warningBackground, #352a05);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-editor-foreground));
+	font: var(--vscode-font-size, 13px)/1.4 var(--vscode-font-family, sans-serif);
+	pointer-events: none;
+}
+
+#mlp-css-warning[hidden] {
+	display: none;
 }

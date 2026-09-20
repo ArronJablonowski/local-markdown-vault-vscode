@@ -3,6 +3,8 @@ import type { StyleEntry } from '../shared/messages';
 
 const CONFIG_SECTION = 'mdLivePreview';
 const ENABLED_STYLES_KEY = 'enabledStyles';
+export const MAX_STYLE_FILES = 1_000;
+export const MAX_STYLE_BYTES = 1024 * 1024;
 
 // Bumped whenever the bundled sample set changes; drives a one-time (re)seed so
 // existing installs pick up new templates without re-creating ones the user
@@ -160,7 +162,11 @@ export class StyleStore {
 	}
 
 	private getEnabledIds(): string[] {
-		return vscode.workspace.getConfiguration(CONFIG_SECTION).get<string[]>(ENABLED_STYLES_KEY, []);
+		const configured = vscode.workspace.getConfiguration(CONFIG_SECTION).get<unknown>(ENABLED_STYLES_KEY, []);
+		if (!Array.isArray(configured)) return [];
+		return configured
+			.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 256 && !/[\u0000-\u001f\u007f/\\]/.test(id))
+			.slice(0, 1);
 	}
 
 	private async setEnabledIds(ids: string[]): Promise<void> {
@@ -170,13 +176,21 @@ export class StyleStore {
 	}
 
 	async listEntries(): Promise<StyleEntry[]> {
-		const files = await this.listAllStyleFiles();
+		const files = (await this.listAllStyleFiles()).slice(0, MAX_STYLE_FILES);
 		const enabled = new Set(this.getEnabledIds());
 		const entries: StyleEntry[] = [];
+		let remainingBytes = MAX_STYLE_BYTES;
 		for (const f of files) {
 			let css = '';
 			try {
-				css = Buffer.from(await vscode.workspace.fs.readFile(f.uri)).toString('utf8');
+				const stat = await vscode.workspace.fs.stat(f.uri);
+				if (stat.size <= remainingBytes) {
+					const bytes = await vscode.workspace.fs.readFile(f.uri);
+					if (bytes.byteLength <= remainingBytes) {
+						css = Buffer.from(bytes).toString('utf8');
+						remainingBytes -= bytes.byteLength;
+					}
+				}
 			} catch {
 				// unreadable between listing and reading — show it without a preview
 			}
@@ -187,31 +201,41 @@ export class StyleStore {
 
 	/** Selection is exclusive: enabling a style disables every other one. */
 	async setEnabled(id: string, enabled: boolean): Promise<void> {
+		if (!vscode.workspace.isTrusted) return;
+		if (enabled && !(await this.listAllStyleFiles()).some((file) => file.id === id)) return;
+		if (!vscode.workspace.isTrusted) return;
 		await this.setEnabledIds(enabled ? [id] : []);
 		await this.refresh();
 	}
 
-	async createNewStyle(): Promise<vscode.Uri> {
+	async createNewStyle(): Promise<vscode.Uri | undefined> {
+		if (!vscode.workspace.isTrusted) return undefined;
 		const dir = this.stylesUri;
 		try {
 			await vscode.workspace.fs.stat(dir);
 		} catch {
+			if (!vscode.workspace.isTrusted) return undefined;
 			await vscode.workspace.fs.createDirectory(dir);
 		}
-		const existingNames = new Set((await this.listAllStyleFiles()).map((f) => f.name));
+		const files = await this.listAllStyleFiles();
+		if (files.length >= MAX_STYLE_FILES) return undefined;
+		const existingNames = new Set(files.map((f) => f.name));
 		let name = `${vscode.l10n.t('New style')}.css`;
 		let i = 1;
 		while (existingNames.has(name)) {
 			name = `${vscode.l10n.t('New style')} ${++i}.css`;
 		}
 		const uri = vscode.Uri.joinPath(dir, name);
+		if (!vscode.workspace.isTrusted) return undefined;
 		await vscode.workspace.fs.writeFile(uri, Buffer.from(NEW_STYLE_TEMPLATE, 'utf8'));
 		return uri;
 	}
 
 	/** Copy a style to "<name> のコピー.css" (uniquified). The copy is not auto-enabled. */
 	async duplicateStyle(id: string): Promise<vscode.Uri | undefined> {
+		if (!vscode.workspace.isTrusted) return undefined;
 		const files = await this.listAllStyleFiles();
+		if (files.length >= MAX_STYLE_FILES) return undefined;
 		const file = files.find((f) => f.id === id);
 		if (!file) return undefined;
 		const base = file.name.replace(/\.css$/i, '');
@@ -223,6 +247,7 @@ export class StyleStore {
 		}
 		const target = vscode.Uri.joinPath(this.stylesUri, name);
 		const bytes = await vscode.workspace.fs.readFile(file.uri);
+		if (!vscode.workspace.isTrusted) return undefined;
 		await vscode.workspace.fs.writeFile(target, bytes);
 		await this.refresh();
 		return target;
@@ -234,6 +259,7 @@ export class StyleStore {
 	 * enabled one, the selection is carried over to the new name.
 	 */
 	async renameStyle(id: string, rawName: string): Promise<void> {
+		if (!vscode.workspace.isTrusted) return;
 		const files = await this.listAllStyleFiles();
 		const file = files.find((f) => f.id === id);
 		if (!file) return;
@@ -244,6 +270,7 @@ export class StyleStore {
 		const target = vscode.Uri.joinPath(this.stylesUri, name);
 		// overwrite:false makes fs.rename throw if the target exists, surfacing a
 		// clear error to the caller rather than silently clobbering another style.
+		if (!vscode.workspace.isTrusted) return;
 		await vscode.workspace.fs.rename(file.uri, target, { overwrite: false });
 		if (this.getEnabledIds().includes(id)) {
 			await this.setEnabledIds([name]);
@@ -252,9 +279,11 @@ export class StyleStore {
 	}
 
 	async deleteStyle(id: string): Promise<void> {
+		if (!vscode.workspace.isTrusted) return;
 		const files = await this.listAllStyleFiles();
 		const file = files.find((f) => f.id === id);
 		if (!file) return;
+		if (!vscode.workspace.isTrusted) return;
 		await vscode.workspace.fs.delete(file.uri);
 		if (this.getEnabledIds().includes(id)) {
 			await this.setEnabled(id, false);
@@ -262,8 +291,9 @@ export class StyleStore {
 	}
 
 	async openStyleForEditing(id: string): Promise<void> {
+		if (!vscode.workspace.isTrusted) return;
 		const uri = await this.resolveStyleUri(id);
-		if (!uri) return;
+		if (!uri || !vscode.workspace.isTrusted) return;
 		const doc = await vscode.workspace.openTextDocument(uri);
 		await vscode.window.showTextDocument(doc, { preview: false });
 	}
@@ -281,8 +311,13 @@ export class StyleStore {
 		for (const file of files) {
 			if (!enabled.has(file.id)) continue;
 			try {
+				const stat = await vscode.workspace.fs.stat(file.uri);
+				if (stat.size > MAX_STYLE_BYTES) continue;
 				const bytes = await vscode.workspace.fs.readFile(file.uri);
-				parts.push(`/* ${file.name} */\n${Buffer.from(bytes).toString('utf8')}`);
+				if (bytes.byteLength > MAX_STYLE_BYTES) continue;
+				const prefix = `/* ${file.name} */\n`;
+				if (bytes.byteLength + Buffer.byteLength(prefix, 'utf8') > MAX_STYLE_BYTES) continue;
+				parts.push(`${prefix}${Buffer.from(bytes).toString('utf8')}`);
 			} catch {
 				// file became unreadable between listing and reading; skip it
 			}

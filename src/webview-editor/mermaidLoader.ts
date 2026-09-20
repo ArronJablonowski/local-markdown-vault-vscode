@@ -1,3 +1,5 @@
+import { t } from '../shared/i18n';
+
 /**
  * On-demand loader for the Mermaid bundle.
  *
@@ -47,21 +49,23 @@ export function loadMermaidModule(): Promise<MermaidApi> {
 			return;
 		}
 
-		const src = window.mlpMermaidChunkUri;
+		const root = typeof document.getElementById === 'function' ? document.getElementById('mlp-root') : null;
+		const src = root?.dataset.mermaidUri ?? window.mlpMermaidChunkUri;
 		if (!src) {
-			reject(new Error('Mermaid chunk URI was not provided by the host'));
+			reject(new Error(t('mermaid.chunkMissing')));
 			return;
 		}
 
 		const script = document.createElement('script');
 		script.src = src;
 		// Without a matching nonce the webview's CSP blocks this tag silently.
-		if (window.mlpNonce) script.nonce = window.mlpNonce;
+		const nonce = root?.dataset.scriptNonce ?? window.mlpNonce;
+		if (nonce) script.nonce = nonce;
 		script.addEventListener('load', () => {
 			if (window.mlpMermaid) resolve(window.mlpMermaid);
-			else reject(new Error('Mermaid chunk loaded but did not register itself'));
+			else reject(new Error(t('mermaid.registrationMissing')));
 		});
-		script.addEventListener('error', () => reject(new Error('Failed to load the Mermaid bundle')));
+		script.addEventListener('error', () => reject(new Error(t('mermaid.loadFailed'))));
 		document.head.appendChild(script);
 	});
 

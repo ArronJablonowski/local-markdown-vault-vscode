@@ -157,6 +157,19 @@ export function allowRevealOnce(): void {
 }
 
 /**
+ * Keeps a rendered block in widget mode while an internal keyboard control
+ * deliberately parks CodeMirror's document selection on that block.
+ *
+ * Pointer-driven controls get this protection from the global gesture guard.
+ * A keyboard event clears that guard in capture phase, so controls such as an
+ * editable table cell must restore it immediately before dispatching their
+ * selection change. The next keydown clears it normally.
+ */
+export function protectRenderedBlockFromCaret(): void {
+	suppressUntilNextPress = true;
+}
+
+/**
  * Block ranges whose source is currently on screen.
  *
  * Recorded as the decorations are built (`noteRevealed`), and consulted on the

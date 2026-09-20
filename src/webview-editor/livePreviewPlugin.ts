@@ -2,16 +2,31 @@ import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetTy
 import { syntaxTree } from '@codemirror/language';
 import type { Range, EditorState } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
-import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed } from './cmUtils';
-import { isDiagramLang } from './diagramLang';
+import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
+import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
 import { isDrawioPath } from './drawioFileClient';
 import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { detectFrontmatter } from './frontmatterWidget';
 import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
-import { insertRow, insertColumn, renderTableMarkdown, type TableEditModel } from './tableEdit';
+import {
+	insertRow,
+	insertColumn,
+	deleteRow,
+	deleteColumn,
+	moveRow,
+	moveColumn,
+	sortRows,
+	setColumnAlignment,
+	renderTableMarkdown,
+	type TableEditModel,
+} from './tableEdit';
 import { t } from '../shared/i18n';
+import { parseCalloutHeader } from './callouts';
+import type { RemoteMediaPolicy } from '../shared/messages';
+import { resolveLocalImage } from './localImageClient';
+import { isAbsoluteWebUrl } from '../shared/linkTarget';
 
 const HEADING_LINE_CLASS: Record<string, string> = {
 	ATXHeading1: 'mlp-line-h1',
@@ -52,41 +67,54 @@ export function blankLineAfter(state: EditorState, blockTo: number): number | nu
 	const lastLine = state.doc.lineAt(blockTo);
 	if (lastLine.number >= state.doc.lines) return null;
 	const next = state.doc.line(lastLine.number + 1);
-	return next.text === '' ? next.to : null;
+	return next.text === '' || next.text === '\r' ? next.to : null;
 }
 
-// The webview's document lives at a `vscode-webview://` origin, not the
-// actual folder holding the `.md` file — a Markdown image path like
-// `assets/foo.png`, meant to be relative to that folder, is meaningless
-// resolved against the webview's own origin instead, and the browser silently
-// fails to load it. `setImageBaseUri` is called once per `init` message with
-// a webview-loadable URI for the document's folder (see documentSync.ts), and
-// `resolveImageSrc` resolves a relative path against it at render time —
-// only the *displayed* `<img src>` is rewritten; the underlying Markdown
-// source keeps the plain, portable relative path.
-let imageBaseUri = '';
-export function setImageBaseUri(uri: string): void {
-	imageBaseUri = uri;
+// Local paths are never converted into webview-resource URLs here. They cross
+// the validated message boundary and the extension host returns a URL only
+// after lexical and canonical (symlink-resolved) vault containment checks.
+let remoteMediaPolicy: RemoteMediaPolicy = 'block';
+
+export function setRemoteMediaPolicy(policy: RemoteMediaPolicy): void {
+	remoteMediaPolicy = policy;
 }
 
 const ABSOLUTE_SRC_RE = /^([a-z][a-z0-9+.-]*:)/i;
 
-export function resolveImageSrc(src: string, baseUri: string): string {
-	if (ABSOLUTE_SRC_RE.test(src)) return src; // already a full URL (https:, data:, vscode-webview:, …)
-	if (!baseUri) return src;
-	try {
-		return new URL(src, baseUri).toString();
-	} catch {
-		return src;
+export function resolveImageSrc(
+	src: string,
+	remoteMedia: RemoteMediaPolicy = 'block',
+): string | undefined {
+	const trimmed = src.trim();
+	if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('\\\\')) return undefined;
+	const scheme = ABSOLUTE_SRC_RE.exec(trimmed)?.[1].toLowerCase();
+	if (scheme) {
+		return scheme === 'https:' && remoteMedia === 'https' && isAbsoluteWebUrl(trimmed, 'https:')
+			? trimmed
+			: undefined;
 	}
+	return undefined;
 }
 
-// Cells render their own images, so they need the same base-URI rewriting the
-// document's ImageWidget applies. Read through a getter rather than captured:
-// `setImageBaseUri` runs on the `init` message, potentially after this module
-// is first evaluated.
+/** Applies the active remote-media policy. Local files always cross the host boundary. */
+export function resolveImageSrcForCurrentPolicy(src: string): string | undefined {
+	return resolveImageSrc(src, remoteMediaPolicy);
+}
+
+function isPotentialLocalImage(src: string): boolean {
+	const trimmed = src.trim();
+	return !!trimmed && !trimmed.startsWith('//') && !trimmed.startsWith('\\\\') && !ABSOLUTE_SRC_RE.test(trimmed);
+}
+
+function requestLocalImage(src: string): Promise<string | undefined> {
+	return isPotentialLocalImage(src) ? resolveLocalImage(src) : Promise.resolve(undefined);
+}
+
+// Cells render their own images, so they use the same remote-media policy and
+// host-authorized local-image request path as the document's ImageWidget.
 const cellInlineHooks: CellInlineHooks = {
-	resolveImageSrc: (src) => resolveImageSrc(src, imageBaseUri),
+	resolveImageSrc: (src) => resolveImageSrc(src, remoteMediaPolicy),
+	resolveImageSrcAsync: requestLocalImage,
 };
 
 class ImageWidget extends WidgetType {
@@ -101,9 +129,20 @@ class ImageWidget extends WidgetType {
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const img = document.createElement('img');
-		img.src = resolveImageSrc(this.src, imageBaseUri);
-		img.alt = this.alt;
 		img.className = 'mlp-image';
+		const resolved = resolveImageSrc(this.src, remoteMediaPolicy);
+		if (resolved) img.src = resolved;
+		else {
+			img.classList.add('mlp-image-blocked');
+			if (isPotentialLocalImage(this.src)) {
+				void resolveLocalImage(this.src).then((uri) => {
+					img.src = uri;
+					img.classList.remove('mlp-image-blocked');
+					view.requestMeasure();
+				}).catch(() => undefined);
+			}
+		}
+		img.alt = this.alt;
 		// An <img> is zero-height until its bytes arrive, so the line CodeMirror
 		// measures at mount time is nothing like the line the user ends up seeing.
 		// CodeMirror can't observe the load, so ask it to re-measure once the real
@@ -126,6 +165,27 @@ class ImageWidget extends WidgetType {
 	ignoreEvent(): boolean {
 		return false;
 	}
+}
+
+class MarkdownLinkWidget extends WidgetType {
+	constructor(
+		private readonly label: string,
+		private readonly href: string,
+	) { super(); }
+	eq(other: MarkdownLinkWidget): boolean {
+		return other.label === this.label && other.href === this.href;
+	}
+	toDOM(): HTMLElement {
+		const link = document.createElement('a');
+		link.className = 'mlp-link';
+		link.dataset.href = this.href;
+		link.setAttribute('role', 'link');
+		link.setAttribute('tabindex', '0');
+		renderInlineInto(link, this.label, { resolveImageSrc: () => undefined });
+		if (!link.textContent) link.setAttribute('aria-label', this.href);
+		return link;
+	}
+	ignoreEvent(): boolean { return false; }
 }
 
 // CodeMirror calibrates its "typical line height" estimate (used to figure out
@@ -180,18 +240,82 @@ class CheckboxWidget extends WidgetType {
 		box.className = 'mlp-checkbox' + (this.checked ? ' mlp-checkbox-checked' : '');
 		box.setAttribute('role', 'checkbox');
 		box.setAttribute('aria-checked', String(this.checked));
-		box.addEventListener('mousedown', (event) => {
-			event.preventDefault();
+		box.setAttribute('aria-label', t(this.checked ? 'task.markIncomplete' : 'task.markComplete'));
+		box.tabIndex = 0;
+		const toggle = () => {
 			// The marker is "[ ]" / "[x]"; the state character sits at markerFrom + 1.
 			const stateChar = view.state.sliceDoc(this.markerFrom + 1, this.markerFrom + 2);
 			const insert = stateChar.toLowerCase() === 'x' ? ' ' : 'x';
 			view.dispatch({ changes: { from: this.markerFrom + 1, to: this.markerFrom + 2, insert } });
+		};
+		box.addEventListener('pointerdown', (event) => event.preventDefault());
+		box.addEventListener('click', (event) => {
+			event.preventDefault();
+			toggle();
+		});
+		box.addEventListener('keydown', (event) => {
+			if (event.key !== ' ' && event.key !== 'Enter') return;
+			event.preventDefault();
+			event.stopPropagation();
+			toggle();
 		});
 		return box;
 	}
 	ignoreEvent(): boolean {
 		return false;
 	}
+}
+
+class CalloutHeaderWidget extends WidgetType {
+	constructor(
+		private readonly type: string,
+		private readonly title: string,
+		private readonly initiallyCollapsed: boolean,
+	) { super(); }
+	eq(other: CalloutHeaderWidget): boolean {
+		return this.type === other.type && this.title === other.title && this.initiallyCollapsed === other.initiallyCollapsed;
+	}
+	toDOM(): HTMLElement {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'mlp-callout-header';
+		button.setAttribute('aria-expanded', String(!this.initiallyCollapsed));
+		button.setAttribute('aria-label', t('callout.label', this.title));
+		const icon = document.createElement('span');
+		icon.className = 'mlp-callout-icon';
+		icon.textContent = this.type === 'warning' || this.type === 'caution' ? '⚠' : '◆';
+		const label = document.createElement('span');
+		label.className = 'mlp-callout-title';
+		label.textContent = this.title;
+		const chevron = document.createElement('span');
+		chevron.className = 'mlp-callout-chevron';
+		chevron.textContent = this.initiallyCollapsed ? '›' : '⌄';
+		button.append(icon, label, chevron);
+		const setCollapsed = (collapsed: boolean) => {
+			button.setAttribute('aria-expanded', String(!collapsed));
+			chevron.textContent = collapsed ? '›' : '⌄';
+			let line = button.closest('.cm-line')?.nextElementSibling as HTMLElement | null;
+			while (line?.classList.contains('mlp-line-callout')) {
+				line.style.display = collapsed ? 'none' : '';
+				line.classList.toggle('mlp-callout-content-collapsed', collapsed);
+				line = line.nextElementSibling as HTMLElement | null;
+			}
+		};
+		const toggle = () => setCollapsed(button.getAttribute('aria-expanded') === 'true');
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			toggle();
+		});
+		button.addEventListener('keydown', (event) => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault();
+			event.stopPropagation();
+			toggle();
+		});
+		setTimeout(() => setCollapsed(this.initiallyCollapsed), 0);
+		return button;
+	}
+	ignoreEvent(): boolean { return false; }
 }
 
 /**
@@ -281,6 +405,10 @@ export function renderTableElement(model: TableModel, hooks: CellInlineHooks): H
 			cell.dataset.mlpCol = String(columnIndex);
 			const span = model.cellRanges[rowIndex]?.[columnIndex];
 			if (span) {
+				// A rendered cell is an editing control, not just static table text.
+				// Keep it in the natural tab order so keyboard users can select the
+				// row/column for toolbar actions and press Enter or F2 to edit it.
+				cell.setAttribute('tabindex', '0');
 				cell.dataset.mlpFrom = String(span.from);
 				cell.dataset.mlpTo = String(span.to);
 				// The Markdown source, kept verbatim: editing shows this rather than
@@ -390,6 +518,8 @@ class TableWidget extends WidgetType {
 		// the height it occupies is part of the box CodeMirror measures.
 		const toolbar = document.createElement('div');
 		toolbar.className = 'mlp-table-toolbar';
+		toolbar.setAttribute('role', 'toolbar');
+		toolbar.setAttribute('aria-label', t('table.toolbar'));
 		wrap.appendChild(toolbar);
 		wrap.appendChild(table);
 
@@ -401,6 +531,7 @@ class TableWidget extends WidgetType {
 		// The cell most recently clicked or tabbed to, remembered after editing
 		// ends so the code-mode button can put the caret back where the user was.
 		let lastCell: HTMLElement | null = null;
+		let refreshTableActions = (): void => {};
 
 		// Bound to the cell being edited, not to the table. A Tab that moves to the
 		// next cell commits first, which rebuilds this widget — the table element
@@ -566,10 +697,12 @@ class TableWidget extends WidgetType {
 			// because this widget is exempt from that reveal while a cell is being
 			// edited (see `blockCursorTouchesRange`).
 			if (ref.from <= view.state.doc.length) {
+				protectRenderedBlockFromCaret();
 				view.dispatch({ selection: { anchor: ref.from } });
 			}
 			editing = cell;
 			lastCell = cell;
+			refreshTableActions();
 			// Clear the spent mark: this cell is being edited afresh, and its next
 			// commit must go through even if an earlier one already did. Tabbing
 			// back onto a cell edited a moment ago otherwise silently discarded the
@@ -719,6 +852,45 @@ class TableWidget extends WidgetType {
 			}
 		});
 
+		// Pointer interaction enters editing immediately. Keyboard focus first
+		// selects a cell, enabling the same row/column toolbar actions without
+		// changing source; Enter or F2 then enters its in-place editor. Arrow keys
+		// move through the rendered grid and leave Tab/Shift+Tab available for the
+		// surrounding toolbar and editor controls.
+		table.addEventListener('focusin', (event) => {
+			const target = event.target as HTMLElement | null;
+			const cell = target?.closest('.mlp-table-cell') as HTMLElement | null;
+			if (!cell || !table.contains(cell) || !readCellRef(cell)) return;
+			lastCell = cell;
+			refreshTableActions();
+		});
+		table.addEventListener('keydown', (event) => {
+			if (editing || event.altKey || event.ctrlKey || event.metaKey) return;
+			const target = event.target as HTMLElement | null;
+			const cell = target?.closest('.mlp-table-cell') as HTMLElement | null;
+			// Links and other focusable content inside a cell keep their own keys.
+			if (!cell || target !== cell) return;
+			const ref = readCellRef(cell);
+			if (!ref) return;
+			if (event.key === 'Enter' || event.key === 'F2') {
+				event.preventDefault();
+				event.stopPropagation();
+				beginEditing(cell, 'all');
+				return;
+			}
+			const delta = event.key === 'ArrowLeft' ? [0, -1]
+				: event.key === 'ArrowRight' ? [0, 1]
+					: event.key === 'ArrowUp' ? [-1, 0]
+						: event.key === 'ArrowDown' ? [1, 0]
+							: null;
+			if (!delta) return;
+			const next = cellAt(ref.row + delta[0], ref.col + delta[1]);
+			if (!next || !readCellRef(next)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			next.focus();
+		});
+
 
 		// Clicking or tabbing away saves, mirroring a spreadsheet. Moving to
 		// another cell is handled by `beginEditing` before this fires.
@@ -824,9 +996,88 @@ class TableWidget extends WidgetType {
 			return button;
 		};
 
-		// Row and column are added at the end, which is what a `+` on the table's
-		// bottom and right edges reads as. Inserting elsewhere is a different
-		// gesture (a handle on the row or column itself) and is not offered here.
+		const tableActionButtons: HTMLButtonElement[] = [];
+		const makeActionButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
+			const button = makeAddButton(label, title, onClick);
+			button.className = 'mlp-table-action-btn';
+			button.disabled = true;
+			tableActionButtons.push(button);
+			toolbar.appendChild(button);
+			return button;
+		};
+		const selectedRef = (): CellRef | null => readCellRef(editing ?? lastCell ?? document.createElement('span'));
+		const applyToSelected = (change: (model: TableEditModel, ref: CellRef) => TableEditModel): void => {
+			const ref = selectedRef();
+			if (!ref) return;
+			applyStructuralEdit((model) => change(model, ref));
+		};
+
+		const insertRowAboveButton = makeActionButton('+R↑', t('table.insertRowAbove'), () =>
+			applyToSelected((model, ref) => insertRow(model, ref.row)),
+		);
+		const insertRowBelowButton = makeActionButton('+R↓', t('table.insertRowBelow'), () =>
+			applyToSelected((model, ref) => insertRow(model, ref.row + 1)),
+		);
+		const deleteRowButton = makeActionButton('−R', t('table.deleteRow'), () =>
+			applyToSelected((model, ref) => deleteRow(model, ref.row)),
+		);
+		const rowUpButton = makeActionButton('↑R', t('table.moveRowUp'), () =>
+			applyToSelected((model, ref) => moveRow(model, ref.row, -1)),
+		);
+		const rowDownButton = makeActionButton('↓R', t('table.moveRowDown'), () =>
+			applyToSelected((model, ref) => moveRow(model, ref.row, 1)),
+		);
+		const insertColumnLeftButton = makeActionButton('+C←', t('table.insertColumnLeft'), () =>
+			applyToSelected((model, ref) => insertColumn(model, ref.col)),
+		);
+		const insertColumnRightButton = makeActionButton('+C→', t('table.insertColumnRight'), () =>
+			applyToSelected((model, ref) => insertColumn(model, ref.col + 1)),
+		);
+		const deleteColumnButton = makeActionButton('−C', t('table.deleteColumn'), () =>
+			applyToSelected((model, ref) => deleteColumn(model, ref.col)),
+		);
+		const columnLeftButton = makeActionButton('←C', t('table.moveColumnLeft'), () =>
+			applyToSelected((model, ref) => moveColumn(model, ref.col, -1)),
+		);
+		const columnRightButton = makeActionButton('→C', t('table.moveColumnRight'), () =>
+			applyToSelected((model, ref) => moveColumn(model, ref.col, 1)),
+		);
+		const sortAscendingButton = makeActionButton('A↑', t('table.sortAscending'), () =>
+			applyToSelected((model, ref) => sortRows(model, ref.col, 'asc')),
+		);
+		const sortDescendingButton = makeActionButton('A↓', t('table.sortDescending'), () =>
+			applyToSelected((model, ref) => sortRows(model, ref.col, 'desc')),
+		);
+		const alignmentButton = makeActionButton('≡', t('table.cycleAlignment'), () =>
+			applyToSelected((model, ref) => {
+				const order: ColumnAlign[] = [null, 'left', 'center', 'right'];
+				const current = model.align[ref.col] ?? null;
+				return setColumnAlignment(model, ref.col, order[(order.indexOf(current) + 1) % order.length]);
+			}),
+		);
+		refreshTableActions = (): void => {
+			const ref = selectedRef();
+			for (const button of tableActionButtons) button.disabled = !ref;
+			if (!ref) return;
+			const headerCount = Math.max(1, this.headerRowCount);
+			const width = this.align.length || this.rows[0]?.length || 0;
+			insertRowAboveButton.disabled = ref.row < headerCount;
+			insertRowBelowButton.disabled = false;
+			deleteRowButton.disabled = ref.row < headerCount;
+			rowUpButton.disabled = ref.row <= headerCount;
+			rowDownButton.disabled = ref.row < headerCount || ref.row >= this.rows.length - 1;
+			deleteColumnButton.disabled = width <= 1;
+			insertColumnLeftButton.disabled = false;
+			insertColumnRightButton.disabled = false;
+			columnLeftButton.disabled = ref.col <= 0;
+			columnRightButton.disabled = ref.col >= width - 1;
+			sortAscendingButton.disabled = this.rows.length - headerCount < 2;
+			sortDescendingButton.disabled = this.rows.length - headerCount < 2;
+			alignmentButton.disabled = false;
+		};
+
+		// The edge controls preserve the quick append gesture. The toolbar controls
+		// above provide insertion relative to a selected row or column.
 		const addRowBtn = makeAddButton('+', t('table.addRow'), () =>
 			applyStructuralEdit((m) => insertRow(m, m.rows.length)),
 		);
@@ -1308,6 +1559,28 @@ function buildDecorations(view: EditorView): DecorationSet {
 						return;
 					}
 					case 'Blockquote':
+						{
+							const firstLine = doc.lineAt(node.from);
+							const raw = state.sliceDoc(firstLine.from, firstLine.to);
+							let blockquoteDepth = 0;
+							for (let ancestor: SyntaxNode | null = node.node; ancestor; ancestor = ancestor.parent) {
+								if (ancestor.name === 'Blockquote') blockquoteDepth++;
+							}
+							const callout = parseCalloutHeader(raw, blockquoteDepth);
+							if (callout) {
+								const type = callout.type;
+								const safeType = type.replace(/[^a-z0-9_-]/g, '');
+								addLineRange(node.from, node.to, (_n, first, last) =>
+									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}${callout.collapsed && !first ? ' mlp-callout-content-collapsed' : ''}`);
+								if (!blockCursorTouchesRange(state, node.from, node.to)) {
+									pushReplace(
+										firstLine.from + callout.markerOffset,
+										firstLine.to,
+										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, callout.collapsed) }),
+									);
+								}
+							}
+						}
 						addLineRange(node.from, node.to, (_n, first, last) => {
 							let cls = 'mlp-line-quote';
 							if (first) cls += ' mlp-line-quote-first';
@@ -1409,16 +1682,20 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const labelTo = marks[1].from;
 						const urlNode = node.node.getChild('URL');
 						const href = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : '';
-						decorations.push(
-							Decoration.mark({ tagName: 'a', class: 'mlp-link', attributes: { 'data-href': href } }).range(labelFrom, labelTo),
-						);
 						if (!cursorTouchesRange(state, node.from, node.to)) {
+							const label = state.sliceDoc(labelFrom, labelTo);
 							if (labelFrom > node.from) pushReplace(node.from, labelFrom, hiddenMarkerDeco);
+							if (labelFrom < labelTo) {
+								decorations.push(Decoration.replace({ widget: new MarkdownLinkWidget(label, href) }).range(labelFrom, labelTo));
+							} else {
+								decorations.push(Decoration.widget({ widget: new MarkdownLinkWidget(label, href) }).range(labelFrom));
+							}
 							if (node.to > labelTo) pushReplace(labelTo, node.to, hiddenMarkerDeco);
 						}
 						return false;
 					}
 					case 'Image': {
+						if (state.sliceDoc(node.from, Math.min(node.from + 3, node.to)) === '![[') return false;
 						const marks = node.node.getChildren('LinkMark');
 						if (marks.length < 2) return;
 						const altFrom = marks[0].to;
@@ -1426,6 +1703,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const urlNode = node.node.getChild('URL');
 						const src = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : '';
 						const alt = state.sliceDoc(altFrom, altTo);
+						if (isDrawioPath(src) && !isDiagramRenderingAllowed()) return false;
 						if (!cursorTouchesRange(state, node.from, node.to)) {
 							// A `.drawio` reference is XML, not an image format: an <img>
 							// pointed at it renders nothing at all, so it goes to the
@@ -1491,6 +1769,25 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
  * the keyboard. That is the same trade every rendered block makes here.
  */
 export function createLinkClickHandler(onOpen: (href: string) => void) {
+	const keyboardActivation = ViewPlugin.fromClass(class {
+		private readonly keydown = (event: KeyboardEvent) => {
+			if (event.key !== 'Enter') return;
+			const target = event.target as HTMLElement | null;
+			const linkEl = target?.closest('.mlp-link') as HTMLElement | null;
+			const href = linkEl?.getAttribute('data-href');
+			if (!href) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			onOpen(href);
+		};
+		constructor(private readonly view: EditorView) {
+			// CodeMirror's keymap consumes Enter before a domEventHandlers keydown
+			// callback when focus is on a marked text range. Capture at the editor
+			// root so a tabindex-enabled rendered link remains keyboard-operable.
+			view.dom.addEventListener('keydown', this.keydown, true);
+		}
+		destroy() { this.view.dom.removeEventListener('keydown', this.keydown, true); }
+	});
 	const handle = (event: MouseEvent): boolean => {
 		// Only the primary button; a right-click belongs to the context menu.
 		if (event.button !== 0) return false;
@@ -1502,7 +1799,7 @@ export function createLinkClickHandler(onOpen: (href: string) => void) {
 		onOpen(href);
 		return true;
 	};
-	return EditorView.domEventHandlers({
+	return [EditorView.domEventHandlers({
 		// Taken on the press, before CodeMirror's own mousedown handler can move
 		// the caret into the link and reveal its source.
 		mousedown: handle,
@@ -1513,5 +1810,5 @@ export function createLinkClickHandler(onOpen: (href: string) => void) {
 			event.preventDefault();
 			return true;
 		},
-	});
+	}), keyboardActivation];
 }

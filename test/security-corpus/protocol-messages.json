@@ -1,0 +1,124 @@
+{
+  "messages": [
+    {
+      "name": "non-object editor payload",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": null
+    },
+    {
+      "name": "unknown editor discriminator",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "executeCommand", "command": "workbench.action.terminal.new" }
+    },
+    {
+      "name": "unexpected privilege field",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "undo", "command": "workbench.action.files.save" }
+    },
+    {
+      "name": "negative edit offset",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "edit", "baseVersion": 1, "changes": [{ "from": -1, "to": 0, "insert": "x" }] }
+    },
+    {
+      "name": "unsafe-integer edit offset",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "edit", "baseVersion": 1, "changes": [{ "from": 9007199254740992, "to": 9007199254740992, "insert": "x" }] }
+    },
+    {
+      "name": "overlapping edit ranges",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "edit", "baseVersion": 1, "changes": [{ "from": 1, "to": 4, "insert": "a" }, { "from": 3, "to": 5, "insert": "b" }] }
+    },
+    {
+      "name": "unsorted edit ranges",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "edit", "baseVersion": 1, "changes": [{ "from": 5, "to": 5, "insert": "a" }, { "from": 1, "to": 1, "insert": "b" }] }
+    },
+    {
+      "name": "stale edit version",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "currentDocumentVersion": 7,
+      "message": { "type": "edit", "baseVersion": 6, "changes": [{ "from": 0, "to": 0, "insert": "x" }] }
+    },
+    {
+      "name": "malformed image base64",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "pasteImage", "atPos": 0, "mimeType": "image/png", "dataBase64": "not base64!", "needsOwnParagraph": false }
+    },
+    {
+      "name": "non-canonical image base64",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "pasteImage", "atPos": 0, "mimeType": "image/png", "dataBase64": "/x==", "needsOwnParagraph": false }
+    },
+    {
+      "name": "active image MIME",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "pasteImage", "atPos": 0, "mimeType": "image/svg+xml", "dataBase64": "PHN2Zz4=", "needsOwnParagraph": false }
+    },
+    {
+      "name": "oversized declared image payload",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "pasteImage", "atPos": 0, "mimeType": "image/png", "dataBase64": "", "needsOwnParagraph": false },
+      "repeat": { "field": "dataBase64", "character": "A", "length": 27962032 }
+    },
+    {
+      "name": "negative embed request id",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "readWikiEmbed", "requestId": -1, "body": "Note", "contextPath": "Current.md" }
+    },
+    {
+      "name": "embed traversal context",
+      "direction": "editorToHost",
+      "documentLength": 8,
+      "message": { "type": "readWikiEmbed", "requestId": 1, "body": "Note", "contextPath": "../Current.md" }
+    },
+    {
+      "name": "unknown host discriminator",
+      "direction": "hostToEditor",
+      "documentLength": 8,
+      "message": { "type": "runCommand", "command": "workbench.action.terminal.new" }
+    },
+    {
+      "name": "host cursor beyond document",
+      "direction": "hostToEditor",
+      "documentLength": 8,
+      "message": { "type": "setCursor", "pos": 9 }
+    },
+    {
+      "name": "host overlapping update",
+      "direction": "hostToEditor",
+      "documentLength": 8,
+      "message": { "type": "externalUpdate", "version": 2, "changes": [{ "from": 1, "to": 5, "insert": "a" }, { "from": 4, "to": 6, "insert": "b" }] }
+    },
+    {
+      "name": "vault chunk arithmetic overflow",
+      "direction": "hostToEditor",
+      "documentLength": 8,
+      "message": { "type": "vaultNotesChunk", "generation": 1, "offset": 1, "total": 1, "notes": [{ "path": "Note.md", "basename": "Note", "aliases": [], "headings": [], "blockIds": [] }] }
+    },
+    {
+      "name": "host image URI substitution",
+      "direction": "hostToEditor",
+      "documentLength": 8,
+      "message": { "type": "localImage", "requestId": 1, "uri": "file:///etc/passwd" }
+    }
+  ],
+  "queueFlood": {
+    "limit": 64,
+    "attempts": 4096
+  }
+}

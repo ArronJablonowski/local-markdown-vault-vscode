@@ -1,5 +1,7 @@
 import type { HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, StyleEntry, ThemeKind } from '../shared/messages';
 import { t } from '../shared/i18n';
+import { validateHostToSidebarMessage } from '../shared/auxMessageValidation';
+import { prepareSidebarPreviewCss } from '../shared/sidebarCss';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -40,32 +42,6 @@ const PREVIEW_SAMPLE = `
 // is no <body>, so remap `body` selectors to `:host` (the preview element),
 // keeping their theme-class gates as `:host(.vscode-dark)` etc. Only the selector
 // preludes at brace depth 0 are touched, so declaration values are left intact.
-function scopeThemeCss(css: string): string {
-	let out = '';
-	let depth = 0;
-	let prelude = '';
-	const remap = (sel: string) => sel.replace(/\bbody\b((?:\.[-\w]+)*)/g, (_m, cls) => (cls ? `:host(${cls})` : ':host'));
-	for (let i = 0; i < css.length; i++) {
-		const c = css[i];
-		if (c === '{') {
-			if (depth === 0) {
-				out += remap(prelude);
-				prelude = '';
-			}
-			out += c;
-			depth++;
-		} else if (c === '}') {
-			depth = Math.max(0, depth - 1);
-			out += c;
-		} else if (depth === 0) {
-			prelude += c;
-		} else {
-			out += c;
-		}
-	}
-	return out + remap(prelude);
-}
-
 const ICONS: Record<string, string> = {
 	edit: '<path d="M13.23 1.77a1.5 1.5 0 0 0-2.12 0l-8.9 8.9L1.5 14.5l3.83-.71 8.9-8.9a1.5 1.5 0 0 0 0-2.12l-1-1zM4.7 12.7l-1.4.26.26-1.4 6.16-6.16 1.14 1.14L4.7 12.7z"/>',
 	duplicate: '<path d="M10 1H3a1 1 0 0 0-1 1v8h1.5V2.5H10V1zm3 3H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zm-.5 9.5h-6v-8h6v8z"/>',
@@ -89,6 +65,12 @@ function iconButton(kind: keyof typeof ICONS, title: string, onClick: () => void
 function buildPreview(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 	const preview = document.createElement('div');
 	preview.className = `mlp-preview ${themeKind}`;
+	// Inline-important host properties outrank any `:host(...) !important` rule
+	// inside the theme's shadow stylesheet. This makes paint containment a real
+	// boundary rather than one a high-specificity user selector can undo.
+	preview.style.setProperty('overflow', 'hidden', 'important');
+	preview.style.setProperty('contain', 'paint', 'important');
+	preview.style.setProperty('isolation', 'isolate', 'important');
 	const shadow = preview.attachShadow({ mode: 'open' });
 	// `all:initial` on the host stops the sidebar's own font/color from leaking in,
 	// so the theme has full control (the shadow tree still gets normal UA element
@@ -102,7 +84,13 @@ function buildPreview(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 		':host{all:initial;display:block;}' +
 		'.mlp-preview-doc{padding:8px 12px;box-sizing:border-box;zoom:0.6;}' +
 		'.mlp-preview-doc>:first-child{margin-top:0 !important;}';
-	shadow.innerHTML = `<style>${reset}${scopeThemeCss(style.css)}</style><div class="mlp-preview-doc">${PREVIEW_SAMPLE}</div>`;
+	const styleElement = document.createElement('style');
+	// textContent is essential here: user CSS containing `</style>` must remain
+	// CSS text rather than breaking out into attacker-controlled shadow DOM.
+	styleElement.textContent = reset + prepareSidebarPreviewCss(style.css);
+	const template = document.createElement('template');
+	template.innerHTML = `<div class="mlp-preview-doc">${PREVIEW_SAMPLE}</div>`;
+	shadow.append(styleElement, template.content.cloneNode(true));
 	return preview;
 }
 
@@ -113,8 +101,19 @@ function buildCard(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 	const head = document.createElement('div');
 	head.className = 'mlp-card-head';
 
-	const radio = document.createElement('span');
+	const radio = document.createElement('input');
+	radio.type = 'radio';
+	radio.name = 'mlp-css-theme';
 	radio.className = 'mlp-radio';
+	radio.checked = style.enabled;
+	radio.setAttribute('aria-label', t('sidebar.applyStyle', style.name));
+	const apply = (): void => {
+		if (style.enabled) return;
+		radio.checked = true;
+		post({ type: 'toggle', id: style.id, enabled: true });
+	};
+	radio.addEventListener('click', (event) => event.stopPropagation());
+	radio.addEventListener('change', () => { if (radio.checked) apply(); });
 
 	const name = document.createElement('span');
 	name.className = 'mlp-name';
@@ -146,8 +145,7 @@ function buildCard(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 	// no-op (there must always be exactly one theme active, so selection can't be
 	// cleared this way — exclusive selection among the others is enforced by the host).
 	card.addEventListener('click', () => {
-		if (style.enabled) return;
-		post({ type: 'toggle', id: style.id, enabled: true });
+		apply();
 	});
 
 	return card;
@@ -217,7 +215,7 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 	return section;
 }
 
-function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: ThemeKind): void {
+function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: ThemeKind, workspaceTrusted: boolean): void {
 	root.innerHTML = '';
 
 	const themesSection = document.createElement('div');
@@ -228,7 +226,13 @@ function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: Them
 	title.textContent = t('sidebar.cssThemes');
 	themesSection.appendChild(title);
 
-	if (styles.length === 0) {
+	if (!workspaceTrusted) {
+		const restricted = document.createElement('p');
+		restricted.className = 'mlp-hint';
+		restricted.setAttribute('role', 'status');
+		restricted.textContent = t('sidebar.restrictedStyles');
+		themesSection.appendChild(restricted);
+	} else if (styles.length === 0) {
 		const empty = document.createElement('p');
 		empty.className = 'mlp-empty';
 		empty.textContent = t('sidebar.noStyles');
@@ -241,26 +245,31 @@ function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: Them
 
 		const list = document.createElement('div');
 		list.className = 'mlp-card-list';
+		list.setAttribute('role', 'radiogroup');
+		list.setAttribute('aria-label', t('sidebar.cssThemes'));
 		for (const style of styles) {
 			list.appendChild(buildCard(style, themeKind));
 		}
 		themesSection.appendChild(list);
 	}
 
-	const newButton = document.createElement('button');
-	newButton.className = 'mlp-new-style';
-	newButton.textContent = t('sidebar.newStyle');
-	newButton.addEventListener('click', () => post({ type: 'newStyle' }));
-	themesSection.appendChild(newButton);
+	if (workspaceTrusted) {
+		const newButton = document.createElement('button');
+		newButton.className = 'mlp-new-style';
+		newButton.textContent = t('sidebar.newStyle');
+		newButton.addEventListener('click', () => post({ type: 'newStyle' }));
+		themesSection.appendChild(newButton);
+	}
 
 	// Settings on top, CSS themes at the bottom.
 	root.appendChild(buildSettings(settings));
 	root.appendChild(themesSection);
 }
 
-window.addEventListener('message', (event: MessageEvent<HostToSidebarMessage>) => {
-	if (event.data.type === 'init') {
-		render(event.data.styles, event.data.settings, event.data.themeKind);
+window.addEventListener('message', (event: MessageEvent<unknown>) => {
+	const parsed = validateHostToSidebarMessage(event.data);
+	if (parsed.ok && parsed.value.type === 'init') {
+		render(parsed.value.styles, parsed.value.settings, parsed.value.themeKind, parsed.value.workspaceTrusted);
 	}
 });
 

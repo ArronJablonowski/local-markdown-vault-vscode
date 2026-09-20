@@ -1,9 +1,28 @@
 import * as vscode from 'vscode';
-import type { EditorToHostMessage, HostToEditorMessage, TextChange } from '../shared/messages';
+import { EDITOR_PROTOCOL_VERSION, type EditorToHostMessage, type HostToEditorMessage, type PastedImagePayload, type RemoteMediaPolicy, type TextChange, type VaultNoteSummary } from '../shared/messages';
+import { resolveAttachmentFolder } from '../shared/attachmentPath';
 import { pickCodeTheme, tokenizeDocument } from './shikiHost';
-import { extensionForMimeType, generateImageFileName } from '../shared/imageAssets';
+import { extensionForMimeType, generateImageFileName, hasRasterImageSignature, hasSafeRasterImageDimensions, rasterMimeTypeForPath } from '../shared/imageAssets';
 import { resolveLinkTarget } from '../shared/linkTarget';
 import { isPathInside } from '../shared/pathContainment';
+import { MAX_EDITOR_DOCUMENT_BYTES, MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGE_COUNT, MAX_PASTED_IMAGE_OPERATION_BYTES, validateEditorToHostMessage } from '../shared/messageValidation';
+import { isCanonicalPathInside } from './canonicalContainment';
+import { relative } from 'node:path';
+import { VaultService, type CreatedVaultFile } from '../vault/VaultService';
+import { parseWikiLinkBody, resolveWikiLinkSummary, wikiHeadingSlug } from '../vault/LinkResolver';
+import { extractWikiEmbedContent } from '../vault/embedContent';
+import { chunkVaultNoteSummaries } from '../shared/vaultNoteSummary';
+import { findMarkdownAnchorLine } from '../shared/markdownAnchor';
+import { diagnosticEventRateLimited } from '../diagnostics';
+import { resolveWorkspaceRemoteMediaPolicy } from '../shared/securitySettings';
+import { localWorkspaceVaultRoot } from './workspaceVault';
+import { RequestLimiter } from '../shared/requestLimiter';
+import { applyNormalizedTextChanges, createLineEndingMap, normalizeInsertedLineEndings, normalizeLineEndingsForWebview } from '../shared/lineEndings';
+import { isOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
+import { isDrawioPath } from '../shared/drawioPath';
+import { executeCaseAwareRedo } from '../vault/CaseRenameCoordinator';
+import { BoundedSerialQueue } from '../shared/boundedSerialQueue';
+import { TokenBucketRateLimiter } from '../shared/tokenBucketRateLimiter';
 
 /**
  * Largest `.drawio` file that will be read and parsed.
@@ -13,6 +32,8 @@ import { isPathInside } from '../shared/pathContainment';
  * up the webview's single thread with nothing useful to show at the end.
  */
 const MAX_DRAWIO_BYTES = 5 * 1024 * 1024;
+const MAX_WIKI_EMBED_BYTES = 1024 * 1024;
+const MAX_LOCAL_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /**
  * Whether `target` sits inside the `dir` tree.
@@ -27,7 +48,25 @@ function isInside(dir: vscode.Uri, target: vscode.Uri): boolean {
 	return isPathInside(dir.fsPath, target.fsPath, process.platform === 'win32');
 }
 
+/**
+ * Re-checks containment after the OS resolves symlinks. Lexical `..` checks are
+ * necessary but insufficient: `vault/assets -> /tmp` looks inside the vault as
+ * text while a write through it lands outside. Privileged file operations are
+ * local-only and fail closed when either canonical path cannot be established.
+ */
+async function isCanonicallyInside(dir: vscode.Uri, target: vscode.Uri): Promise<boolean> {
+	if (dir.scheme !== 'file' || target.scheme !== 'file') return false;
+	return isCanonicalPathInside(dir.fsPath, target.fsPath);
+}
+
 const REHIGHLIGHT_DEBOUNCE_MS = 150;
+const MAX_QUEUED_MUTATION_BATCHES = 64;
+const MAX_CONCURRENT_LOCAL_IMAGE_READS = 4;
+const MAX_CONCURRENT_DRAWIO_READS = 4;
+const MAX_CONCURRENT_EMBED_READS = 8;
+const MAX_CONCURRENT_LINK_OPENS = 1;
+const LINK_OPEN_BURST = 4;
+const LINK_OPEN_REFILL_MS = 1_000;
 
 /**
  * Owns the sync relationship between one vscode.TextDocument and one webview panel
@@ -46,20 +85,49 @@ export class DocumentSyncSession {
 	// has it — corrupting later offset math and losing/duplicating characters.
 	private applyingLocalEdit = false;
 	private rehighlightTimer: ReturnType<typeof setTimeout> | undefined;
-	// Serializes 'edit' messages so a fast second edit can't race the first one's
-	// applyEdit(): without this, its baseVersion check could run before the prior
-	// edit has actually bumped document.version, defeating the staleness guard.
-	private editQueue: Promise<void> = Promise.resolve();
+	// Serializes text edits, attachment batches, and undo/redo so one mutation
+	// cannot race a prior operation before document.version and offsets settle.
+	private readonly mutationQueue = new BoundedSerialQueue(MAX_QUEUED_MUTATION_BATCHES);
+	private visible: boolean;
+	private needsFullSync = false;
+	private needsRehighlight = false;
+	private pendingCss = false;
+	private pendingVaultNotes = false;
+	private readyReceived = false;
+	private vaultNotesGeneration = 0;
+	private disposed = false;
+	private readonly localImageLimiter = new RequestLimiter(MAX_CONCURRENT_LOCAL_IMAGE_READS);
+	private readonly drawioLimiter = new RequestLimiter(MAX_CONCURRENT_DRAWIO_READS);
+	private readonly embedLimiter = new RequestLimiter(MAX_CONCURRENT_EMBED_READS);
+	private readonly linkLimiter = new RequestLimiter(MAX_CONCURRENT_LINK_OPENS);
+	private readonly linkRateLimiter = new TokenBucketRateLimiter(LINK_OPEN_BURST, LINK_OPEN_REFILL_MS);
+	/** Raw VS Code text corresponding to the last protocol snapshot/version. */
+	private documentText: string;
 
 	constructor(
 		private readonly document: vscode.TextDocument,
 		private readonly webviewPanel: vscode.WebviewPanel,
 		private readonly getCss: () => string,
+		private readonly getVaultNotes: () => VaultNoteSummary[],
+		private readonly revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 	) {
 		this.lastAppliedVersion = document.version;
+		this.documentText = document.getText();
+		this.visible = webviewPanel.visible;
 
 		this.disposables.push(
-			webviewPanel.webview.onDidReceiveMessage((message: EditorToHostMessage) => this.handleMessage(message)),
+			webviewPanel.webview.onDidReceiveMessage((raw: unknown) => {
+				const parsed = validateEditorToHostMessage(
+					raw,
+					createLineEndingMap(this.document.getText()).normalizedText.length,
+					this.document.version,
+				);
+				if (!parsed.ok) {
+					diagnosticEventRateLimited('protocol.webviewMessageRejected', { reason: parsed.reason });
+					return;
+				}
+				this.handleMessage(parsed.value);
+			}),
 		);
 
 		this.disposables.push(
@@ -73,6 +141,9 @@ export class DocumentSyncSession {
 		this.disposables.push(
 			vscode.window.onDidChangeActiveColorTheme(() => this.scheduleRehighlight(true)),
 		);
+		this.disposables.push(
+			webviewPanel.onDidChangeViewState((event) => this.setVisible(event.webviewPanel.visible)),
+		);
 	}
 
 	private post(message: HostToEditorMessage) {
@@ -82,30 +153,200 @@ export class DocumentSyncSession {
 	private handleMessage(message: EditorToHostMessage) {
 		switch (message.type) {
 			case 'ready':
-				this.sendInit();
-				this.scheduleRehighlight(true);
+				if (this.readyReceived) {
+					diagnosticEventRateLimited('protocol.duplicateReadyRejected');
+					break;
+				}
+				this.readyReceived = true;
+				if (this.visible) {
+					this.sendInit();
+					this.scheduleRehighlight(true);
+				} else {
+					this.needsFullSync = true;
+					this.needsRehighlight = true;
+				}
 				break;
 			case 'edit':
-				this.editQueue = this.editQueue.catch(() => undefined).then(() => this.applyEdit(message.changes, message.baseVersion));
+				if (!this.enqueueMutation(() => this.applyEdit(message.changes, message.baseVersion))) this.sendInit();
 				break;
 			case 'undo':
-				// Chained onto editQueue (not fired immediately) so it can't run ahead
+				// Chained onto mutationQueue (not fired immediately) so it can't run ahead
 				// of an 'edit' message still being applied — otherwise it would undo
 				// the wrong (older) change and desync from the webview's local state.
-				this.editQueue = this.editQueue.catch(() => undefined).then(() => vscode.commands.executeCommand('undo'));
+				this.enqueueMutation(async () => { await vscode.commands.executeCommand('undo'); });
 				break;
 			case 'redo':
-				this.editQueue = this.editQueue.catch(() => undefined).then(() => vscode.commands.executeCommand('redo'));
+				this.enqueueMutation(() => executeCaseAwareRedo(
+					() => vscode.commands.executeCommand('redo'),
+				));
 				break;
 			case 'openLink':
-				void this.openLink(message.href);
+				{
+					const release = this.linkLimiter.tryAcquire();
+					if (!release || !this.linkRateLimiter.tryTake()) {
+						release?.();
+						diagnosticEventRateLimited('protocol.linkRequestRejected');
+						break;
+					}
+					void this.openLink(message.href)
+						.catch(() => diagnosticEventRateLimited('protocol.linkRequestFailed'))
+						.finally(release);
+				}
 				break;
 			case 'pasteImage':
-				void this.handlePasteImage(message.atPos, message.mimeType, message.dataBase64, message.needsOwnParagraph);
+				if (!vscode.workspace.isTrusted) return;
+				this.enqueuePastedImages(message.atPos, [{ mimeType: message.mimeType, dataBase64: message.dataBase64 }], message.needsOwnParagraph);
+				break;
+			case 'pasteImages':
+				if (!vscode.workspace.isTrusted) return;
+				this.enqueuePastedImages(message.atPos, message.images, message.needsOwnParagraph);
 				break;
 			case 'readDrawioFile':
-				void this.handleReadDrawioFile(message.requestId, message.src);
+				if (!vscode.workspace.isTrusted) return;
+				{
+					const release = this.drawioLimiter.tryAcquire();
+					if (!release) {
+						this.post({ type: 'drawioFile', requestId: message.requestId, error: vscode.l10n.t('Too many draw.io files are loading at once.') });
+						return;
+					}
+					void this.handleReadDrawioFile(message.requestId, message.src)
+						.catch(() => this.post({ type: 'drawioFile', requestId: message.requestId, error: vscode.l10n.t('Could not read the file.') }))
+						.finally(release);
+				}
 				break;
+			case 'readWikiEmbed':
+				{
+					const release = this.embedLimiter.tryAcquire();
+					if (!release) {
+						this.post({ type: 'wikiEmbed', requestId: message.requestId, error: vscode.l10n.t('Too many embedded notes are loading at once.') });
+						return;
+					}
+					void this.handleReadWikiEmbed(message.requestId, message.body, message.contextPath)
+						.catch(() => this.post({ type: 'wikiEmbed', requestId: message.requestId, error: vscode.l10n.t('The embedded note could not be read.') }))
+						.finally(release);
+				}
+				break;
+			case 'resolveLocalImage':
+				{
+					const release = this.localImageLimiter.tryAcquire();
+					if (!release) {
+						this.post({ type: 'localImage', requestId: message.requestId, error: vscode.l10n.t('Too many local images are loading at once.') });
+						return;
+					}
+					void this.handleResolveLocalImage(message.requestId, message.src, message.contextPath)
+						.catch(() => this.post({ type: 'localImage', requestId: message.requestId, error: vscode.l10n.t('The local image could not be loaded securely.') }))
+						.finally(release);
+				}
+				break;
+		}
+	}
+
+	private enqueueMutation(task: () => void | Promise<void>): boolean {
+		const accepted = this.mutationQueue.tryEnqueue(task, () => {
+			diagnosticEventRateLimited('protocol.mutationFailed');
+		});
+		if (!accepted) {
+			diagnosticEventRateLimited('protocol.editQueueRejected', {
+				queued: this.mutationQueue.pendingCount,
+			});
+		}
+		return accepted;
+	}
+
+	private async handleResolveLocalImage(requestId: number, src: string, contextPath: string): Promise<void> {
+		const reply = (payload: { mimeType?: string; dataBase64?: string; error?: string }) => {
+			void this.webviewPanel.webview.postMessage({ type: 'localImage', requestId, ...payload });
+		};
+		const resolution = await VaultService.resolve();
+		if (!resolution.available) {
+			reply({ error: vscode.l10n.t('Local images require one local workspace folder.') });
+			return;
+		}
+		const currentPath = resolution.service.relativePath(this.document.uri);
+		const isKnownContext = contextPath === currentPath || this.getVaultNotes().some((note) => note.path === contextPath);
+		if (!isKnownContext) {
+			reply({ error: vscode.l10n.t('The local image context is invalid.') });
+			return;
+		}
+		try {
+			const image = await resolution.service.resolveLocalImage(contextPath, src);
+			const { bytes } = await resolution.service.readFileInside(image, MAX_LOCAL_IMAGE_BYTES);
+			const mimeType = rasterMimeTypeForPath(image.fsPath);
+			if (!mimeType || !hasRasterImageSignature(mimeType, bytes) || !hasSafeRasterImageDimensions(mimeType, bytes)) {
+				throw new Error('Invalid raster image.');
+			}
+			reply({ mimeType, dataBase64: Buffer.from(bytes).toString('base64') });
+		} catch {
+			// Do not echo an attacker-controlled path or expose which outside-vault
+			// path exists. The UI only needs to know that this image is unavailable.
+			reply({ error: vscode.l10n.t('The local image could not be loaded securely.') });
+		}
+	}
+
+	private async handleReadWikiEmbed(requestId: number, body: string, contextPath: string): Promise<void> {
+		const reply = (payload: { sourcePath?: string; text?: string; error?: string }) => {
+			void this.webviewPanel.webview.postMessage({ type: 'wikiEmbed', requestId, ...payload });
+		};
+		const parsed = parseWikiLinkBody(body);
+		if (!parsed) {
+			reply({ error: vscode.l10n.t('The embed target is invalid.') });
+			return;
+		}
+		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
+		if (!workspaceRoot || workspaceRoot.scheme !== 'file') {
+			reply({ error: vscode.l10n.t('Embeds require a local workspace folder.') });
+			return;
+		}
+		const vaultResolution = await VaultService.resolve();
+		if (!vaultResolution.available || vaultResolution.service.rootUri.fsPath !== workspaceRoot.fsPath) {
+			reply({ error: vscode.l10n.t('Embeds require a local workspace folder.') });
+			return;
+		}
+		let note: VaultNoteSummary | undefined;
+		if (!parsed.target) {
+			const current = contextPath || relative(workspaceRoot.fsPath, this.document.uri.fsPath).replace(/\\/g, '/');
+			note = this.getVaultNotes().find((candidate) => candidate.path === current);
+		} else {
+			const resolution = resolveWikiLinkSummary(parsed.target, this.getVaultNotes());
+			if (resolution.kind === 'resolved') note = resolution.note;
+			else {
+				reply({ error: resolution.kind === 'ambiguous'
+					? vscode.l10n.t('The embed target is ambiguous.')
+					: vscode.l10n.t('The embedded note was not found.') });
+				return;
+			}
+		}
+		if (!note) {
+			reply({ error: vscode.l10n.t('The embedded note was not found.') });
+			return;
+		}
+		const uri = vscode.Uri.joinPath(workspaceRoot, note.path);
+		if (!isInside(workspaceRoot, uri) || !(await isCanonicallyInside(workspaceRoot, uri))) {
+			reply({ error: vscode.l10n.t('The embed target is outside the vault.') });
+			return;
+		}
+		try {
+			await vaultResolution.service.assertExistingInside(uri);
+			const openDocument = uri.toString() === this.document.uri.toString()
+				? this.document
+				: vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString());
+			const text = openDocument
+				? openDocument.getText()
+				: new TextDecoder('utf-8', { fatal: true }).decode(
+					(await vaultResolution.service.readFileInside(uri, MAX_WIKI_EMBED_BYTES)).bytes,
+				);
+			const selected = extractWikiEmbedContent(text, parsed.fragment);
+			if (selected === undefined) {
+				reply({ error: vscode.l10n.t('The embedded heading or block was not found.') });
+				return;
+			}
+			if (new TextEncoder().encode(selected).byteLength > MAX_WIKI_EMBED_BYTES) {
+				reply({ error: vscode.l10n.t('The embedded content is too large.') });
+				return;
+			}
+			reply({ sourcePath: note.path, text: selected });
+		} catch {
+			reply({ error: vscode.l10n.t('The embedded note could not be read.') });
 		}
 	}
 
@@ -127,34 +368,43 @@ export class DocumentSyncSession {
 		const reply = (payload: { text?: string; error?: string }) => {
 			void this.webviewPanel.webview.postMessage({ type: 'drawioFile', requestId, ...payload });
 		};
+		if (!vscode.workspace.isTrusted) return;
 
 		const target = resolveLinkTarget(src);
-		if (target.kind !== 'relative') {
+		if (target.kind !== 'relative' || !isDrawioPath(target.path)) {
 			// A remote diagram would mean the webview fetching over the network on
 			// behalf of a file the user merely opened; only local files are read.
 			reply({ error: vscode.l10n.t('Only local .drawio files can be shown.') });
 			return;
 		}
 
+		const vaultRoot = localWorkspaceVaultRoot(this.document.uri);
+		if (!vaultRoot || vaultRoot.scheme !== 'file') {
+			reply({ error: vscode.l10n.t('Local diagrams require one local workspace folder.') });
+			return;
+		}
 		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
 		const uri = vscode.Uri.joinPath(docDir, target.path);
-		if (!isInside(docDir, uri)) {
-			reply({ error: vscode.l10n.t('Files outside the document folder cannot be read.') });
+		if (!isInside(vaultRoot, uri) || !(await isCanonicallyInside(vaultRoot, uri))) {
+			reply({ error: vscode.l10n.t('Files outside the workspace cannot be read.') });
 			return;
 		}
 
 		try {
-			const bytes = await vscode.workspace.fs.readFile(uri);
-			// Guard against a file large enough to lock up the webview's parser. A
-			// hand-drawn diagram is a few hundred kilobytes at most; well past that
-			// is either machine-generated or not a diagram at all.
-			if (bytes.byteLength > MAX_DRAWIO_BYTES) {
+			const resolution = await VaultService.resolve();
+			if (!resolution.available || resolution.service.rootUri.fsPath !== vaultRoot.fsPath) throw new Error('No vault.');
+			const { bytes } = await resolution.service.readFileInside(uri, MAX_DRAWIO_BYTES);
+			if (!vscode.workspace.isTrusted) return;
+			reply({ text: new TextDecoder('utf-8').decode(bytes) });
+		} catch (error) {
+			// Do not echo an attacker-authored path across the privileged message
+			// boundary. The renderer deliberately presents one generic, localized
+			// failure state and does not need filesystem details.
+			if ((error as Error).message.includes('size limit')) {
 				reply({ error: vscode.l10n.t('The file is too large (over 5MB).') });
 				return;
 			}
-			reply({ text: new TextDecoder('utf-8').decode(bytes) });
-		} catch {
-			reply({ error: vscode.l10n.t('Cannot read the file: {0}', target.path) });
+			reply({ error: vscode.l10n.t('Could not read the file.') });
 		}
 	}
 
@@ -170,36 +420,201 @@ export class DocumentSyncSession {
 	 * shell, which is what following a link between notes should do.
 	 */
 	private async openLink(href: string): Promise<void> {
+		if (href.startsWith('wikilink:')) {
+			await this.openWikiLink(href.slice('wikilink:'.length));
+			return;
+		}
 		const target = resolveLinkTarget(href);
 		if (target.kind === 'ignore') return;
+		if (target.kind === 'anchor') {
+			const line = await this.lineForDocumentFragment(this.document.uri, target.fragment);
+			if (line !== undefined) this.jumpToLine(line);
+			return;
+		}
+		if (target.kind === 'blocked') {
+			void vscode.window.showWarningMessage(vscode.l10n.t('This link type is blocked for security.'));
+			return;
+		}
+		if (target.kind === 'insecureHttp') {
+			const open = vscode.l10n.t('Open insecure link');
+			const choice = await vscode.window.showWarningMessage(
+				vscode.l10n.t('This link uses insecure HTTP: {0}', target.href),
+				{ modal: true },
+				open,
+			);
+			if (choice === open) await vscode.env.openExternal(vscode.Uri.parse(target.href));
+			return;
+		}
 		if (target.kind === 'external') {
 			await vscode.env.openExternal(vscode.Uri.parse(target.href));
 			return;
 		}
 
+		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
+		if (!workspaceRoot || workspaceRoot.scheme !== 'file') {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Local links require one local workspace folder.'));
+			return;
+		}
 		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
 		const uri = vscode.Uri.joinPath(docDir, target.path);
+		if (!isInside(workspaceRoot, uri)) {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Links outside the workspace cannot be opened.'));
+			return;
+		}
+		const vaultResolution = await VaultService.resolve();
+		if (!vaultResolution.available || vaultResolution.service.rootUri.fsPath !== workspaceRoot.fsPath) {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Local links require one local workspace folder.'));
+			return;
+		}
 		try {
-			// Confirm it exists before opening. `vscode.open` on a missing file
-			// raises its own OS-level error dialog, which is the very thing being
-			// fixed here; a message naming the path is more use than "0x2".
-			await vscode.workspace.fs.stat(uri);
+			await vaultResolution.service.assertRegularFileInside(uri);
 		} catch {
-			void vscode.window.showWarningMessage(vscode.l10n.t('Link target not found: {0}', target.path));
+			void vscode.window.showWarningMessage(vscode.l10n.t('The local link target could not be opened securely.'));
+			return;
+		}
+		const line = target.fragment ? await this.lineForDocumentFragment(uri, target.fragment) : undefined;
+		if (uri.toString() === this.document.uri.toString() && line !== undefined) {
+			this.jumpToLine(line);
 			return;
 		}
 		try {
 			await vscode.commands.executeCommand('vscode.open', uri);
 		} catch {
-			// Not something the editor can display (a PDF, an archive, an
-			// executable): let the OS decide what to do with it.
-			await vscode.env.openExternal(uri);
+			// Never hand a vault file to the operating system. A crafted note could
+			// otherwise turn a click on an apparently ordinary local link into an
+			// executable launch. VS Code remains the only local-file opener; formats
+			// without a registered editor fail closed.
+			void vscode.window.showWarningMessage(vscode.l10n.t('The local link target could not be opened safely in VS Code.'));
+			return;
+		}
+		if (line !== undefined && !this.revealOpenedLine?.(uri, line)) {
+			await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
 		}
 	}
 
+	private async lineForDocumentFragment(uri: vscode.Uri, fragment: string): Promise<number | undefined> {
+		const workspaceRoot = localWorkspaceVaultRoot(uri);
+		const path = workspaceRoot?.scheme === 'file' ? relative(workspaceRoot.fsPath, uri.fsPath).replace(/\\/g, '/') : undefined;
+		const note = path ? this.getVaultNotes().find((candidate) => candidate.path === path) : undefined;
+		return this.lineForWikiFragment(uri, note, fragment.startsWith('#^') ? fragment.slice(1) : fragment);
+	}
+
+	private async openWikiLink(encodedBody: string): Promise<void> {
+		let body: string;
+		try { body = decodeURIComponent(encodedBody); } catch { return; }
+		const parsed = parseWikiLinkBody(body);
+		if (!parsed) return;
+		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
+		if (!workspaceRoot) return;
+		const { target, fragment } = parsed;
+		const summaries = this.getVaultNotes();
+		let chosen: VaultNoteSummary | undefined;
+		if (!target) {
+			chosen = summaries.find((note) => vscode.Uri.joinPath(workspaceRoot, note.path).toString() === this.document.uri.toString());
+		} else {
+			const resolution = resolveWikiLinkSummary(target, summaries);
+			if (resolution.kind === 'resolved') chosen = resolution.note;
+			else if (resolution.kind === 'ambiguous') {
+				const pick = await vscode.window.showQuickPick(resolution.notes.map((note) => ({
+					label: note.basename,
+					description: note.path,
+					note,
+				})), { title: vscode.l10n.t('Choose a note for this wikilink') });
+				chosen = pick?.note;
+			}
+		}
+
+		let uri: vscode.Uri;
+		if (chosen) {
+			uri = vscode.Uri.joinPath(workspaceRoot, chosen.path);
+		} else {
+			if (target && isOpenOnlyAttachmentTarget(target)) {
+				const vault = await VaultService.resolve();
+				if (!vault.available || vault.service.rootUri.toString() !== workspaceRoot.toString()) return;
+				try {
+					uri = await vault.service.resolveLinkedAttachment(target);
+					await vscode.commands.executeCommand('vscode.open', uri);
+				} catch {
+					void vscode.window.showWarningMessage(vscode.l10n.t('The wikilink target could not be opened.'));
+				}
+				return;
+			}
+			if (!target || !vscode.workspace.isTrusted) return;
+			const create = vscode.l10n.t('Create note');
+			const answer = await vscode.window.showInformationMessage(
+				vscode.l10n.t('The note "{0}" does not exist. Create it in this vault?', target),
+				{ modal: true },
+				create,
+			);
+			if (answer !== create) return;
+			if (!vscode.workspace.isTrusted) return;
+			const resolution = await VaultService.resolve();
+			if (!resolution.available || resolution.service.rootUri.toString() !== workspaceRoot.toString()) return;
+			if (!vscode.workspace.isTrusted) return;
+			try {
+				uri = await resolution.service.createNoteAtRelativePath(target);
+			} catch {
+				void vscode.window.showErrorMessage(vscode.l10n.t('The note could not be created safely.'));
+				return;
+			}
+		}
+		if (!isInside(workspaceRoot, uri)) return;
+		const navigationVault = await VaultService.resolve();
+		if (!navigationVault.available || navigationVault.service.rootUri.toString() !== workspaceRoot.toString()) return;
+		try {
+			await navigationVault.service.assertRegularFileInside(uri);
+		} catch {
+			void vscode.window.showWarningMessage(vscode.l10n.t('The wikilink target could not be opened.'));
+			return;
+		}
+		const line = await this.lineForWikiFragment(uri, chosen, fragment);
+		if (uri.toString() === this.document.uri.toString() && line !== undefined) {
+			this.jumpToLine(line);
+			return;
+		}
+		try {
+			await vscode.commands.executeCommand('vscode.open', uri);
+			if (line !== undefined) {
+				if (!this.revealOpenedLine?.(uri, line)) {
+					await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
+				}
+			}
+		} catch {
+			void vscode.window.showWarningMessage(vscode.l10n.t('The wikilink target could not be opened.'));
+		}
+	}
+
+	private async lineForWikiFragment(
+		uri: vscode.Uri,
+		note: VaultNoteSummary | undefined,
+		fragment: string,
+	): Promise<number | undefined> {
+		if (!fragment) return undefined;
+		if (fragment.startsWith('#') && note) {
+			const wanted = wikiHeadingSlug(fragment.slice(1));
+			const indexed = note.headings.find((heading) => wikiHeadingSlug(heading.text) === wanted)?.line;
+			if (indexed !== undefined) return indexed;
+		}
+		try {
+			if (uri.toString() === this.document.uri.toString()) {
+				return findMarkdownAnchorLine(this.document.getText(), fragment);
+			}
+			const vault = await VaultService.resolve();
+			if (!vault.available) return undefined;
+			await vault.service.assertExistingInside(uri);
+			const open = vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString());
+			const text = open
+				? open.getText()
+				: new TextDecoder('utf-8', { fatal: true }).decode(
+					(await vault.service.readFileInside(uri, MAX_EDITOR_DOCUMENT_BYTES)).bytes,
+				);
+			return findMarkdownAnchorLine(text, fragment);
+		} catch { return undefined; }
+	}
+
 	/**
-	 * Saves a pasted/dropped image under an `assets/` folder beside the
-	 * document and inserts a Markdown image link at `atPos`. This edit
+	 * Saves a pasted/dropped image batch under an `assets/` folder beside the
+	 * document and inserts its Markdown image links at `atPos`. This edit
 	 * originates on the host (the final relative path is only known after
 	 * writing the file), unlike every other edit in this class — so it is
 	 * applied as a plain `vscode.WorkspaceEdit` (not via `applyEdit()`) and
@@ -207,52 +622,187 @@ export class DocumentSyncSession {
 	 * `handleDocumentChanged` → `externalUpdate` path deliver it to the
 	 * webview exactly as if it were an edit from another tab.
 	 */
-	private async handlePasteImage(
+	private enqueuePastedImages(atPos: number, images: PastedImagePayload[], needsOwnParagraph: boolean): void {
+		this.enqueueMutation(() => this.handlePasteImages(atPos, images, needsOwnParagraph));
+	}
+
+	private async handlePasteImages(
 		atPos: number,
-		mimeType: string,
-		dataBase64: string,
+		images: PastedImagePayload[],
 		needsOwnParagraph: boolean,
 	): Promise<void> {
-		const ext = extensionForMimeType(mimeType);
-		if (!ext) return; // unrecognized type — ignore rather than save a file with an unknown format
+		if (!vscode.workspace.isTrusted) return;
+		if (images.length === 0 || images.length > MAX_PASTED_IMAGE_COUNT) return;
+		const validatedImages: Array<{ ext: string; bytes: Buffer }> = [];
+		let totalBytes = 0;
+		for (const image of images) {
+			const ext = extensionForMimeType(image.mimeType);
+			if (!ext) return;
+			const bytes = Buffer.from(image.dataBase64, 'base64');
+			if (bytes.byteLength > MAX_PASTED_IMAGE_BYTES || totalBytes > MAX_PASTED_IMAGE_OPERATION_BYTES - bytes.byteLength) return;
+			totalBytes += bytes.byteLength;
+			if (!hasRasterImageSignature(image.mimeType, bytes)) {
+				void vscode.window.showWarningMessage(vscode.l10n.t('The pasted image content does not match its declared type.'));
+				return;
+			}
+			if (!hasSafeRasterImageDimensions(image.mimeType, bytes)) {
+				void vscode.window.showWarningMessage(vscode.l10n.t('The pasted image dimensions are invalid or exceed the safe limit.'));
+				return;
+			}
+			validatedImages.push({ ext, bytes });
+		}
+		if (this.document.uri.scheme !== 'file') {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Attachments can only be saved in a local workspace.'));
+			return;
+		}
 
 		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
-		const assetsDir = vscode.Uri.joinPath(docDir, 'assets');
-		await vscode.workspace.fs.createDirectory(assetsDir);
+		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
+		if (!workspaceRoot || workspaceRoot.scheme !== 'file') {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Attachments require a local workspace folder.'));
+			return;
+		}
+		const vaultResolution = await VaultService.resolve();
+		if (!vaultResolution.available || vaultResolution.service.rootUri.fsPath !== workspaceRoot.fsPath) {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Attachments require a local workspace folder.'));
+			return;
+		}
+		const vaultService = vaultResolution.service;
+		const configuredFolder = vscode.workspace
+			.getConfiguration('mdLivePreview.vault', this.document.uri)
+			.get<string>('attachmentFolder', 'assets');
+		let assetsDir: vscode.Uri;
+		try {
+			assetsDir = vscode.Uri.file(resolveAttachmentFolder(workspaceRoot.fsPath, docDir.fsPath, configuredFolder));
+		} catch {
+			void vscode.window.showWarningMessage(vscode.l10n.t('The configured attachment folder is invalid.'));
+			return;
+		}
+		try {
+			assetsDir = await vaultService.ensureDirectoryInside(assetsDir);
+		} catch {
+			void vscode.window.showWarningMessage(
+				vscode.l10n.t('The attachment folder resolves outside the workspace, so the image was not saved.'),
+			);
+			return;
+		}
 
 		let existingNames: string[];
 		try {
-			existingNames = (await vscode.workspace.fs.readDirectory(assetsDir)).map(([name]) => name);
+			existingNames = (await vaultService.readDirectoryInside(assetsDir)).map(([name]) => name);
 		} catch {
 			existingNames = [];
 		}
-		const fileName = generateImageFileName(new Set(existingNames), Date.now(), ext);
-		const fileUri = vscode.Uri.joinPath(assetsDir, fileName);
-		await vscode.workspace.fs.writeFile(fileUri, Buffer.from(dataBase64, 'base64'));
+		const names = new Set(existingNames);
+		const timestamp = Date.now();
+		const createdFiles: CreatedVaultFile[] = [];
+		const rollback = async () => {
+			for (let index = createdFiles.length - 1; index >= 0; index--) {
+				await vaultService.removeCreatedFile(createdFiles[index]);
+			}
+		};
+		for (let imageIndex = 0; imageIndex < validatedImages.length; imageIndex++) {
+			if (!vscode.workspace.isTrusted) {
+				await rollback();
+				return;
+			}
+			const image = validatedImages[imageIndex];
+			let createdFile: CreatedVaultFile | undefined;
+			for (let attempt = 0; attempt < 100; attempt++) {
+				const fileName = generateImageFileName(names, timestamp, image.ext);
+				try {
+					createdFile = await vaultService.createFileExclusive(assetsDir, fileName, image.bytes);
+					names.add(fileName);
+					break;
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+						await rollback();
+						void vscode.window.showWarningMessage(vscode.l10n.t('The pasted image could not be saved securely.'));
+						return;
+					}
+					names.add(fileName);
+				}
+			}
+			if (!createdFile) {
+				await rollback();
+				void vscode.window.showWarningMessage(vscode.l10n.t('Could not allocate a unique attachment filename.'));
+				return;
+			}
+			createdFiles.push(createdFile);
+		}
 
 		// `atPos` was relocated to just after a table (see `escapeTable` in
 		// imagePasteHandler.ts) when the cursor was inside one — a leading
 		// blank line separates the image into its own paragraph instead of
 		// running it straight onto the table's last line.
-		const insertText = needsOwnParagraph ? `\n\n![](assets/${fileName})` : `![](assets/${fileName})`;
-		const position = this.document.positionAt(atPos);
+		const markdownImages = createdFiles.map(({ uri }) => {
+			const relativeAssetPath = relative(docDir.fsPath, uri.fsPath).replace(/\\/g, '/');
+			const encodedAssetPath = encodeURI(relativeAssetPath).replace(/#/g, '%23').replace(/\?/g, '%3F');
+			return `![](${encodedAssetPath})`;
+		});
+		const offsetMap = createLineEndingMap(this.document.getText());
+		if (atPos > offsetMap.normalizedText.length) {
+			await rollback();
+			return;
+		}
+		const position = this.document.positionAt(offsetMap.toRawOffset(atPos));
+		const joinedImages = markdownImages.join(needsOwnParagraph ? '\n\n' : '\n');
+		const normalizedInsertText = needsOwnParagraph ? `\n\n${joinedImages}` : joinedImages;
+		const insertText = normalizeInsertedLineEndings(
+			normalizedInsertText,
+			this.document.eol === vscode.EndOfLine.CRLF,
+		);
 		const edit = new vscode.WorkspaceEdit();
 		edit.insert(this.document.uri, position, insertText);
-		await vscode.workspace.applyEdit(edit);
+		if (!vscode.workspace.isTrusted) {
+			await rollback();
+			return;
+		}
+		let applied = false;
+		try {
+			applied = await vscode.workspace.applyEdit(edit);
+		} catch {
+			await rollback();
+			return;
+		}
+		if (!applied) {
+			await rollback();
+			return;
+		}
 
-		this.post({ type: 'setCursor', pos: atPos + insertText.length });
+		this.post({ type: 'setCursor', pos: atPos + normalizedInsertText.length });
 	}
 
 	private sendInit() {
-		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
+		const configuration = vscode.workspace.getConfiguration('mdLivePreview', this.document.uri);
+		const remoteMedia = resolveWorkspaceRemoteMediaPolicy(
+			vscode.workspace.isTrusted,
+			configuration.inspect<RemoteMediaPolicy>('remoteMedia'),
+		);
+		const diagramRenderingAllowed =
+			vscode.workspace.isTrusted && configuration.get<'safe' | 'off'>('diagramRendering', 'safe') === 'safe';
+		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
+		const currentVaultPath = workspaceRoot?.scheme === 'file'
+			? relative(workspaceRoot.fsPath, this.document.uri.fsPath).replace(/\\/g, '/')
+			: '';
+		const rawText = this.document.getText();
+		this.documentText = rawText;
 		this.post({
 			type: 'init',
-			text: this.document.getText(),
+			protocolVersion: EDITOR_PROTOCOL_VERSION,
+			text: createLineEndingMap(rawText).normalizedText,
 			version: this.document.version,
-			css: this.getCss(),
+			css: vscode.workspace.isTrusted ? this.getCss() : '',
 			codeTheme: pickCodeTheme(),
-			baseUri: `${this.webviewPanel.webview.asWebviewUri(docDir).toString()}/`,
+			remoteMedia,
+			workspaceTrusted: vscode.workspace.isTrusted,
+			diagramRenderingAllowed,
+			// Large vault summaries cross in bounded follow-up chunks so opening an
+			// editor never serializes one multi-megabyte IPC message synchronously.
+			vaultNotes: [],
+			currentVaultPath,
 		});
+		this.scheduleVaultNotesSync();
 		this.lastAppliedVersion = this.document.version;
 	}
 
@@ -269,23 +819,50 @@ export class DocumentSyncSession {
 		if (changes.length === 0) {
 			return;
 		}
+		const rawText = this.document.getText();
+		if (rawText !== this.documentText) {
+			this.sendInit();
+			return;
+		}
+		const offsetMap = createLineEndingMap(rawText);
+		const expectedNormalizedText = applyNormalizedTextChanges(offsetMap.normalizedText, changes);
+		if (expectedNormalizedText === undefined) {
+			this.sendInit();
+			return;
+		}
 
 		const edit = new vscode.WorkspaceEdit();
 		for (const change of changes) {
 			edit.replace(
 				this.document.uri,
-				new vscode.Range(this.document.positionAt(change.from), this.document.positionAt(change.to)),
-				change.insert,
+				new vscode.Range(
+					this.document.positionAt(offsetMap.toRawOffset(change.from)),
+					this.document.positionAt(offsetMap.toRawOffset(change.to)),
+				),
+				normalizeInsertedLineEndings(change.insert, this.document.eol === vscode.EndOfLine.CRLF),
 			);
 		}
 
 		this.applyingLocalEdit = true;
+		let applied = false;
 		try {
-			await vscode.workspace.applyEdit(edit);
+			applied = await vscode.workspace.applyEdit(edit);
 		} finally {
 			this.applyingLocalEdit = false;
 		}
+		if (!applied) {
+			this.sendInit();
+			return;
+		}
 		this.lastAppliedVersion = this.document.version;
+		this.documentText = this.document.getText();
+		if (createLineEndingMap(this.documentText).normalizedText !== expectedNormalizedText) {
+			// A filesystem provider or unusual line-ending boundary produced a
+			// different document than the batch the webview already applied. Do not
+			// acknowledge divergent state; replace it with the authoritative snapshot.
+			this.sendInit();
+			return;
+		}
 		this.post({ type: 'ackEdit', version: this.document.version });
 		this.scheduleRehighlight();
 	}
@@ -296,23 +873,47 @@ export class DocumentSyncSession {
 			// already reflects it locally, so there is nothing to forward. Still
 			// track the version so a later genuine external edit compares correctly.
 			this.lastAppliedVersion = event.document.version;
+			this.documentText = event.document.getText();
 			return;
 		}
 		if (event.document.version <= this.lastAppliedVersion) {
 			// This change is the echo of an edit we just applied ourselves; the
 			// webview already reflects it locally, so there is nothing to forward.
+			this.documentText = event.document.getText();
 			return;
 		}
+		const previousText = this.documentText;
+		const offsetMap = createLineEndingMap(previousText);
 		this.lastAppliedVersion = event.document.version;
+		this.documentText = event.document.getText();
 		if (event.contentChanges.length === 0) {
+			return;
+		}
+		if (!this.visible) {
+			// A retained but hidden webview should do no document parsing. Coalesce
+			// any number of background edits into one authoritative snapshot when
+			// the panel becomes visible again instead of queueing offset-sensitive
+			// incremental changes for an inactive renderer.
+			this.needsFullSync = true;
+			this.needsRehighlight = true;
 			return;
 		}
 
 		const changes: TextChange[] = event.contentChanges.map((c) => ({
-			from: c.rangeOffset,
-			to: c.rangeOffset + c.rangeLength,
-			insert: c.text,
+			from: offsetMap.toNormalizedOffset(c.rangeOffset),
+			to: offsetMap.toNormalizedOffset(c.rangeOffset + c.rangeLength),
+			insert: normalizeLineEndingsForWebview(c.text),
 		}));
+		const reconciled = applyNormalizedTextChanges(offsetMap.normalizedText, changes);
+		const authoritative = createLineEndingMap(this.documentText).normalizedText;
+		if (reconciled === undefined || reconciled !== authoritative) {
+			// VS Code normally reports ranges against the pre-change snapshot. If a
+			// provider reports an ambiguous CRLF-half edit or violates that contract,
+			// a full snapshot is safer than forwarding a corrupt incremental patch.
+			this.sendInit();
+			this.scheduleRehighlight();
+			return;
+		}
 		this.post({ type: 'externalUpdate', changes, version: event.document.version });
 		this.scheduleRehighlight();
 	}
@@ -322,10 +923,31 @@ export class DocumentSyncSession {
 			clearTimeout(this.rehighlightTimer);
 			this.rehighlightTimer = undefined;
 		}
+		if (!this.visible) {
+			this.needsRehighlight = true;
+			return;
+		}
 		const run = () => {
 			this.rehighlightTimer = undefined;
+			const version = this.document.version;
+			const rawText = this.document.getText();
 			void tokenizeDocument(this.document).then((blocks) => {
-				this.post({ type: 'codeTokens', blocks });
+				if (version !== this.document.version) {
+					this.scheduleRehighlight();
+					return;
+				}
+				const offsetMap = createLineEndingMap(rawText);
+				const normalizedBlocks = blocks.map((block) => ({
+					from: offsetMap.toNormalizedOffset(block.from),
+					to: offsetMap.toNormalizedOffset(block.to),
+					tokens: block.tokens.map((token) => ({
+						...token,
+						from: offsetMap.toNormalizedOffset(token.from),
+						to: offsetMap.toNormalizedOffset(token.to),
+					})),
+				}));
+				if (this.visible) this.post({ type: 'codeTokens', blocks: normalizedBlocks });
+				else this.needsRehighlight = true;
 			});
 		};
 		if (immediate) {
@@ -336,18 +958,101 @@ export class DocumentSyncSession {
 	}
 
 	notifyCssChanged() {
-		this.post({ type: 'applyCss', css: this.getCss() });
+		if (!this.visible) {
+			this.pendingCss = true;
+			return;
+		}
+		this.post({ type: 'applyCss', css: vscode.workspace.isTrusted ? this.getCss() : '' });
 	}
 
 	getDocument(): vscode.TextDocument {
 		return this.document;
 	}
 
+	getWebview(): vscode.Webview {
+		return this.webviewPanel.webview;
+	}
+
+	reloadWebview(html: string): void {
+		this.readyReceived = false;
+		this.webviewPanel.webview.html = html;
+	}
+
 	jumpToLine(line: number): void {
 		this.post({ type: 'jumpToLine', line });
 	}
 
+	notifyVaultNotesChanged(): void {
+		if (!this.visible) {
+			this.pendingVaultNotes = true;
+			return;
+		}
+		this.scheduleVaultNotesSync();
+	}
+
+	private scheduleVaultNotesSync(): void {
+		const generation = ++this.vaultNotesGeneration;
+		if (!this.visible) {
+			this.pendingVaultNotes = true;
+			return;
+		}
+		setTimeout(() => {
+			if (this.disposed || !this.visible || generation !== this.vaultNotesGeneration) return;
+			const notes = this.getVaultNotes().slice(0, 10_000);
+			let offset = 0;
+			const chunks = chunkVaultNoteSummaries(notes, generation);
+			let chunkIndex = 0;
+			const sendNext = () => {
+				if (this.disposed || !this.visible || generation !== this.vaultNotesGeneration) return;
+				const chunk = chunks[chunkIndex++];
+				if (!chunk) return;
+				this.post({ type: 'vaultNotesChunk', generation, offset, total: notes.length, notes: chunk });
+				offset += chunk.length;
+				if (chunkIndex < chunks.length) setTimeout(sendNext, 0);
+			};
+			sendNext();
+		}, 0);
+	}
+
+	setVisible(visible: boolean): void {
+		if (visible === this.visible) return;
+		this.visible = visible;
+		if (!visible) {
+			// retainContextWhenHidden is false, so the next reveal creates a new
+			// script context with one legitimate ready handshake.
+			this.readyReceived = false;
+			this.vaultNotesGeneration++;
+			if (this.rehighlightTimer) {
+				clearTimeout(this.rehighlightTimer);
+				this.rehighlightTimer = undefined;
+				this.needsRehighlight = true;
+			}
+			return;
+		}
+		if (this.needsFullSync) {
+			this.needsFullSync = false;
+			this.pendingCss = false;
+			this.pendingVaultNotes = false;
+			this.sendInit();
+		} else {
+			if (this.pendingCss) {
+				this.pendingCss = false;
+				this.notifyCssChanged();
+			}
+			if (this.pendingVaultNotes) {
+				this.pendingVaultNotes = false;
+				this.notifyVaultNotesChanged();
+			}
+		}
+		if (this.needsRehighlight) {
+			this.needsRehighlight = false;
+			this.scheduleRehighlight(true);
+		}
+	}
+
 	dispose() {
+		this.disposed = true;
+		this.vaultNotesGeneration++;
 		if (this.rehighlightTimer) {
 			clearTimeout(this.rehighlightTimer);
 		}

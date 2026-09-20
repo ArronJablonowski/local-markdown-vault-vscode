@@ -10,10 +10,14 @@ import * as vscode from 'vscode';
  */
 suite('custom editor', () => {
 	let file: vscode.Uri;
+	let api: { getCodeTokenizationRunCount(): number };
 
 	suiteSetup(async () => {
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		assert.ok(folder, 'the tests need a workspace folder');
+		const extension = vscode.extensions.getExtension<{ getCodeTokenizationRunCount(): number }>('arronjablonowski.local-markdown-vault');
+		assert.ok(extension, 'the extension is not installed');
+		api = await extension.activate();
 		file = vscode.Uri.joinPath(folder.uri, 'integration-sample.md');
 		await vscode.workspace.fs.writeFile(
 			file,
@@ -66,4 +70,52 @@ suite('custom editor', () => {
 		await vscode.commands.executeCommand('mdLivePreview.openWithSource');
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), file.toString());
 	});
+
+	test('defers syntax tokenization while a Live Preview tab is hidden', async () => {
+		const folder = vscode.workspace.workspaceFolders?.[0];
+		assert.ok(folder);
+		const hiddenFile = vscode.Uri.joinPath(folder.uri, `hidden-idle-${Date.now()}.md`);
+		const coverFile = vscode.Uri.joinPath(folder.uri, `hidden-idle-${Date.now()}.txt`);
+		try {
+			await vscode.workspace.fs.writeFile(hiddenFile, new TextEncoder().encode('# Hidden\n\n```js\nconst value = 1;\n```\n'));
+			await vscode.workspace.fs.writeFile(coverFile, new TextEncoder().encode('cover\n'));
+			const document = await vscode.workspace.openTextDocument(hiddenFile);
+			await vscode.commands.executeCommand('vscode.openWith', hiddenFile, 'mdLivePreview.editor');
+			await waitFor(() => api.getCodeTokenizationRunCount() > 0);
+
+			await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(coverFile), { preview: false });
+			await delay(250);
+			const hiddenCount = api.getCodeTokenizationRunCount();
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(document.uri, new vscode.Position(3, 0), 'const background = 2;\n');
+			assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+			await delay(400);
+			assert.strictEqual(
+				api.getCodeTokenizationRunCount(),
+				hiddenCount,
+				'a background edit invoked syntax tokenization while the panel was hidden',
+			);
+
+			await vscode.commands.executeCommand('vscode.openWith', hiddenFile, 'mdLivePreview.editor');
+			await waitFor(() => api.getCodeTokenizationRunCount() > hiddenCount);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			for (const uri of [hiddenFile, coverFile]) {
+				try { await vscode.workspace.fs.delete(uri); } catch { /* test cleanup */ }
+			}
+		}
+	});
 });
+
+function delay(milliseconds: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (check()) return;
+		await delay(50);
+	}
+	assert.fail('condition was not met within the timeout');
+}

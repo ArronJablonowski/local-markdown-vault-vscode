@@ -1,4 +1,4 @@
-import { EditorState, Annotation, type Extension, ChangeSet } from '@codemirror/state';
+import { EditorState, Annotation, type Extension, ChangeSet, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -12,15 +12,19 @@ import {
 } from '@codemirror/search';
 import { markdown } from '@codemirror/lang-markdown';
 import { GFM } from './gfmTableFix';
-import { livePreviewPlugin, createLinkClickHandler, setImageBaseUri } from './livePreviewPlugin';
+import {
+	livePreviewPlugin,
+	createLinkClickHandler,
+	setRemoteMediaPolicy,
+} from './livePreviewPlugin';
 import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
 import { detectFrontmatter } from './frontmatterWidget';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
 import { toggleEmphasisCommand } from './emphasisShortcuts';
-import { createImagePasteHandler } from './imagePasteHandler';
-import { postToHost, onHostMessage } from './vscodeApi';
+import { createImagePasteHandler, type ImagePasteRejection } from './imagePasteHandler';
+import { getWebviewState, postToHost, onHostMessage, setWebviewState } from './vscodeApi';
 import { setDrawioFilePoster, handleDrawioFileMessage, clearDrawioFileCache } from './drawioFileClient';
 import {
 	searchRevealExtension,
@@ -28,8 +32,16 @@ import {
 	openSearchPanelFocused,
 } from './searchReveal';
 import { t } from '../shared/i18n';
-import { adaptMarkdownCss } from '../shared/cssAdapter';
-import type { TextChange } from '../shared/messages';
+import { adaptMarkdownCss, sanitizePreviewCss, scopePreviewCss } from '../shared/cssAdapter';
+import type { TextChange, VaultNoteSummary } from '../shared/messages';
+import { setDiagramRenderingAllowed } from './diagramLang';
+import { mathDecorationsField } from './math';
+import { footnoteDecorations } from './footnotes';
+import { setVaultNotes, setWikilinkOpener, wikilinkCompletionExtension, wikilinkDecorations } from './wikilinks';
+import { clearWikiEmbedCache, handleWikiEmbedMessage, setWikiEmbedPoster } from './wikiEmbedClient';
+import { clearLocalImageCache, handleLocalImageMessage, setLocalImageContext, setLocalImagePoster } from './localImageClient';
+import { tagDecorations } from './tags';
+import { makePersistedEditorState, parsePersistedEditorState } from './persistedState';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -38,6 +50,9 @@ let view: EditorView | undefined;
 let baseVersion = 0;
 let pending: ChangeSet | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
+let workspaceTrusted = false;
+let vaultNotesChunkGeneration = -1;
+let pendingVaultNoteChunks: VaultNoteSummary[] = [];
 
 function flush() {
 	flushTimer = undefined;
@@ -73,7 +88,53 @@ function applyUserCss(css: string) {
 		styleEl.id = 'mlp-user-css';
 		document.head.appendChild(styleEl);
 	}
-	styleEl.textContent = adaptMarkdownCss(css);
+	const sanitized = sanitizePreviewCss(css);
+	styleEl.textContent = scopePreviewCss(adaptMarkdownCss(sanitized.css));
+	setCssDiagnostic(sanitized.rejected);
+}
+
+function setImagePasteDiagnostic(reason?: ImagePasteRejection): void {
+	let warning = document.getElementById('mlp-image-paste-warning');
+	if (!warning) {
+		warning = document.createElement('div');
+		warning.id = 'mlp-image-paste-warning';
+		warning.setAttribute('role', 'alert');
+		document.body.appendChild(warning);
+	}
+	if (!reason) {
+		warning.hidden = true;
+		warning.textContent = '';
+		return;
+	}
+	const messages: Record<ImagePasteRejection, Parameters<typeof t>[0]> = {
+		unsupported: 'imagePaste.unsupported',
+		empty: 'imagePaste.empty',
+		tooMany: 'imagePaste.tooMany',
+		tooLarge: 'imagePaste.tooLarge',
+		unreadable: 'imagePaste.unreadable',
+	};
+	warning.textContent = t(messages[reason]);
+	warning.hidden = false;
+}
+
+function setCssDiagnostic(rejected: boolean): void {
+	let warning = document.getElementById('mlp-css-warning');
+	if (!warning) {
+		warning = document.createElement('div');
+		warning.id = 'mlp-css-warning';
+		warning.setAttribute('role', 'status');
+		warning.setAttribute('aria-live', 'polite');
+		warning.textContent = t('css.unsafeIgnored');
+		document.body.appendChild(warning);
+	}
+	warning.hidden = !rejected;
+}
+
+function persistEditorUiState() {
+	if (!view) return;
+	const { anchor, head } = view.state.selection.main;
+	const state = makePersistedEditorState(anchor, head, view.scrollDOM.scrollTop);
+	if (state) setWebviewState(state);
 }
 
 function createExtensions(): Extension[] {
@@ -90,12 +151,21 @@ function createExtensions(): Extension[] {
 		headingSpaceInputHandler,
 		backtickInputHandler,
 		livePreviewPlugin,
+		wikilinkDecorations,
+		wikilinkCompletionExtension,
+		tagDecorations,
 		blockDecorationsField,
+		mathDecorationsField,
+		footnoteDecorations,
 		dragReleaseRefresh,
 		codeHighlightExtension,
-		createLinkClickHandler((href) => postToHost({ type: 'openLink', href })),
-		createImagePasteHandler((atPos, mimeType, dataBase64, needsOwnParagraph) =>
-			postToHost({ type: 'pasteImage', atPos, mimeType, dataBase64, needsOwnParagraph }),
+		Prec.highest(createLinkClickHandler((href) => postToHost({ type: 'openLink', href }))),
+		createImagePasteHandler(
+			(atPos, images, needsOwnParagraph) => {
+				setImagePasteDiagnostic();
+				postToHost({ type: 'pasteImages', atPos, images, needsOwnParagraph });
+			},
+			setImagePasteDiagnostic,
 		),
 		// Without this a state keeps only one selection range, so Mod-d's
 		// multi-cursor search silently collapses to a single cursor — and the
@@ -161,14 +231,17 @@ function createExtensions(): Extension[] {
 			...defaultKeymap,
 		]),
 		EditorView.updateListener.of((update) => {
-			if (!update.docChanged) return;
-			const isRemote = update.transactions.some((tr) => tr.annotation(remoteChange));
-			if (isRemote) return;
-			pending = pending ? pending.compose(update.changes) : update.changes;
-			scheduleFlush();
+			if (update.docChanged) {
+				const isRemote = update.transactions.some((tr) => tr.annotation(remoteChange));
+				if (!isRemote) {
+					pending = pending ? pending.compose(update.changes) : update.changes;
+					scheduleFlush();
+				}
+			}
+			if (update.docChanged || update.selectionSet || update.viewportChanged) persistEditorUiState();
 		}),
 		EditorView.domEventHandlers({
-			blur: () => flushNow(),
+			blur: () => { flushNow(); persistEditorUiState(); },
 		}),
 		EditorView.lineWrapping,
 	];
@@ -184,12 +257,26 @@ function createExtensions(): Extension[] {
 // `fm.to` is the *end of the closing "---" line itself* (correct for the
 // decoration range), so it's still on that line — the anchor must go one
 // further, past its line break, to actually land outside the block.
-function initialStateFor(text: string): EditorState {
-	const state = EditorState.create({ doc: text, extensions: createExtensions() });
+function initialStateFor(text: string, persisted = parsePersistedEditorState(getWebviewState(), text.length)): EditorState {
+	const state = EditorState.create({
+		doc: text,
+		selection: persisted ? { anchor: persisted.anchor, head: persisted.head } : undefined,
+		extensions: createExtensions(),
+	});
+	if (persisted) return state;
 	const fm = detectFrontmatter(state);
 	if (!fm) return state;
 	const anchor = Math.min(fm.to + 1, state.doc.length);
 	return state.update({ selection: { anchor } }).state;
+}
+
+function restoreScrollPosition() {
+	if (!view) return;
+	const persisted = parsePersistedEditorState(getWebviewState(), view.state.doc.length);
+	if (!persisted) return;
+	requestAnimationFrame(() => {
+		if (view) view.scrollDOM.scrollTop = persisted.scrollTop;
+	});
 }
 
 function createView(text: string) {
@@ -198,6 +285,7 @@ function createView(text: string) {
 		state: initialStateFor(text),
 		parent: root,
 	});
+	restoreScrollPosition();
 }
 
 function resetView(text: string) {
@@ -211,25 +299,39 @@ function resetView(text: string) {
 		flushTimer = undefined;
 	}
 	view.setState(initialStateFor(text));
+	restoreScrollPosition();
 }
 
 // The drawio file client cannot reach the host on its own (it is imported by
 // widget code that has no business acquiring the VS Code API); hand it the
 // poster this module already owns.
 setDrawioFilePoster((message) => postToHost(message as Parameters<typeof postToHost>[0]));
+setWikilinkOpener((href) => postToHost({ type: 'openLink', href }));
+setWikiEmbedPoster((message) => postToHost(message as Parameters<typeof postToHost>[0]));
+setLocalImagePoster((message) => postToHost(message as Parameters<typeof postToHost>[0]));
 
 onHostMessage((message) => {
 	// `drawioFile` replies are routed to whichever widget requested them, not
 	// handled by the switch below.
 	if (handleDrawioFileMessage(message)) return;
+	if (handleWikiEmbedMessage(message)) return;
+	if (handleLocalImageMessage(message)) return;
 	switch (message.type) {
 		case 'init':
+			workspaceTrusted = message.workspaceTrusted;
 			baseVersion = message.version;
-			setImageBaseUri(message.baseUri);
-			applyUserCss(message.css);
+			vaultNotesChunkGeneration = -1;
+			pendingVaultNoteChunks = [];
+			setLocalImageContext(message.currentVaultPath);
+			setRemoteMediaPolicy(message.remoteMedia);
+			setDiagramRenderingAllowed(message.diagramRenderingAllowed);
+			setVaultNotes(message.vaultNotes, message.currentVaultPath);
+			applyUserCss(message.workspaceTrusted ? message.css : '');
 			// A re-init means a different document (or the same one reloaded), so
 			// files read for the previous one must not be served from cache.
 			clearDrawioFileCache();
+			clearWikiEmbedCache();
+			clearLocalImageCache();
 			resetView(message.text);
 			break;
 		case 'ackEdit':
@@ -247,13 +349,14 @@ onHostMessage((message) => {
 				annotations: remoteChange.of(true),
 			});
 			baseVersion = message.version;
+			clearWikiEmbedCache();
 			break;
 		}
 		case 'codeTokens':
 			view?.dispatch({ effects: setCodeTokens.of(message.blocks), annotations: remoteChange.of(true) });
 			break;
 		case 'applyCss':
-			applyUserCss(message.css);
+			if (workspaceTrusted) applyUserCss(message.css);
 			break;
 		case 'jumpToLine': {
 			if (!view) return;
@@ -268,6 +371,28 @@ onHostMessage((message) => {
 			if (!view) return;
 			const pos = Math.max(0, Math.min(message.pos, view.state.doc.length));
 			view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+			break;
+		}
+		case 'vaultNotes':
+			vaultNotesChunkGeneration = -1;
+			pendingVaultNoteChunks = [];
+			clearWikiEmbedCache();
+			setVaultNotes(message.notes);
+			if (view) view.dispatch({ selection: view.state.selection });
+			break;
+		case 'vaultNotesChunk': {
+			if (message.offset === 0) {
+				vaultNotesChunkGeneration = message.generation;
+				pendingVaultNoteChunks = [];
+			}
+			if (message.generation !== vaultNotesChunkGeneration || message.offset !== pendingVaultNoteChunks.length) break;
+			pendingVaultNoteChunks.push(...message.notes);
+			if (pendingVaultNoteChunks.length !== message.total) break;
+			const complete = pendingVaultNoteChunks;
+			pendingVaultNoteChunks = [];
+			clearWikiEmbedCache();
+			setVaultNotes(complete);
+			if (view) view.dispatch({ selection: view.state.selection });
 			break;
 		}
 	}

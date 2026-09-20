@@ -1,7 +1,7 @@
 // A dependency-free XML parser used only by the drawio unit tests.
 //
 // The webview has a real `DOMParser`, but the tests run under vitest's `node`
-// environment (see vitest.config.ts), which does not. This parses the small,
+// environment (see vitest.config.mts), which does not. This parses the small,
 // well-formed subset that draw.io files use into the `XmlElement` shape
 // `drawio.ts` consumes — enough to drive the parser under test without adding a
 // DOM implementation as a dependency.

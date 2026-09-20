@@ -40,10 +40,17 @@ function rowsOf(html: string): string {
 	return html
 		.replace(/^<table class="mlp-table">/, '')
 		.replace(/<\/table>$/, '')
-		.replace(/ class="mlp-table-cell"/g, '');
+		.replace(/ class="mlp-table-cell"/g, '')
+		.replace(/ tabindex="0"/g, '');
 }
 
 describe('renderTableElement', () => {
+	it('makes source-backed cells keyboard focusable but not parser padding', () => {
+		const html = renderTable('| a | b | c |\n|---|---|---|\n| 1 |\n');
+		expect((html.match(/tabindex="0"/g) ?? [])).toHaveLength(4);
+		expect((html.match(/<td class="mlp-table-cell"><\/td>/g) ?? [])).toHaveLength(2);
+	});
+
 	it('renders a plain table as header and data rows', () => {
 		expect(rowsOf(renderTable('| a | b |\n|---|---|\n| 1 | 2 |\n'))).toBe(
 			'<tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr>',

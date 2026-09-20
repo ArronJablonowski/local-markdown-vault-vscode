@@ -37,16 +37,40 @@ suite('settings and views', () => {
 		await config().update('codeTheme', previous, vscode.ConfigurationTarget.Global);
 	});
 
-	test('contributes the outline and theme views into its own container', () => {
-		const extension = vscode.extensions.getExtension('t-shoot.markdown-live-preview-editor');
+	test('contributes the vault, outline, and theme views into its own container', () => {
+		const extension = vscode.extensions.getExtension('arronjablonowski.local-markdown-vault');
 		assert.ok(extension);
 		const views = extension.packageJSON.contributes.views as Record<
 			string,
 			Array<{ id: string; type?: string }>
 		>;
 		const ids = (views.mdLivePreview ?? []).map((v) => v.id);
+		assert.ok(ids.includes('mdLivePreview.vault'), 'the Document Vault view is not contributed');
+		assert.ok(ids.includes('mdLivePreview.backlinks'), 'the Backlinks view is not contributed');
+		assert.ok(ids.includes('mdLivePreview.brokenLinks'), 'the Broken Links view is not contributed');
+		assert.ok(ids.includes('mdLivePreview.tags'), 'the Tags view is not contributed');
 		assert.ok(ids.includes('mdLivePreview.outline'), 'the outline view is not contributed');
 		assert.ok(ids.includes('mdLivePreview.styleManager'), 'the theme view is not contributed');
+	});
+
+	test('the Document Vault view can be revealed', async () => {
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+	});
+
+	test('the local knowledge views can be revealed', async () => {
+		await vscode.commands.executeCommand('mdLivePreview.backlinks.focus');
+		await vscode.commands.executeCommand('mdLivePreview.brokenLinks.focus');
+		await vscode.commands.executeCommand('mdLivePreview.tags.focus');
+	});
+
+	test('the local metadata index can be discarded and rebuilt', async () => {
+		const extension = vscode.extensions.getExtension<{ getVaultRecentPaths(): readonly string[] }>('arronjablonowski.local-markdown-vault');
+		assert.ok(extension);
+		const api = await extension.activate();
+		await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', 'README.md');
+		assert.ok(api.getVaultRecentPaths().includes('README.md'), 'opening an indexed note did not record it as recent');
+		await vscode.commands.executeCommand('mdLivePreview.vault.rebuildIndex');
+		assert.deepStrictEqual(api.getVaultRecentPaths(), [], 'metadata reset retained recent-note history');
 	});
 
 	test('the outline view can be revealed', async () => {
@@ -61,23 +85,16 @@ suite('settings and views', () => {
 
 	test('the new-style command runs without a document open', async () => {
 		// It creates a file rather than acting on the active editor, so it must not
-		// depend on one being there.
-		const before = await listStyles();
-		await vscode.commands.executeCommand('mdLivePreview.newStyle');
-		const after = await listStyles();
-		assert.ok(after.length >= before.length, 'the command removed a style');
+		// depend on one being there. The command returns the new global-storage URI
+		// so this test can clean up only the artifact it created.
+		const created = await vscode.commands.executeCommand<vscode.Uri | undefined>('mdLivePreview.newStyle');
+		assert.ok(created, 'the command did not create a style');
+		try {
+			const stat = await vscode.workspace.fs.stat(created);
+			assert.ok(stat.type & vscode.FileType.File);
+			assert.match(created.path, /\/styles\/[^/]+\.css$/i);
+		} finally {
+			await vscode.workspace.fs.delete(created);
+		}
 	});
 });
-
-/** The CSS files the style manager keeps, or `[]` before any exist. */
-async function listStyles(): Promise<string[]> {
-	const extension = vscode.extensions.getExtension('t-shoot.markdown-live-preview-editor');
-	assert.ok(extension);
-	const dir = vscode.Uri.joinPath(extension.extensionUri, '..', 'mdlp-styles');
-	try {
-		const entries = await vscode.workspace.fs.readDirectory(dir);
-		return entries.map(([name]) => name);
-	} catch {
-		return [];
-	}
-}

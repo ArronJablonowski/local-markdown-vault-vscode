@@ -5,6 +5,10 @@ import {
 	insertColumn,
 	deleteRow,
 	deleteColumn,
+	moveRow,
+	moveColumn,
+	sortRows,
+	setColumnAlignment,
 	delimiterFor,
 	type TableEditModel,
 } from './tableEdit';
@@ -143,5 +147,44 @@ describe('deleteColumn', () => {
 
 	it('ignores an out-of-range index', () => {
 		expect(deleteColumn(model(), 5)).toEqual(model());
+	});
+});
+
+describe('moveRow', () => {
+	it('moves data rows but never crosses the header', () => {
+		const m = model({ rows: [['h1', 'h2'], ['a', '1'], ['b', '2']] });
+		expect(moveRow(m, 2, -1).rows).toEqual([['h1', 'h2'], ['b', '2'], ['a', '1']]);
+		expect(moveRow(m, 1, -1)).toBe(m);
+		expect(moveRow(m, 2, 1)).toBe(m);
+	});
+});
+
+describe('moveColumn', () => {
+	it('moves cells and their alignment together', () => {
+		const m = model({ rows: [['a', 'b'], ['1', '2']], align: ['left', 'right'] });
+		const out = moveColumn(m, 0, 1);
+		expect(out.rows).toEqual([['b', 'a'], ['2', '1']]);
+		expect(out.align).toEqual(['right', 'left']);
+	});
+
+	it('ignores an edge move', () => {
+		const m = model();
+		expect(moveColumn(m, 0, -1)).toBe(m);
+	});
+});
+
+describe('sortRows', () => {
+	it('sorts naturally and keeps the header and equal-value order', () => {
+		const m = model({ rows: [['name', 'n'], ['z', '10'], ['a', '2'], ['A', '2']] });
+		expect(sortRows(m, 1, 'asc').rows).toEqual([['name', 'n'], ['a', '2'], ['A', '2'], ['z', '10']]);
+		expect(sortRows(m, 1, 'desc').rows).toEqual([['name', 'n'], ['z', '10'], ['a', '2'], ['A', '2']]);
+	});
+});
+
+describe('setColumnAlignment', () => {
+	it('changes only the selected delimiter', () => {
+		const out = setColumnAlignment(model(), 1, 'center');
+		expect(out.align).toEqual([null, 'center']);
+		expect(renderTableMarkdown(out)).toContain('| --- | :--: |');
 	});
 });

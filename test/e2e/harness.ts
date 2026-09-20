@@ -10,10 +10,6 @@ import type { Page } from '@playwright/test';
  * otherwise fight over the same syntax.
  */
 const HOST_STUB = [
-	"window.mlpLocale = 'en';",
-	"window.mlpNonce = 'test';",
-	"window.mlpMermaidChunkUri = 'https://example.invalid/mermaid-chunk.js';",
-	"window.mlpAwsShapesUri = 'https://example.invalid/aws4-shapes.json';",
 	'window.__posted = [];',
 	'window.acquireVsCodeApi = function () {',
 	'  return {',
@@ -38,7 +34,19 @@ const ROOT = join(__dirname, '..', '..');
  * dark set is supplied so colors resolve to something assertable rather than to
  * the fallbacks.
  */
-export async function mountEditor(page: Page, text: string): Promise<void> {
+export async function mountEditor(
+	page: Page,
+	text: string,
+	options: {
+		mermaidChunk?: string;
+		workspaceTrusted?: boolean;
+		diagramRenderingAllowed?: boolean;
+		remoteMedia?: 'block' | 'https';
+		css?: string;
+		vaultNotes?: Array<{ path: string; basename: string; aliases: string[]; headings: Array<{ text: string; line: number }>; blockIds: string[] }>;
+		currentVaultPath?: string;
+	} = {},
+): Promise<void> {
 	const script = readFileSync(join(ROOT, 'dist', 'webview-editor.js'), 'utf8');
 	const style = readFileSync(join(ROOT, 'media', 'webview-editor-theme.css'), 'utf8');
 
@@ -48,7 +56,7 @@ export async function mountEditor(page: Page, text: string): Promise<void> {
 	await page.route('**/mermaid-chunk.js', (route) =>
 		route.fulfill({
 			contentType: 'application/javascript',
-			body: readFileSync(join(ROOT, 'dist', 'mermaid-chunk.js'), 'utf8'),
+			body: options.mermaidChunk ?? readFileSync(join(ROOT, 'dist', 'mermaid-chunk.js'), 'utf8'),
 		}),
 	);
 	await page.route('**/aws4-shapes.json', (route) =>
@@ -79,34 +87,74 @@ export async function mountEditor(page: Page, text: string): Promise<void> {
 	--vscode-inputOption-activeBorder: #007fd4;
 	--vscode-inputOption-activeBackground: #0e639c55;
 }
+
 html, body { margin: 0; height: 100%; background: var(--vscode-editor-background); }
 #mlp-root { height: 100%; }
 ${style}
 </style>
 </head>
 <body>
-<div id="mlp-root"></div>
+<div id="mlp-root" data-mermaid-uri="https://example.invalid/mermaid-chunk.js" data-aws-shapes-uri="https://example.invalid/aws4-shapes.json" data-script-nonce="test"></div>
 <script>${HOST_STUB}</script>
 <script>${script.replace(/<\/script>/gi, '<\/script>')}</script>
 </body>
 </html>`);
 
-	await page.evaluate((docText) => {
+	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath }) => {
 		window.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
 					type: 'init',
+					protocolVersion: 1,
 					text: docText,
 					version: 0,
-					baseUri: 'https://example.invalid/',
-					css: '',
+					css,
 					codeTheme: 'dark-plus',
+					remoteMedia,
+					workspaceTrusted,
+					diagramRenderingAllowed,
+					vaultNotes,
+					currentVaultPath,
 				},
 			}),
 		);
-	}, text);
+	}, {
+		docText: text,
+		workspaceTrusted: options.workspaceTrusted ?? true,
+		diagramRenderingAllowed: options.diagramRenderingAllowed ?? options.workspaceTrusted ?? true,
+		remoteMedia: options.remoteMedia ?? 'block',
+		css: options.css ?? '',
+		vaultNotes: options.vaultNotes ?? [],
+		currentVaultPath: options.currentVaultPath ?? '',
+	});
 
 	await page.waitForSelector('.cm-content');
+}
+
+/** Mounts the shipped CSS-theme sidebar bundle with a validated host update. */
+export async function mountStyleSidebar(
+	page: Page,
+	styles: Array<{ id: string; name: string; enabled: boolean; css: string }>,
+	workspaceTrusted = true,
+): Promise<void> {
+	const script = readFileSync(join(ROOT, 'dist', 'webview-sidebar.js'), 'utf8');
+	const style = readFileSync(join(ROOT, 'media', 'webview-sidebar-style.css'), 'utf8');
+	await page.setContent(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><style>${style}</style></head>
+<body><div id="mlp-sidebar-root"></div><script>${HOST_STUB}</script>
+<script>${script.replace(/<\/script>/gi, '<\/script>')}</script></body></html>`);
+	await page.evaluate(({ entries, trusted }) => {
+		window.dispatchEvent(new MessageEvent('message', {
+			data: {
+				type: 'init',
+				styles: entries,
+				settings: { defaultEditor: 'prompt', codeTheme: 'auto' },
+				themeKind: 'vscode-dark',
+				workspaceTrusted: trusted,
+			},
+		}));
+	}, { entries: styles, trusted: workspaceTrusted });
+	await page.waitForSelector('.mlp-settings');
 }
 
 /**
@@ -125,6 +173,7 @@ export async function postToWebview(page: Page, message: unknown): Promise<void>
 /** Opens the find panel and waits for it to mount. */
 export async function openSearch(page: Page): Promise<void> {
 	await page.locator('.cm-content').click();
-	await page.keyboard.press('Control+f');
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
 	await page.waitForSelector('.cm-search');
+	await page.locator('.cm-search input').first().focus();
 }

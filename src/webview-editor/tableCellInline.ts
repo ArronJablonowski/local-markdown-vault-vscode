@@ -43,7 +43,11 @@ function unescapePunctuation(text: string): string {
 
 export interface CellInlineHooks {
 	/** Resolves an image's `src` for display (webview base-URI rewriting). */
-	resolveImageSrc: (src: string) => string;
+	resolveImageSrc: (src: string) => string | undefined;
+	/** Asks the host to authorize a local image after canonical containment checks. */
+	resolveImageSrcAsync?: (src: string) => Promise<string | undefined>;
+	/** Re-bases a link for contexts such as embedded notes. */
+	resolveLinkHref?: (href: string) => string | undefined;
 }
 
 /** The `[label](url "title")` pieces of a Link/Image node. */
@@ -109,10 +113,21 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 		case 'Image': {
 			const { label, url, title } = readLinkParts(node, src);
 			const img = document.createElement('img');
-			img.src = hooks.resolveImageSrc(url);
+			img.className = 'mlp-image mlp-table-image';
+			const resolved = hooks.resolveImageSrc(url);
+			if (resolved) img.src = resolved;
+			else {
+				img.classList.add('mlp-image-blocked');
+				if (hooks.resolveImageSrcAsync) {
+					void hooks.resolveImageSrcAsync(url).then((uri) => {
+						if (!uri) return;
+						img.src = uri;
+						img.classList.remove('mlp-image-blocked');
+					}).catch(() => undefined);
+				}
+			}
 			img.alt = label;
 			if (title) img.title = title;
-			img.className = 'mlp-image mlp-table-image';
 			parent.appendChild(img);
 			return;
 		}
@@ -120,7 +135,13 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			const { label, url, title } = readLinkParts(node, src);
 			const a = document.createElement('a');
 			a.className = 'mlp-link';
-			a.setAttribute('data-href', url);
+			const href = hooks.resolveLinkHref ? hooks.resolveLinkHref(url) : url;
+			if (href) {
+				a.setAttribute('data-href', href);
+				a.setAttribute('role', 'link');
+				a.setAttribute('tabindex', '0');
+			}
+			else { a.classList.add('mlp-link-blocked'); a.setAttribute('aria-disabled', 'true'); }
 			if (title) a.title = title;
 			// A link label is itself inline markup ("[**bold** label](u)"), so
 			// render it rather than assigning it as text.
@@ -135,19 +156,22 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			const href = text.replace(/^<|>$/g, '');
 			const a = document.createElement('a');
 			a.className = 'mlp-link';
-			a.setAttribute('data-href', href);
+			const resolved = hooks.resolveLinkHref ? hooks.resolveLinkHref(href) : href;
+			if (resolved) {
+				a.setAttribute('data-href', resolved);
+				a.setAttribute('role', 'link');
+				a.setAttribute('tabindex', '0');
+			}
+			else { a.classList.add('mlp-link-blocked'); a.setAttribute('aria-disabled', 'true'); }
 			a.textContent = href;
 			parent.appendChild(a);
 			return;
 		}
 		case 'HTMLTag': {
-			// Raw inline HTML. Only <br> is honoured — it is the one tag Markdown
-			// tables genuinely need, since a cell cannot hold a real newline.
-			// Everything else is shown literally rather than injected, so a cell can
-			// never introduce arbitrary markup into the webview.
-			const text = src.slice(node.from, node.to);
-			if (/^<br\s*\/?>$/i.test(text)) parent.appendChild(document.createElement('br'));
-			else appendText(parent, text);
+			// Raw HTML is intentionally unsupported. Even seemingly harmless tags
+			// remain literal so there is one simple, auditable rule for attacker-
+			// controlled Markdown in both normal content and rendered table cells.
+			appendText(parent, src.slice(node.from, node.to));
 			return;
 		}
 		case 'Escape': {

@@ -4,6 +4,8 @@ dist/
 aidlc-docs/
 CLAUDE.md
 *.vsix
+local-markdown-vault.cdx.json
+markdown-live-preview-editor.cdx.json
 .claude/
 .playwright-mcp/
 .DS_Store

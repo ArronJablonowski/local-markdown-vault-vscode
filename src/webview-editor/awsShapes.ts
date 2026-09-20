@@ -1,3 +1,5 @@
+import { t } from '../shared/i18n';
+
 /**
  * On-demand loader for the AWS architecture shape table.
  *
@@ -52,10 +54,11 @@ export function loadAwsShapes(): Promise<Record<string, AwsShape>> {
 	if (loadPromise) return loadPromise;
 
 	loadPromise = (async () => {
-		const src = window.mlpAwsShapesUri;
-		if (!src) throw new Error('AWS shape table URI was not provided by the host');
+		const root = typeof document.getElementById === 'function' ? document.getElementById('mlp-root') : null;
+		const src = root?.dataset.awsShapesUri ?? window.mlpAwsShapesUri;
+		if (!src) throw new Error(t('aws.uriMissing'));
 		const response = await fetch(src);
-		if (!response.ok) throw new Error(`Failed to load the AWS shape table (${response.status})`);
+		if (!response.ok) throw new Error(t('aws.loadFailed', String(response.status)));
 		const data = (await response.json()) as Record<string, AwsShape>;
 		shapes = data;
 		return data;

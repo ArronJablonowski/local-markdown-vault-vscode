@@ -59,17 +59,28 @@ body {
 }
 
 .mlp-radio {
+	appearance: none;
+	-webkit-appearance: none;
 	flex: none;
 	width: 14px;
 	height: 14px;
+	margin: 0;
+	padding: 0;
 	border-radius: 50%;
 	border: 1.5px solid var(--vscode-descriptionForeground, #888);
+	background-color: transparent;
 	box-sizing: border-box;
+	cursor: pointer;
 }
-.mlp-card-selected .mlp-radio {
+.mlp-card-selected .mlp-radio,
+.mlp-radio:checked {
 	border-color: var(--vscode-focusBorder, #007fd4);
 	background:
 		radial-gradient(circle, var(--vscode-focusBorder, #007fd4) 0 4px, transparent 5px);
+}
+.mlp-radio:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
 }
 
 .mlp-name {

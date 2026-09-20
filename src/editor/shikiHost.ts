@@ -160,7 +160,17 @@ function findFences(document: vscode.TextDocument): FenceBlock[] {
 	return blocks;
 }
 
+// Process-local test observability only: this value is never persisted, logged,
+// or sent anywhere. The development extension API uses it to prove that hidden
+// panels do not invoke the expensive tokenizer after background document edits.
+let codeTokenizationRunCount = 0;
+
+export function getCodeTokenizationRunCount(): number {
+	return codeTokenizationRunCount;
+}
+
 export async function tokenizeDocument(document: vscode.TextDocument): Promise<CodeBlockTokens[]> {
+	codeTokenizationRunCount++;
 	const fences = findFences(document);
 	if (fences.length === 0) {
 		return [];

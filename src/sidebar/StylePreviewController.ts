@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import type { HostToPreviewMessage, PreviewToHostMessage, ThemeKind } from '../shared/messages';
-import { StyleStore } from './styleStore';
+import { MAX_STYLE_BYTES, StyleStore } from './styleStore';
+import { validatePreviewToHostMessage } from '../shared/auxMessageValidation';
+import { diagnosticEventRateLimited } from '../diagnostics';
+import { escapeAttribute } from '../shared/i18n';
 
 const PUSH_DEBOUNCE_MS = 120;
 
@@ -27,6 +30,7 @@ export class StylePreviewController {
 	private currentName = '';
 	private pushTimer: ReturnType<typeof setTimeout> | undefined;
 	private lastSelector: string | null = null;
+	private sizeWarningShown = false;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -35,7 +39,7 @@ export class StylePreviewController {
 		this.context.subscriptions.push(
 			vscode.workspace.onDidChangeTextDocument((e) => {
 				if (this.currentUri && e.document.uri.toString() === this.currentUri.toString()) {
-					this.schedulePush(e.document.getText());
+					this.schedulePush(e.document);
 				}
 			}),
 			// Move the preview's highlight to whatever rule the cursor is now in.
@@ -51,10 +55,13 @@ export class StylePreviewController {
 
 	/** Open `id`'s CSS on the left and (re)reveal the live preview on the right. */
 	async open(id: string, name: string): Promise<void> {
+		if (!vscode.workspace.isTrusted) return;
 		const uri = await this.styleStore.resolveStyleUri(id);
 		if (!uri) return;
 		const doc = await vscode.workspace.openTextDocument(uri);
+		if (!vscode.workspace.isTrusted) return;
 		const editor = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+		if (!vscode.workspace.isTrusted) return;
 
 		// Key off the opened document's *own* URI, not the one we constructed to
 		// resolve it. VS Code may canonicalize the file URI (e.g. drive-letter case
@@ -81,13 +88,20 @@ export class StylePreviewController {
 			{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 			{
 				enableScripts: true,
-				retainContextWhenHidden: true,
+				// The script posts `ready` when VS Code reconstructs the hidden panel;
+				// the host then sends the current CSS and highlight again.
+				retainContextWhenHidden: false,
 				localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')],
 			},
 		);
 		this.panel.webview.html = this.buildHtml(this.panel.webview);
-		this.panel.webview.onDidReceiveMessage((message: PreviewToHostMessage) => {
-			if (message.type === 'ready') {
+		this.panel.webview.onDidReceiveMessage((raw: unknown) => {
+			const parsed = validatePreviewToHostMessage(raw);
+			if (!parsed.ok) {
+				diagnosticEventRateLimited('protocol.previewMessageRejected', { reason: parsed.reason });
+				return;
+			}
+			if (parsed.value.type === 'ready') {
 				void this.push();
 				this.postHighlight(this.lastSelector);
 			}
@@ -98,11 +112,11 @@ export class StylePreviewController {
 		});
 	}
 
-	private schedulePush(css: string): void {
+	private schedulePush(document: vscode.TextDocument): void {
 		if (this.pushTimer) clearTimeout(this.pushTimer);
 		this.pushTimer = setTimeout(() => {
 			this.pushTimer = undefined;
-			void this.push(css);
+			if (!document.isClosed) void this.push(document.getText());
 		}, PUSH_DEBOUNCE_MS);
 	}
 
@@ -120,13 +134,24 @@ export class StylePreviewController {
 
 	private async push(css?: string): Promise<void> {
 		if (!this.panel || !this.currentUri) return;
+		if (!vscode.workspace.isTrusted) return this.clearPreviewCss();
 		let content = css;
 		if (content === undefined) {
 			try {
 				content = (await vscode.workspace.openTextDocument(this.currentUri)).getText();
 			} catch {
-				return; // file vanished
+					return; // file vanished
+				}
+		}
+		if (!vscode.workspace.isTrusted) return this.clearPreviewCss();
+		if (content.length > MAX_STYLE_BYTES || new TextEncoder().encode(content).byteLength > MAX_STYLE_BYTES) {
+			content = '';
+			if (!this.sizeWarningShown) {
+				this.sizeWarningShown = true;
+				void vscode.window.showWarningMessage(vscode.l10n.t('CSS theme preview is limited to 1 MiB. The source remains editable.'));
 			}
+		} else {
+			this.sizeWarningShown = false;
 		}
 		const message: HostToPreviewMessage = {
 			type: 'update',
@@ -137,16 +162,32 @@ export class StylePreviewController {
 		void this.panel.webview.postMessage(message);
 	}
 
+	private clearPreviewCss(): void {
+		if (!this.panel) return;
+		const message: HostToPreviewMessage = {
+			type: 'update',
+			css: '',
+			themeKind: currentThemeKind(),
+			name: this.currentName,
+		};
+		void this.panel.webview.postMessage(message);
+	}
+
+	refreshSecurityPolicy(): void {
+		void this.push();
+	}
+
 	private buildHtml(webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview-preview.js'),
 		);
 		const nonce = getNonce();
+		const documentTitle = vscode.l10n.t('Style Preview');
 		return `<!DOCTYPE html>
-<html lang="ja">
+<html lang="${escapeAttribute(vscode.env.language)}">
 <head>
 	<meta charset="UTF-8" />
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource} https: data:;" />
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};" />
 	<style>
 		html, body { margin: 0; }
 		/* No horizontal scrolling: if content could overflow sideways, blocks (and
@@ -218,7 +259,7 @@ export class StylePreviewController {
 			}
 		}
 	</style>
-	<title>Style Preview</title>
+	<title>${escapeAttribute(documentTitle)}</title>
 </head>
 <body>
 	<div id="mlp-preview-content"></div>

@@ -1,4 +1,5 @@
 .vscode/**
+.github/**
 .vscode-test/**
 .playwright-mcp/**
 .claude/**
@@ -9,11 +10,17 @@ specs/**
 sample/**
 aidlc-docs/**
 doc/**
+docs/**
+!docs/ACCESSIBILITY.md
+!docs/MIGRATION.md
+!docs/OBSIDIAN_COMPATIBILITY.md
 esbuild.js
 scripts/**
 vendor/aws4.xml
 tsconfig.json
 package-lock.json
+local-markdown-vault.cdx.json
+markdown-live-preview-editor.cdx.json
 .gitignore
 CLAUDE.md
 repro-*.png
@@ -29,4 +36,4 @@ playwright-report/**
 .vscode-test.mjs
 playwright.config.ts
 tsconfig.test.json
-vitest.config.ts
+vitest.config.mts

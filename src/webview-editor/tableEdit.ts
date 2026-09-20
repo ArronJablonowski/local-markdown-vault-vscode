@@ -1,5 +1,5 @@
 /**
- * Structural edits to a Markdown table — adding a row or a column.
+ * Structural edits to a Markdown table.
  *
  * Kept as pure functions over plain data, separate from the widget that calls
  * them. Cell editing can write back one span at a time because only one cell
@@ -132,4 +132,61 @@ export function deleteColumn(model: TableEditModel, index: number): TableEditMod
 	const align = model.align.slice();
 	align.splice(index, 1);
 	return { ...model, rows, align };
+}
+
+/** Moves a data row by one position without ever crossing into the header. */
+export function moveRow(model: TableEditModel, index: number, delta: -1 | 1): TableEditModel {
+	const headerCount = Math.max(1, model.headerRowCount);
+	const target = index + delta;
+	if (index < headerCount || index >= model.rows.length || target < headerCount || target >= model.rows.length) {
+		return model;
+	}
+	const rows = model.rows.slice();
+	[rows[index], rows[target]] = [rows[target], rows[index]];
+	return { ...model, rows };
+}
+
+/** Moves a column, carrying its delimiter alignment and every cell with it. */
+export function moveColumn(model: TableEditModel, index: number, delta: -1 | 1): TableEditModel {
+	const width = model.align.length || model.rows[0]?.length || 0;
+	const target = index + delta;
+	if (index < 0 || index >= width || target < 0 || target >= width) return model;
+	const rows = model.rows.map((cells) => {
+		const padded = Array.from({ length: width }, (_, i) => cells[i] ?? '');
+		[padded[index], padded[target]] = [padded[target], padded[index]];
+		return padded;
+	});
+	const align = Array.from({ length: width }, (_, i) => model.align[i] ?? null);
+	[align[index], align[target]] = [align[target], align[index]];
+	return { ...model, rows, align };
+}
+
+/** Sorts data rows by one column, preserving the header and equal-value order. */
+export function sortRows(model: TableEditModel, column: number, direction: 'asc' | 'desc'): TableEditModel {
+	const width = model.align.length || model.rows[0]?.length || 0;
+	if (column < 0 || column >= width) return model;
+	const headerCount = Math.max(1, model.headerRowCount);
+	const headers = model.rows.slice(0, headerCount);
+	const factor = direction === 'asc' ? 1 : -1;
+	const data = model.rows
+		.slice(headerCount)
+		.map((row, originalIndex) => ({ row, originalIndex }))
+		.sort((a, b) => {
+			const compared = (a.row[column] ?? '').localeCompare(b.row[column] ?? '', undefined, {
+				numeric: true,
+				sensitivity: 'base',
+			});
+			return compared === 0 ? a.originalIndex - b.originalIndex : compared * factor;
+		})
+		.map(({ row }) => row);
+	return { ...model, rows: [...headers, ...data] };
+}
+
+/** Sets the GFM delimiter alignment for one column. */
+export function setColumnAlignment(model: TableEditModel, index: number, alignAt: ColumnAlign): TableEditModel {
+	const width = model.align.length || model.rows[0]?.length || 0;
+	if (index < 0 || index >= width) return model;
+	const align = Array.from({ length: width }, (_, i) => model.align[i] ?? null);
+	align[index] = alignAt;
+	return { ...model, align };
 }

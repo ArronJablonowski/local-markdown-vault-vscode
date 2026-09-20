@@ -1,0 +1,13 @@
+{
+	"name": "md-live-preview-vsix-smoke-harness",
+	"displayName": "Local Markdown Vault VSIX Smoke Harness",
+	"version": "0.0.0",
+	"private": true,
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"main": "./extension.js",
+	"activationEvents": [
+		"*"
+	]
+}

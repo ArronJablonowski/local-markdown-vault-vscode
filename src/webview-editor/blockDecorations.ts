@@ -1,13 +1,13 @@
 import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { parse as parseYaml } from 'yaml';
 import { MermaidWidget } from './mermaidWidget';
 import { DrawioWidget } from './drawioWidget';
 import { isDiagramLang } from './diagramLang';
 import { buildTableWidget, isLineAligned, alignedBlockRange } from './livePreviewPlugin';
 import { blockCursorTouchesRange, noteRevealed, onPointerRelease } from './cmUtils';
 import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, FrontmatterErrorWidget } from './frontmatterWidget';
+import { parseFrontmatterYaml } from './frontmatterSecurity';
 
 /**
  * CodeMirror 6 forbids block decorations (block widgets / block-replacing
@@ -40,9 +40,9 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 	if (fm && !fmRevealed) {
 		let widget: WidgetType;
 		try {
-			const data = parseYaml(fm.yamlText) ?? {};
+			const data = parseFrontmatterYaml(fm.yamlText) ?? {};
 			const entries = Object.entries(data);
-			widget = entries.length === 0 ? new FrontmatterEmptyWidget() : new FrontmatterWidget(entries);
+			widget = entries.length === 0 ? new FrontmatterEmptyWidget() : new FrontmatterWidget(entries, fm);
 		} catch (err) {
 			widget = new FrontmatterErrorWidget(err instanceof Error ? err.message : String(err));
 		}

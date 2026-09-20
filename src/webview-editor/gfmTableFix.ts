@@ -53,7 +53,12 @@ function countCells(text: string, start: number): number {
 // claimed by something more specific (Table, Task, LinkReference, ...). Only
 // the latter should make this hook stand down.
 function hasClaimedParser(leaf: LeafBlock): boolean {
-	return leaf.parsers.some((p) => p.constructor.name !== 'SetextHeadingParser');
+	// The default Setext parser is always present and is the only parser for a
+	// plain paragraph. Any claimed construct adds another parser. Do not inspect
+	// constructor.name here: production minification renames those private Lezer
+	// classes and previously made this security build behave differently from
+	// development.
+	return leaf.parsers.length > 1;
 }
 
 // This extension adds a second `endLeaf` hook that repeats the same check

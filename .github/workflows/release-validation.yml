@@ -1,0 +1,78 @@
+name: Cross-platform release validation
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    name: Supply-chain evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run security:audit
+      - run: npm run security:sbom
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-sbom
+          path: local-markdown-vault.cdx.json
+          if-no-files-found: error
+
+  platform:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # The published performance budget is measured on the documented
+      # reference machine. Shared hosted runners are too variable to be valid
+      # performance evidence, but all deterministic unit tests still run here.
+      - name: Unit tests excluding reference-machine benchmarks
+        run: npx vitest run --exclude src/vault/vaultPerformance.test.ts
+      - run: npm run compile
+      - name: VS Code integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration
+      - name: VS Code integration tests (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:integration
+      - name: Restricted Mode integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration:restricted
+      - name: Restricted Mode integration tests (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:integration:restricted
+      - run: npm run package
+      - name: Packaged VSIX smoke tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:vsix
+      - name: Packaged VSIX smoke tests (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:vsix
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vsix-${{ runner.os }}
+          path: local-markdown-vault-*.vsix
+          if-no-files-found: error

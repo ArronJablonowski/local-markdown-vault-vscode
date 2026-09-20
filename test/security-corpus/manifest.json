@@ -1,0 +1,35 @@
+[
+  {
+    "file": "malicious.md",
+    "visibleText": "Hostile Markdown must remain inert",
+    "frontmatterError": false
+  },
+  {
+    "file": "malicious-yaml-alias.md",
+    "visibleText": "The editor must stay responsive",
+    "frontmatterError": true
+  },
+  {
+    "file": "hostile-html-and-urls.md",
+    "visibleText": "URL and HTML boundary fixture",
+    "frontmatterError": false
+  },
+  {
+    "file": "hostile-diagrams.md",
+    "visibleText": "Diagram boundary fixture",
+    "frontmatterError": false
+  },
+  {
+    "file": "hostile-yaml-depth.md",
+    "visibleText": "Deep YAML must leave the editor usable",
+    "frontmatterError": true
+  },
+  {
+    "file": "hostile-malformed-syntax.md",
+    "visibleText": "The editor remains usable after malformed syntax.",
+    "frontmatterError": false,
+    "repeatText": "![[Repeated missing embed]] ",
+    "repeatCount": 4096,
+    "maxMountMs": 5000
+  }
+]

@@ -29,7 +29,32 @@ test.describe('diagram widgets', () => {
 		// What must not happen is a blank space where the block was: the widget
 		// reports the failure in place, so the surrounding document stays intact.
 		await expect(page.locator('.mlp-mermaid-error')).toBeVisible({ timeout: 20_000 });
+		await expect(page.locator('.mlp-mermaid-error')).toHaveAttribute('role', 'alert');
+		await expect(page.locator('.mlp-mermaid-error')).not.toContainText('{{{');
+		await expect(page.locator('.mlp-mermaid-error')).toContainText('could not be rendered');
 		await expect(page.locator('.cm-line', { hasText: 'After' })).toBeVisible();
+	});
+
+	test('sanitizes active content from renderer SVG before DOM insertion', async ({ page }) => {
+		const trackerRequests: string[] = [];
+		page.on('request', (request) => {
+			if (request.url().includes('tracker.invalid')) trackerRequests.push(request.url());
+		});
+		const hostileRenderer = `window.mlpMermaid = {
+			initialize: function () {},
+			render: async function () { return { svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="window.__svgRan=1"><script>window.__svgRan=2<\\/script><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">hostile</div></foreignObject><style>.mlp-code-mode-btn, body { --renderer-escaped:yes }</style><style id="host-escape">:host { position:fixed!important; inset:0 }</style><style id="network-style">rect { background-image:image-set("https://tracker.invalid/pixel" 1x) }</style><a href="https://tracker.invalid/x"><text>link</text></a><rect style="fill:url(https://tracker.invalid/pixel)" width="10" height="10"/></svg>' }; }
+		};`;
+		await mountEditor(page, 'Intro\n\n```mermaid\ngraph TD; A-->B\n```\n', { mermaidChunk: hostileRenderer });
+		await expect(page.locator('.mlp-mermaid-wrap svg')).toBeVisible({ timeout: 10_000 });
+		await expect(page.locator('.mlp-mermaid-wrap script, .mlp-mermaid-wrap foreignObject')).toHaveCount(0);
+		await expect(page.locator('.mlp-mermaid-wrap [onload], .mlp-mermaid-wrap [href]')).toHaveCount(0);
+		await expect(page.locator('.mlp-mermaid-wrap style#host-escape')).toHaveCount(0);
+		await expect(page.locator('.mlp-mermaid-wrap style#network-style')).toHaveCount(0);
+		await expect(page.locator('.mlp-mermaid-wrap .mlp-code-mode-btn')).toBeVisible();
+		expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe('none');
+		expect(await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--renderer-escaped'))).toBe('');
+		expect(await page.evaluate(() => (window as unknown as { __svgRan?: number }).__svgRan)).toBeUndefined();
+		expect(trackerRequests).toEqual([]);
 	});
 
 	test('a drawio fence renders without the draw.io app', async ({ page }) => {
@@ -43,6 +68,32 @@ test.describe('diagram widgets', () => {
 		].join('');
 		await mountEditor(page, `Intro\n\n\`\`\`drawio\n${xml}\n\`\`\`\n\nAfter\n`);
 		await expect(page.locator('.mlp-drawio-wrap svg')).toBeVisible({ timeout: 15_000 });
+	});
+
+	test('diagram glyph controls expose descriptive accessible names', async ({ page }) => {
+		const xml = [
+			'<mxGraphModel><root>',
+			'<mxCell id="0"/><mxCell id="1" parent="0"/>',
+			'<mxCell id="2" value="Box" vertex="1" parent="1">',
+			'<mxGeometry x="10" y="10" width="80" height="40" as="geometry"/>',
+			'</mxCell>',
+			'</root></mxGraphModel>',
+		].join('');
+		await mountEditor(page, `Intro\n\n\`\`\`mermaid\ngraph TD; A-->B\n\`\`\`\n\n\`\`\`drawio\n${xml}\n\`\`\`\n`);
+		await expect(page.locator('.mlp-mermaid-wrap svg')).toHaveCount(2, { timeout: 20_000 });
+
+		const wrappers = page.locator('.mlp-mermaid-wrap');
+		for (let index = 0; index < 2; index++) {
+			const wrapper = wrappers.nth(index);
+			await expect(wrapper.getByRole('button', { name: 'Switch to actual size (drag to pan, Ctrl+wheel to zoom)' })).toHaveCount(1);
+			await expect(wrapper.locator('button[aria-label="Zoom in (Ctrl+wheel also works)"]')).toHaveCount(1);
+			await expect(wrapper.locator('button[aria-label="Zoom out"]')).toHaveCount(1);
+			await expect(wrapper.locator('button[aria-label="Reset the view (fit to width)"]')).toHaveCount(1);
+		}
+
+		const toggle = wrappers.first().getByRole('button', { name: 'Switch to actual size (drag to pan, Ctrl+wheel to zoom)' });
+		await toggle.click();
+		await expect(wrappers.first().getByRole('button', { name: 'Back to fitted view (scaled to the available width, no scrolling)' })).toHaveCount(1);
 	});
 
 	test('a drawio file reference asks the host to read it', async ({ page }) => {
@@ -64,10 +115,12 @@ test.describe('diagram widgets', () => {
 	test('a drawio file that cannot be read shows the error', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n![](missing.drawio)\n\nAfter\n');
 		const requestId = await requestIdFor(page);
-		await postToWebview(page, { type: 'drawioFile', requestId, error: 'File not found.' });
-		await expect(page.locator('.mlp-mermaid-error')).toContainText('File not found.', {
+		await postToWebview(page, { type: 'drawioFile', requestId, error: 'forged <secret> source text' });
+		await expect(page.locator('.mlp-mermaid-error')).toContainText('Could not read the file.', {
 			timeout: 10_000,
 		});
+		await expect(page.locator('.mlp-mermaid-error')).not.toContainText('forged');
+		await expect(page.locator('.mlp-mermaid-error')).toHaveAttribute('role', 'alert');
 	});
 });
 

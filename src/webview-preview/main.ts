@@ -1,5 +1,7 @@
 import type { HostToPreviewMessage, PreviewToHostMessage } from '../shared/messages';
 import { t } from '../shared/i18n';
+import { validateHostToPreviewMessage } from '../shared/auxMessageValidation';
+import { stripNetworkedCss } from '../shared/cssAdapter';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -119,10 +121,12 @@ function applyHighlight(selector: string | null): void {
 	els.forEach((el) => el.classList.add(HL_CLASS));
 }
 
-window.addEventListener('message', (event: MessageEvent<HostToPreviewMessage>) => {
-	const message = event.data;
+window.addEventListener('message', (event: MessageEvent<unknown>) => {
+	const parsed = validateHostToPreviewMessage(event.data);
+	if (!parsed.ok) return;
+	const message = parsed.value;
 	if (message.type === 'update') {
-		themeStyle.textContent = message.css;
+		themeStyle.textContent = stripNetworkedCss(message.css);
 		// The theme's `body.vscode-dark` / `.vscode-light` gates key off this class.
 		setThemeKind(message.themeKind);
 	} else if (message.type === 'highlight') {

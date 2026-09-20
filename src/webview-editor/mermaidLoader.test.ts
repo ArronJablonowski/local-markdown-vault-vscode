@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * a missing nonce, a double-inserted <script>, or a poisoned cache all end with
  * diagrams simply never appearing — so each branch is asserted explicitly.
  *
- * The suite runs under vitest's `node` environment (see vitest.config.ts), so a
+ * The suite runs under vitest's `node` environment (see vitest.config.mts), so a
  * minimal `document`/`window` stand-in is installed per test rather than
  * pulling in a full DOM implementation for these few assertions.
  */

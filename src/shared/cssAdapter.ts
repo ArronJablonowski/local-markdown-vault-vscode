@@ -521,3 +521,203 @@ function processRules(css: string): string {
 export function adaptMarkdownCss(css: string): string {
 	return processRules(css);
 }
+
+/**
+ * Rejects a theme that could initiate its own network request. The editor CSP
+ * may allow HTTPS images after an explicit user opt-in, but that permission is
+ * for authored Markdown images only—not for CSS imports, fonts, cursors, or
+ * background tracking pixels. CSS escapes are decoded before checking so
+ * `u\72l(...)` and similar spellings cannot bypass the policy.
+ */
+export function decodeCssForSecurity(css: string): string {
+	const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+	return withoutComments
+		// CSS strings treat a backslash followed by a newline as a continuation,
+		// removing both before interpreting the value. Mirror that preprocessing
+		// so a split `https:` scheme cannot hide from this check.
+		.replace(/\\(?:\r\n|[\n\r\f])/g, '')
+		.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_match, hex: string) => {
+			const codePoint = Number.parseInt(hex, 16);
+			return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : '';
+		})
+		.replace(/\\([^\r\n])/g, '$1')
+		.toLowerCase();
+}
+
+export interface PreviewCssSanitization {
+	css: string;
+	rejected: boolean;
+}
+
+export const MAX_PREVIEW_CSS_BYTES = 1024 * 1024;
+export const MAX_PREVIEW_CSS_NESTING = 32;
+export const MAX_PREVIEW_CSS_RULES = 10_000;
+
+/**
+ * Removes unsafe rules while retaining unrelated theme rules. Security policy
+ * is evaluated after CSS escape decoding, one rule at a time. This prevents a
+ * single safe-to-ignore reset such as `[hidden] { display:none }` from disabling
+ * an otherwise usable theme, while a mixed safe/hostile stylesheet cannot hide
+ * the rejected rule among ordinary typography.
+ */
+export function sanitizePreviewCss(css: string): PreviewCssSanitization {
+	if (css.length > MAX_PREVIEW_CSS_BYTES || new TextEncoder().encode(css).byteLength > MAX_PREVIEW_CSS_BYTES) {
+		return { css: '', rejected: true };
+	}
+	const state = { rules: 0, rejected: false };
+	const safe = sanitizeRuleList(css, state, 0);
+	return { css: safe, rejected: state.rejected };
+}
+
+/** Backward-compatible convenience used by callers that only need safe CSS. */
+export function stripNetworkedCss(css: string): string {
+	return sanitizePreviewCss(css).css;
+}
+
+function sanitizeRuleList(
+	css: string,
+	state: { rules: number; rejected: boolean },
+	depth: number,
+): string {
+	if (depth > MAX_PREVIEW_CSS_NESTING) {
+		state.rejected = true;
+		return '';
+	}
+	let output = '';
+	let prelude = '';
+	let i = 0;
+	while (i < css.length) {
+		if (css[i] === '/' && css[i + 1] === '*') {
+			const end = css.indexOf('*/', i + 2);
+			const stop = end === -1 ? css.length : end + 2;
+			prelude += css.slice(i, stop);
+			i = stop;
+			continue;
+		}
+		if (css[i] === '{') {
+			if (++state.rules > MAX_PREVIEW_CSS_RULES) {
+				state.rejected = true;
+				break;
+			}
+			const close = findMatchingBrace(css, i);
+			if (close >= css.length) {
+				state.rejected = true;
+				break;
+			}
+			const body = css.slice(i + 1, close);
+			const { comments, rest } = extractLeadingComments(prelude);
+			const selector = rest.trim();
+			if (/^@(media|supports|container|layer)\b/i.test(selector)) {
+				const nested = sanitizeRuleList(body, state, depth + 1);
+				if (nested.trim()) output += `${comments}${rest}{${nested}}`;
+				else state.rejected = true;
+			} else if (selector.startsWith('@') || unsafePreviewRule(selector, body)) {
+				state.rejected = true;
+			} else {
+				output += `${comments}${rest}{${body}}`;
+			}
+			prelude = '';
+			i = close < css.length ? close + 1 : css.length;
+			continue;
+		}
+		if (css[i] === ';') {
+			// Top-level statements can load resources or create global definitions.
+			// No statement form is required by a preview-content theme.
+			if (prelude.trim()) state.rejected = true;
+			prelude = '';
+			i++;
+			continue;
+		}
+		prelude += css[i++];
+	}
+	if (prelude.trim() && !/^\s*(?:\/\*[\s\S]*?\*\/\s*)*$/.test(prelude)) state.rejected = true;
+	else output += prelude;
+	return output;
+}
+
+function unsafePreviewRule(selector: string, body: string): boolean {
+	const decodedSelector = decodeCssForSecurity(selector);
+	const decodedBody = decodeCssForSecurity(body);
+	const decoded = `${decodedSelector}{${decodedBody}}`;
+	// CSS Images accepts quoted network locations in functions such as
+	// `image-set("https://…" 1x)` without a url() token. Reject external schemes
+	// everywhere rather than enumerating every URL-bearing function.
+	if (/\b(?:https?|data|file|blob)\s*:|\/\//.test(decoded)) return true;
+	if (/@import\b|url\s*\(|behavior\s*:|-moz-binding\s*:|expression\s*\(|@(?:font-face|keyframes|property)\b/.test(decoded)) return true;
+	if (/(?:\.cm-(?:panels?|tooltip)|\.mlp-[\w-]*(?:btn|button|toolbar|control)|\b(?:button|input|textarea|select)\b)/.test(decodedSelector)) return true;
+	if (/(^|,)\s*\*(?:\s*[,.:#\[{>+~]|\s*$)/m.test(decodedSelector)) return true;
+
+	// Reject the property, not merely one literal value: otherwise a custom
+	// property can smuggle `fixed`, `none`, or another dangerous value through
+	// `var()`. Relative positioning remains useful for ordinary typography, but
+	// absolute/fixed/sticky positioning can cover trusted controls.
+	if (/(?:^|;)\s*(?:position\s*:\s*(?:fixed|absolute|sticky|var\s*\()|z-index\s*:|pointer-events\s*:|visibility\s*:)/.test(decodedBody)) return true;
+	if (/(?:^|;)\s*display\s*:\s*var\s*\(/.test(decodedBody)) return true;
+	if (/(?:^|;)\s*display\s*:\s*none\b/.test(decodedBody) && !safeHiddenSelector(decodedSelector)) return true;
+	// These properties affect the complete composited subtree, so a generic
+	// ancestor selector can hide or relocate protected controls even when the
+	// control's own selector is never mentioned.
+	if (/(?:^|;)\s*(?:opacity|(?:-(?:webkit|moz)-)?(?:filter|transform|clip-path|mask|mask-image)|backdrop-filter|clip|mix-blend-mode|translate|scale|rotate)\s*:/.test(decodedBody)) return true;
+	const canAffectControlText = /(?:^|[\s,>+~])(?:div|span|section|main|article|\.cm-|\.mlp-|\*|\[)/.test(decodedSelector);
+	if (canAffectControlText && /(?:^|;)\s*(?:all|overflow|content-visibility)\s*:/.test(decodedBody)) return true;
+	if (canAffectControlText && /(?:^|;)\s*(?:color|-webkit-text-fill-color)\s*:\s*transparent\b/.test(decodedBody)) return true;
+	if (canAffectControlText && /(?:^|;)\s*(?:font-size|line-height)\s*:\s*(?:0|0(?:px|em|rem|%))\b/.test(decodedBody)) return true;
+	if (canAffectControlText && /(?:^|;)\s*font\s*:\s*(?:0|0(?:px|em|rem|%))\b/.test(decodedBody)) return true;
+	return false;
+}
+
+function safeHiddenSelector(selector: string): boolean {
+	const selectors = selector.split(',').map((item) => item.trim()).filter(Boolean);
+	return selectors.length > 0 && selectors.every((item) => item === '[hidden]' || /^(?:code|tt)\s+br$/.test(item));
+}
+
+function scopeSelector(selector: string): string {
+	const trimmed = selector.trim();
+	if (!trimmed) return trimmed;
+	const bodyGate = /^(body(?:\.(?:vscode-[\w-]+|high-contrast))*)\s+(.+)$/i.exec(trimmed);
+	if (bodyGate) return `${bodyGate[1]} #mlp-root .cm-content ${bodyGate[2]}`;
+	if (/^\.cm-editor\s+\.cm-content(?:\b|$)/.test(trimmed)) {
+		return `#mlp-root ${trimmed.replace(/^\.cm-editor\s+/, '')}`;
+	}
+	if (/^\.cm-content(?:\b|$)/.test(trimmed)) return `#mlp-root ${trimmed}`;
+	return `#mlp-root .cm-content ${trimmed}`;
+}
+
+function scopeRules(css: string): string {
+	let output = '';
+	let prelude = '';
+	let i = 0;
+	while (i < css.length) {
+		if (css[i] === '/' && css[i + 1] === '*') {
+			const end = css.indexOf('*/', i + 2);
+			const stop = end === -1 ? css.length : end + 2;
+			prelude += css.slice(i, stop);
+			i = stop;
+			continue;
+		}
+		if (css[i] !== '{') {
+			prelude += css[i++];
+			continue;
+		}
+		const close = findMatchingBrace(css, i);
+		const body = css.slice(i + 1, close);
+		const { comments, rest } = extractLeadingComments(prelude);
+		const trimmed = rest.trim();
+		if (/^@(media|supports|container|layer)\b/i.test(trimmed)) {
+			output += `${comments}${rest}{${scopeRules(body)}}`;
+		} else if (trimmed.startsWith('@')) {
+			// Non-container at-rules are outside the preview-content styling model.
+		} else {
+			const scoped = rest.split(',').map(scopeSelector).join(', ');
+			output += `${comments}${scoped}{${body}}`;
+		}
+		prelude = '';
+		i = close + 1;
+	}
+	return output + prelude;
+}
+
+/** Confines every accepted theme selector beneath the rendered document. */
+export function scopePreviewCss(css: string): string {
+	return scopeRules(css);
+}
