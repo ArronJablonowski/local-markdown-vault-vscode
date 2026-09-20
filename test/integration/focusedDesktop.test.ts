@@ -1,7 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { chromium, type Browser, type Frame } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
+let debugBrowser: Browser | undefined;
 
 interface VaultServiceApi {
 	rootUri: vscode.Uri;
@@ -28,7 +30,7 @@ suite('focused macOS desktop transactions', () => {
 
 	suiteSetup(async function () {
 		if (process.platform !== 'darwin') this.skip();
-		await waitFor(() => vscode.window.state.focused, 'the isolated VS Code window never received macOS focus', 15_000);
+		await bringIsolatedWorkbenchToFront();
 		const extension = vscode.extensions.getExtension<DevelopmentApi>(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);
 		api = await extension.activate();
@@ -63,6 +65,34 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => document.lineAt(0).text === '# Title one', 'redo did not restore exactly one edit');
 		await vscode.commands.executeCommand('redo');
 		await waitFor(() => document.lineAt(0).text === '# Title one two', 'second redo did not restore the final text');
+	});
+
+	test('keeps Live Preview keyboard undo and redo synchronized with the TextDocument', async () => {
+		const fixture = await makeFixture('live-preview');
+		const note = await service.createNote(fixture, 'Focused Live Preview');
+		const original = '# Live Preview\n';
+		const inserted = 'mac-live-preview ';
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		const document = await vscode.workspace.openTextDocument(note);
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await waitFor(() => {
+			const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+			return input instanceof vscode.TabInputCustom && input.viewType === 'mdLivePreview.editor';
+		}, 'Live Preview did not become the active custom editor');
+
+		const frame = await connectToLivePreviewFrame();
+		const editor = frame.locator('.cm-content');
+		await editor.click();
+		await frame.page().keyboard.type(inserted);
+		await waitFor(() => document.getText().includes(inserted), 'macOS keyboard input did not reach Live Preview');
+		const edited = document.getText();
+		assert.notStrictEqual(edited, original);
+
+		await frame.page().keyboard.press('Meta+z');
+		await waitFor(() => document.getText() === original, 'Cmd+Z did not undo the Live Preview edit in the TextDocument');
+		await frame.page().keyboard.press('Meta+Shift+z');
+		await waitFor(() => document.getText() === edited, 'Cmd+Shift+Z did not redo the Live Preview edit in the TextDocument');
 	});
 
 	test('undoes and redoes a vault move and link rewrite as one unit', async () => {
@@ -128,6 +158,47 @@ async function insert(document: vscode.TextDocument, offset: number, text: strin
 
 function bytes(value: string): Uint8Array {
 	return new TextEncoder().encode(value);
+}
+
+async function connectToLivePreviewFrame(): Promise<Frame> {
+	const browser = await connectToDebugBrowser();
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		for (const context of browser.contexts()) {
+			for (const page of context.pages()) {
+				for (const frame of page.frames()) {
+					if (await frame.locator('.cm-content').count() > 0) return frame;
+				}
+			}
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	assert.fail('could not find the active Live Preview CodeMirror frame');
+}
+
+async function bringIsolatedWorkbenchToFront(): Promise<void> {
+	const browser = await connectToDebugBrowser();
+	const pages = browser.contexts().flatMap((context) => context.pages());
+	assert.ok(pages.length > 0, 'the isolated VS Code workbench page is unavailable');
+	await pages[0].bringToFront();
+}
+
+async function connectToDebugBrowser(): Promise<Browser> {
+	if (debugBrowser) return debugBrowser;
+	const port = Number(process.env.MDLP_VSCODE_DEBUG_PORT);
+	assert.ok(Number.isInteger(port) && port > 0 && port <= 65_535, 'the focused runner did not provide a debugging port');
+	const deadline = Date.now() + 10_000;
+	let lastError: unknown;
+	while (Date.now() < deadline) {
+		try {
+			debugBrowser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+			return debugBrowser;
+		} catch (error) {
+			lastError = error;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	assert.fail(`could not connect to the isolated VS Code workbench: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
 async function exists(uri: vscode.Uri): Promise<boolean> {

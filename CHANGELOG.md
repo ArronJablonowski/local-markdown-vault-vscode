@@ -1,6 +1,6 @@
 # Changelog
 
-- Add a reproducible macOS-only focused-window integration runner for native text undo/redo, one-step vault move/link undo/redo, and case-only rename undo/replay/inverse behavior.
+- Add a reproducible macOS-only desktop integration runner for native text undo/redo, real Live Preview keyboard undo/redo synchronized with the backing `TextDocument`, one-step vault move/link undo/redo, and case-only rename undo/replay/inverse behavior without requiring Accessibility permission.
 
 - Add a two-launch isolated-profile integration gate proving that deletion of the rebuildable cache is recovered at the next VS Code startup, restoring private body search and navigation from Markdown without persisting sensitive values or changing `.obsidian` settings.
 

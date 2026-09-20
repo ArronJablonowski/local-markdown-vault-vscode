@@ -273,9 +273,13 @@ describe('release security evidence', () => {
 		const runner = readFileSync(join(ROOT, 'scripts', 'run-focused-macos-integration.mjs'), 'utf8');
 		expect(runner).toContain("process.platform !== 'darwin'");
 		expect(runner).toContain("MDLP_FOCUSED_DESKTOP_TEST: '1'");
-		expect(runner).toContain("spawnSync('osascript'");
+		expect(runner).toContain('`--remote-debugging-port=${debugPort}`');
+		expect(runner).toContain('MDLP_VSCODE_DEBUG_PORT: String(debugPort)');
 		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'focusedDesktop.test.ts'), 'utf8');
-		expect(testSource).toContain('vscode.window.state.focused');
+		expect(testSource).toContain('chromium.connectOverCDP');
+		expect(testSource).toContain("frame.locator('.cm-content')");
+		expect(testSource).toContain("keyboard.press('Meta+z')");
+		expect(testSource).toContain("keyboard.press('Meta+Shift+z')");
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});
