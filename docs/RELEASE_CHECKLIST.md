@@ -34,7 +34,7 @@ installed-VSIX evidence described below.
 | Targeted vault losslessness suite | 1 test passed: index reset/rebuild preserved Markdown, binary attachment, and `.obsidian/app.json` bytes and created no vault-local extension folder |
 | Cache privacy and restart suite | The generated JSON cache was inspected after initial indexing and after recovery; frontmatter values, task text, and body-derived search tokens were absent. A dedicated isolated profile deleted that cache, exited VS Code, then launched VS Code again with the same vault and profile. Search and indexed navigation were reconstructed from Markdown on macOS, Windows, and Ubuntu while `.obsidian/app.json` remained byte-identical. |
 | Targeted hidden-panel idleness suite | 1 real-host test passed: background edits caused no syntax tokenization while hidden and refreshed after reveal |
-| Restricted Mode extension-host suite | 4 tests passed in a fresh profile with `workspace.isTrusted === false`, including forged vault-folder and custom-CSS creation commands |
+| Restricted Mode extension-host suite | 4 tests passed in a fresh profile with `workspace.isTrusted === false`, including plain Markdown/Live Preview availability and forged vault-folder and custom-CSS creation commands. The shipped browser boundary additionally kept Mermaid, draw.io, and custom CSS inert while accepting a real plain-Markdown edit and emitting its validated edit message. |
 | Production package | `local-markdown-vault-0.2.0.vsix`: 57 files, 3.49 MB (3,659,246 compressed bytes; 14,350,605 uncompressed bytes); archive verifier passed, including the packaged Obsidian compatibility contract |
 | VSIX SHA-256 | `f82da6fa5db118c01b96a826b42381434daca2306527e18b920078ea1fe657e7` |
 | Five-run CPU benchmark | 10,000 notes/130,000 links: 332.1 ms index p95, 6.8 ms incremental p95, 24.6 ms search p95, 8.9 ms Quick Switcher p95 |
@@ -104,7 +104,7 @@ reported as automated evidence.
 - [x] Opening the complete checked-in malicious corpus in the real macOS VS Code custom editor causes no script execution, VS Code command execution, unsolicited request, external file read, or write outside the vault.
 - [ ] Raw HTML, unsafe URLs, malformed messages, hostile SVG/XML/YAML/CSS, traversal, symlink escape, and parser/resource bombs fail closed with bounded diagnostics.
 - [x] Default settings make no network request. Remote HTTPS media works only after a per-workspace opt-in, and live revocation returns open editors to blocked-media state.
-- [ ] Restricted Mode keeps plain Markdown editing usable and disables diagrams, custom CSS, remote media, attachment writes, and vault-wide mutations.
+- [x] Restricted Mode keeps plain Markdown editing usable and disables diagrams, custom CSS, remote media, attachment writes, and vault-wide mutations; this is covered in the browser, genuine untrusted extension host, packaged VSIX, message, and command boundaries.
 - [x] CSP and `localResourceRoots` match the documented minimum; the CodeMirror and isolated theme-card inline-style exceptions are documented, source-gated, and re-reviewed.
 - [x] Private vulnerability reporting is enabled for the release repository and `SECURITY.md` directs reporters to the repository's private **Report a vulnerability** form.
 

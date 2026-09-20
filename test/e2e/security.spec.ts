@@ -257,5 +257,14 @@ test.describe('hostile Markdown boundaries', () => {
 		await postToWebview(page, { type: 'applyCss', css: 'h1 { color: rgb(1, 2, 3); }' });
 		const colorAfterForgedMessage = await page.locator('.cm-line', { hasText: 'Heading' }).evaluate((element) => getComputedStyle(element).color);
 		expect(colorAfterForgedMessage).not.toBe('rgb(1, 2, 3)');
+
+		const editor = page.locator('.cm-content');
+		await editor.click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type('\nrestricted plain edit');
+		await expect(editor).toContainText('restricted plain edit');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string }> }).__posted.some((message) => message.type === 'edit')))
+			.toBe(true);
 	});
 });

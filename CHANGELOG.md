@@ -1,5 +1,7 @@
 # Changelog
 
+- Strengthen Restricted Mode coverage so the inert diagram/custom-CSS browser gate also types a real plain-Markdown edit and verifies that the validated edit message still crosses the boundary while privileged rendering remains disabled.
+
 - Add a real-host macOS network-policy journey proving that an HTTPS image activates only after an explicit workspace-scoped opt-in, emits exactly its expected intercepted request, and returns immediately to blocked-media state when the opt-in is revoked without changing the tracked workspace settings.
 
 - Exercise all six checked-in malicious Markdown fixtures in the real macOS VS Code custom editor, including the 4,096-embed stress case, while observing requests and proving no code execution, command-triggered workbench closure, active unsafe URL, outside-vault disclosure or mutation, or adjacent filesystem change.
