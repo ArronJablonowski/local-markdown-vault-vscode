@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep the strict one-second large-note viewport gate enabled on the documented reference Mac while treating shared-runner wall-clock timings as informational; hosted CI still exercises all five mounts, editability, and host-message behavior.
+
 - Prevent case-only rename staging and automatic dirty-document saves after the active vault or Workspace Trust becomes stale, while retaining exact rollback if authorization changes during staging.
 
 - Recheck active-vault and Workspace Trust authorization before every note, folder, intermediate-directory, and attachment filesystem creation, in addition to the existing post-write commit checks.

@@ -58,6 +58,10 @@ The test opens five fresh browser pages with a 1 MiB Markdown note, waits for
 the CodeMirror viewport, verifies that it is editable and contains the first
 heading, then types into it and waits for the bounded host edit message. Every
 run independently enforces the **PERF-004** one-second first-viewport budget.
+The ordinary local command above enables that budget by default. Shared GitHub
+Actions runners set `LMV_PERFORMANCE_GATES=off`: they still perform all five
+mount, editability, and host-message checks, but their variable wall-clock
+timings are informational rather than release evidence.
 
 Five independent fresh-page runs in the complete browser suite on 2026-09-19
 completed in 277.1, 283.3, 283.9, 287.9, and 292.7 ms (292.7 ms p95 on the

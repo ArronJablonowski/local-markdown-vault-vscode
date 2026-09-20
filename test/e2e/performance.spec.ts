@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mountEditor } from './harness';
 
 const ONE_MIB = 1024 * 1024;
+const enforceReferenceMachineBudget = process.env.LMV_PERFORMANCE_GATES !== 'off';
 
 function oneMibNote(): string {
 	const heading = '# One MiB note\n\n';
@@ -19,7 +20,7 @@ test.describe('large-note performance', () => {
 	test.describe.configure({ mode: 'serial' });
 
 	for (let run = 1; run <= 5; run++) {
-		test(`mounts an editable first viewport for a 1 MiB note within one second (run ${run})`, async ({ page }) => {
+		test(`mounts an editable first viewport for a 1 MiB note${enforceReferenceMachineBudget ? ' within one second' : ''} (run ${run})`, async ({ page }) => {
 			const started = performance.now();
 			await mountEditor(page, oneMibNote());
 			const elapsedMs = performance.now() - started;
@@ -28,7 +29,9 @@ test.describe('large-note performance', () => {
 			const content = page.locator('.cm-content');
 			await expect(content).toHaveAttribute('contenteditable', 'true');
 			await expect(page.locator('.cm-line').first()).toContainText('One MiB note');
-			expect(elapsedMs).toBeLessThan(1_000);
+			if (enforceReferenceMachineBudget) {
+				expect(elapsedMs).toBeLessThan(1_000);
+			}
 
 			await page.evaluate(() => {
 				(window as unknown as { __posted: unknown[] }).__posted = [];
