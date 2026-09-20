@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { chromium, type Browser, type Frame } from 'playwright';
+import { chromium, type Browser, type Frame, type Page } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 let debugBrowser: Browser | undefined;
@@ -106,6 +106,62 @@ suite('focused macOS desktop transactions', () => {
 			'Live Preview did not render the external file change');
 	});
 
+	test('opens hostile Markdown without script execution, active unsafe URLs, or remote requests', async () => {
+		const fixture = await makeFixture('hostile');
+		const note = await service.createNote(fixture, 'Hostile Live Preview');
+		const sentinelHost = 'mdlp-security.invalid';
+		const sentinel = `host-probe-${Date.now()}`;
+		const remoteUrl = `https://${sentinelHost}/${sentinel}.png`;
+		const source = [
+			'# Hostile Live Preview',
+			`<script>document.documentElement.dataset['${sentinel}'] = 'executed'</script>`,
+			`<img src="${remoteUrl}?raw" onerror="document.documentElement.dataset['${sentinel}']='error'">`,
+			`![remote tracker](${remoteUrl}?markdown)`,
+			'[javascript](javascript:alert(document.domain))',
+			'[command](command:workbench.action.files.newUntitledFile)',
+			'[data](data:text/html,<script>alert(document.domain)</script>)',
+			'[outside](../../../../../../etc/passwd)',
+			'',
+		].join('\n');
+		await vscode.workspace.fs.writeFile(note, bytes(source));
+
+		const page = await getWorkbenchPage();
+		const sentinelRequests: string[] = [];
+		const recordRequest = (request: { url(): string }) => {
+			if (request.url().includes(sentinelHost)) sentinelRequests.push(request.url());
+		};
+		page.on('request', recordRequest);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			const frame = await connectToLivePreviewFrame();
+			const editorText = await frame.locator('.cm-content').textContent();
+			assert.ok(editorText?.includes(sentinel), 'raw hostile HTML was not preserved as inert editable text');
+			await new Promise((resolve) => setTimeout(resolve, 500));
+
+			assert.strictEqual(
+				await frame.evaluate((key) => document.documentElement.dataset[key], sentinel),
+				undefined,
+				'raw Markdown HTML executed in the real webview',
+			);
+			const hostileScripts = await frame.locator('script').evaluateAll((scripts, marker) =>
+				scripts.filter((script) => script.textContent?.includes(String(marker))).length, sentinel);
+			assert.strictEqual(hostileScripts, 0, 'hostile Markdown became an executable script element');
+			const unsafeLinks = await frame.locator('a').evaluateAll((links) => links
+				.map((link) => link.getAttribute('href') ?? '')
+				.filter((href) => /^(?:javascript|command|data):/i.test(href)));
+			assert.deepStrictEqual(unsafeLinks, [], 'hostile Markdown retained an active unsafe URL');
+			assert.strictEqual(
+				await frame.locator(`[src*="${sentinelHost}"], [href*="${sentinelHost}"]`).count(),
+				0,
+				'default-blocked remote media retained an active network URL',
+			);
+			assert.deepStrictEqual(sentinelRequests, [], 'opening hostile Markdown emitted a remote sentinel request');
+		} finally {
+			page.off('request', recordRequest);
+		}
+	});
+
 	test('undoes and redoes a vault move and link rewrite as one unit', async () => {
 		const fixture = await makeFixture('move');
 		const archive = await service.createFolder(fixture, 'Archive');
@@ -188,10 +244,15 @@ async function connectToLivePreviewFrame(): Promise<Frame> {
 }
 
 async function bringIsolatedWorkbenchToFront(): Promise<void> {
+	const page = await getWorkbenchPage();
+	await page.bringToFront();
+}
+
+async function getWorkbenchPage(): Promise<Page> {
 	const browser = await connectToDebugBrowser();
 	const pages = browser.contexts().flatMap((context) => context.pages());
 	assert.ok(pages.length > 0, 'the isolated VS Code workbench page is unavailable');
-	await pages[0].bringToFront();
+	return pages[0];
 }
 
 async function connectToDebugBrowser(): Promise<Browser> {

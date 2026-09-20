@@ -282,6 +282,10 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("keyboard.press('Meta+Shift+z')");
 		expect(testSource).toContain("keyboard.press('Meta+s')");
 		expect(testSource).toContain('Live Preview did not render the external file change');
+		expect(testSource).toContain("page.on('request', recordRequest)");
+		expect(testSource).toContain("'raw Markdown HTML executed in the real webview'");
+		expect(testSource).toContain("'hostile Markdown retained an active unsafe URL'");
+		expect(testSource).toContain("'opening hostile Markdown emitted a remote sentinel request'");
 		expect(testSource).toContain('one undo did not restore the source and link');
 		expect(testSource).toContain("executeCommand('mdLivePreview.caseAwareRedo')");
 	});
