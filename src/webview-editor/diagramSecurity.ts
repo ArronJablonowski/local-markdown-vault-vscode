@@ -30,8 +30,58 @@ const FORBIDDEN_SVG_ELEMENTS = new Set([
 	'set',
 ]);
 
+// Renderer output is data, not trusted markup. Keep this list deliberately
+// limited to the static SVG vocabulary emitted by Mermaid and the bundled
+// draw.io renderer. Unknown/future elements stay inert until reviewed here.
+const ALLOWED_SVG_ELEMENTS = new Set([
+	'a', 'circle', 'clippath', 'defs', 'desc', 'ellipse', 'filter', 'g',
+	'line', 'lineargradient', 'marker', 'mask', 'path', 'pattern', 'polygon',
+	'polyline', 'radialgradient', 'rect', 'stop', 'style', 'svg', 'symbol',
+	'text', 'textpath', 'title', 'tspan', 'use',
+	'feblend', 'fecolormatrix', 'fecomponenttransfer', 'fecomposite',
+	'feconvolvematrix', 'fediffuselighting', 'fedisplacementmap',
+	'fedistantlight', 'fedropshadow', 'feflood', 'fefunca', 'fefuncb',
+	'fefuncg', 'fefuncr', 'fegaussianblur', 'femerge', 'femergenode',
+	'femorphology', 'feoffset', 'fepointlight', 'fespecularlighting',
+	'fespotlight', 'fetile', 'feturbulence',
+]);
+
+// Names are compared case-insensitively because XML preserves SVG camel-case
+// spellings while the security decision does not depend on spelling.
+const ALLOWED_SVG_ATTRIBUTES = new Set([
+	'alignment-baseline', 'amplitude', 'azimuth', 'basefrequency', 'bias',
+	'by', 'class', 'clip-path', 'clip-rule', 'clippathunits', 'color',
+	'color-interpolation', 'color-interpolation-filters', 'cx', 'cy', 'd',
+	'diffuseconstant', 'direction', 'display', 'divisor', 'dominant-baseline',
+	'dx', 'dy', 'edgemode', 'elevation', 'exponent', 'fill', 'fill-opacity',
+	'fill-rule', 'filter', 'filterunits', 'flood-color', 'flood-opacity',
+	'font-family', 'font-size', 'font-stretch', 'font-style', 'font-variant',
+	'font-weight', 'fr', 'from', 'fx', 'fy', 'gradienttransform',
+	'gradientunits', 'height', 'id', 'in', 'in2', 'intercept', 'k1', 'k2',
+	'k3', 'k4', 'kernelmatrix', 'kernelunitlength', 'letter-spacing',
+	'lighting-color', 'limitingconeangle', 'marker-end', 'marker-mid',
+	'marker-start', 'markerheight', 'markerunits', 'markerwidth', 'mask',
+	'maskcontentunits', 'mask-type', 'maskunits', 'mode', 'numoctaves',
+	'offset', 'opacity', 'operator', 'order', 'orient', 'overflow',
+	'paint-order', 'pathlength', 'patterncontentunits', 'patterntransform',
+	'patternunits', 'points', 'pointsatx', 'pointsaty', 'pointsatz',
+	'pointer-events', 'preservealpha', 'preserveaspectratio', 'primitiveunits',
+	'r', 'radius', 'refx', 'refy', 'result', 'role', 'rotate', 'rx', 'ry',
+	'scale', 'seed', 'shape-rendering', 'slope', 'spacing', 'specularconstant',
+	'specularexponent', 'spreadmethod', 'stddeviation', 'stitchtiles',
+	'stop-color', 'stop-opacity', 'stroke', 'stroke-dasharray',
+	'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin',
+	'stroke-miterlimit', 'stroke-opacity', 'stroke-width', 'style', 'surfacescale',
+	'tabindex', 'tablevalues', 'targetx', 'targety', 'text-anchor',
+	'text-decoration', 'text-rendering', 'textlength', 'to', 'transform',
+	'type', 'values', 'vector-effect', 'viewbox', 'visibility', 'width',
+	'word-spacing', 'writing-mode', 'x', 'x1', 'x2', 'xchannelselector',
+	'y', 'y1', 'y2', 'ychannelselector', 'z',
+]);
+
 const URL_ATTRIBUTES = new Set(['href', 'xlink:href', 'src']);
 const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
 
 export class DiagramLimitError extends Error {}
 
@@ -86,7 +136,8 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 			element.remove();
 			continue;
 		}
-		if (element !== root && FORBIDDEN_SVG_ELEMENTS.has(element.localName.toLowerCase())) {
+		const elementName = element.localName.toLowerCase();
+		if (element !== root && (FORBIDDEN_SVG_ELEMENTS.has(elementName) || !ALLOWED_SVG_ELEMENTS.has(elementName))) {
 			element.remove();
 			continue;
 		}
@@ -107,6 +158,7 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 				// too so an alias such as `evil:href` bound to XLink cannot evade
 				// external-resource removal.
 				((URL_ATTRIBUTES.has(name) || URL_ATTRIBUTES.has(localName)) && !value.startsWith('#')) ||
+				!isAllowedSvgAttribute(attribute) ||
 				(/url\s*\(/i.test(decodedValue) && !/^url\(#[A-Za-z0-9_.:-]+\)$/i.test(decodedValue)) ||
 				(name === 'style' && unsafeSvgCss(decodedValue, false))
 			) {
@@ -127,6 +179,16 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 	}
 
 	return document.importNode(root, true) as unknown as SVGElement;
+}
+
+function isAllowedSvgAttribute(attribute: Attr): boolean {
+	const name = attribute.name.toLowerCase();
+	const localName = attribute.localName.toLowerCase();
+	if (attribute.namespaceURI === XMLNS_NAMESPACE) return true;
+	if (attribute.namespaceURI === XML_NAMESPACE) return localName === 'lang' || localName === 'space';
+	if (name.startsWith('aria-') || name.startsWith('data-')) return true;
+	if (URL_ATTRIBUTES.has(name) || URL_ATTRIBUTES.has(localName)) return true;
+	return ALLOWED_SVG_ATTRIBUTES.has(name) || ALLOWED_SVG_ATTRIBUTES.has(localName);
 }
 
 function unsafeSvgCss(decodedCss: string, stylesheet: boolean): boolean {
