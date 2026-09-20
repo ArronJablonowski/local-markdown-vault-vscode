@@ -109,12 +109,16 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 	};
 	await updateContext();
 
-	const selectedParent = async (entry?: unknown): Promise<vscode.Uri | undefined> => {
+	const selectedParent = async (entry?: unknown): Promise<{ service: VaultService; parent: vscode.Uri } | undefined> => {
 		const service = provider.service;
 		if (!service) return undefined;
-		if (entry === undefined) return service.rootUri;
+		if (entry === undefined) return { service, parent: service.rootUri };
 		const resolved = await resolveCommandEntry(provider, entry);
-		return resolved && resolved.fileType & vscode.FileType.Directory ? resolved.uri : resolved?.parentUri;
+		if (!resolved || provider.service !== service) return undefined;
+		return {
+			service,
+			parent: resolved.fileType & vscode.FileType.Directory ? resolved.uri : resolved.parentUri,
+		};
 	};
 
 	const requireTrusted = (): boolean => {
@@ -194,7 +198,13 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			const targetIndex = index;
 			const request = validateOpenIndexedPathArguments(path, line);
 			const record = request && targetIndex?.get(request.path);
-			if (targetIndex && record) await openIndexedRecord(targetIndex, record, context, request.line);
+			if (targetIndex && record) await openIndexedRecord(
+				targetIndex,
+				record,
+				context,
+				request.line,
+				() => targetIndex === index,
+			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.searchTag', async (tag: unknown) => {
 			const targetIndex = index;
@@ -268,60 +278,63 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 		vscode.commands.registerCommand('mdLivePreview.vault.open', async (entry: unknown) => {
 			const service = provider.service;
 			const item = await resolveCommandEntry(provider, entry);
-			if (!item || !service) return;
+			if (!item || !service || provider.service !== service) return;
 			try {
 				// Tree items are discovered lexically so a symlink remains visible and
 				// can be renamed or moved as a link. Opening follows the target, so it
 				// requires the stronger canonical containment check first.
 				await service.assertRegularFileInside(item.uri);
+				if (provider.service !== service) return;
 				await vscode.commands.executeCommand('vscode.open', item.uri);
 			} catch {
-				void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be opened securely.'));
+				if (provider.service === service) void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be opened securely.'));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.newNote', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const parent = await selectedParent(entry);
-			const service = provider.service;
-			if (!parent || !service) return;
+			const selected = await selectedParent(entry);
+			if (!selected) return;
+			const { parent, service } = selected;
 			const name = await vscode.window.showInputBox({
 				title: vscode.l10n.t('New note'),
 				prompt: vscode.l10n.t('Name for the Markdown note'),
 				validateInput: (value) => localizeVaultValidation(validateVaultEntryName(noteFileName(value))),
 			});
-			if (!name) return;
+			if (!name || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
 				const uri = await service.createNote(parent, name);
+				if (provider.service !== service || !vscode.workspace.isTrusted) return;
 				provider.refresh();
 				await vscode.commands.executeCommand('vscode.open', uri);
 				announceVaultCompletion(vscode.l10n.t('Note "{0}" created.', service.relativePath(uri) ?? name));
 			} catch (error) {
-				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the note.')));
+				if (provider.service === service) void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the note.')));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.newFolder', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const parent = await selectedParent(entry);
-			const service = provider.service;
-			if (!parent || !service) return;
+			const selected = await selectedParent(entry);
+			if (!selected) return;
+			const { parent, service } = selected;
 			const name = await vscode.window.showInputBox({
 				title: vscode.l10n.t('New folder'),
 				validateInput: (value) => localizeVaultValidation(validateVaultEntryName(value)),
 			});
-			if (!name) return;
+			if (!name || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
 				const uri = await service.createFolder(parent, name);
+				if (provider.service !== service || !vscode.workspace.isTrusted) return;
 				provider.refresh();
 				announceVaultCompletion(vscode.l10n.t('Folder "{0}" created.', service.relativePath(uri) ?? name));
 			} catch (error) {
-				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the folder.')));
+				if (provider.service === service) void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the folder.')));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.rename', async (entry?: unknown) => {
 			if (!requireTrusted()) return;
-			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			const service = provider.service;
-			if (!item || !service) return;
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
+			if (!item || !service || provider.service !== service) return;
 			const currentName = basenameLabel(item.uri);
 			const name = await vscode.window.showInputBox({
 				title: vscode.l10n.t('Rename vault item'),
@@ -331,22 +344,23 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 					: [0, Math.max(0, currentName.lastIndexOf('.'))],
 				validateInput: (value) => localizeVaultValidation(validateVaultEntryName(value)),
 			});
-			if (!name || name === currentName) return;
+			if (!name || name === currentName || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
 				await service.assertMutationSource(item.uri, Boolean(item.fileType & vscode.FileType.SymbolicLink));
 				const destination = await service.moveDestination(item.uri, item.parentUri, name);
 				const applied = await new LinkRewriteService(service, {
-					isCurrent: () => provider.service === service,
+					isCurrent: () => provider.service === service && vscode.workspace.isTrusted,
 				}).renameOrMove(
 					item.uri,
 					destination,
 					Boolean(item.fileType & vscode.FileType.Directory),
 				);
 				if (!applied) throw new Error('The workspace rejected the rename.');
+				if (provider.service !== service) return;
 				provider.refresh();
 				announceVaultCompletion(vscode.l10n.t('Renamed to "{0}".', service.relativePath(destination) ?? name));
 			} catch (error) {
-				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not rename the vault item.')));
+				if (provider.service === service) void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not rename the vault item.')));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.move', async (entry?: unknown, selected?: unknown) => {
@@ -367,7 +381,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			const service = provider.service;
 			if (!service) return;
 			const items = await resolveCommandEntries(provider, entry, selected, tree.selection);
-			if (items.length === 0) return;
+			if (items.length === 0 || provider.service !== service) return;
 			if (items.length !== 1) {
 				void vscode.window.showWarningMessage(vscode.l10n.t('Move one vault item to trash at a time to avoid partial operations.'));
 				return;
@@ -384,6 +398,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 			if ((item.fileType & vscode.FileType.Directory) && !(item.fileType & vscode.FileType.SymbolicLink)) {
 				try {
 					const contents = await service.countDescendants(item.uri);
+					if (provider.service !== service) return;
 					if (contents.count > 0) prompt = contents.truncated
 						? vscode.l10n.t('Move folder "{0}" and at least {1} contained items to the operating system trash?', label, contents.count)
 						: vscode.l10n.t('Move folder "{0}" and its {1} contained item(s) to the operating system trash?', label, contents.count);
@@ -397,29 +412,33 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				{ modal: true },
 				vscode.l10n.t('Move to Trash'),
 			);
-			if (confirm !== vscode.l10n.t('Move to Trash')) return;
+			if (confirm !== vscode.l10n.t('Move to Trash') || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
 				await service.moveToTrash(item.uri, Boolean(item.fileType & vscode.FileType.SymbolicLink));
+				if (provider.service !== service) return;
 				provider.refresh();
 				announceVaultCompletion(vscode.l10n.t('Moved "{0}" to Trash.', label));
 			} catch {
-				void vscode.window.showErrorMessage(vscode.l10n.t('The item could not be moved to trash. No permanent delete was attempted.'));
+				if (provider.service === service) void vscode.window.showErrorMessage(vscode.l10n.t('The item could not be moved to trash. No permanent delete was attempted.'));
 			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.copyRelativePath', async (entry?: unknown) => {
+			const service = provider.service;
 			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
-			const relative = item && provider.service?.relativePath(item.uri);
-			if (relative !== undefined) await vscode.env.clipboard.writeText(relative);
+			if (!item || !service || provider.service !== service) return;
+			const relative = service.relativePath(item.uri);
+			if (relative !== undefined && provider.service === service) await vscode.env.clipboard.writeText(relative);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.revealInOS', async (entry?: unknown) => {
-			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			const service = provider.service;
-			if (!item || !service) return;
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
+			if (!item || !service || provider.service !== service) return;
 			try {
 				await service.assertMutationSource(item.uri, Boolean(item.fileType & vscode.FileType.SymbolicLink));
+				if (provider.service !== service) return;
 				await vscode.commands.executeCommand('revealFileInOS', item.uri);
 			} catch {
-				void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be revealed securely.'));
+				if (provider.service === service) void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be revealed securely.'));
 			}
 		}),
 	);
@@ -600,21 +619,23 @@ async function showQuickSwitcher(
 		if (!selected) return;
 		picker.hide();
 		if (selected.record) {
-			await openIndexedRecord(index, selected.record, context);
+			await openIndexedRecord(index, selected.record, context, undefined, isCurrent);
 			return;
 		}
-		if (selected.createName && vscode.workspace.isTrusted && provider.service) {
+		const service = provider.service;
+		if (selected.createName && vscode.workspace.isTrusted && service && isCurrent()) {
 			const error = validateVaultRelativeNotePath(selected.createName);
 			if (error) {
 				void vscode.window.showErrorMessage(localizeVaultValidation(error) ?? vscode.l10n.t('Enter a valid vault item name.'));
 				return;
 			}
 			try {
-				const uri = await provider.service.createNoteAtRelativePath(selected.createName);
+				const uri = await service.createNoteAtRelativePath(selected.createName);
+				if (!isCurrent() || provider.service !== service || !vscode.workspace.isTrusted) return;
 				await vscode.commands.executeCommand('vscode.open', uri);
 				announceVaultCompletion(vscode.l10n.t(
 					'Note "{0}" created.',
-					provider.service.relativePath(uri) ?? selected.createName,
+					service.relativePath(uri) ?? selected.createName,
 				));
 			} catch (error) {
 				void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the note.')));
@@ -685,7 +706,7 @@ async function showVaultSearch(
 		const record = selected?.record;
 		if (!record) return;
 		picker.hide();
-		await openIndexedRecord(index, record, context, selected.matchLine);
+		await openIndexedRecord(index, record, context, selected.matchLine, isCurrent);
 	});
 	picker.onDidHide(() => {
 		closed = true;
@@ -721,15 +742,24 @@ function recordItem(record: VaultIndexRecord, alwaysShow = false): VaultQuickPic
 	};
 }
 
-async function openIndexedRecord(index: VaultIndex, record: VaultIndexRecord, context: vscode.ExtensionContext, line?: number): Promise<void> {
+async function openIndexedRecord(
+	index: VaultIndex,
+	record: VaultIndexRecord,
+	context: vscode.ExtensionContext,
+	line?: number,
+	isCurrent: () => boolean = () => true,
+): Promise<void> {
+	if (!isCurrent()) return;
 	const uri = index.vault.uriForRelative(record.path);
 	try {
 		await index.vault.assertRegularFileInside(uri);
+		if (!isCurrent()) return;
 		await vscode.commands.executeCommand('vscode.open', uri);
+		if (!isCurrent()) return;
 		await rememberRecent(index, record.path, context);
-		if (line !== undefined) await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
+		if (line !== undefined && isCurrent()) await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
 	} catch {
-		void vscode.window.showWarningMessage(vscode.l10n.t('The indexed note could not be opened securely.'));
+		if (isCurrent()) void vscode.window.showWarningMessage(vscode.l10n.t('The indexed note could not be opened securely.'));
 	}
 }
 
@@ -865,9 +895,10 @@ async function moveVaultEntries(
 		isFolder: Boolean(source.fileType & vscode.FileType.Directory),
 	})));
 	const applied = await new LinkRewriteService(service, {
-		isCurrent: () => provider.service === service,
+		isCurrent: () => provider.service === service && vscode.workspace.isTrusted,
 	}).renameOrMoveMany(requests);
 	if (!applied) throw new Error('The workspace rejected the move.');
+	if (provider.service !== service || !vscode.workspace.isTrusted) return 0;
 	provider.refresh();
 	return moving.length;
 }
@@ -940,6 +971,7 @@ async function resolveCommandEntry(provider: VaultTreeProvider, value: unknown):
 		const path = service.relativePath(uri);
 		if (!path) return undefined;
 		const stat = await service.statEntryInside(uri);
+		if (provider.service !== service) return undefined;
 		const fileType = stat.isSymbolicLink()
 			? vscode.FileType.SymbolicLink
 			: stat.isDirectory() ? vscode.FileType.Directory : vscode.FileType.File;

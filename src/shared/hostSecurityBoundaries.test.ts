@@ -169,6 +169,46 @@ describe('host security boundaries', () => {
 		expect(command).not.toMatch(/fs\.delete\([^\n]+\{[^}]*recursive:\s*true\s*\}\)/);
 	});
 
+	it('binds native vault commands and indexed navigation to the vault that started them', () => {
+		const vault = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
+		const command = (name: string, next: string) => vault.slice(
+			vault.indexOf(`registerCommand('${name}'`),
+			vault.indexOf(`registerCommand('${next}'`),
+		);
+		for (const [name, next] of [
+			['mdLivePreview.vault.open', 'mdLivePreview.vault.newNote'],
+			['mdLivePreview.vault.newNote', 'mdLivePreview.vault.newFolder'],
+			['mdLivePreview.vault.newFolder', 'mdLivePreview.vault.rename'],
+			['mdLivePreview.vault.rename', 'mdLivePreview.vault.move'],
+			['mdLivePreview.vault.delete', 'mdLivePreview.vault.copyRelativePath'],
+			['mdLivePreview.vault.copyRelativePath', 'mdLivePreview.vault.revealInOS'],
+		] as const) {
+			expect(command(name, next), `${name} has no active-vault identity guard`).toContain('provider.service !== service');
+		}
+		const trash = command('mdLivePreview.vault.delete', 'mdLivePreview.vault.copyRelativePath');
+		expect(trash.indexOf('provider.service !== service')).toBeLessThan(trash.indexOf('const confirm = await'));
+		expect(trash.indexOf('const confirm = await')).toBeLessThan(trash.lastIndexOf('provider.service !== service'));
+		expect(trash).toContain('!vscode.workspace.isTrusted');
+		const creates = vault.slice(
+			vault.indexOf("registerCommand('mdLivePreview.vault.newNote'"),
+			vault.indexOf("registerCommand('mdLivePreview.vault.rename'"),
+		);
+		expect(creates.match(/provider\.service !== service \|\| !vscode\.workspace\.isTrusted/g)).toHaveLength(4);
+		expect(vault).toContain('if (provider.service !== service) return undefined;');
+
+		const indexedOpen = vault.slice(vault.indexOf('async function openIndexedRecord('), vault.indexOf('\nfunction recentKey('));
+		expect(indexedOpen).toContain('if (!isCurrent()) return;');
+		expect(indexedOpen.indexOf('await index.vault.assertRegularFileInside(uri)')).toBeLessThan(
+			indexedOpen.indexOf("await vscode.commands.executeCommand('vscode.open', uri)"),
+		);
+		expect(indexedOpen.indexOf('if (!isCurrent()) return;', indexedOpen.indexOf('assertRegularFileInside'))).toBeLessThan(
+			indexedOpen.indexOf("await vscode.commands.executeCommand('vscode.open', uri)"),
+		);
+		const switcher = vault.slice(vault.indexOf('async function showQuickSwitcher('), vault.indexOf('\nasync function showVaultSearch('));
+		expect(switcher).toContain('const service = provider.service;');
+		expect(switcher).toContain('if (!isCurrent() || provider.service !== service || !vscode.workspace.isTrusted) return;');
+	});
+
 	it('enforces mutation-source containment inside the link-rewrite transaction boundary', () => {
 		const service = readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8');
 		expect(service).toContain('await this.vault.assertMutationSource(');
