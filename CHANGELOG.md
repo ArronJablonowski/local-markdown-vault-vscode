@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a macOS extension-host probe proving that an authorized vault deletion moves the exact unchanged Markdown file into the operating-system Trash and cleans up only its UUID-named test artifact.
+
 - Add real extension-host evidence that the persisted vault cache omits frontmatter values, task text, and body-derived search tokens, and that deleting it followed by a rebuild restores local search and navigation.
 
 - Keep the strict one-second large-note viewport gate enabled on the documented reference Mac while treating shared-runner wall-clock timings as informational; hosted CI still exercises all five mounts, editability, and host-message behavior.

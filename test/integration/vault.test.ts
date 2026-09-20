@@ -1,8 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { chmod, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdtemp, readFile, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 
@@ -744,6 +745,25 @@ suite('Document Vault filesystem transactions', () => {
 			['.obsidian', 'Plain note.md', 'diagram.bin'],
 			'metadata rebuild created an extension-owned folder in the vault',
 		);
+	});
+
+	test('moves an accepted note to macOS Trash without changing its bytes', async function () {
+		if (process.platform !== 'darwin') this.skip();
+		const fixture = await makeFixture();
+		const name = `Local Markdown Vault Trash Probe ${randomUUID()}`;
+		const source = await service.createNote(fixture, name);
+		const noteBytes = bytes('# Trash probe\n\nExact bytes must survive the native trash move.\n');
+		await vscode.workspace.fs.writeFile(source, noteBytes);
+		const trashedPath = join(homedir(), '.Trash', `${name}.md`);
+
+		try {
+			await service.moveToTrash(source, false);
+			await assertMissing(source);
+			assertBytesEqual(new Uint8Array(await readFile(trashedPath)), noteBytes, 'native trash changed note bytes');
+		} finally {
+			// The probe name is UUID-qualified; remove only that exact test artifact.
+			await unlink(trashedPath).catch(() => undefined);
+		}
 	});
 
 	test('cancels a metadata rebuild without exposing a partial index or changing vault files', async () => {
