@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { constants as fsConstants, type Stats } from 'node:fs';
-import { lstat, mkdir, open, readdir, realpath, rename, stat, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, rename, stat, unlink, type FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { isPathInside, resolveVaultRelativePath } from '../shared/pathContainment';
@@ -19,6 +19,8 @@ export type VaultResolution =
 
 export interface CreatedVaultFile {
 	readonly uri: vscode.Uri;
+	/** Opaque capability for committing or rolling back this exact creation. */
+	readonly cleanupToken: string;
 	/** The filesystem identity captured while the newly-created file was open. */
 	readonly identity: Pick<Stats, 'dev' | 'ino' | 'birthtimeMs' | 'ctimeMs'>;
 }
@@ -32,6 +34,7 @@ export interface VaultFileContents {
 
 export class VaultService {
 	readonly canonicalRootUri: vscode.Uri;
+	private readonly createdFileLeases = new Map<string, { uri: vscode.Uri; handle: FileHandle }>();
 
 	private constructor(
 		readonly rootUri: vscode.Uri,
@@ -114,7 +117,6 @@ export class VaultService {
 			0o600,
 		);
 		let openedIdentity: Stats | undefined;
-		let closed = false;
 		try {
 			openedIdentity = await handle.stat();
 			if (!openedIdentity.isFile()) throw new Error('The attachment destination is not a regular file.');
@@ -127,14 +129,16 @@ export class VaultService {
 			}
 			openedIdentity = writtenIdentity;
 			await this.assertOpenedFileInside(target, writtenIdentity);
-			await handle.close();
-			closed = true;
+			const cleanupToken = randomUUID();
+			const uri = vscode.Uri.file(target);
+			this.createdFileLeases.set(cleanupToken, { uri, handle });
 			return {
-				uri: vscode.Uri.file(target),
+				uri,
+				cleanupToken,
 				identity: fileIdentity(writtenIdentity),
 			};
 		} catch (error) {
-			if (!closed) await handle.close().catch(() => undefined);
+			await handle.close().catch(() => undefined);
 			if (openedIdentity) await removeIfSameFile(target, openedIdentity);
 			throw error;
 		}
@@ -142,14 +146,29 @@ export class VaultService {
 
 	/** Removes only the exact file returned by `createFileExclusive`. */
 	async removeCreatedFile(file: CreatedVaultFile): Promise<void> {
-		if (this.relativePath(file.uri) === undefined) return;
+		const lease = this.createdFileLeases.get(file.cleanupToken);
+		if (!lease) return;
+		this.createdFileLeases.delete(file.cleanupToken);
 		try {
+			if (lease.uri.toString() !== file.uri.toString() || this.relativePath(file.uri) === undefined) return;
 			await this.assertCanonicalParent(file.uri.fsPath);
-			const current = await stat(file.uri.fsPath);
-			if (sameFileIdentity(current, file.identity)) await unlink(file.uri.fsPath);
+			const [opened, current] = await Promise.all([lease.handle.stat(), stat(file.uri.fsPath)]);
+			if (sameFileIdentity(opened, file.identity) && sameFileIdentity(current, opened)) {
+				await unlink(file.uri.fsPath);
+			}
 		} catch {
 			// Cleanup is best-effort and must never delete a replacement file.
+		} finally {
+			await lease.handle.close().catch(() => undefined);
 		}
+	}
+
+	/** Commits a created file by releasing its rollback capability. */
+	async releaseCreatedFile(file: CreatedVaultFile): Promise<void> {
+		const lease = this.createdFileLeases.get(file.cleanupToken);
+		if (!lease) return;
+		this.createdFileLeases.delete(file.cleanupToken);
+		await lease.handle.close().catch(() => undefined);
 	}
 
 	private async assertOpenedFileInside(target: string, openedIdentity: Stats): Promise<void> {
@@ -194,7 +213,9 @@ export class VaultService {
 
 	async createNote(parent: vscode.Uri, requestedName: string): Promise<vscode.Uri> {
 		const name = noteFileName(requestedName);
-		return (await this.createFileExclusive(parent, name, new Uint8Array(), 0)).uri;
+		const created = await this.createFileExclusive(parent, name, new Uint8Array(), 0);
+		await this.releaseCreatedFile(created);
+		return created.uri;
 	}
 
 	async createNoteAtRelativePath(requestedPath: string): Promise<vscode.Uri> {
@@ -215,7 +236,9 @@ export class VaultService {
 		}
 		const parent = vscode.Uri.file(dirname(target));
 		await this.ensureDirectoryInside(parent);
-		return (await this.createFileExclusive(parent, basename(target), new Uint8Array(), 0)).uri;
+		const created = await this.createFileExclusive(parent, basename(target), new Uint8Array(), 0);
+		await this.releaseCreatedFile(created);
+		return created.uri;
 	}
 
 	async createFolder(parent: vscode.Uri, name: string): Promise<vscode.Uri> {

@@ -14,10 +14,17 @@ interface VaultServiceApi {
 	ensureDirectoryInside(uri: vscode.Uri): Promise<vscode.Uri>;
 	createFileExclusive(parent: vscode.Uri, name: string, bytes: Uint8Array, maxBytes?: number): Promise<{
 		uri: vscode.Uri;
+		cleanupToken: string;
 		identity: { dev: number; ino: number; birthtimeMs: number; ctimeMs: number };
 	}>;
 	removeCreatedFile(file: {
 		uri: vscode.Uri;
+		cleanupToken: string;
+		identity: { dev: number; ino: number; birthtimeMs: number; ctimeMs: number };
+	}): Promise<void>;
+	releaseCreatedFile(file: {
+		uri: vscode.Uri;
+		cleanupToken: string;
 		identity: { dev: number; ino: number; birthtimeMs: number; ctimeMs: number };
 	}): Promise<void>;
 	countDescendants(folder: vscode.Uri, limit?: number): Promise<{ count: number; truncated: boolean }>;
@@ -305,6 +312,15 @@ suite('Document Vault filesystem transactions', () => {
 			await vscode.workspace.fs.readFile(created.uri),
 			replacementBytes,
 			'cleanup removed or changed a replacement file',
+		);
+
+		const committed = await service.createFileExclusive(assets, 'committed.png', originalBytes);
+		await service.releaseCreatedFile(committed);
+		await service.removeCreatedFile(committed);
+		assertBytesEqual(
+			await vscode.workspace.fs.readFile(committed.uri),
+			originalBytes,
+			'rollback remained authorized after the creation was committed',
 		);
 	});
 

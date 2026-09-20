@@ -769,6 +769,7 @@ export class DocumentSyncSession {
 			await rollback();
 			return;
 		}
+		for (const createdFile of createdFiles) await vaultService.releaseCreatedFile(createdFile);
 
 		this.post({ type: 'setCursor', pos: atPos + normalizedInsertText.length });
 	}

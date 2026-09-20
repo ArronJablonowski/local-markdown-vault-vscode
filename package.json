@@ -133,130 +133,130 @@
       {
         "command": "mdLivePreview.openWithLivePreview",
         "title": "%command.openWithLivePreview%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(open-preview)"
       },
       {
         "command": "mdLivePreview.openWithSource",
         "title": "%command.openWithSource%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(go-to-file)"
       },
       {
         "command": "mdLivePreview.newStyle",
         "title": "%command.newStyle%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(add)",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.open",
         "title": "%command.vault.open%",
-        "category": "Markdown Live Preview"
+        "category": "Local Markdown Vault"
       },
       {
         "command": "mdLivePreview.vault.newNote",
         "title": "%command.vault.newNote%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(new-file)",
         "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.newFolder",
         "title": "%command.vault.newFolder%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(new-folder)",
         "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.refresh",
         "title": "%command.vault.refresh%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(refresh)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vault.expandAll",
         "title": "%command.vault.expandAll%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(expand-all)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vault.collapseAll",
         "title": "%command.vault.collapseAll%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(collapse-all)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vault.delete",
         "title": "%command.vault.delete%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.rename",
         "title": "%command.vault.rename%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.move",
         "title": "%command.vault.move%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(move)",
         "enablement": "mdLivePreview.vaultAvailable && isWorkspaceTrusted"
       },
       {
         "command": "mdLivePreview.vault.copyRelativePath",
         "title": "%command.vault.copyRelativePath%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vault.revealInOS",
         "title": "%command.vault.revealInOS%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.quickSwitcher",
         "title": "%command.quickSwitcher%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vaultSearch",
         "title": "%command.vaultSearch%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.vault.rebuildIndex",
         "title": "%command.vault.rebuildIndex%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(sync)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.backlinks.filter",
         "title": "%command.backlinks.filter%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(filter)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.backlinks.sort",
         "title": "%command.backlinks.sort%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(sort-precedence)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
         "command": "mdLivePreview.showDiagnostics",
         "title": "%command.showDiagnostics%",
-        "category": "Markdown Live Preview",
+        "category": "Local Markdown Vault",
         "icon": "$(output)"
       }
     ],

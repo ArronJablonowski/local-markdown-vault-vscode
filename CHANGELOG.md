@@ -7,6 +7,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Keep an opaque open-file lease for each newly written attachment until its editor transaction commits or rolls back, preventing immediate Linux inode reuse from making identity-based cleanup delete another writer's replacement file.
+- Enable GitHub private vulnerability reporting, dependency security updates, vulnerability alerts, secret scanning, and push protection for the public repository.
+- Use the **Local Markdown Vault** command category throughout the manifest and remove a nonexistent lint command from the source-install documentation.
 - Rename the fork to **Local Markdown Vault**, assign the source package identity `arronjablonowski.local-markdown-vault`, connect the new GitHub repository while retaining upstream attribution, and replace the inherited Marketplace-focused README with concise source and VSIX installation guidance.
 - Add a representative Obsidian-authored core-syntax fixture and a shipped-bundle browser gate covering typed properties, core Markdown, wikilinks and fragments, note/PDF embeds, callouts, math, footnotes, tasks, tags, tables, and inert raw HTML; the documented 95-percent compatibility threshold cannot conceal an individually failing feature.
 - Add a packaged Obsidian compatibility contract that distinguishes supported portable Markdown syntax from security-constrained behavior and explicit non-goals, including local-only vault semantics, inert raw HTML, restricted diagrams and CSS, blocked-by-default remote media, and untouched `.obsidian` configuration.

@@ -147,7 +147,6 @@ npm run compile        # build the extension and webviews
 npm test               # unit tests
 npm run test:e2e       # browser end-to-end tests
 npm run test:integration
-npm run lint
 npm run package        # verify and create the VSIX
 ```
 
