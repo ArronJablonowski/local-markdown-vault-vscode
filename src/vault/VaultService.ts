@@ -348,7 +348,10 @@ export class VaultService {
 	 * two distinct names on a case-sensitive filesystem without guessing from
 	 * the operating system or volume format.
 	 */
-	async aliasesEntry(uri: vscode.Uri, expected: Stats): Promise<boolean> {
+	async aliasesEntry(
+		uri: vscode.Uri,
+		expected: Pick<Stats, 'dev' | 'ino' | 'birthtimeMs' | 'ctimeMs'>,
+	): Promise<boolean> {
 		try {
 			return sameFileIdentity(await this.statEntryInside(uri), expected);
 		} catch (error) {

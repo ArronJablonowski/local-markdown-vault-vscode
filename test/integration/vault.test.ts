@@ -31,7 +31,20 @@ interface VaultServiceApi {
 	readDirectoryInside(folder: vscode.Uri): Promise<readonly [string, vscode.FileType][]>;
 	assertExistingInside(uri: vscode.Uri): Promise<void>;
 	assertRegularFileInside(uri: vscode.Uri): Promise<void>;
-	statEntryInside(uri: vscode.Uri): Promise<{ isSymbolicLink(): boolean; isDirectory(): boolean }>;
+	statEntryInside(uri: vscode.Uri): Promise<{
+		dev: number;
+		ino: number;
+		birthtimeMs: number;
+		ctimeMs: number;
+		isSymbolicLink(): boolean;
+		isDirectory(): boolean;
+	}>;
+	aliasesEntry(uri: vscode.Uri, expected: {
+		dev: number;
+		ino: number;
+		birthtimeMs: number;
+		ctimeMs: number;
+	}): Promise<boolean>;
 	assertExpandableDirectory(uri: vscode.Uri): Promise<void>;
 	readFileInside(uri: vscode.Uri, maxBytes: number): Promise<{ bytes: Uint8Array; mtimeMs: number; size: number }>;
 	assertMutationSource(uri: vscode.Uri, symbolicLink: boolean): Promise<void>;
