@@ -244,6 +244,26 @@ describe('release security evidence', () => {
 		}
 	});
 
+	it('rebuilds a deleted vault cache across two real VS Code launches on every release platform', () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+			scripts?: Record<string, string>;
+		};
+		expect(manifest.scripts?.['test:integration:cache-restart'])
+			.toContain('node scripts/run-cache-restart-integration.mjs');
+		const runner = readFileSync(join(ROOT, 'scripts', 'run-cache-restart-integration.mjs'), 'utf8');
+		expect(runner).toContain("for (const phase of ['seed', 'recover'])");
+		expect(runner).toContain('MDLP_CACHE_RESTART_PHASE: phase');
+		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'cacheRestart.test.ts'), 'utf8');
+		expect(testSource).toContain("await vscode.workspace.fs.delete(cacheUri, { useTrash: false })");
+		expect(testSource).toContain('startup did not restore body search');
+		expect(testSource).toContain('cache-free startup did not restore navigation');
+		for (const name of ['ci.yml', 'release-validation.yml']) {
+			const source = readFileSync(join(ROOT, '.github', 'workflows', name), 'utf8');
+			expect(source, `${name} omits the cache-free startup gate`)
+				.toContain('npm run test:integration:cache-restart');
+		}
+	});
+
 	it('installs and tests the packaged VSIX in isolated trusted and untrusted profiles', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;

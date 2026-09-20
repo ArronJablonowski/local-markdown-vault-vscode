@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a two-launch isolated-profile integration gate proving that deletion of the rebuildable cache is recovered at the next VS Code startup, restoring private body search and navigation from Markdown without persisting sensitive values or changing `.obsidian` settings.
+
 - Add a macOS extension-host probe proving that an authorized vault deletion moves the exact unchanged Markdown file into the operating-system Trash and cleans up only its UUID-named test artifact.
 
 - Add real extension-host evidence that the persisted vault cache omits frontmatter values, task text, and body-derived search tokens, and that deleting it followed by a rebuild restores local search and navigation.

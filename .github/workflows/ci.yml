@@ -34,6 +34,7 @@ jobs:
         env:
           LMV_PERFORMANCE_GATES: "off"
       - run: xvfb-run -a npm run test:integration
+      - run: xvfb-run -a npm run test:integration:cache-restart
       - run: xvfb-run -a npm run test:integration:restricted
       - run: npm run package
       - run: xvfb-run -a npm run test:vsix
