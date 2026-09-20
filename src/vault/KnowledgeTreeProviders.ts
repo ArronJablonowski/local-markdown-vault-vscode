@@ -197,7 +197,12 @@ export class VaultBrokenLinksProvider implements vscode.TreeDataProvider<BrokenL
 	async getChildren(): Promise<BrokenLinkItem[]> {
 		const index = this.index;
 		const generation = this.generation;
-		const links = await findBrokenVaultLinksAsync(index?.all() ?? []);
+		const links = await findBrokenVaultLinksAsync(
+			index?.all() ?? [],
+			process.platform !== 'linux',
+			500,
+			() => generation !== this.generation || index !== this.index,
+		);
 		return generation === this.generation && index === this.index
 			? links.map((link) => new BrokenLinkItem(link))
 			: [];

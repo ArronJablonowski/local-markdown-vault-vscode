@@ -42,16 +42,23 @@ export async function findBrokenVaultLinksAsync(
 	records: readonly VaultIndexRecord[],
 	filesystemCaseInsensitive = process.platform !== 'linux',
 	limit = 500,
+	isCancelled: () => boolean = () => false,
 ): Promise<BrokenVaultLink[]> {
+	if (isCancelled()) return [];
 	const resolution = createResolutionIndex(records, filesystemCaseInsensitive);
 	const results: BrokenVaultLink[] = [];
 	let processed = 0;
 	for (const source of records) {
+		if (isCancelled()) return [];
 		for (const link of source.links) {
+			if (isCancelled()) return [];
 			if (results.length >= limit) return results;
 			const broken = inspectLink(source, link, resolution);
 			if (broken) results.push(broken);
-			if (++processed % 250 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			if (++processed % 250 === 0) {
+				await new Promise<void>((resolve) => setTimeout(resolve, 0));
+				if (isCancelled()) return [];
+			}
 		}
 	}
 	return results;

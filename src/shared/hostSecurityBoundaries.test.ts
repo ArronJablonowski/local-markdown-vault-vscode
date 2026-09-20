@@ -221,6 +221,7 @@ describe('host security boundaries', () => {
 		expect(providers).toContain('const text = await index.readText(record.path)');
 		expect(providers.match(/generation !== this\.generation/g)?.length).toBeGreaterThanOrEqual(4);
 		expect(providers).toContain('generation === this.generation && index === this.index');
+		expect(providers).toContain('() => generation !== this.generation || index !== this.index');
 	});
 
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {

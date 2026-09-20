@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findBrokenVaultLinks } from './brokenLinks';
+import { findBrokenVaultLinks, findBrokenVaultLinksAsync } from './brokenLinks';
 import type { VaultIndexRecord } from './VaultIndex';
 
 function record(path: string, links: VaultIndexRecord['links'] = [], extra: Partial<VaultIndexRecord> = {}): VaultIndexRecord {
@@ -60,5 +60,21 @@ describe('broken vault links', () => {
 		expect(findBrokenVaultLinks(records, false)).toEqual([
 			{ sourcePath: 'Source.md', target: 'target.md', line: 3, kind: 'markdown', reason: 'missing' },
 		]);
+	});
+
+	it('cancels an obsolete asynchronous scan without returning partial results', async () => {
+		const links = Array.from({ length: 600 }, (_, index) => ({
+			kind: 'wikilink' as const,
+			target: `Missing-${index}`,
+			line: index + 1,
+		}));
+		let cancelled = false;
+		setTimeout(() => { cancelled = true; }, 0);
+		await expect(findBrokenVaultLinksAsync(
+			[record('Source.md', links)],
+			false,
+			500,
+			() => cancelled,
+		)).resolves.toEqual([]);
 	});
 });
