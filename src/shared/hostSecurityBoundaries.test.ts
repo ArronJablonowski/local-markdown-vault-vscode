@@ -214,6 +214,15 @@ describe('host security boundaries', () => {
 		expect(vault).toContain('record.tags.some((indexedTag) => indexedTag === requestedTag');
 	});
 
+	it('discards asynchronous knowledge-view results after their vault generation changes', () => {
+		const providers = readFileSync(join(ROOT, 'src', 'vault', 'KnowledgeTreeProviders.ts'), 'utf8');
+		expect(providers).not.toContain('this.index!.readText');
+		expect(providers).toContain('const generation = this.generation');
+		expect(providers).toContain('const text = await index.readText(record.path)');
+		expect(providers.match(/generation !== this\.generation/g)?.length).toBeGreaterThanOrEqual(4);
+		expect(providers).toContain('generation === this.generation && index === this.index');
+	});
+
 	it('does not follow vault symlinks while expanding or sorting the tree', () => {
 		const tree = readFileSync(join(ROOT, 'src', 'vault', 'VaultTreeProvider.ts'), 'utf8');
 		expect(tree).toContain('await this.resolution.service.readDirectoryInside(parent)');

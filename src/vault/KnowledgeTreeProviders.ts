@@ -33,6 +33,7 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 	private activePath: string | undefined;
 	private filter: BacklinkFilter = 'all';
 	private sort: BacklinkSort = 'linkedFirst';
+	private generation = 0;
 
 	setFilter(filter: BacklinkFilter): void { this.filter = filter; this.refresh(); }
 	setSort(sort: BacklinkSort): void { this.sort = sort; this.refresh(); }
@@ -56,28 +57,35 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 	getTreeItem(item: BacklinkItem): vscode.TreeItem { return item; }
 
 	async getChildren(): Promise<BacklinkItem[]> {
-		if (!this.index || !this.activePath) return [];
-		const active = this.index.get(this.activePath);
+		const index = this.index;
+		const activePath = this.activePath;
+		const generation = this.generation;
+		if (!index || !activePath) return [];
+		const active = index.get(activePath);
 		if (!active) return [];
-		const records = this.index.all();
+		const records = index.all();
 		const resolver = new BacklinkResolver(records);
 		const mentionTokens = collectBoundedSearchTokens([active.basename, ...active.aliases]);
 		const matches: Array<{ record: VaultIndexRecord; linked: boolean }> = [];
 		let processedLinks = 0;
 		let processedRecords = 0;
 		for (const record of records) {
-			if (record.path === this.activePath) continue;
+			if (generation !== this.generation) return [];
+			if (record.path === activePath) continue;
 			let linked = false;
 			for (const link of record.links) {
-				linked = resolver.targetsPath(record.path, link, this.activePath!);
+				linked = resolver.targetsPath(record.path, link, activePath);
 				if (++processedLinks % 250 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+				if (generation !== this.generation) return [];
 				if (linked) break;
 			}
 			if (linked || mentionTokens.some((token) => record.searchTokens.includes(token))) {
 				matches.push({ record, linked });
 			}
 			if (++processedRecords % 250 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			if (generation !== this.generation) return [];
 		}
+		if (generation !== this.generation) return [];
 		matches
 			.sort((a, b) => Number(b.linked) - Number(a.linked) || a.record.path.localeCompare(b.record.path))
 			.splice(200);
@@ -85,14 +93,17 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 		let cursor = 0;
 		const worker = async (): Promise<void> => {
 			while (cursor < matches.length) {
+				if (generation !== this.generation) return;
 				const position = cursor++;
 				const { record, linked } = matches[position];
-				const text = await this.index!.readText(record.path);
+				const text = await index.readText(record.path);
+				if (generation !== this.generation) return;
 				const context = text ? findMentionContext(text, [active.basename, ...active.aliases]) : undefined;
 				if (linked || context) items[position] = { record, linked, ...(context ? { context } : {}) };
 			}
 		};
 		await Promise.all(Array.from({ length: Math.min(8, matches.length) }, () => worker()));
+		if (generation !== this.generation) return [];
 		return filterAndSortBacklinks(
 			items.filter((item): item is { record: VaultIndexRecord; linked: boolean; context?: MentionContext } => Boolean(item)),
 			this.filter,
@@ -100,7 +111,7 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 		).map(({ record, linked, context }) => new BacklinkItem(record, linked ? 'linked' : 'unlinked', context));
 	}
 
-	refresh(): void { this.emitter.fire(); }
+	refresh(): void { this.generation++; this.emitter.fire(); }
 	dispose(): void { this.indexListener?.dispose(); this.emitter.dispose(); }
 }
 
@@ -173,17 +184,24 @@ export class VaultBrokenLinksProvider implements vscode.TreeDataProvider<BrokenL
 	readonly onDidChangeTreeData = this.emitter.event;
 	private index: VaultIndex | undefined;
 	private indexListener: vscode.Disposable | undefined;
+	private generation = 0;
 
 	setIndex(index: VaultIndex | undefined): void {
 		this.indexListener?.dispose();
 		this.index = index;
-		this.indexListener = index?.onDidChange(() => this.emitter.fire());
-		this.emitter.fire();
+		this.indexListener = index?.onDidChange(() => this.refresh());
+		this.refresh();
 	}
 
 	getTreeItem(item: BrokenLinkItem): vscode.TreeItem { return item; }
 	async getChildren(): Promise<BrokenLinkItem[]> {
-		return (await findBrokenVaultLinksAsync(this.index?.all() ?? [])).map((link) => new BrokenLinkItem(link));
+		const index = this.index;
+		const generation = this.generation;
+		const links = await findBrokenVaultLinksAsync(index?.all() ?? []);
+		return generation === this.generation && index === this.index
+			? links.map((link) => new BrokenLinkItem(link))
+			: [];
 	}
+	private refresh(): void { this.generation++; this.emitter.fire(); }
 	dispose(): void { this.indexListener?.dispose(); this.emitter.dispose(); }
 }

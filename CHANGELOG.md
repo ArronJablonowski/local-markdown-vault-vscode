@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Bind asynchronous Backlinks and Broken Links calculations to the current vault generation, cancel ongoing old-vault reads, and discard stale results after index, active-note, filter, sort, or watcher changes.
 - Validate public Backlinks, Broken Links, and Tags command arguments at runtime, require targets to exist in the current vault index, and reject malformed paths, line numbers, tag-query injection, and stale tags before navigation or search UI opens.
 - Harden opt-in local diagnostics so embedded, quoted, space-containing, and encoded absolute paths plus credential-like strings are redacted as whole values, while malformed event and field names cannot smuggle sensitive fragments into the bounded log.
 - Re-resolve native-tree command arguments and drag payloads through the active vault, ignoring supplied file-type and parent metadata while safely rejecting malformed, stale, outside-vault, and oversized selections.
