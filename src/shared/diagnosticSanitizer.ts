@@ -66,9 +66,9 @@ export class BoundedDiagnosticBuffer {
  */
 export function sanitizeDiagnosticFields(fields: DiagnosticFields): Record<string, string | number | boolean> {
 	const sanitized: Record<string, string | number | boolean> = {};
-	for (const [rawKey, value] of Object.entries(fields).slice(0, MAX_FIELDS)) {
-		const key = rawKey.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, MAX_KEY_LENGTH) || 'field';
-		if (isSensitiveKey(key)) {
+	for (const [index, [rawKey, value]] of Object.entries(fields).slice(0, MAX_FIELDS).entries()) {
+		const key = safeFieldKey(rawKey, index, sanitized);
+		if (isSensitiveKey(rawKey)) {
 			sanitized[key] = REDACTED;
 			continue;
 		}
@@ -87,8 +87,25 @@ export function sanitizeDiagnosticFields(fields: DiagnosticFields): Record<strin
 }
 
 export function sanitizeDiagnosticEventName(event: string): string {
-	const value = event.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80);
-	return value || 'diagnostic.event';
+	return /^[A-Za-z][A-Za-z0-9_.-]{0,79}$/.test(event) ? event : 'diagnostic.event';
+}
+
+function safeFieldKey(
+	rawKey: string,
+	index: number,
+	existing: Readonly<Record<string, unknown>>,
+): string {
+	const safe = new RegExp(`^[A-Za-z][A-Za-z0-9_.-]{0,${MAX_KEY_LENGTH - 1}}$`).test(rawKey)
+		&& !['__proto__', 'constructor', 'prototype'].includes(rawKey);
+	const base = safe ? rawKey : `field_${index}`;
+	if (!Object.prototype.hasOwnProperty.call(existing, base)) return base;
+	let suffix = 1;
+	while (true) {
+		const suffixText = `_${suffix}`;
+		const candidate = `${base.slice(0, MAX_KEY_LENGTH - suffixText.length)}${suffixText}`;
+		if (!Object.prototype.hasOwnProperty.call(existing, candidate)) return candidate;
+		suffix += 1;
+	}
 }
 
 function isSensitiveKey(key: string): boolean {
@@ -97,12 +114,12 @@ function isSensitiveKey(key: string): boolean {
 
 function sanitizeString(value: string): string {
 	let result = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
-	// Redact an absolute POSIX/UNC/Windows/home path wherever it appears. Vault
-	// relative items such as Notes/Plan.md remain useful and are permitted.
-	result = result
-		.replace(/(?:^|\s)(?:[\\/]{2}|\/|~\/)[^\s]*/g, (match) => `${match.startsWith(' ') ? ' ' : ''}[absolute-path]`)
-		.replace(/\b[A-Za-z]:[\\/][^\s]*/g, '[absolute-path]')
-		.replace(/\b[A-Za-z][A-Za-z0-9+.-]{1,20}:[^\s]*/g, '[url]');
+	// Redact the complete value when it contains a credential, URL, or absolute
+	// path. Whole-value redaction prevents a path containing spaces from leaking
+	// its suffix and still preserves ordinary vault-relative paths.
+	if (/(?:\b(?:authorization|cookie|password|secret|token)\b\s*[:=]|\b(?:bearer|basic)\s+\S+)/i.test(result)) return REDACTED;
+	if (/(?:^|[^A-Za-z0-9_.\\\/-])(?:~\/|\/(?![/*])|[A-Za-z]:[\\/]|\\\\|%2f|%5c%5c)/i.test(result)) return '[absolute-path]';
+	if (/(?:^|[\s"'(<\[=,;])[A-Za-z][A-Za-z0-9+.-]{1,20}:(?:\/\/)?\S/i.test(result)) return '[url]';
 	if (result.length > MAX_VALUE_LENGTH) result = `${result.slice(0, MAX_VALUE_LENGTH - 1)}…`;
 	return result;
 }

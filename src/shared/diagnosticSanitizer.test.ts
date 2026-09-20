@@ -15,12 +15,15 @@ describe('diagnostic sanitization', () => {
 		const error = new Error('Failed at /Users/alice/private/note.md: secret contents');
 		const result = sanitizeDiagnosticFields({
 			relativeItem: 'Notes/Plan.md', destination: 'https://tracker.example/pixel',
-			posix: '/Users/alice/private.md', windows: 'C:\\Users\\alice\\private.md', error,
+			posix: 'path:/Users/alice/My Notes/private.md', windows: 'at "C:\\Users\\alice\\My Notes\\private.md"',
+			unc: 'copy(\\\\server\\private share\\note.md)', encoded: 'source=%2FUsers%2Falice%2Fprivate.md', error,
 		});
 		expect(result.relativeItem).toBe('Notes/Plan.md');
 		expect(result.destination).toBe('[url]');
 		expect(result.posix).toBe('[absolute-path]');
 		expect(result.windows).toBe('[absolute-path]');
+		expect(result.unc).toBe('[absolute-path]');
+		expect(result.encoded).toBe('[absolute-path]');
 		expect(result.error).toBe('[error]');
 		expect(JSON.stringify(result)).not.toContain('alice');
 		expect(JSON.stringify(result)).not.toContain('secret contents');
@@ -33,7 +36,38 @@ describe('diagnostic sanitization', () => {
 		expect(Object.keys(result)).toHaveLength(16);
 		expect(String(result.field_0).length).toBeLessThanOrEqual(200);
 		expect(result.field_1).toBe('[array:3]');
-		expect(sanitizeDiagnosticEventName('message rejected\n/private')).toBe('message_rejected__private');
+		expect(sanitizeDiagnosticEventName('message rejected\n/private')).toBe('diagnostic.event');
+		expect(sanitizeDiagnosticEventName('protocol.messageRejected')).toBe('protocol.messageRejected');
+	});
+
+	it('does not retain sensitive fragments in malformed keys, event names, or apparently safe fields', () => {
+		const fields = Object.create(null) as Record<string, unknown>;
+		fields['/Users/alice/private.md'] = 'visible value';
+		fields['secret value'] = 'not inspected';
+		fields.reason = 'authorization=Bearer private-value';
+		fields.__proto__ = 'prototype text';
+		const result = sanitizeDiagnosticFields(fields);
+		expect(result).toEqual({
+			field_0: 'visible value',
+			field_1: '[redacted]',
+			reason: '[redacted]',
+			field_3: 'prototype text',
+		});
+		expect(JSON.stringify(result)).not.toContain('alice');
+		expect(sanitizeDiagnosticEventName('/Users/alice/private.md')).toBe('diagnostic.event');
+	});
+
+	it('keeps normalized diagnostic keys unique at the maximum key length', () => {
+		const key = `k${'x'.repeat(39)}`;
+		const result = sanitizeDiagnosticFields({
+			[key]: true,
+			[`${key}!`]: false,
+			field_1: 1,
+		});
+		expect(Object.keys(result)).toHaveLength(3);
+		expect(result[key]).toBe(true);
+		expect(result.field_1).toBe(false);
+		expect(result.field_1_1).toBe(1);
 	});
 
 	it('evicts old entries to enforce both count and character bounds', () => {
