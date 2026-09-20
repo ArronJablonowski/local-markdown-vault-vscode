@@ -369,8 +369,22 @@ describe('release security evidence', () => {
 		expect(runner).toContain('resolveCliPathFromVSCodeExecutablePath(executable)');
 		expect(runner).toContain("process.platform === 'win32'");
 		expect(runner).toContain('`--extensionDevelopmentPath=${harness}`');
+		expect(runner).toContain('`--remote-debugging-port=${debugPort}`');
+		expect(runner).toContain('MDLP_VSCODE_DEBUG_PORT: String(debugPort)');
+		expect(runner).toContain('changed the linked-note bytes');
+		expect(runner).toContain('changed the local-image bytes');
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');
+		expect(testSource).toContain('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views');
+		expect(testSource).toContain("chromium.connectOverCDP(`http://127.0.0.1:${port}`)");
+		expect(testSource).toContain(".mlp-wikilink[data-href=\"wikilink:Packaged%20Target\"]");
+		expect(testSource).toContain("executeCommand('mdLivePreview.vault.focus')");
+		expect(testSource).toContain("executeCommand('mdLivePreview.quickSwitcher')");
+		expect(testSource).toContain("executeCommand('mdLivePreview.backlinks.focus')");
+		expect(testSource).toContain("executeCommand('mdLivePreview.tags.focus')");
+		expect(testSource).toContain('keeps packaged editing local and disables restricted renderers');
+		expect(testSource).toContain('Restricted Mode emitted a remote image request');
+		expect(testSource).toContain('Restricted Mode executed a diagram renderer');
 		expect(testSource).toContain('leaves an Obsidian vault usable as ordinary files when disabled');
 		expect(testSource).toContain("instanceof vscode.TabInputText");
 		for (const name of ['ci.yml', 'release-validation.yml']) {
