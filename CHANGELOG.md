@@ -8,6 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## Unreleased
 
 - Keep an opaque open-file lease for each newly written attachment until its editor transaction commits or rolls back, preventing immediate Linux inode reuse from making identity-based cleanup delete another writer's replacement file.
+- Refresh immutable GitHub Actions pins to the current official Node 24-based releases, removing the hosted runner's Node 20 deprecation path without using mutable version tags.
 - Enable GitHub private vulnerability reporting, dependency security updates, vulnerability alerts, secret scanning, and push protection for the public repository.
 - Use the **Local Markdown Vault** command category throughout the manifest and remove a nonexistent lint command from the source-install documentation.
 - Rename the fork to **Local Markdown Vault**, assign the source package identity `arronjablonowski.local-markdown-vault`, connect the new GitHub repository while retaining upstream attribution, and replace the inherited Marketplace-focused README with concise source and VSIX installation guidance.
