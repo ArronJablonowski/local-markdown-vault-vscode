@@ -16,6 +16,8 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 - Local images and attachments, Mermaid diagrams, draw.io diagrams, and themes
 - Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
 - YAML properties, callouts, math, footnotes, tags, and interactive task lists
+- Smart list editing that continues ordered numbers and unchecked tasks on Return
+- Solid, hollow, and square markers that distinguish nested bullet levels
 
 ### Document Vault
 

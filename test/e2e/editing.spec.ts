@@ -118,3 +118,55 @@ test.describe('live preview editing', () => {
 		)).toBe(false);
 	});
 });
+
+test.describe('Markdown list editing', () => {
+	test('continues an ordered list with the next number on Enter', async ({ page }) => {
+		await mountEditor(page, '7. Seventh item');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+
+		await expect(page.locator('.cm-line')).toHaveCount(2);
+		await expect(page.locator('.cm-line').nth(1)).toContainText('8.');
+	});
+
+	test('continues an indented ordered list at the same level', async ({ page }) => {
+		await mountEditor(page, '1. Parent\n   1. Child');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.press('Enter');
+
+		await expect(page.locator('.cm-line')).toHaveCount(3);
+		await expect(page.locator('.cm-line').nth(2)).toContainText('2.');
+	});
+
+	test('starts another unchecked task on Enter', async ({ page }) => {
+		await mountEditor(page, '- [ ] First task');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+
+		await expect(page.locator('.cm-line')).toHaveCount(2);
+		await expect(page.locator('.cm-line').nth(1)).toContainText('- [ ]');
+	});
+
+	test('ends an ordered list when its current item is empty', async ({ page }) => {
+		await mountEditor(page, '1. First item\n2. ');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.press('Enter');
+
+		await expect(page.locator('.cm-line')).toHaveCount(2);
+		await expect(page.locator('.cm-line').nth(1)).toHaveText('');
+	});
+
+	test('ends a task list when its current checkbox is empty', async ({ page }) => {
+		await mountEditor(page, '- [ ] First task\n- [ ] ');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.press('Enter');
+
+		await expect(page.locator('.cm-line')).toHaveCount(2);
+		await expect(page.locator('.cm-line').nth(1)).toHaveText('');
+	});
+});

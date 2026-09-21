@@ -10,7 +10,7 @@ import {
 	findPrevious,
 	selectNextOccurrence,
 } from '@codemirror/search';
-import { markdown } from '@codemirror/lang-markdown';
+import { insertNewlineContinueMarkupCommand, markdown } from '@codemirror/lang-markdown';
 import { GFM } from './gfmTableFix';
 import {
 	livePreviewPlugin,
@@ -45,6 +45,10 @@ import { makePersistedEditorState, parsePersistedEditorState } from './persisted
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
+// Match Obsidian's list editing: continue list and task markers on Enter, but
+// leave a list immediately when its current item is empty. CodeMirror's default
+// inserts an extra blank line before leaving a two-item tight list.
+const continueMarkdownMarkup = insertNewlineContinueMarkupCommand({ nonTightLists: false });
 
 let view: EditorView | undefined;
 let baseVersion = 0;
@@ -180,6 +184,9 @@ function createExtensions(): Extension[] {
 		// syntax actually show itself; see that file.
 		search({ top: true }),
 		searchRevealExtension,
+		Prec.highest(keymap.of([
+			{ key: 'Enter', run: continueMarkdownMarkup },
+		])),
 		// The panel builds its own labels, so they are localized through
 		// CodeMirror's phrases facet rather than by rendering them ourselves.
 		EditorState.phrases.of({

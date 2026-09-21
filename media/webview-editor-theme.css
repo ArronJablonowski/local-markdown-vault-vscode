@@ -271,8 +271,17 @@ html, body {
 /* Muted, matching the ordered-list marker below rather than link blue — a
    marker glyph isn't a link and shouldn't visually imply one. */
 .mlp-bullet {
+	display: inline-block;
+	width: 1ch;
+	text-align: center;
 	color: var(--vscode-descriptionForeground, #888);
 	font-weight: 700;
+}
+.mlp-bullet-2 {
+	font-weight: 500;
+}
+.mlp-bullet-3 {
+	font-size: 0.82em;
 }
 .mlp-list-mark {
 	color: var(--vscode-descriptionForeground, #888);

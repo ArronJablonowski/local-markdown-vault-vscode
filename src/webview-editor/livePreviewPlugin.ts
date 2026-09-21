@@ -213,14 +213,31 @@ class HiddenMarkerWidget extends WidgetType {
 const hiddenMarker = new HiddenMarkerWidget();
 const hiddenMarkerDeco = Decoration.replace({ widget: hiddenMarker });
 
+const BULLET_GLYPHS = ['•', '◦', '▪'] as const;
+
+export function bulletListDepth(node: SyntaxNode): number {
+	let depth = 0;
+	for (let ancestor: SyntaxNode | null = node; ancestor; ancestor = ancestor.parent) {
+		if (ancestor.name === 'BulletList') depth++;
+	}
+	return Math.max(1, depth);
+}
+
 class BulletWidget extends WidgetType {
-	eq(): boolean {
-		return true;
+	private readonly variant: number;
+
+	constructor(depth: number) {
+		super();
+		this.variant = ((Math.max(1, depth) - 1) % BULLET_GLYPHS.length) + 1;
+	}
+
+	eq(other: BulletWidget): boolean {
+		return other.variant === this.variant;
 	}
 	toDOM(): HTMLElement {
 		const span = document.createElement('span');
-		span.className = 'mlp-bullet';
-		span.textContent = '•';
+		span.className = `mlp-bullet mlp-bullet-${this.variant}`;
+		span.textContent = BULLET_GLYPHS[this.variant - 1];
 		return span;
 	}
 }
@@ -1607,7 +1624,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const markText = state.sliceDoc(node.from, node.to);
 						if (/^[-*+]$/.test(markText)) {
 							if (!cursorTouchesRange(state, node.from, node.to)) {
-								pushReplace(node.from, node.to, Decoration.replace({ widget: new BulletWidget() }));
+								pushReplace(node.from, node.to, Decoration.replace({
+									widget: new BulletWidget(bulletListDepth(node.node)),
+								}));
 							} else {
 								decorations.push(Decoration.mark({ class: 'mlp-list-mark' }).range(node.from, node.to));
 							}

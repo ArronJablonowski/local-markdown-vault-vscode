@@ -240,6 +240,32 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-checkbox-checked')).toHaveCount(1);
 	});
 
+	test('nested bullet levels use solid, hollow, and square markers', async ({ page }) => {
+		await mountEditor(page, '- Top\n  - Child\n    - Grandchild\n\nAfter\n');
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+
+		const bullets = page.locator('.mlp-bullet');
+		await expect(bullets).toHaveCount(3);
+		await expect(bullets.nth(0)).toHaveText('•');
+		await expect(bullets.nth(1)).toHaveText('◦');
+		await expect(bullets.nth(2)).toHaveText('▪');
+		await expect(bullets.nth(0)).toHaveClass(/mlp-bullet-1/);
+		await expect(bullets.nth(1)).toHaveClass(/mlp-bullet-2/);
+		await expect(bullets.nth(2)).toHaveClass(/mlp-bullet-3/);
+	});
+
+	test('changes a bullet marker automatically when Tab creates a sub-bullet', async ({ page }) => {
+		await mountEditor(page, '- Parent\n- Child\n\nAfter\n');
+		await page.locator('.cm-line', { hasText: 'Child' }).click();
+		await page.keyboard.press('Tab');
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+
+		const bullets = page.locator('.mlp-bullet');
+		await expect(bullets).toHaveCount(2);
+		await expect(bullets.nth(0)).toHaveText('•');
+		await expect(bullets.nth(1)).toHaveText('◦');
+	});
+
 	test('renders nested inline and YAML tags without styling headings or code', async ({ page }) => {
 		await mountEditor(page, '---\ntags: [work/active, secure]\n---\n# Heading\n\nUse #work/active and `#not-code`.\n');
 		await expect(page.locator('.mlp-tag')).toHaveText('#work/active');

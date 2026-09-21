@@ -55,6 +55,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Continue ordered-list numbers and unchecked task boxes when Return is pressed,
+  leave numbered and task lists immediately from an empty item, and render nested
+  bullet levels with distinct solid, hollow, and square markers while preserving
+  ordinary compatible Markdown markers in the file.
 - Standardize repository paths, documentation, source comments, samples, tests,
   and interface text on US English. Locale compatibility catalogs now mirror
   the US English source catalog, and CI rejects non-English scripts in text
