@@ -11,8 +11,15 @@ import * as vscode from 'vscode';
 suite('custom editor', () => {
 	let file: vscode.Uri;
 	let api: { getCodeTokenizationRunCount(): number };
+	let originalDefaultEditor: string | undefined;
 
 	suiteSetup(async () => {
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		originalDefaultEditor = editorConfig.inspect<string>('defaultEditor')?.globalValue;
+		// This suite explicitly switches between the Text Editor and Live Preview;
+		// keep the new product default from immediately reopening its source-view
+		// fixture in VS Code's Markdown Editor.
+		await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		assert.ok(folder, 'the tests need a workspace folder');
 		const extension = vscode.extensions.getExtension<{ getCodeTokenizationRunCount(): number }>('arronjablonowski.local-markdown-vault');
@@ -27,6 +34,8 @@ suite('custom editor', () => {
 
 	suiteTeardown(async () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await vscode.workspace.getConfiguration('mdLivePreview')
+			.update('defaultEditor', originalDefaultEditor, vscode.ConfigurationTarget.Global);
 		try {
 			await vscode.workspace.fs.delete(file);
 		} catch {
