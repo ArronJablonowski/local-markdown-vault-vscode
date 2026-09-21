@@ -100,7 +100,8 @@ describe('host security boundaries', () => {
 		expect(source).toContain('isCanonicalPathInside(vaultRoot.fsPath, document.uri.fsPath)');
 		expect(source).toContain('this.tracked.get(document.uri.toString()) !== state');
 		expect(source).toContain('state.generation !== generation');
-		expect(source).toContain('!isEditorDocumentWithinLimit(document.getText())');
+		expect(source).toContain('characterLength <= MAX_EDITOR_DOCUMENT_BYTES');
+		expect(source).toContain('!documentWithinAutoSaveLimit(document)');
 		expect(source.match(/document\.save\(\)/g)).toHaveLength(1);
 		expect(source).not.toMatch(/workspace\.fs|writeFile|applyEdit/);
 	});

@@ -1,10 +1,18 @@
 import * as vscode from 'vscode';
 import { diagnosticEventRateLimited } from '../diagnostics';
-import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
+import { isEditorDocumentWithinLimit, MAX_EDITOR_DOCUMENT_BYTES } from '../shared/messageValidation';
 import { isCanonicalPathInside } from './canonicalContainment';
 import { localWorkspaceVaultRoot } from './workspaceVault';
 
 export const MARKDOWN_AUTO_SAVE_DELAY_MS = 500;
+
+function documentWithinAutoSaveLimit(document: vscode.TextDocument): boolean {
+	const lastLine = document.lineAt(document.lineCount - 1);
+	const characterLength = document.offsetAt(lastLine.rangeIncludingLineBreak.end);
+	// UTF-8 cannot be shorter than the UTF-16 code-unit count. Reject that cheap
+	// lower bound before getText() creates a second attacker-sized document copy.
+	return characterLength <= MAX_EDITOR_DOCUMENT_BYTES && isEditorDocumentWithinLimit(document.getText());
+}
 
 interface TrackedDocument {
 	document: vscode.TextDocument;
@@ -96,7 +104,7 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			!this.enabled(document) ||
 			document.languageId !== 'markdown' ||
 			document.uri.scheme !== 'file' ||
-			!isEditorDocumentWithinLimit(document.getText())
+			!documentWithinAutoSaveLimit(document)
 		) return;
 
 		const vaultRoot = localWorkspaceVaultRoot(document.uri);
