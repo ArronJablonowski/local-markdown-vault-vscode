@@ -61,6 +61,12 @@ The first supported vault model is exactly one local `file:` workspace folder. M
 
 ## Install from source
 
+### Install the prebuilt macOS test package
+
+Download [local-markdown-vault-0.2.0.vsix](https://github.com/ArronJablonowski/local-markdown-vault-vscode/raw/refs/heads/main/releases/local-markdown-vault-0.2.0.vsix), then choose **Extensions: Install from VSIX...** in the VS Code Command Palette and reload VS Code. The expected SHA-256 checksum is recorded in [`releases/SHA256SUMS`](releases/SHA256SUMS).
+
+The package is a macOS developer preview. Test it with a disposable vault before using important documents.
+
 ### 1. Clone and install dependencies
 
 Using SSH:

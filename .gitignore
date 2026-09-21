@@ -4,6 +4,7 @@ dist/
 aidlc-docs/
 CLAUDE.md
 *.vsix
+!releases/*.vsix
 local-markdown-vault.cdx.json
 markdown-live-preview-editor.cdx.json
 .claude/
