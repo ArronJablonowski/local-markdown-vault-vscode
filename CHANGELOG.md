@@ -1,5 +1,7 @@
 # Changelog
 
+- Create and open `~/Documents/Markdown Vault` from an empty VS Code window by default, without replacing an existing workspace; expose an application-level setting to disable this startup behavior.
+
 - Exercise native Document Vault Home/Arrow/Enter navigation across packaged platforms and CSS Themes Tab/radio-arrow/action reachability against installed macOS and Windows VSIX builds; retain platform-independent Linux sidebar keyboard coverage and leave manual VoiceOver/Orca judgment for accessibility sign-off.
 
 - Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.
