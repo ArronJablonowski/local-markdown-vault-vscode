@@ -1,5 +1,5 @@
-import { readFileSync as readFileSyncNative } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync as readFileSyncNative, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(__dirname, '..', '..');
@@ -8,7 +8,49 @@ function readFileSync(path: string, encoding: 'utf8'): string {
 	return readFileSyncNative(path, encoding).replace(/\r\n?/g, '\n');
 }
 
+function productionTypeScriptFiles(directory = join(ROOT, 'src')): string[] {
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) return productionTypeScriptFiles(path);
+		return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
+	});
+}
+
 describe('host security boundaries', () => {
+	it('confines direct filesystem APIs to reviewed production boundaries', () => {
+		const files = productionTypeScriptFiles();
+		const workspaceFsUsers = files
+			.filter((file) => readFileSync(file, 'utf8').includes('workspace.fs'))
+			.map((file) => relative(ROOT, file).replace(/\\/g, '/'))
+			.sort();
+		expect(workspaceFsUsers).toEqual([
+			'src/sidebar/styleStore.ts',
+			'src/vault/VaultIndex.ts',
+			'src/vault/VaultService.ts',
+		]);
+
+		const nativePromiseFsUsers = files
+			.filter((file) => /['"]node:fs\/promises['"]/.test(readFileSync(file, 'utf8')))
+			.map((file) => relative(ROOT, file).replace(/\\/g, '/'))
+			.sort();
+		expect(nativePromiseFsUsers).toEqual([
+			'src/editor/canonicalContainment.ts',
+			'src/editor/shikiHost.ts',
+			'src/vault/VaultService.ts',
+		]);
+
+		const nativeFsUsers = files
+			.filter((file) => /['"]node:fs['"]/.test(readFileSync(file, 'utf8')))
+			.map((file) => relative(ROOT, file).replace(/\\/g, '/'))
+			.sort();
+		expect(nativeFsUsers).toEqual([
+			'src/vault/LinkRewriteService.ts',
+			'src/vault/VaultService.ts',
+		]);
+		expect(readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8'))
+			.toContain("import type { Stats } from 'node:fs';");
+	});
+
 	it('never delegates a local vault resource to the operating-system opener', () => {
 		const source = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
 		const calls = source.match(/vscode\.env\.openExternal\([^;]+/g) ?? [];
