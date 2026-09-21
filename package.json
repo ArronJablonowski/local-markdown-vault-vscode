@@ -429,13 +429,17 @@
           "type": "string",
           "enum": [
             "prompt",
-            "livePreview",
-            "default"
+            "textEditor",
+            "markdownPreview",
+            "markdownEditor",
+            "livePreview"
           ],
           "enumDescriptions": [
             "%config.defaultEditor.prompt%",
-            "%config.defaultEditor.livePreview%",
-            "%config.defaultEditor.default%"
+            "%config.defaultEditor.textEditor%",
+            "%config.defaultEditor.markdownPreview%",
+            "%config.defaultEditor.markdownEditor%",
+            "%config.defaultEditor.livePreview%"
           ],
           "default": "prompt",
           "description": "%config.defaultEditor%"

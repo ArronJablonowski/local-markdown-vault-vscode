@@ -73,7 +73,11 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 	}
 
 	private schedule(document: vscode.TextDocument): void {
-		if (this.disposed || !this.enabled(document) || !document.isDirty) return;
+		// During a WorkspaceEdit, VS Code can publish the content-change event just
+		// before `isDirty` flips to true. Schedule from every tracked content change
+		// and check dirtiness when the timer fires; otherwise a one-click mutation
+		// such as checking a task can be the only event and remain unsaved forever.
+		if (this.disposed || !this.enabled(document)) return;
 		const state = this.tracked.get(document.uri.toString());
 		if (!state || state.document !== document) return;
 		if (state.saving) {

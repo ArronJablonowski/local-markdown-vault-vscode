@@ -288,8 +288,10 @@ Common shortcuts:
 
 Search for `Local Markdown Vault` or `mdLivePreview` in VS Code Settings.
 
-Edits made in Markdown Live Preview are saved automatically after a short
-delay. This is enabled by default with `mdLivePreview.autoSave`. Autosave only
+Every Markdown Live Preview document change is saved automatically after a
+short delay, including typed text, task checkbox changes, properties, tables,
+and other controls that modify the underlying Markdown. This is enabled by
+default with `mdLivePreview.autoSave`. Autosave only
 writes the already-open Markdown document when its resolved path remains
 inside the current local workspace vault; it does not save attachments,
 follow links, or write to paths supplied by Markdown content. Turn the setting
@@ -297,9 +299,9 @@ off if you prefer to save manually.
 
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
-| Default viewing mode | Choose VS Code default, Markdown Live Preview, or Markdown Editor | VS Code default |
+| Default viewing mode | Choose VS Code default, Text Editor, Markdown Preview, Markdown Editor, or Markdown Live Preview | VS Code default |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
-| Automatic save | Save coalesced Live Preview edits to the open vault note | Enabled |
+| Automatic save | Save every coalesced Live Preview document change, including task checkboxes | Enabled |
 | Remote media | Permit HTTPS images for this workspace | Blocked |
 | Automatic link updates | Rewrite affected links after rename or move | Enabled |
 | Attachment location | Choose where pasted attachments are stored | Inside vault |

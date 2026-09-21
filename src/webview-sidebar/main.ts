@@ -191,8 +191,10 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 			settings.defaultEditor,
 			[
 				['prompt', t('sidebar.defaultEditor.prompt')],
+				['textEditor', t('sidebar.defaultEditor.textEditor')],
+				['markdownPreview', t('sidebar.defaultEditor.markdownPreview')],
+				['markdownEditor', t('sidebar.defaultEditor.markdownEditor')],
 				['livePreview', t('sidebar.defaultEditor.livePreview')],
-				['default', t('sidebar.defaultEditor.default')],
 			],
 			(v) => post({ type: 'setSetting', key: 'defaultEditor', value: v }),
 		),

@@ -21,10 +21,24 @@ suite('settings and views', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test('defaultEditor accepts each documented value', async () => {
-		for (const value of ['prompt', 'livePreview', 'default']) {
+	test('defaultEditor applies every documented viewing mode', async () => {
+		const expectedViewTypes: Record<string, string | undefined> = {
+			prompt: undefined,
+			textEditor: 'default',
+			markdownPreview: 'vscode.markdown.preview.editor',
+			markdownEditor: 'vscode.markdown.editor',
+			livePreview: 'mdLivePreview.editor',
+		};
+		for (const [value, expectedViewType] of Object.entries(expectedViewTypes)) {
 			await config().update('defaultEditor', value, vscode.ConfigurationTarget.Global);
 			assert.strictEqual(config().get('defaultEditor'), value);
+			await waitFor(() => {
+				const associations = vscode.workspace
+					.getConfiguration()
+					.get<Record<string, string>>('workbench.editorAssociations');
+				return associations?.['*.md'] === expectedViewType
+					&& associations?.['*.markdown'] === expectedViewType;
+			});
 		}
 	});
 
@@ -107,3 +121,12 @@ suite('settings and views', () => {
 		}
 	});
 });
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (predicate()) return;
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+	assert.fail('timed out waiting for the configured Markdown viewing mode');
+}

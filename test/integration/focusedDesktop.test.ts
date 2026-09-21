@@ -124,6 +124,30 @@ suite('focused macOS desktop transactions', () => {
 			'Live Preview did not render the external file change');
 	});
 
+	test('automatically saves a task checkbox click to the Markdown file', async () => {
+		const fixture = await makeFixture('checkbox-autosave');
+		const note = await service.createNote(fixture, 'Checkbox Auto Save');
+		await vscode.workspace.fs.writeFile(note, bytes('# Tasks\n\n- [ ] Save this change\n'));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+
+		const frame = await connectToLivePreviewFrame('Save this change');
+		const checkbox = frame.locator('.mlp-checkbox').first();
+		assert.strictEqual(await checkbox.getAttribute('aria-checked'), 'false');
+		await checkbox.click();
+
+		const document = vscode.workspace.textDocuments.find(
+			(candidate) => candidate.uri.toString() === note.toString(),
+		);
+		assert.ok(document, 'the checkbox note did not have an open TextDocument');
+		await waitFor(() => document.getText().includes('- [x] Save this change'),
+			'checking the task did not update the Markdown document');
+		await waitFor(async () => {
+			const diskText = new TextDecoder().decode(await vscode.workspace.fs.readFile(note));
+			return diskText.includes('- [x] Save this change') && !document.isDirty;
+		}, 'checking the task did not automatically save the Markdown file');
+	});
+
 	test('drives native knowledge pickers and views with keyboard navigation', async () => {
 		const fixture = await makeFixture('knowledge-pickers');
 		const quickTarget = await service.createNote(fixture, 'Desktop Picker Target');

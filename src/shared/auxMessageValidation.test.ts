@@ -22,6 +22,10 @@ describe('auxiliary webview message validation', () => {
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'arbitrary' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'codeTheme', value: 'https://remote.invalid' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'livePreview' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'textEditor' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'markdownPreview' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'markdownEditor' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'default' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditingMode', value: 'locked' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditingMode', value: 'arbitrary' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'codeTheme', value: 'github-dark' }).ok).toBe(true);

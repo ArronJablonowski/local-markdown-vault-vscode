@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { shouldOpenInLivePreview } from './editorOpenPolicy';
+import {
+	configuredEditorViewTypeForPath,
+	editorViewType,
+	normalizeDefaultEditorSetting,
+	shouldOpenInLivePreview,
+} from './editorOpenPolicy';
 
 describe('configured Markdown editor selection', () => {
 	it('uses Live Preview for both supported Markdown extensions', () => {
@@ -12,6 +17,25 @@ describe('configured Markdown editor selection', () => {
 		expect(shouldOpenInLivePreview('/Vault/Note.md', 'default')).toBe(false);
 		expect(shouldOpenInLivePreview('/Vault/Note.md', 'prompt')).toBe(false);
 		expect(shouldOpenInLivePreview('/Vault/Note.md', undefined)).toBe(false);
+	});
+
+	it('maps every explicit viewing mode to its actual VS Code editor', () => {
+		expect(editorViewType('prompt')).toBeUndefined();
+		expect(editorViewType('textEditor')).toBe('default');
+		expect(editorViewType('markdownPreview')).toBe('vscode.markdown.preview.editor');
+		expect(editorViewType('markdownEditor')).toBe('vscode.markdown.editor');
+		expect(editorViewType('livePreview')).toBe('mdLivePreview.editor');
+	});
+
+	it('migrates the legacy mislabeled default value to Markdown Editor', () => {
+		expect(normalizeDefaultEditorSetting('default')).toBe('markdownEditor');
+		expect(editorViewType('default')).toBe('vscode.markdown.editor');
+	});
+
+	it('only applies viewing modes to Markdown files', () => {
+		expect(configuredEditorViewTypeForPath('/Vault/Note.md', 'markdownPreview'))
+			.toBe('vscode.markdown.preview.editor');
+		expect(configuredEditorViewTypeForPath('/Vault/file.pdf', 'markdownPreview')).toBeUndefined();
 	});
 
 	it('does not mistake a suffix or query-like string for a Markdown extension', () => {

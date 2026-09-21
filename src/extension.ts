@@ -12,6 +12,7 @@ import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
 import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
 import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
+import { editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
 
 interface DevelopmentApi {
 	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
@@ -65,7 +66,7 @@ function getActiveCustomEditorUri(): vscode.Uri | undefined {
 // reopened in Live Preview again. Keyed by `Uri#toString()`.
 const sourceOverrideUris = new Set<string>();
 
-// URIs currently being converted to Live Preview by `maybeReopenAsLivePreview`.
+// URIs currently being converted to their configured Markdown editor.
 // `onDidChangeTabs` can report the same tab open in both its `opened` and
 // `changed` batches, which without this guard would race two overlapping
 // `vscode.openWith` calls for the same file and could leave two tabs open.
@@ -84,10 +85,10 @@ function isMarkdownTab(input: vscode.TabInputText): boolean {
 	const uriKey = input.uri.toString();
 	const openDoc = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uriKey);
 	if (openDoc) return openDoc.languageId === 'markdown';
-	return /\.md$/i.test(input.uri.path);
+	return /\.(?:md|markdown)$/i.test(input.uri.path);
 }
 
-// Short, bounded backoff for `maybeReopenAsLivePreview` retries below — covers
+// Short, bounded backoff for configured-editor retries below — covers
 // two distinct failure modes seen from third-party callers (AI chat panels,
 // other extensions' "open this file" links) that this extension can't inspect
 // or fix directly: (1) the document's language mode hasn't been assigned yet
@@ -104,12 +105,13 @@ const REOPEN_RETRY_DELAYS_MS = [150, 500, 1500];
  * used by many extensions — including AI chat panels — to open a referenced
  * file) bypass `workbench.editorAssociations` entirely and always land in the
  * plain text editor. This watches every tab as it opens/changes and reopens
- * any such file in Live Preview when `mdLivePreview.defaultEditor` is set to
- * always use it, reusing the same tab/column so no split is created.
+ * any such file in the explicitly configured Markdown view, reusing the same
+ * tab/column so no split is created.
  */
-async function maybeReopenAsLivePreview(tab: vscode.Tab, attempt = 0): Promise<void> {
-	const mode = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', 'prompt');
-	if (mode !== 'livePreview') return;
+async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Promise<void> {
+	const configured = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', 'prompt');
+	const viewType = editorViewType(configured);
+	if (!viewType || viewType === 'default') return;
 
 	const input = tab.input;
 	if (!(input instanceof vscode.TabInputText)) return;
@@ -119,7 +121,7 @@ async function maybeReopenAsLivePreview(tab: vscode.Tab, attempt = 0): Promise<v
 
 	const retry = () => {
 		if (attempt >= REOPEN_RETRY_DELAYS_MS.length) return;
-		setTimeout(() => void maybeReopenAsLivePreview(tab, attempt + 1), REOPEN_RETRY_DELAYS_MS[attempt]);
+		setTimeout(() => void maybeReopenAsConfiguredEditor(tab, attempt + 1), REOPEN_RETRY_DELAYS_MS[attempt]);
 	};
 
 	if (!isMarkdownTab(input)) {
@@ -132,7 +134,7 @@ async function maybeReopenAsLivePreview(tab: vscode.Tab, attempt = 0): Promise<v
 		await vscode.commands.executeCommand(
 			'vscode.openWith',
 			input.uri,
-			MarkdownLivePreviewProvider.viewType,
+			viewType,
 			tab.group.viewColumn,
 		);
 		// `vscode.openWith` is expected to replace the originating tab in place,
@@ -159,18 +161,26 @@ async function maybeReopenAsLivePreview(tab: vscode.Tab, attempt = 0): Promise<v
 }
 
 async function syncDefaultEditorAssociation(): Promise<void> {
-	const mode = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', 'prompt');
+	const config = vscode.workspace.getConfiguration('mdLivePreview');
+	const configured = config.get<string>('defaultEditor', 'prompt');
+	const mode = normalizeDefaultEditorSetting(configured);
+	// Earlier builds stored `default` while labeling it Markdown Editor. Preserve
+	// that user choice and replace the obsolete value with its correct name.
+	if (configured === 'default') {
+		await config.update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
+	}
 	const rootConfig = vscode.workspace.getConfiguration();
 	const associations = {
 		...(rootConfig.get<Record<string, string>>('workbench.editorAssociations') ?? {}),
 	};
 
-	if (mode === 'livePreview') {
-		associations['*.md'] = MarkdownLivePreviewProvider.viewType;
-	} else if (mode === 'default') {
-		associations['*.md'] = 'default';
+	const viewType = editorViewType(mode);
+	if (viewType) {
+		associations['*.md'] = viewType;
+		associations['*.markdown'] = viewType;
 	} else {
 		delete associations['*.md'];
+		delete associations['*.markdown'];
 	}
 
 	await rootConfig.update('workbench.editorAssociations', associations, vscode.ConfigurationTarget.Global);
@@ -244,7 +254,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 		}),
 		vscode.window.tabGroups.onDidChangeTabs((e) => {
 			for (const tab of [...e.opened, ...e.changed]) {
-				void maybeReopenAsLivePreview(tab);
+				void maybeReopenAsConfiguredEditor(tab);
 			}
 		}),
 	);

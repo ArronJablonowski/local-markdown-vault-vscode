@@ -90,7 +90,12 @@ export interface StyleEntry {
 }
 
 /** The extension settings the sidebar surfaces and can change. */
-export type DefaultEditorSetting = 'prompt' | 'livePreview' | 'default';
+export type DefaultEditorSetting =
+	| 'prompt'
+	| 'textEditor'
+	| 'markdownPreview'
+	| 'markdownEditor'
+	| 'livePreview';
 export type EditingModeSetting = 'editing' | 'locked';
 export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dark' | 'github-light';
 export interface SidebarSettings {
