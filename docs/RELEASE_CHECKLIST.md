@@ -7,11 +7,11 @@ This checklist converts the PRD definitions of done into release evidence. A che
 This is reproducibility evidence for the current implementation, not final
 release sign-off. Runtime candidate `e54a677f0db43962ae07eaa14d8fd9f72ae0545f`
 closes the keyboard-table and vault-picker state races exposed by the preceding
-candidate. Current release-evidence head `36abab2a1e4c1670daab21a7c606b57d4ab875b9`
+candidate. Validated release-evidence commit `36abab2a1e4c1670daab21a7c606b57d4ab875b9`
 adds only test and documentation hardening: a source gate for reviewed
 filesystem-access boundaries and reliable keyboard-driven native Quick Input
 coverage. The runtime bundle and VSIX checksum remain unchanged. The current
-head passed Linux CI, CodeQL, secret scanning, and the complete hosted
+validated commit passed Linux CI, CodeQL, secret scanning, and the complete hosted
 Windows/macOS/Linux release matrix on 2026-09-20. Manual filesystem, Trash,
 assistive-technology, and independent-review gates remain unchecked below.
 
@@ -98,7 +98,7 @@ reported as automated evidence.
 - [x] Create the production package with `npm run package`, then run `npm run test:vsix`; the archive verifier and clean-profile trusted/Restricted Mode packaged-extension suites must pass.
 - [x] Run `npm run security:audit`; no critical or high finding is accepted.
 - [x] Generate the validated CycloneDX SBOM with `npm run security:sbom` and retain `local-markdown-vault.cdx.json` with the release evidence. The file is excluded from Git and the VSIX because the CI and release workflows retain it as a separate artifact.
-- [x] Confirm CodeQL, dependency review, and secret scanning pass for the release commit. The current evidence head passed [CI and dependency-policy validation](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856730), [CodeQL](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856812), and [secret scanning](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856785); the repository APIs reported zero open CodeQL, Dependabot, or secret-scanning alerts. The lockfile and runtime bundle did not change in the test-hardening commits, while pull requests remain subject to the dedicated dependency-review workflow.
+- [x] Confirm CodeQL, dependency review, and secret scanning pass for the release commit. The validated evidence commit passed [CI and dependency-policy validation](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856730), [CodeQL](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856812), and [secret scanning](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35556856785); the repository APIs reported zero open CodeQL, Dependabot, or secret-scanning alerts. The lockfile and runtime bundle did not change in the test-hardening commits, while pull requests remain subject to the dedicated dependency-review workflow.
 - [x] Review `npm ci --ignore-scripts` output, the lockfile diff, licenses, and `THIRD-PARTY-NOTICES.md`. The current lockfile installed with lifecycle scripts disabled, dependency policy accepted all 797 locked and 182 production packages plus the exact five disabled install-script packages, the lockfile remained unchanged, `npm audit` reported zero vulnerabilities, and the reproducible CycloneDX SBOM validated. Deprecation warnings are confined to development-tool transitive packages and do not bypass the advisory, license, integrity, or package-content gates. The package command automatically rejects missing release documents, source/tests/configuration, source maps, SBOMs, secret-key formats, unsafe ZIP paths, symlinks, corrupt entries, and unexpectedly large archives or files.
 - [x] Replace the inherited publisher and upstream project URLs with the fork identity `arronjablonowski.local-markdown-vault` and `ArronJablonowski/local-markdown-vault-vscode`; retain the original project as an attributed upstream remote.
 
