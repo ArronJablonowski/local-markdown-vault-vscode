@@ -137,6 +137,144 @@ code --uninstall-extension arronjablonowski.local-markdown-vault
 4. Use `[[Note]]`, `[[Note|Alias]]`, `[[Note#Heading]]`, or `![[Attachment.png]]` for vault links and embeds.
 5. Review workspace trust and security settings before enabling diagrams, custom CSS, or remote media in an unfamiliar workspace.
 
+### Advanced Markdown how-to
+
+These examples remain ordinary Markdown files and are compatible with the supported Obsidian-style syntax. In Live Preview, move the cursor away from a formatted line to see its rendered appearance; move the cursor back to reveal and edit its source.
+
+#### Highlight text
+
+Wrap text in double equals signs:
+
+```markdown
+This decision is ==important and time-sensitive==.
+```
+
+#### Create tasks and nested lists
+
+Use `[ ]` for an open task and any non-space status character for a completed task. Press Return at the end of a task to create the next unchecked task. Press Tab and Shift+Tab to change list depth.
+
+```markdown
+- [ ] Review the draft
+- [x] Approved
+- [?] Needs clarification
+  - [ ] Follow up with the author
+```
+
+Nested bullet levels automatically use solid, hollow, and square markers in Live Preview while keeping ordinary `-` markers in the file.
+
+#### Add callouts
+
+Start a blockquote with `[!type]`. Add `-` to start collapsed or `+` to start expanded.
+
+```markdown
+> [!note] Local note
+> This information stays in the vault.
+
+> [!warning]- Security reminder
+> Expand this callout before enabling remote media.
+
+> [!tip]+ Writing tip
+> Callouts can contain **formatting**, [[wikilinks]], and lists.
+```
+
+Supported standard families include `note`, `abstract`, `info`, `todo`, `tip`, `success`, `question`, `warning`, `failure`, `danger`, `bug`, `example`, and `quote`. Common Obsidian aliases such as `faq`, `important`, `caution`, and `cite` are also recognized.
+
+#### Add YAML properties
+
+Place a YAML block at the very beginning of the note:
+
+```yaml
+---
+title: Project plan
+aliases:
+  - Plan
+  - Roadmap
+tags:
+  - project/active
+priority: 3
+approved: false
+due: 2026-10-15
+related: "[[Meeting Notes]]"
+---
+```
+
+Live Preview provides typed controls for supported text, list, number, Boolean, date, date-time, tag, and quoted-wikilink values. Complex nested YAML remains editable source text.
+
+#### Link to notes, headings, and blocks
+
+```markdown
+[[Project Plan]]
+[[Project Plan|Open the plan]]
+[[Project Plan#Milestones]]
+[[Project Plan#^approval-record]]
+
+This paragraph can be linked directly. ^approval-record
+```
+
+Typing `[[` opens local note completion. An unresolved wikilink can be used to create a new note inside the vault.
+
+#### Embed local content
+
+Add `!` before a wikilink to embed local content:
+
+```markdown
+![[Project Plan]]
+![[Project Plan#Milestones]]
+![[Project Plan#^approval-record]]
+![[attachments/diagram.png|640x360]]
+```
+
+Note embeds are read-only inside the parent note. Edit the original note to change embedded content. Local files must remain inside the vault; remote images are blocked unless HTTPS media is explicitly enabled for the workspace.
+
+#### Create a table
+
+Use colons in the separator row to control alignment:
+
+```markdown
+| Item | Status | Cost |
+| :--- | :----: | ---: |
+| Draft | Complete | $0 |
+| Review | Pending | $25 |
+```
+
+Select a rendered table cell to edit it or use the table controls to insert, move, sort, align, or delete rows and columns.
+
+#### Add math and footnotes
+
+```markdown
+Inline math uses $E = mc^2$ within a sentence.
+
+$$
+f(x) = x^2 + 2x + 1
+$$
+
+This statement has a source.[^source]
+
+[^source]: A local footnote definition.
+```
+
+#### Add tags and aliases
+
+```markdown
+#project/active #review
+```
+
+Tags may also be listed in YAML properties. Aliases defined in the `aliases` property are available to wikilink completion and the Quick Switcher.
+
+#### Create a Mermaid diagram
+
+````markdown
+```mermaid
+flowchart LR
+    Draft --> Review
+    Review --> Approved
+```
+````
+
+Mermaid runs locally in strict mode. Script execution, click callbacks, external resources, HTML labels, and document attempts to weaken strict mode remain blocked.
+
+For a complete comparison corpus, see [`test/fixtures/obsidian-advanced`](test/fixtures/obsidian-advanced) and the [Obsidian compatibility guide](docs/OBSIDIAN_COMPATIBILITY.md).
+
 Common shortcuts:
 
 | Action | macOS | Windows/Linux |
