@@ -122,9 +122,20 @@ suite('extension', () => {
 		assert.strictEqual(capabilities.virtualWorkspaces?.supported, false);
 	});
 
-	test('contributes keyboard-first vault rename and trash shortcuts', () => {
+	test('contributes trusted file and folder Trash surfaces and keyboard shortcuts', () => {
 		const extension = vscode.extensions.getExtension(EXTENSION_ID);
 		assert.ok(extension);
+		const menus = extension.packageJSON.contributes.menus as Record<string, Array<{
+			command: string;
+			when?: string;
+		}>>;
+		const removeMenu = menus['view/item/context']?.find((item) => item.command === 'mdLivePreview.vault.delete');
+		assert.ok(removeMenu, 'the vault Trash action is not contributed');
+		assert.match(removeMenu.when ?? '', /view == mdLivePreview\.vault/);
+		assert.match(removeMenu.when ?? '', /isWorkspaceTrusted/);
+		for (const contextValue of ['vaultFile', 'vaultFolder', 'vaultSymlink']) {
+			assert.match(removeMenu.when ?? '', new RegExp(`viewItem == ${contextValue}`));
+		}
 		const bindings = extension.packageJSON.contributes.keybindings as Array<{
 			command: string;
 			key: string;

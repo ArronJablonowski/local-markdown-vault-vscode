@@ -377,6 +377,9 @@ describe('release security evidence', () => {
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');
 		expect(testSource).toContain('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views');
+		expect(testSource).toContain('creates notes and folders in the packaged Document Vault');
+		expect(testSource).toContain('File: ${noteName}.md');
+		expect(testSource).toContain('Folder: ${folderName}');
 		expect(testSource).toContain('keeps packaged controls reachable in high contrast at 200 percent zoom');
 		expect(testSource).toContain('operates packaged Live Preview controls through keyboard input');
 		expect(testSource).toContain('the packaged typed-property error was not associated with its input');

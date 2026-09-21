@@ -1,5 +1,7 @@
 # Changelog
 
+- Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.
+
 - Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
 
 - Keep in-vault Markdown links, wikilinks, Document Vault opens, and newly created notes in Live Preview when it is configured as the default editor, while leaving attachments with VS Code's normal opener.
@@ -47,6 +49,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.
 - Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
 - Open Quick Switcher, vault-search, Backlinks, and other indexed Markdown targets directly in Live Preview when it is the configured default editor; retain one bounded newest line jump through the webview startup handshake so a fresh search result reliably places the CodeMirror caret on its matching line.
 - Show the same delayed, sanitized, local-only wikilink preview when a rendered link receives keyboard focus, associate it as an accessible description, and verify the behavior in both the shipped browser bundle and an installed clean-profile VSIX.

@@ -111,6 +111,44 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.commands.executeCommand('mdLivePreview.vault.rebuildIndex');
 	});
 
+	(mode === 'trusted' ? test : test.skip)('creates notes and folders in the packaged Document Vault', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root, 'the VSIX smoke workspace is unavailable');
+		const page = await getWorkbenchPage();
+		await page.bringToFront();
+		const noteName = 'Packaged Created Note';
+		const note = vscode.Uri.joinPath(root, `${noteName}.md`);
+		const folderName = 'Packaged Created Folder';
+		const folder = vscode.Uri.joinPath(root, folderName);
+
+		const createNote = vscode.commands.executeCommand('mdLivePreview.vault.newNote');
+		await acceptNativeInputBox(page, noteName);
+		await createNote;
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), '',
+			'the packaged Document Vault did not create an empty Markdown note');
+		await waitFor(() => activeTabUri()?.toString() === note.toString(),
+			'the packaged Document Vault did not open its created note');
+
+		const createFolder = vscode.commands.executeCommand('mdLivePreview.vault.newFolder');
+		await acceptNativeInputBox(page, folderName);
+		await createFolder;
+		assert.ok((await vscode.workspace.fs.stat(folder)).type & vscode.FileType.Directory,
+			'the packaged Document Vault did not create a folder');
+
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		for (const [accessibleLabel, uri] of [
+			[`File: ${noteName}.md`, note],
+			[`Folder: ${folderName}`, folder],
+		] as const) {
+			const row = page.getByRole('treeitem', { name: accessibleLabel, exact: true });
+			await row.waitFor({ state: 'visible', timeout: 5_000 });
+			await row.click();
+			assert.strictEqual(await row.getAttribute('aria-selected'), 'true',
+				`the packaged Document Vault did not select ${accessibleLabel}`);
+			await vscode.workspace.fs.stat(uri);
+		}
+	});
+
 	(mode === 'trusted' ? test : test.skip)('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root, 'the VSIX smoke workspace is unavailable');
@@ -506,4 +544,13 @@ async function waitFor(check: () => boolean | Promise<boolean>, message: string,
 
 function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
+	const widget = page.locator('.quick-input-widget:visible');
+	await widget.waitFor({ state: 'visible', timeout: 5_000 });
+	const input = widget.locator('.quick-input-box input');
+	await input.fill(value);
+	await input.press('Enter');
+	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
