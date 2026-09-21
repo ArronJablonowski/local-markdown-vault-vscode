@@ -55,6 +55,15 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Name the Document Vault tree after the actual local folder shown in Finder,
+  refresh its affected parent immediately after external filesystem events,
+  and run one 50 ms coalesced reconciliation pass so bulk changes and folder
+  renames converge reliably without introducing visible refresh lag.
+- Add a reusable multi-file Obsidian advanced-syntax comparison vault and
+  browser regression suite; add Live Preview highlights, distinct standard
+  callout icons and color families, and Obsidian-compatible non-empty task
+  states while preserving the extension's stricter inert-HTML and offline
+  defaults.
 - Continue ordered-list numbers and unchecked task boxes when Return is pressed,
   leave numbered and task lists immediately from an empty item, and render nested
   bullet levels with distinct solid, hollow, and square markers while preserving

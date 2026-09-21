@@ -22,6 +22,26 @@ const TYPE_ALIASES: Record<string, string> = {
 	cite: 'quote',
 };
 
+const TYPE_ICONS: Readonly<Record<string, string>> = {
+	note: '✎',
+	abstract: '▤',
+	info: 'ⓘ',
+	todo: '⊙',
+	tip: '♨',
+	success: '✓',
+	question: '?',
+	warning: '⚠',
+	failure: '✕',
+	danger: '⚡',
+	bug: '◉',
+	example: '≡',
+	quote: '❝',
+};
+
+export function calloutIcon(type: string): string {
+	return TYPE_ICONS[type] ?? '◆';
+}
+
 /** Parses the callout marker belonging to one particular blockquote depth. */
 export function parseCalloutHeader(rawLine: string, blockquoteDepth: number): ParsedCallout | undefined {
 	const match = /^[ \t]*((?:>[ \t]*)+)\[!([A-Za-z0-9_-]{1,32})\]([+-])?[ \t]*(.*)$/.exec(rawLine);

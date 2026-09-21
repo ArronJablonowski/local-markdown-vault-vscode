@@ -15,14 +15,15 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 - Syntax highlighting, document outline, search, and editable tables
 - Local images and attachments, Mermaid diagrams, draw.io diagrams, and themes
 - Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
-- YAML properties, callouts, math, footnotes, tags, and interactive task lists
+- YAML properties, highlighted text, color-coded callouts, math, footnotes, tags, and interactive task lists
 - Smart list editing that continues ordered numbers and unchecked tasks on Return
 - Solid, hollow, and square markers that distinguish nested bullet levels
 
 ### Document Vault
 
-- Native VS Code tree for notes, folders, and attachments
+- Native VS Code tree named after the actual Finder folder for notes, folders, and attachments
 - Create, rename, move, delete/trash, drag-and-drop, sort, refresh, and reveal
+- Immediate external-file updates with a coalesced reconciliation pass for folder renames and bulk changes
 - Automatic Markdown and wikilink updates after file or folder moves
 - Local vault search, Quick Switcher, backlinks, unlinked mentions, recent notes, tags, aliases, and hover previews
 - Incremental metadata index that can be rebuilt from the files in the workspace

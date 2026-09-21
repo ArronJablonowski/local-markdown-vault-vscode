@@ -23,6 +23,7 @@ interface DevelopmentApi {
 	cancelVaultIndexRebuild(): Promise<void>;
 	getCodeTokenizationRunCount(): number;
 	getVaultTreeRevision(): number;
+	getVaultTreeTitle(): string;
 	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
 	searchVault(query: string, limit?: number): Promise<readonly VaultSearchResult[]>;
 	renameOrMoveMany(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
@@ -302,6 +303,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 			},
 			getCodeTokenizationRunCount,
 			getVaultTreeRevision: () => vaultRegistration.getTreeRevision(),
+			getVaultTreeTitle: () => vaultRegistration.getTreeTitle(),
 			getVaultTreePaths: (parentPath) => vaultRegistration.getTreePaths(parentPath),
 			searchVault: async (query, limit) => {
 				const index = vaultRegistration.getIndex();

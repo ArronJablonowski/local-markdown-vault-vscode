@@ -240,6 +240,24 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-checkbox-checked')).toHaveCount(1);
 	});
 
+	test('treats every non-empty Obsidian task status as completed', async ({ page }) => {
+		await mountEditor(page, 'Intro\n\n- [ ] Open\n- [x] Done\n- [?] Question\n- [-] Canceled\n');
+		await expect(page.locator('.mlp-checkbox')).toHaveCount(4);
+		await expect(page.locator('.mlp-checkbox-checked')).toHaveCount(3);
+		await page.locator('.mlp-checkbox').nth(2).click();
+		await expect(page.locator('.mlp-checkbox').nth(2)).toHaveAttribute('aria-checked', 'false');
+	});
+
+	test('renders Obsidian highlight syntax and reveals its markers at the caret', async ({ page }) => {
+		await mountEditor(page, 'Before ==highlighted text== after.\n\n`==literal code==`\n');
+		await page.locator('.mlp-inline-code').click();
+		await expect(page.locator('.mlp-highlight')).toHaveText('highlighted text');
+		await expect(page.locator('.cm-content')).not.toContainText('==highlighted text==');
+		await expect(page.locator('.mlp-highlight')).toHaveCount(1);
+		await page.locator('.mlp-highlight').click();
+		await expect(page.locator('.cm-content')).toContainText('==highlighted text==');
+	});
+
 	test('nested bullet levels use solid, hollow, and square markers', async ({ page }) => {
 		await mountEditor(page, '- Top\n  - Child\n    - Grandchild\n\nAfter\n');
 		await page.locator('.cm-line', { hasText: 'After' }).click();

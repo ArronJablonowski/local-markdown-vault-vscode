@@ -28,4 +28,21 @@ test.describe('Obsidian-style callouts', () => {
 		await expect(page.locator('.mlp-callout-header')).toHaveAttribute('aria-label', 'Nested question callout');
 		await expect(page.locator('.mlp-callout-question')).toHaveCount(2);
 	});
+
+	test('uses distinct visual families for the documented callout types', async ({ page }) => {
+		await mountEditor(page, [
+			'> [!note] Note', '> Body', '',
+			'> [!tip] Tip', '> Body', '',
+			'> [!success] Success', '> Body', '',
+			'> [!warning] Warning', '> Body', '',
+			'> [!danger] Danger', '> Body', '',
+			'> [!example] Example', '> Body', '',
+			'> [!quote] Quote', '> Body',
+		].join('\n'));
+		const colors = await page.locator('.mlp-callout-header').evaluateAll((headers) =>
+			headers.map((header) => getComputedStyle(header).color));
+		expect(new Set(colors).size).toBeGreaterThanOrEqual(6);
+		const icons = await page.locator('.mlp-callout-icon').allTextContents();
+		expect(new Set(icons).size).toBe(icons.length);
+	});
 });

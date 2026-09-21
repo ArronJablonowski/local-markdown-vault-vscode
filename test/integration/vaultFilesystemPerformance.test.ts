@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 const NOTE_COUNT = 8_000;
@@ -15,6 +15,7 @@ interface DevelopmentApi {
 	getVaultService(): { rootUri: vscode.Uri } | undefined;
 	getVaultIndexRecords(): readonly IndexRecord[];
 	getVaultTreeRevision(): number;
+	getVaultTreeTitle(): string;
 	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
 }
 
@@ -33,6 +34,7 @@ if (process.env.MDLP_RUN_FILESYSTEM_BENCHMARK === '1') {
 			const api = await extension.activate();
 			assert.ok(api, 'development performance API is unavailable');
 			assert.strictEqual(api.getVaultService()?.rootUri.fsPath, fixture);
+			assert.strictEqual(api.getVaultTreeTitle(), basename(fixture), 'tree title must match the Finder folder name');
 			assert.strictEqual(api.getVaultIndexRecords().length, NOTE_COUNT, 'initial activation did not index all fixture notes');
 
 			const coldRuns: number[] = [];

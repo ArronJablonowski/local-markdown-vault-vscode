@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { chmod, mkdtemp, readFile, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
@@ -61,6 +61,7 @@ interface DevelopmentApi {
 	flushVaultIndexCache(): Promise<void>;
 	cancelVaultIndexRebuild(): Promise<void>;
 	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
+	getVaultTreeTitle(): string;
 	renameOrMoveMany(requests: readonly {
 		source: vscode.Uri;
 		destination: vscode.Uri;
@@ -106,6 +107,11 @@ suite('Document Vault filesystem transactions', () => {
 		const resolved = api.getVaultService();
 		assert.ok(resolved, 'the integration workspace should be a local single-folder vault');
 		service = resolved;
+		assert.strictEqual(
+			api.getVaultTreeTitle(),
+			basename(vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? ''),
+			'tree title must match the Finder folder name',
+		);
 	});
 
 	teardown(async () => {
@@ -309,9 +315,10 @@ suite('Document Vault filesystem transactions', () => {
 		await waitForCondition(
 			() => api.getVaultIndexRecords().some((record) => record.path === originalPath),
 			'external note creation did not reach the vault index',
+			1_000,
 		);
-		await waitForVaultTreePaths(api, fixtureRelative, (paths) => paths.includes(`${fixtureRelative}/External Folder`));
-		await waitForVaultTreePaths(api, `${fixtureRelative}/External Folder`, (paths) => paths.includes(originalPath));
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) => paths.includes(`${fixtureRelative}/External Folder`), 1_000);
+		await waitForVaultTreePaths(api, `${fixtureRelative}/External Folder`, (paths) => paths.includes(originalPath), 1_000);
 
 		const renamedFolder = vscode.Uri.joinPath(fixture, '\u5916\u90e8 🧭');
 		await vscode.workspace.fs.rename(externalFolder, renamedFolder, { overwrite: false });
@@ -319,10 +326,10 @@ suite('Document Vault filesystem transactions', () => {
 		await waitForCondition(() => {
 			const paths = api.getVaultIndexRecords().map((record) => record.path);
 			return paths.includes(renamedPath) && !paths.includes(originalPath);
-		}, 'external Unicode folder rename did not converge in the vault index');
+		}, 'external Unicode folder rename did not converge in the vault index', 1_000);
 		await waitForVaultTreePaths(api, fixtureRelative, (paths) =>
-			paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`) && !paths.includes(`${fixtureRelative}/External Folder`));
-		await waitForVaultTreePaths(api, `${fixtureRelative}/\u5916\u90e8 🧭`, (paths) => paths.includes(renamedPath));
+			paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`) && !paths.includes(`${fixtureRelative}/External Folder`), 1_000);
+		await waitForVaultTreePaths(api, `${fixtureRelative}/\u5916\u90e8 🧭`, (paths) => paths.includes(renamedPath), 1_000);
 		assertBytesEqual(
 			await vscode.workspace.fs.readFile(vscode.Uri.joinPath(renamedFolder, 'Watched Note.md')),
 			noteBytes,
@@ -333,8 +340,9 @@ suite('Document Vault filesystem transactions', () => {
 		await waitForCondition(
 			() => !api.getVaultIndexRecords().some((record) => record.path === renamedPath),
 			'external folder deletion did not leave the vault index',
+			1_000,
 		);
-		await waitForVaultTreePaths(api, fixtureRelative, (paths) => !paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`));
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) => !paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`), 1_000);
 	});
 
 	test('authorizes only vault-confined mutation sources without following a symlink leaf', async () => {

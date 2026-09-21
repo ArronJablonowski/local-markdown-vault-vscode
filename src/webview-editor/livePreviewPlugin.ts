@@ -23,7 +23,7 @@ import {
 	type TableEditModel,
 } from './tableEdit';
 import { t } from '../shared/i18n';
-import { parseCalloutHeader } from './callouts';
+import { calloutIcon, parseCalloutHeader } from './callouts';
 import type { RemoteMediaPolicy } from '../shared/messages';
 import { resolveLocalImage } from './localImageClient';
 import { isAbsoluteWebUrl } from '../shared/linkTarget';
@@ -262,7 +262,7 @@ class CheckboxWidget extends WidgetType {
 		const toggle = () => {
 			// The marker is "[ ]" / "[x]"; the state character sits at markerFrom + 1.
 			const stateChar = view.state.sliceDoc(this.markerFrom + 1, this.markerFrom + 2);
-			const insert = stateChar.toLowerCase() === 'x' ? ' ' : 'x';
+			const insert = stateChar === ' ' ? 'x' : ' ';
 			view.dispatch({ changes: { from: this.markerFrom + 1, to: this.markerFrom + 2, insert } });
 		};
 		box.addEventListener('pointerdown', (event) => event.preventDefault());
@@ -300,7 +300,8 @@ class CalloutHeaderWidget extends WidgetType {
 		button.setAttribute('aria-label', t('callout.label', this.title));
 		const icon = document.createElement('span');
 		icon.className = 'mlp-callout-icon';
-		icon.textContent = this.type === 'warning' || this.type === 'caution' ? '⚠' : '◆';
+		icon.setAttribute('aria-hidden', 'true');
+		icon.textContent = calloutIcon(this.type);
 		const label = document.createElement('span');
 		label.className = 'mlp-callout-title';
 		label.textContent = this.title;
@@ -1407,7 +1408,21 @@ export function blockReplacedLines(state: EditorState, item: SyntaxNode): Set<nu
 function listItemIsTask(state: EditorState, listMark: SyntaxNodeRef): boolean {
 	const line = state.doc.lineAt(listMark.from);
 	const after = state.sliceDoc(listMark.to, line.to);
-	return /^\s*\[[ xX]\]/.test(after);
+	return /^\s*\[[^\]\r\n]\]/.test(after);
+}
+
+function isInsideCode(node: SyntaxNode): boolean {
+	for (let current: SyntaxNode | null = node; current; current = current.parent) {
+		if (current.name === 'InlineCode' || current.name === 'FencedCode' || current.name === 'CodeBlock') return true;
+	}
+	return false;
+}
+
+function hasAncestor(node: SyntaxNode, name: string): boolean {
+	for (let current: SyntaxNode | null = node; current; current = current.parent) {
+		if (current.name === name) return true;
+	}
+	return false;
 }
 
 function buildDecorations(view: EditorView): DecorationSet {
@@ -1451,6 +1466,39 @@ function buildDecorations(view: EditorView): DecorationSet {
 			if (value) addLineClass(doc.line(n).from, value);
 		}
 	};
+
+	// Obsidian highlight syntax is intentionally small and line-scoped. Scan
+	// only mounted lines, reject code nodes, and retain the source delimiters
+	// whenever the caret touches the construct (the same source-reveal behavior
+	// used by emphasis and links).
+	const highlighted = new Set<string>();
+	for (const visible of view.visibleRanges) {
+		const firstLine = doc.lineAt(visible.from).number;
+		const lastLine = doc.lineAt(visible.to).number;
+		for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber++) {
+			const line = doc.line(lineNumber);
+			const customTask = /^(\s*[-+*]\s+)(\[[^ xX\]\r\n]\])/.exec(line.text);
+			if (customTask) {
+				const markerFrom = line.from + customTask[1].length;
+				if (hasAncestor(tree.resolveInner(markerFrom, 1), 'ListItem') && !cursorTouchesRange(state, markerFrom, markerFrom + 3)) {
+					pushReplace(markerFrom, markerFrom + 3, Decoration.replace({ widget: new CheckboxWidget(true, markerFrom) }));
+				}
+			}
+			for (const match of line.text.matchAll(/==([^=\r\n](?:.*?[^=\r\n])?)==/g)) {
+				const index = match.index ?? 0;
+				const from = line.from + index;
+				const to = from + match[0].length;
+				const key = `${from}:${to}`;
+				if (highlighted.has(key) || isInsideCode(tree.resolveInner(from + 2, 1))) continue;
+				highlighted.add(key);
+				decorations.push(Decoration.mark({ tagName: 'mark', class: 'mlp-highlight' }).range(from + 2, to - 2));
+				if (!cursorTouchesRange(state, from, to)) {
+					pushReplace(from, from + 2, hiddenMarkerDeco);
+					pushReplace(to - 2, to, hiddenMarkerDeco);
+				}
+			}
+		}
+	}
 
 	for (const { from: rangeFrom, to: rangeTo } of view.visibleRanges) {
 		tree.iterate({
@@ -1638,7 +1686,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 					}
 					case 'TaskMarker': {
 						if (!cursorTouchesRange(state, node.from, node.to)) {
-							const checked = /[xX]/.test(state.sliceDoc(node.from, node.to));
+							const checked = !/^\[ \]$/.test(state.sliceDoc(node.from, node.to));
 							pushReplace(node.from, node.to, Decoration.replace({ widget: new CheckboxWidget(checked, node.from) }));
 						}
 						return;

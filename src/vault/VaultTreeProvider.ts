@@ -44,10 +44,12 @@ class VaultUnavailableItem extends vscode.TreeItem {
 type VaultNode = VaultEntry | VaultUnavailableItem;
 
 export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vscode.Disposable {
+	private static readonly SETTLED_REFRESH_DELAY_MS = 50;
 	private readonly changeEmitter = new vscode.EventEmitter<VaultNode | undefined | null>();
 	readonly onDidChangeTreeData = this.changeEmitter.event;
 	private resolution: VaultResolution = { available: false, reason: 'noWorkspace' };
 	private watcher: vscode.FileSystemWatcher | undefined;
+	private settledRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
 
 	async initialize(isCurrent: () => boolean = () => true): Promise<void> {
@@ -56,6 +58,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 		this.resolution = resolution;
 		this.watcher?.dispose();
 		this.watcher = undefined;
+		this.clearSettledRefresh();
 		if (this.resolution.available) {
 			this.watcher = vscode.workspace.createFileSystemWatcher(
 				new vscode.RelativePattern(this.resolution.service.rootUri, '**/*'),
@@ -74,6 +77,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	invalidate(reason: VaultUnavailableReason = 'noWorkspace'): void {
 		this.watcher?.dispose();
 		this.watcher = undefined;
+		this.clearSettledRefresh();
 		this.resolution = { available: false, reason };
 		this.refresh();
 	}
@@ -90,10 +94,37 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	private refreshParent(uri: vscode.Uri): void {
 		if (!this.resolution.available) return this.refresh();
 		const parent = vscode.Uri.file(dirname(uri.fsPath));
-		if (parent.toString() === this.resolution.service.rootUri.toString()) return this.refresh();
+		if (parent.toString() === this.resolution.service.rootUri.toString()) {
+			this.refresh();
+			this.scheduleSettledRefresh();
+			return;
+		}
 		const relative = this.resolution.service.relativePath(parent);
-		if (relative === undefined) return this.refresh();
+		if (relative === undefined) {
+			this.refresh();
+			this.scheduleSettledRefresh();
+			return;
+		}
 		this.refresh(new VaultEntry(parent, vscode.FileType.Directory, vscode.Uri.file(dirname(parent.fsPath)), relative));
+		this.scheduleSettledRefresh();
+	}
+
+	/**
+	 * Native filesystem providers can coalesce a folder rename into incomplete
+	 * create/delete batches. Keep the first targeted refresh immediate, then do
+	 * one inexpensive full-tree refresh after the event burst has settled.
+	 */
+	private scheduleSettledRefresh(): void {
+		this.clearSettledRefresh();
+		this.settledRefreshTimer = setTimeout(() => {
+			this.settledRefreshTimer = undefined;
+			this.refresh();
+		}, VaultTreeProvider.SETTLED_REFRESH_DELAY_MS);
+	}
+
+	private clearSettledRefresh(): void {
+		if (this.settledRefreshTimer !== undefined) clearTimeout(this.settledRefreshTimer);
+		this.settledRefreshTimer = undefined;
 	}
 
 	getTreeItem(element: VaultNode): vscode.TreeItem {
@@ -178,6 +209,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 
 	dispose(): void {
 		this.generation++;
+		this.clearSettledRefresh();
 		this.watcher?.dispose();
 		this.changeEmitter.dispose();
 	}

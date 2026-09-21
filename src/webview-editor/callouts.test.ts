@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCalloutHeader } from './callouts';
+import { calloutIcon, parseCalloutHeader } from './callouts';
 
 describe('Obsidian callout headers', () => {
 	it('parses titles and collapsed state', () => {
@@ -22,5 +22,11 @@ describe('Obsidian callout headers', () => {
 	it('rejects malformed and excessively long types', () => {
 		expect(parseCalloutHeader('> [!]', 1)).toBeUndefined();
 		expect(parseCalloutHeader(`> [!${'a'.repeat(33)}]`, 1)).toBeUndefined();
+	});
+
+	it('assigns distinct icons to the documented callout families', () => {
+		const types = ['note', 'abstract', 'info', 'todo', 'tip', 'success', 'question', 'warning', 'failure', 'danger', 'bug', 'example', 'quote'];
+		expect(new Set(types.map(calloutIcon)).size).toBe(types.length);
+		expect(calloutIcon('custom-type')).toBe('◆');
 	});
 });

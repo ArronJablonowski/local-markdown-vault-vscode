@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { validateVaultEntryName, noteFileName, validateVaultRelativeNotePath } from './vaultName';
 import { VaultEntry, VaultTreeProvider } from './VaultTreeProvider';
 import { LinkRewriteService, VaultTransactionConflictError } from './LinkRewriteService';
@@ -21,6 +21,7 @@ export interface VaultRegistration {
 	onDidChangeIndex: vscode.Event<void>;
 	getRecentPaths(): readonly string[];
 	getTreeRevision(): number;
+	getTreeTitle(): string;
 	getTreePaths(parentPath?: string): Promise<readonly string[]>;
 }
 
@@ -112,6 +113,13 @@ export async function registerVault(
 		canSelectMany: true,
 		showCollapseAll: true,
 	});
+	const updateTreePresentation = () => {
+		const folders = vscode.workspace.workspaceFolders;
+		const localFolder = folders?.length === 1 && folders[0].uri.scheme === 'file' ? folders[0] : undefined;
+		tree.title = localFolder ? (basename(localFolder.uri.fsPath) || localFolder.uri.fsPath) : vscode.l10n.t('Document Vault');
+		tree.description = localFolder ? vscode.l10n.t('Document Vault') : undefined;
+	};
+	updateTreePresentation();
 	context.subscriptions.push(provider, tree, dragAndDropController);
 	const updateContext = async () => {
 		await vscode.commands.executeCommand('setContext', 'mdLivePreview.vaultAvailable', Boolean(provider.service));
@@ -506,6 +514,7 @@ export async function registerVault(
 			indexFailureListener = undefined;
 			const classification = classifyVaultWorkspace(vscode.workspace.workspaceFolders);
 			provider.invalidate(classification.available ? 'noWorkspace' : classification.reason);
+			updateTreePresentation();
 			indexChanged.fire();
 			backlinksProvider.setIndex(undefined);
 			loadBacklinkPreferences(backlinksProvider, undefined, context);
@@ -517,6 +526,7 @@ export async function registerVault(
 			workspaceRefresh = workspaceRefresh.catch(() => undefined).then(async () => {
 				if (generation !== vaultGeneration) return;
 				await provider.initialize(() => generation === vaultGeneration);
+				updateTreePresentation();
 				if (generation !== vaultGeneration) {
 					provider.invalidate();
 					return;
@@ -594,6 +604,7 @@ export async function registerVault(
 		onDidChangeIndex: indexChanged.event,
 		getRecentPaths: () => index ? context.workspaceState.get<string[]>(recentKey(index), []) : [],
 		getTreeRevision: () => treeRevision,
+		getTreeTitle: () => tree.title ?? vscode.l10n.t('Document Vault'),
 		getTreePaths: async (parentPath = '') => {
 			const service = provider.service;
 			if (!service) return [];

@@ -17,22 +17,48 @@ same JavaScript and CSS shipped in the VSIX and requires at least 95 percent of
 its named compatibility checks to pass. Individual checks must also pass so the
 percentage cannot conceal a known regression.
 
+The multi-file `test/fixtures/obsidian-advanced/` vault is the broader visual
+and behavioral comparison corpus. It is tested in Obsidian Live Preview and by
+`test/e2e/advancedCompatibility.spec.ts` against the same editor bundle and CSS
+that ship in the VSIX. The security-differences note is an explicit negative
+test: active HTML, unsafe links, remote tracking media, and attempts to weaken
+Mermaid strict mode must remain inert or blocked.
+
+## Research basis
+
+The compatibility matrix is based on Obsidian's official documentation for
+[basic formatting](https://help.obsidian.md/syntax),
+[advanced syntax](https://help.obsidian.md/advanced-syntax),
+[Obsidian-flavored Markdown](https://help.obsidian.md/obsidian-flavored-markdown),
+[internal links](https://help.obsidian.md/links),
+[embeds](https://help.obsidian.md/embeds),
+[properties](https://help.obsidian.md/properties),
+[callouts](https://help.obsidian.md/callouts),
+[tags](https://help.obsidian.md/tags), and
+[aliases](https://help.obsidian.md/aliases). The reusable fixture was also
+opened directly in Obsidian 1.13.7 on macOS and reviewed in Live Preview. That
+review confirmed source reveal, three-level list markers, non-empty task-state
+completion, highlight presentation, editing-comment presentation, typed
+properties, standard callout color families and icons, folding, nested
+callouts, wikilinks, embeds, tables, math, footnotes, and Mermaid structure.
+
 ## Supported note syntax
 
 | Syntax or behavior | Compatibility | Notes |
 | --- | --- | --- |
 | CommonMark and GitHub-Flavored Markdown | Supported | Headings, emphasis, blockquotes, lists, code, links, images, rules, tasks, and tables remain plain Markdown. |
+| Highlights and editing comments | Supported | `==highlight==` uses Live Preview source reveal. Obsidian `%%` comments remain visible as editing source and are never executable. |
 | Wikilinks | Supported | Note paths, aliases, headings, and block IDs are supported. Typing `[[` opens local, bounded completion. |
 | Internal Markdown links | Supported | Relative and vault-root note links resolve inside the current vault; heading and block fragments navigate locally. |
 | Note embeds | Supported with limits | `![[Note]]`, heading embeds, and block embeds are read-only in the parent, detect cycles, and stop after three nested levels. |
 | Image embeds | Supported with limits | Local raster images and bounded `|width` or `|widthxheight` aliases are supported after vault containment and image-dimension checks. |
 | PDF and audio wikilinks | Open only | Valid local files open through VS Code. They are not rendered as active inline viewers. |
 | YAML properties | Core typed values | Text, homogeneous lists, numbers, booleans, dates, date-times, tags, and quoted wikilinks have typed presentation and editing. Complex nested YAML remains source text. |
-| Callouts | Supported | Standard callout markers, titles, aliases, nesting, and fold state render from the authoritative source. |
+| Callouts | Supported | Standard callout markers, titles, aliases, nesting, fold state, distinct icons, and Obsidian-style color families render from the authoritative source. |
 | Math | Supported with limits | Inline and block math use the bundled renderer with HTML and unsafe commands disabled. |
 | Footnotes | Supported | References and definitions navigate in both directions and remain editable as Markdown. |
 | Tags | Supported | Inline and YAML tags, including nested tags, feed the local Tags view. Code and headings are not interpreted as tags. |
-| Tasks | Supported | Checkboxes are keyboard and pointer operable and change only their source marker. |
+| Tasks | Supported | Checkboxes are keyboard and pointer operable and change only their source marker. As in Obsidian, every non-space task-state character is treated as completed. |
 | Tables | Supported | Cells can be edited in place; row and column insertion, deletion, movement, sorting, and alignment preserve Markdown source where possible. |
 | Mermaid | Supported with security differences | Diagrams are bounded and sanitized. HTML labels, click callbacks, external resources, and document attempts to weaken strict mode are disabled. |
 | draw.io file embeds | Supported with security differences | Local uncompressed diagram files are parsed with explicit limits and sanitized before display. Compressed draw.io input and active external content are not supported. |

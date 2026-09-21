@@ -349,6 +349,13 @@ html, body {
 	outline-offset: 2px;
 }
 
+.mlp-highlight {
+	background: rgba(255, 208, 0, 0.4);
+	color: inherit;
+	border-radius: 2px;
+	padding: 0 0.08em;
+}
+
 #mlp-image-paste-warning {
 	position: fixed;
 	right: 12px;
@@ -381,8 +388,9 @@ html, body {
 }
 
 .mlp-line-callout {
-	background: color-mix(in srgb, var(--vscode-textBlockQuote-background, #7f7f7f1a) 75%, transparent);
-	border-left: 3px solid var(--vscode-textLink-foreground, #3794ff);
+	--mlp-callout-color: var(--vscode-textLink-foreground, #3794ff);
+	background: color-mix(in srgb, var(--mlp-callout-color) 14%, transparent);
+	border-left: 3px solid var(--mlp-callout-color);
 	padding-left: 0.75em;
 	padding-right: 0.75em;
 }
@@ -397,12 +405,16 @@ html, body {
 	padding-bottom: 0.45em;
 }
 
-.mlp-callout-warning,
-.mlp-callout-caution,
+.mlp-callout-abstract { --mlp-callout-color: #00b8a9; }
+.mlp-callout-tip { --mlp-callout-color: #00b8a9; }
+.mlp-callout-success { --mlp-callout-color: #45a65a; }
+.mlp-callout-question { --mlp-callout-color: #d9a300; }
+.mlp-callout-warning { --mlp-callout-color: #e9973f; }
+.mlp-callout-failure,
 .mlp-callout-danger,
-.mlp-callout-error {
-	border-left-color: var(--vscode-editorWarning-foreground, #cca700);
-}
+.mlp-callout-bug { --mlp-callout-color: #e05252; }
+.mlp-callout-example { --mlp-callout-color: #8b5cf6; }
+.mlp-callout-quote { --mlp-callout-color: var(--vscode-descriptionForeground, #888); }
 
 .mlp-callout-header {
 	display: inline-flex;
@@ -412,7 +424,7 @@ html, body {
 	padding: 0;
 	border: 0;
 	background: transparent;
-	color: inherit;
+	color: var(--mlp-callout-color);
 	font: inherit;
 	font-weight: 600;
 	text-align: left;
@@ -425,6 +437,13 @@ html, body {
 }
 
 .mlp-callout-title { flex: 1; }
+.mlp-callout-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.1em;
+	font-weight: 700;
+}
 .mlp-callout-chevron { font-size: 1.2em; }
 .mlp-callout-content-collapsed { display: none !important; }
 
