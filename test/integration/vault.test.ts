@@ -98,12 +98,18 @@ suite('Document Vault filesystem transactions', () => {
 	let api: DevelopmentApi;
 	let service: VaultServiceApi;
 	let originalDefaultEditor: string | undefined;
+	let originalWorkspaceAutoSave: boolean | undefined;
 	const fixtures: vscode.Uri[] = [];
 
 	suiteSetup(async () => {
 		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
 		originalDefaultEditor = editorConfig.inspect<string>('defaultEditor')?.globalValue;
+		originalWorkspaceAutoSave = editorConfig.inspect<boolean>('autoSave')?.workspaceValue;
 		await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+		// These tests assert that vault transactions preserve dirty documents.
+		// Autosave has its own integration suite and would make that assertion a
+		// machine-speed race rather than a transaction-boundary test.
+		await editorConfig.update('autoSave', false, vscode.ConfigurationTarget.Workspace);
 		const extension = vscode.extensions.getExtension<DevelopmentApi>(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);
 		api = await extension.activate();
@@ -119,8 +125,9 @@ suite('Document Vault filesystem transactions', () => {
 	});
 
 	suiteTeardown(async () => {
-		await vscode.workspace.getConfiguration('mdLivePreview')
-			.update('defaultEditor', originalDefaultEditor, vscode.ConfigurationTarget.Global);
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		await editorConfig.update('autoSave', originalWorkspaceAutoSave, vscode.ConfigurationTarget.Workspace);
+		await editorConfig.update('defaultEditor', originalDefaultEditor, vscode.ConfigurationTarget.Global);
 	});
 
 	teardown(async () => {
