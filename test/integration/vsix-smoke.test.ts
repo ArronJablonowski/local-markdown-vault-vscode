@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { isAbsolute, relative } from 'node:path';
-import { chromium, type Browser, type Frame, type Page } from 'playwright';
+import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 const mode = process.env.MDLP_VSIX_SMOKE_MODE;
@@ -234,14 +234,12 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
 		await visibleWorkbenchRow(page, 'Packaged Target.md').waitFor({ state: 'visible', timeout: 5_000 });
 
-		await vscode.commands.executeCommand('mdLivePreview.quickSwitcher');
-		const quickPick = page.locator('.quick-input-widget:visible');
-		await quickPick.waitFor({ state: 'visible', timeout: 5_000 });
-		const quickInput = quickPick.locator('.quick-input-box input');
-		await quickInput.fill('Packaged Target');
+		const quickPick = await openNativeQuickInput(page, 'mdLivePreview.quickSwitcher');
+		await typeNativeQuickInput(page, 'Packaged Target');
 		await quickPick.locator('.monaco-list-row').filter({ hasText: 'Packaged Target' })
 			.waitFor({ state: 'visible', timeout: 5_000 });
-		await quickInput.press('Escape');
+		await page.keyboard.press('Escape');
+		await quickPick.waitFor({ state: 'hidden', timeout: 5_000 });
 
 		await vscode.commands.executeCommand('mdLivePreview.backlinks.focus');
 		await page.getByRole('treeitem', { name: /^Linked mention in README\.md, line 3$/ })
@@ -673,14 +671,45 @@ function delay(ms: number): Promise<void> {
 async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
 	const widget = page.locator('.quick-input-widget:visible');
 	await widget.waitFor({ state: 'visible', timeout: 5_000 });
-	const input = widget.locator('.quick-input-box input');
-	await input.fill(value);
-	await input.focus();
-	assert.ok(await input.evaluate((element) => document.activeElement === element),
-		'VS Code did not focus the native input before keyboard submission');
-	// Submit through the workbench keyboard instead of a locator-scoped press.
-	// The input disappears as VS Code accepts it, and locator actionability can
-	// otherwise race that teardown on slower headless Linux runners.
+	await typeNativeQuickInput(page, value);
 	await page.keyboard.press('Enter');
 	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
+}
+
+async function openNativeQuickInput(page: Page, command: string): Promise<Locator> {
+	const widget = page.locator('.quick-input-widget:visible');
+	for (let attempt = 0; attempt < 2; attempt++) {
+		await vscode.commands.executeCommand(command);
+		try {
+			await widget.waitFor({ state: 'visible', timeout: 5_000 });
+			return widget;
+		} catch {
+			if (attempt === 1) throw new Error(`VS Code did not present the native quick input for ${command}`);
+			await page.keyboard.press('Escape');
+			await delay(100);
+		}
+	}
+	throw new Error(`VS Code did not present the native quick input for ${command}`);
+}
+
+async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
+	// Drive the input through the workbench keyboard. Locator-scoped fill/press
+	// waits for actionability while VS Code animates and later tears down this
+	// transient overlay, which can race indefinitely on headless Linux.
+	await waitFor(() => page.evaluate(() => {
+		const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
+		const visible = widgets.find((candidate) => {
+			const style = getComputedStyle(candidate);
+			return style.display !== 'none' && style.visibility !== 'hidden' && candidate.getClientRects().length > 0;
+		});
+		const input = visible?.querySelector<HTMLInputElement>('.quick-input-box input');
+		if (!input) return false;
+		input.focus();
+		return document.activeElement === input;
+	}), 'VS Code did not focus the native input before keyboard submission', 5_000);
+	await page.keyboard.insertText(value);
+	await waitFor(() => page.evaluate((expected) => {
+		const input = document.activeElement;
+		return input instanceof HTMLInputElement && input.value === expected;
+	}, value), 'VS Code did not accept keyboard text in the native input', 5_000);
 }
