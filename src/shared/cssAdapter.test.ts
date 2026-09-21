@@ -146,6 +146,16 @@ describe('stripNetworkedCss', () => {
 		expect((result.css.match(/h1\{x:y\}/g) ?? [])).toHaveLength(MAX_PREVIEW_CSS_RULES);
 	});
 
+	it('handles a long comment-only tail without regexp backtracking', () => {
+		const tail = `${' /* safe */'.repeat(20_000)} `;
+		const result = sanitizePreviewCss(`h1{color:red}${tail}`);
+		expect(result).toEqual({ css: `h1{color:red}${tail}`, rejected: false });
+	});
+
+	it('rejects an unterminated trailing comment', () => {
+		expect(sanitizePreviewCss('h1{color:red} /*')).toEqual({ css: 'h1{color:red}', rejected: true });
+	});
+
 	it.each([
 		'.cm-search { display: none; }',
 		'.mlp-mermaid-toolbar { opacity: 0; }',

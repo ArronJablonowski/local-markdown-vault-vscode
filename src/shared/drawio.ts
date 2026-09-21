@@ -132,11 +132,63 @@ export function parseStyle(style: string | null | undefined): DrawioStyle {
  */
 export function labelToPlainText(html: string | null | undefined): string {
 	if (!html) return '';
-	const withBreaks = html
-		.replace(/<br\s*\/?>/gi, '\n')
-		.replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
-		.replace(/<[^>]*>/g, '');
+	const withBreaks = stripLabelMarkup(html);
 	return decodeEntities(withBreaks).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Reduces the small HTML fragment used by draw.io labels to text in one pass.
+ * This is deliberately a tokenizer rather than an HTML-filtering regexp: a
+ * browser accepts malformed tags and `>` inside quoted attributes, so chained
+ * replacements are both incomplete and capable of exposing a tag assembled by
+ * an earlier replacement. The result is still escaped by the SVG renderer, but
+ * keeping this boundary structural also makes label extraction predictable.
+ */
+function stripLabelMarkup(html: string): string {
+	const output: string[] = [];
+	let i = 0;
+	while (i < html.length) {
+		const start = html.indexOf('<', i);
+		if (start === -1) {
+			output.push(html.slice(i));
+			break;
+		}
+		output.push(html.slice(i, start));
+		i = start + 1;
+		let quote = '';
+		while (i < html.length) {
+			const character = html[i];
+			if (quote) {
+				if (character === quote) quote = '';
+			} else if (character === '"' || character === "'") {
+				quote = character;
+			} else if (character === '>') {
+				break;
+			}
+			i++;
+		}
+		if (i >= html.length) {
+			// Malformed text is visible text, never markup. The SVG renderer escapes it.
+			output.push(html.slice(start));
+			break;
+		}
+
+		const token = html.slice(start + 1, i).trim().toLowerCase();
+		const closing = token.startsWith('/');
+		const nameStart = closing ? 1 : 0;
+		let nameEnd = nameStart;
+		while (nameEnd < token.length) {
+			const code = token.charCodeAt(nameEnd);
+			if (!((code >= 97 && code <= 122) || (code >= 48 && code <= 57))) break;
+			nameEnd++;
+		}
+		const name = token.slice(nameStart, nameEnd);
+		if (name === 'br' || (closing && (name === 'p' || name === 'div' || name === 'li' || name === 'tr' || /^h[1-6]$/.test(name)))) {
+			output.push('\n');
+		}
+		i++;
+	}
+	return output.join('');
 }
 
 const NAMED_ENTITIES: Record<string, string> = {

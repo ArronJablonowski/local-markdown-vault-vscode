@@ -104,10 +104,50 @@ export function assertDiagramInputWithinLimits(kind: 'mermaid' | 'drawio', sourc
 	// This is intentionally a conservative lexical count. Mermaid has many edge
 	// syntaxes; counting arrow-like operators before parsing is cheap and prevents
 	// the common generated-graph denial-of-service case without trusting its AST.
-	const edges = source.match(/(?:--+>|==+>|-\.+->|--+[ox]|<--+|<==+)/g)?.length ?? 0;
+	const edges = countMermaidEdgeTokens(source);
 	if (edges > MAX_MERMAID_EDGES) {
 		throw new DiagramLimitError(t('diagram.mermaidEdgeLimit'));
 	}
+}
+
+/** Linear lexical edge count that avoids running an ambiguous regexp on input. */
+function countMermaidEdgeTokens(source: string): number {
+	let count = 0;
+	let i = 0;
+	while (i < source.length) {
+		const start = i;
+		if (source[i] === '<' && (source[i + 1] === '-' || source[i + 1] === '=')) i++;
+		const marker = source[i];
+		if (marker !== '-' && marker !== '=' && marker !== '.') {
+			i = start + 1;
+			continue;
+		}
+
+		let runEnd = i;
+		while (source[runEnd] === marker) runEnd++;
+		const runLength = runEnd - i;
+		let matched = false;
+		if (start !== i) {
+			matched = runLength >= 2;
+		} else if (marker === '-' && runLength >= 2) {
+			matched = source[runEnd] === '>' || source[runEnd] === 'o' || source[runEnd] === 'x';
+		} else if (marker === '=' && runLength >= 2) {
+			matched = source[runEnd] === '>';
+		} else if (marker === '-' && runLength === 1 && source[runEnd] === '.') {
+			let dotEnd = runEnd;
+			while (source[dotEnd] === '.') dotEnd++;
+			matched = source[dotEnd] === '-' && source[dotEnd + 1] === '>';
+			if (matched) runEnd = dotEnd + 1;
+		}
+		if (matched) {
+			count++;
+			if (count > MAX_MERMAID_EDGES) return count;
+			i = Math.max(runEnd + 1, start + 1);
+		} else {
+			i = start + 1;
+		}
+	}
+	return count;
 }
 
 /**

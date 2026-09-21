@@ -25,6 +25,15 @@ describe('diagram input limits', () => {
 		).toThrow(DiagramLimitError);
 	});
 
+	it('counts each supported Mermaid edge spelling without regexp backtracking', () => {
+		const spellings = ['A-->B', 'A==>B', 'A-..->B', 'A--oB', 'A--xB', 'A<--B', 'A<==B'];
+		expect(() => assertDiagramInputWithinLimits('mermaid', spellings.join('\n'))).not.toThrow();
+		expect(() => assertDiagramInputWithinLimits(
+			'mermaid',
+			`${spellings.join('\n')}\n${'A<==B\n'.repeat(MAX_MERMAID_EDGES)}`,
+		)).toThrow(DiagramLimitError);
+	});
+
 	it('rejects oversized draw.io XML', () => {
 		expect(() => assertDiagramInputWithinLimits('drawio', 'x'.repeat(MAX_DRAWIO_XML_CHARACTERS + 1))).toThrow(
 			DiagramLimitError,

@@ -630,9 +630,25 @@ function sanitizeRuleList(
 		}
 		prelude += css[i++];
 	}
-	if (prelude.trim() && !/^\s*(?:\/\*[\s\S]*?\*\/\s*)*$/.test(prelude)) state.rejected = true;
+	if (prelude.trim() && !containsOnlyWhitespaceAndComments(prelude)) state.rejected = true;
 	else output += prelude;
 	return output;
+}
+
+/** Parses a trailing comment-only prelude in linear time. */
+function containsOnlyWhitespaceAndComments(input: string): boolean {
+	let i = 0;
+	while (i < input.length) {
+		if (/\s/.test(input[i])) {
+			i++;
+			continue;
+		}
+		if (input[i] !== '/' || input[i + 1] !== '*') return false;
+		const end = input.indexOf('*/', i + 2);
+		if (end === -1) return false;
+		i = end + 2;
+	}
+	return true;
 }
 
 function unsafePreviewRule(selector: string, body: string): boolean {

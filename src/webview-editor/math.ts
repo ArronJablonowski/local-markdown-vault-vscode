@@ -27,15 +27,61 @@ export function findMathRanges(text: string): MathRange[] {
 		if (ranges.length >= MAX_MATH_EXPRESSIONS) return ranges;
 	}
 	const blockRanges = ranges.map(({ from, to }) => [from, to] as const);
-	const inlinePattern = /(^|[^\\$])\$([^\s$](?:\\.|[^$\n])*?[^\s$]|[^\s$])\$(?!\$)/g;
-	for (const match of text.matchAll(inlinePattern)) {
-		const from = (match.index ?? 0) + match[1].length;
-		const to = from + match[0].length - match[1].length;
-		if (inside(from, ignored) || inside(from, blockRanges) || match[2].length > MAX_INLINE_MATH_CHARS) continue;
-		ranges.push({ from, to, source: match[2], display: false });
+	for (const range of findInlineMathRanges(text)) {
+		if (inside(range.from, ignored) || inside(range.from, blockRanges)) continue;
+		ranges.push(range);
 		if (ranges.length >= MAX_MATH_EXPRESSIONS) break;
 	}
 	return ranges.sort((a, b) => a.from - b.from);
+}
+
+/**
+ * Finds inline dollar spans in one pass. Keeping this scanner linear prevents a
+ * long run of escaped characters with no valid closer from becoming a ReDoS
+ * input to the editor's render-on-every-change path.
+ */
+function findInlineMathRanges(text: string): MathRange[] {
+	const ranges: MathRange[] = [];
+	let i = 0;
+	while (i < text.length && ranges.length < MAX_MATH_EXPRESSIONS) {
+		if (
+			text[i] !== '$' ||
+			(i > 0 && (text[i - 1] === '\\' || text[i - 1] === '$')) ||
+			text[i + 1] === '$' ||
+			text[i + 1] === undefined ||
+			/\s/.test(text[i + 1])
+		) {
+			i++;
+			continue;
+		}
+
+		const from = i;
+		let cursor = i + 1;
+		while (cursor < text.length && text[cursor] !== '\n' && text[cursor] !== '\r') {
+			if (text[cursor] === '\\') {
+				cursor += Math.min(2, text.length - cursor);
+				continue;
+			}
+			if (text[cursor] === '$') break;
+			cursor++;
+		}
+
+		if (text[cursor] === '$') {
+			const source = text.slice(from + 1, cursor);
+			if (
+				text[cursor + 1] !== '$' &&
+				source.length <= MAX_INLINE_MATH_CHARS &&
+				source.length > 0 &&
+				!/^\s|\s$/.test(source)
+			) {
+				ranges.push({ from, to: cursor + 1, source, display: false });
+			}
+			i = cursor + 1;
+		} else {
+			i = from + 1;
+		}
+	}
+	return ranges;
 }
 
 class MathWidget extends WidgetType {

@@ -67,6 +67,15 @@ describe('labelToPlainText', () => {
 	it('decodes numeric entities including CJK', () => {
 		expect(labelToPlainText('&#x65E5;&#x672C;')).toBe('日本');
 	});
+
+	it('tokenizes quoted greater-than signs without exposing nested tags', () => {
+		expect(labelToPlainText('<span title=">">safe</span><br/>next')).toBe('safe\nnext');
+		expect(labelToPlainText('<scr<script>ipt>alert(1)</script>')).toBe('ipt>alert(1)');
+	});
+
+	it('keeps malformed unterminated markup as escaped renderer text', () => {
+		expect(labelToPlainText('visible <script')).toBe('visible <script');
+	});
 });
 
 describe('flattenCells / buildDiagram', () => {
