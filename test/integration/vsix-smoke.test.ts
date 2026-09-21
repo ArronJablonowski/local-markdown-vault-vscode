@@ -152,6 +152,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 	(mode === 'trusted' ? test : test.skip)('operates packaged CSS Themes through keyboard input', async () => {
 		const page = await getWorkbenchPage();
 		await page.bringToFront();
+		await vscode.commands.executeCommand('workbench.view.extension.mdLivePreview');
 		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
 		const frame = await connectToCssThemesFrame();
 		const radios = frame.getByRole('radio');
@@ -499,7 +500,7 @@ async function connectToCssThemesFrame(): Promise<Frame> {
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
 					if (frame.isDetached()) continue;
-					if (await frame.locator('#mlp-sidebar-root .mlp-themes').count() > 0) return frame;
+					if (await frame.locator('#mlp-sidebar-root').count() > 0) return frame;
 				}
 			}
 		}
