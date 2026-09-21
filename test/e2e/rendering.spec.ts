@@ -187,6 +187,30 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table td').nth(2)).toHaveText('');
 	});
 
+	test('keeps a keyboard-focused table mounted across editor refreshes', async ({ page }) => {
+		const source = 'Intro\n\n| a | b |\n| --- | --- |\n| one | 1 |\n\nAfter\n';
+		await mountEditor(page, source);
+		const cells = page.locator('.mlp-table-cell');
+		await cells.first().focus();
+
+		// A real custom-editor host can park CodeMirror's document selection at the
+		// widget's source position while DOM focus remains in the accessible grid.
+		// The table must survive both that dispatch and later metadata refreshes.
+		await postToWebview(page, { type: 'setCursor', pos: source.indexOf('| a') + 2 });
+		await expect(cells.first()).toBeFocused();
+		await expect(page.locator('.mlp-table')).toHaveCount(1);
+
+		await page.keyboard.press('ArrowRight');
+		await postToWebview(page, { type: 'vaultNotes', notes: [] });
+		await expect(page.locator('.mlp-table th').nth(1)).toBeFocused();
+		await expect(page.locator('.mlp-table')).toHaveCount(1);
+
+		await page.keyboard.press('ArrowDown');
+		await postToWebview(page, { type: 'vaultNotes', notes: [] });
+		await expect(page.locator('.mlp-table td').nth(1)).toBeFocused();
+		await expect(page.locator('.mlp-table')).toHaveCount(1);
+	});
+
 	test('a table directly under a bullet still renders', async ({ page }) => {
 		// No blank line between the list item and the table; stock GFM would treat
 		// the pipes as paragraph text.

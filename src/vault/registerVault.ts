@@ -138,18 +138,28 @@ export async function registerVault(
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('mdLivePreview.quickSwitcher', async () => {
-			const targetIndex = index;
-			const generation = vaultGeneration;
-			if (targetIndex) await showQuickSwitcher(
-				targetIndex,
-				provider,
-				context,
-				() => generation === vaultGeneration && targetIndex === index,
-				trackVaultPicker,
-				options.revealOpenedLine,
-			);
+			// A workspace transition can replace the index while the command is
+			// flushing unsaved document metadata. Never show results from that stale
+			// index, but also do not turn the user's command into a silent no-op: wait
+			// for the serialized replacement and retry once against the current vault.
+			for (let attempt = 0; attempt < 2; attempt++) {
+				await workspaceRefresh.catch(() => undefined);
+				const targetIndex = index;
+				const generation = vaultGeneration;
+				if (!targetIndex) return;
+				const shown = await showQuickSwitcher(
+					targetIndex,
+					provider,
+					context,
+					() => generation === vaultGeneration && targetIndex === index,
+					trackVaultPicker,
+					options.revealOpenedLine,
+				);
+				if (shown) return;
+			}
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vaultSearch', async () => {
+			await workspaceRefresh.catch(() => undefined);
 			const targetIndex = index;
 			const generation = vaultGeneration;
 			if (targetIndex) await showVaultSearch(
@@ -615,11 +625,11 @@ async function showQuickSwitcher(
 	isCurrent: () => boolean,
 	trackPicker: <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>) => () => void,
 	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
-): Promise<void> {
+): Promise<boolean> {
 	// Quick Switcher is an index-backed user action, so an unsaved alias or note
 	// title must win even when the command lands inside the document debounce.
 	await index.flushDocumentUpdates();
-	if (!isCurrent()) return;
+	if (!isCurrent()) return false;
 	const picker = vscode.window.createQuickPick<VaultQuickPickItem>();
 	const untrack = trackPicker(picker);
 	picker.title = vscode.l10n.t('Quick Switcher');
@@ -678,6 +688,7 @@ async function showQuickSwitcher(
 	});
 	update();
 	picker.show();
+	return true;
 }
 
 async function showVaultSearch(

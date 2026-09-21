@@ -51,6 +51,12 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Keep rendered tables mounted while keyboard focus moves between their cells,
+  preventing a delayed CodeMirror refresh from replacing the focused grid with
+  raw Markdown during arrow-key navigation.
+- Keep Quick Switcher and vault search from silently missing an in-flight vault
+  initialization; Quick Switcher retries only against the replacement index
+  when its original index becomes stale during the unsaved-document flush.
 - Replace regex-based draw.io label stripping, Mermaid edge counting, inline-math detection, and CSS comment-tail validation with bounded linear scanners, addressing four high-severity CodeQL findings and adding adversarial regression coverage for nested tags, long escaped math, edge bombs, and comment tails.
 - Exercise native Document Vault Home/Arrow/Enter navigation across packaged platforms and CSS Themes Tab/radio-arrow/action reachability against installed macOS and Windows VSIX builds; retain platform-independent Linux sidebar keyboard coverage and leave manual VoiceOver/Orca judgment for accessibility sign-off.
 - Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.

@@ -861,6 +861,13 @@ class TableWidget extends WidgetType {
 			const target = event.target as HTMLElement | null;
 			const cell = target?.closest('.mlp-table-cell') as HTMLElement | null;
 			if (!cell || !table.contains(cell) || !readCellRef(cell)) return;
+			// CodeMirror may park its document selection at this block's position
+			// while focus is inside a widget. The global keydown capture listener
+			// deliberately clears stale pointer protection before every keyboard
+			// action, so restore it after Tab or an arrow key moves focus into a
+			// table cell. Otherwise a later measure/update cycle can see that parked
+			// caret and replace the focused table with raw pipe source mid-navigation.
+			protectRenderedBlockFromCaret();
 			lastCell = cell;
 			refreshTableActions();
 		});
