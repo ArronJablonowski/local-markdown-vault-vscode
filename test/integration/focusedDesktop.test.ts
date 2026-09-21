@@ -259,16 +259,27 @@ suite('focused macOS desktop transactions', () => {
 		await vscode.commands.executeCommand('vscode.openWith', source, 'mdLivePreview.editor');
 		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 		let frame = await connectToLivePreviewFrame('Compatibility source');
-		const localImage = frame.locator('.mlp-image');
-		await waitFor(async () => (await localImage.getAttribute('src'))?.startsWith('blob:') === true,
-			'validated local attachment bytes did not reach Live Preview');
-		await frame.locator('.cm-content').click();
-		await frame.page().keyboard.press('ControlOrMeta+Home');
-		const relativeLink = frame.locator('.mlp-link[data-href="Relative%20Target.md"]');
-		await relativeLink.waitFor({ state: 'visible', timeout: 5_000 });
-		await relativeLink.click();
-		await waitFor(() => activeTabUri()?.toString() === target.toString(),
-			'relative Markdown link did not open its in-vault target');
+		const editorConfiguration = vscode.workspace.getConfiguration('mdLivePreview');
+		const priorGlobalEditor = editorConfiguration.inspect<string>('defaultEditor')?.globalValue;
+		try {
+			await editorConfiguration.update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
+			const localImage = frame.locator('.mlp-image');
+			await waitFor(async () => (await localImage.getAttribute('src'))?.startsWith('blob:') === true,
+				'validated local attachment bytes did not reach Live Preview');
+			await frame.locator('.cm-content').click();
+			await frame.page().keyboard.press('ControlOrMeta+Home');
+			const relativeLink = frame.locator('.mlp-link[data-href="Relative%20Target.md"]');
+			await relativeLink.waitFor({ state: 'visible', timeout: 5_000 });
+			await relativeLink.click();
+			await waitFor(() => {
+				const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+				return input instanceof vscode.TabInputCustom
+					&& input.viewType === 'mdLivePreview.editor'
+					&& input.uri.toString() === target.toString();
+			}, 'relative Markdown link did not honor the configured Live Preview editor');
+		} finally {
+			await editorConfiguration.update('defaultEditor', priorGlobalEditor, vscode.ConfigurationTarget.Global);
+		}
 
 		await vscode.commands.executeCommand('vscode.openWith', source, 'mdLivePreview.editor');
 		await vscode.commands.executeCommand('workbench.action.splitEditorRight');

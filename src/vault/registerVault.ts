@@ -13,6 +13,7 @@ import { validatedRecentPaths, vaultStateKey } from './vaultStateKey';
 import { isBacklinkFilter, isBacklinkSort, migrateVaultScopedState } from './vaultStateMigration';
 import { classifyVaultWorkspace } from './vaultWorkspace';
 import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './knowledgeCommandValidation';
+import { openConfiguredVaultResource } from '../editor/configuredDocumentOpen';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -297,7 +298,7 @@ export async function registerVault(
 				// requires the stronger canonical containment check first.
 				await service.assertRegularFileInside(item.uri);
 				if (provider.service !== service) return;
-				await vscode.commands.executeCommand('vscode.open', item.uri);
+				await openConfiguredVaultResource(item.uri);
 			} catch {
 				if (provider.service === service) void vscode.window.showWarningMessage(vscode.l10n.t('The vault item could not be opened securely.'));
 			}
@@ -321,7 +322,7 @@ export async function registerVault(
 				);
 				if (provider.service !== service || !vscode.workspace.isTrusted) return;
 				provider.refresh();
-				await vscode.commands.executeCommand('vscode.open', uri);
+				await openConfiguredVaultResource(uri);
 				announceVaultCompletion(vscode.l10n.t('Note "{0}" created.', service.relativePath(uri) ?? name));
 			} catch (error) {
 				if (provider.service === service) void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not create the note.')));
@@ -660,7 +661,7 @@ async function showQuickSwitcher(
 					() => isCurrent() && provider.service === service && vscode.workspace.isTrusted,
 				);
 				if (!isCurrent() || provider.service !== service || !vscode.workspace.isTrusted) return;
-				await vscode.commands.executeCommand('vscode.open', uri);
+				await openConfiguredVaultResource(uri);
 				announceVaultCompletion(vscode.l10n.t(
 					'Note "{0}" created.',
 					service.relativePath(uri) ?? selected.createName,
@@ -789,17 +790,10 @@ async function openIndexedRecord(
 	try {
 		await index.vault.assertRegularFileInside(uri);
 		if (!isCurrent()) return;
-		const configuredEditor = vscode.workspace
-			.getConfiguration('mdLivePreview', uri)
-			.get<string>('defaultEditor', 'prompt');
-		if (configuredEditor === 'livePreview') {
-			// Opening the configured custom editor directly avoids a plain-text tab
-			// followed by an asynchronous conversion, which can otherwise discard
-			// the search result's requested line before CodeMirror mounts.
-			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
-		} else {
-			await vscode.commands.executeCommand('vscode.open', uri);
-		}
+		// Opening the configured custom editor directly avoids a plain-text tab
+		// followed by an asynchronous conversion, which can otherwise discard
+		// the search result's requested line before CodeMirror mounts.
+		await openConfiguredVaultResource(uri);
 		if (!isCurrent()) return;
 		await rememberRecent(index, record.path, context);
 		if (line !== undefined && isCurrent() && !revealOpenedLine?.(uri, line)) {

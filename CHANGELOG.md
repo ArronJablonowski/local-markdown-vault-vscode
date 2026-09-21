@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep in-vault Markdown links, wikilinks, Document Vault opens, and newly created notes in Live Preview when it is configured as the default editor, while leaving attachments with VS Code's normal opener.
+
 - Add a real macOS VS Code desktop journey for local knowledge navigation: an alias filters the native Quick Switcher, keyboard list navigation opens the existing note, the empty picker shows the recent note, a unique body phrase populates vault search, native Backlinks distinguishes linked from unlinked mentions and opens the source note, and the Tags tree opens a prefiltered search containing its nested-tag result.
 - Preserve valid structured vault-search results in the native picker after the extension query engine evaluates `tag:`, `task:`, `property:`, and other filters; VS Code's secondary fuzzy matcher no longer hides rows whose rendered text does not repeat the query syntax.
 - Extend the installed-VSIX smoke gate with an isolated disabled-extension profile: an existing Obsidian-style vault opens in VS Code's ordinary text editor, Markdown remains byte-identical, and `.obsidian/app.json` remains byte-identical in trusted, Restricted Mode, and disabled runs.

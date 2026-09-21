@@ -207,10 +207,10 @@ describe('host security boundaries', () => {
 		const indexedOpen = vault.slice(vault.indexOf('async function openIndexedRecord('), vault.indexOf('\nfunction recentKey('));
 		expect(indexedOpen).toContain('if (!isCurrent()) return;');
 		expect(indexedOpen.indexOf('await index.vault.assertRegularFileInside(uri)')).toBeLessThan(
-			indexedOpen.indexOf("await vscode.commands.executeCommand('vscode.open', uri)"),
+			indexedOpen.indexOf('await openConfiguredVaultResource(uri)'),
 		);
 		expect(indexedOpen.indexOf('if (!isCurrent()) return;', indexedOpen.indexOf('assertRegularFileInside'))).toBeLessThan(
-			indexedOpen.indexOf("await vscode.commands.executeCommand('vscode.open', uri)"),
+			indexedOpen.indexOf('await openConfiguredVaultResource(uri)'),
 		);
 		const switcher = vault.slice(vault.indexOf('async function showQuickSwitcher('), vault.indexOf('\nasync function showVaultSearch('));
 		expect(switcher).toContain('const service = provider.service;');
@@ -398,7 +398,7 @@ describe('host security boundaries', () => {
 			vault.indexOf('\nfunction recentKey', vault.indexOf('async function openIndexedRecord')),
 		);
 		expect(openRecord).toContain('await index.vault.assertRegularFileInside(uri)');
-		expect(openRecord.indexOf('assertRegularFileInside(uri)')).toBeLessThan(openRecord.indexOf("executeCommand('vscode.open'"));
+		expect(openRecord.indexOf('assertRegularFileInside(uri)')).toBeLessThan(openRecord.indexOf('openConfiguredVaultResource(uri)'));
 	});
 
 	it('revalidates Markdown and wikilink navigation as ordinary vault files', () => {

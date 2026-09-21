@@ -24,6 +24,7 @@ import { executeCaseAwareRedo } from '../vault/CaseRenameCoordinator';
 import { BoundedSerialQueue } from '../shared/boundedSerialQueue';
 import { PendingLineNavigation } from './pendingLineNavigation';
 import { TokenBucketRateLimiter } from '../shared/tokenBucketRateLimiter';
+import { openConfiguredVaultResource } from './configuredDocumentOpen';
 
 /**
  * Largest `.drawio` file that will be read and parsed.
@@ -481,7 +482,7 @@ export class DocumentSyncSession {
 			return;
 		}
 		try {
-			await vscode.commands.executeCommand('vscode.open', uri);
+			await openConfiguredVaultResource(uri);
 		} catch {
 			// Never hand a vault file to the operating system. A crafted note could
 			// otherwise turn a click on an apparently ordinary local link into an
@@ -536,7 +537,7 @@ export class DocumentSyncSession {
 				if (!vault.available || vault.service.rootUri.toString() !== workspaceRoot.toString()) return;
 				try {
 					uri = await vault.service.resolveLinkedAttachment(target);
-					await vscode.commands.executeCommand('vscode.open', uri);
+					await openConfiguredVaultResource(uri);
 				} catch {
 					void vscode.window.showWarningMessage(vscode.l10n.t('The wikilink target could not be opened.'));
 				}
@@ -580,7 +581,7 @@ export class DocumentSyncSession {
 			return;
 		}
 		try {
-			await vscode.commands.executeCommand('vscode.open', uri);
+			await openConfiguredVaultResource(uri);
 			if (line !== undefined) {
 				if (!this.revealOpenedLine?.(uri, line)) {
 					await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
