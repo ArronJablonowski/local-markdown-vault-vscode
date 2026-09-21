@@ -234,7 +234,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
 		await visibleWorkbenchRow(page, 'Packaged Target.md').waitFor({ state: 'visible', timeout: 5_000 });
 
-		const quickPick = await openNativeQuickInput(page, 'mdLivePreview.quickSwitcher');
+		const quickPick = await openQuickSwitcher(page);
 		await typeNativeQuickInput(page, 'Packaged Target');
 		await quickPick.locator('.monaco-list-row').filter({ hasText: 'Packaged Target' })
 			.waitFor({ state: 'visible', timeout: 5_000 });
@@ -676,20 +676,20 @@ async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
 	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
-async function openNativeQuickInput(page: Page, command: string): Promise<Locator> {
+async function openQuickSwitcher(page: Page): Promise<Locator> {
 	const widget = page.locator('.quick-input-widget:visible');
 	for (let attempt = 0; attempt < 2; attempt++) {
-		await vscode.commands.executeCommand(command);
+		await vscode.commands.executeCommand('mdLivePreview.quickSwitcher');
 		try {
 			await widget.waitFor({ state: 'visible', timeout: 5_000 });
 			return widget;
 		} catch {
-			if (attempt === 1) throw new Error(`VS Code did not present the native quick input for ${command}`);
+			if (attempt === 1) throw new Error('VS Code did not present the native Quick Switcher input');
 			await page.keyboard.press('Escape');
 			await delay(100);
 		}
 	}
-	throw new Error(`VS Code did not present the native quick input for ${command}`);
+	throw new Error('VS Code did not present the native Quick Switcher input');
 }
 
 async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
