@@ -154,6 +154,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await page.bringToFront();
 		await vscode.commands.executeCommand('workbench.view.extension.mdLivePreview');
 		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
+		await expandWorkbenchPaneWithKeyboard(page, 'CSS Themes');
 		const frame = await connectToCssThemesFrame();
 		const radios = frame.getByRole('radio');
 		await waitFor(async () => await radios.count() >= 2,
@@ -557,6 +558,18 @@ async function selectWorkbenchTreeItemWithKeyboard(page: Page, accessibleLabel: 
 		await tree.press('ArrowDown');
 	}
 	assert.fail(`the packaged Document Vault could not reach ${accessibleLabel} with arrow-key navigation`);
+}
+
+async function expandWorkbenchPaneWithKeyboard(page: Page, title: string): Promise<void> {
+	const header = page.locator('.pane-header:visible').filter({ hasText: title }).first();
+	await header.waitFor({ state: 'visible', timeout: 5_000 });
+	if (await header.getAttribute('aria-expanded') === 'true') return;
+	await header.focus();
+	await page.keyboard.press('Enter');
+	await waitFor(
+		async () => await header.getAttribute('aria-expanded') === 'true',
+		`the packaged ${title} pane did not expand with Enter`,
+	);
 }
 
 async function firstCheckedRadioIndex(radios: ReturnType<Frame['getByRole']>): Promise<number> {
