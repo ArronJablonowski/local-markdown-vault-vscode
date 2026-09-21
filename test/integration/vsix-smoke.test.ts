@@ -561,8 +561,20 @@ async function selectWorkbenchTreeItemWithKeyboard(page: Page, accessibleLabel: 
 }
 
 async function expandWorkbenchPaneWithKeyboard(page: Page, title: string): Promise<void> {
-	const header = page.locator('.pane-header:visible').filter({ hasText: title }).first();
+	const headers = page.locator('#workbench\\.parts\\.sidebar .pane-header:visible');
+	const header = headers.filter({ hasText: title }).first();
 	await header.waitFor({ state: 'visible', timeout: 5_000 });
+	for (let index = 0; index < await headers.count(); index++) {
+		const sibling = headers.nth(index);
+		if ((await sibling.textContent())?.includes(title)) continue;
+		if (await sibling.getAttribute('aria-expanded') !== 'true') continue;
+		await sibling.focus();
+		await page.keyboard.press('Enter');
+		await waitFor(
+			async () => await sibling.getAttribute('aria-expanded') === 'false',
+			`a sibling pane did not collapse before opening packaged ${title}`,
+		);
+	}
 	if (await header.getAttribute('aria-expanded') === 'true') return;
 	await header.focus();
 	await page.keyboard.press('Enter');
