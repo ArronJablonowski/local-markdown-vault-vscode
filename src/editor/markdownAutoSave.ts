@@ -30,13 +30,21 @@ interface TrackedDocument {
  */
 export class MarkdownAutoSaveController implements vscode.Disposable {
 	private readonly tracked = new Map<string, TrackedDocument>();
+	private readonly automaticallyTracked = new Map<string, vscode.Disposable>();
 	private readonly disposables: vscode.Disposable[];
 	private disposed = false;
 
 	constructor() {
 		this.disposables = [
 			vscode.workspace.onDidChangeTextDocument((event) => {
+				this.trackAutomatically(event.document);
 				if (event.contentChanges.length > 0) this.schedule(event.document);
+			}),
+			vscode.workspace.onDidOpenTextDocument((document) => this.trackAutomatically(document)),
+			vscode.workspace.onDidCloseTextDocument((document) => {
+				const key = document.uri.toString();
+				this.automaticallyTracked.get(key)?.dispose();
+				this.automaticallyTracked.delete(key);
 			}),
 			vscode.workspace.onDidChangeConfiguration((event) => {
 				if (!event.affectsConfiguration('mdLivePreview.autoSave')) return;
@@ -46,6 +54,15 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 				}
 			}),
 		];
+		for (const document of vscode.workspace.textDocuments) this.trackAutomatically(document);
+	}
+
+	private trackAutomatically(document: vscode.TextDocument): void {
+		if (this.disposed || document.languageId !== 'markdown') return;
+		const key = document.uri.toString();
+		if (!this.automaticallyTracked.has(key)) {
+			this.automaticallyTracked.set(key, this.track(document));
+		}
 	}
 
 	track(document: vscode.TextDocument): vscode.Disposable {
@@ -152,6 +169,8 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
+		for (const tracking of this.automaticallyTracked.values()) tracking.dispose();
+		this.automaticallyTracked.clear();
 		for (const state of this.tracked.values()) {
 			this.cancelTimer(state);
 			state.generation++;

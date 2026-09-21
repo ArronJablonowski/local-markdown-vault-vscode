@@ -49,6 +49,15 @@ suite('document editing', () => {
 		assert.ok(text.includes('Body edited.'), `unexpected file contents: ${JSON.stringify(text)}`);
 	});
 
+	test('automatically saves changes made in the ordinary Text Editor', async () => {
+		const editor = await openText();
+		await editor.edit((builder) => builder.insert(new vscode.Position(2, 4), ' automatically'));
+		await waitFor(async () => {
+			const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+			return text.includes('Body automatically.') && !editor.document.isDirty;
+		});
+	});
+
 	test('undo past the beginning leaves the document alone', async () => {
 		const editor = await openText();
 		const original = editor.document.getText();
