@@ -1,5 +1,7 @@
 # Changelog
 
+- Exercise native Document Vault Home/Arrow/Enter navigation and CSS Themes Tab/radio-arrow/action reachability against the installed VSIX, leaving manual VoiceOver judgment as the remaining macOS accessibility sign-off.
+
 - Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.
 
 - Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
@@ -49,6 +51,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Exercise native Document Vault Home/Arrow/Enter navigation and CSS Themes Tab/radio-arrow/action reachability against the installed VSIX, leaving manual VoiceOver judgment as the remaining macOS accessibility sign-off.
 - Verify the shipped Document Vault can create a Markdown note and folder through native input boxes and expose both entries with accessible file/folder labels; strengthen manifest coverage that trusted file, folder, and symlink rows expose the Trash-only action alongside the existing native macOS Trash commit gate.
 - Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
 - Open Quick Switcher, vault-search, Backlinks, and other indexed Markdown targets directly in Live Preview when it is the configured default editor; retain one bounded newest line jump through the webview startup handshake so a fresh search result reliably places the CodeMirror caret on its matching line.

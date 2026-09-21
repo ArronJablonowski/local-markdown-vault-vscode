@@ -135,18 +135,57 @@ suite('Installed VSIX clean-profile smoke', () => {
 		assert.ok((await vscode.workspace.fs.stat(folder)).type & vscode.FileType.Directory,
 			'the packaged Document Vault did not create a folder');
 
-		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
-		for (const [accessibleLabel, uri] of [
-			[`File: ${noteName}.md`, note],
-			[`Folder: ${folderName}`, folder],
-		] as const) {
-			const row = page.getByRole('treeitem', { name: accessibleLabel, exact: true });
-			await row.waitFor({ state: 'visible', timeout: 5_000 });
-			await row.click();
-			assert.strictEqual(await row.getAttribute('aria-selected'), 'true',
-				`the packaged Document Vault did not select ${accessibleLabel}`);
-			await vscode.workspace.fs.stat(uri);
+		await selectWorkbenchTreeItemWithKeyboard(page, `File: ${noteName}.md`);
+		await page.keyboard.press('Enter');
+		await waitFor(() => activeTabUri()?.toString() === note.toString(),
+			'the packaged Document Vault did not open its created note with Enter');
+		await selectWorkbenchTreeItemWithKeyboard(page, `Folder: ${folderName}`);
+		await page.keyboard.press('ArrowRight');
+		assert.strictEqual(
+			await page.getByRole('treeitem', { name: `Folder: ${folderName}`, exact: true }).getAttribute('aria-expanded'),
+			'true',
+			'the packaged Document Vault did not expand its created folder with ArrowRight',
+		);
+		await vscode.workspace.fs.stat(folder);
+	});
+
+	(mode === 'trusted' ? test : test.skip)('operates packaged CSS Themes through keyboard input', async () => {
+		const page = await getWorkbenchPage();
+		await page.bringToFront();
+		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
+		const frame = await connectToCssThemesFrame();
+		const radios = frame.getByRole('radio');
+		await waitFor(async () => await radios.count() >= 2,
+			'the packaged CSS Themes sidebar did not expose its bundled radio controls');
+		const originalIndex = await firstCheckedRadioIndex(radios);
+		assert.ok(originalIndex >= 0, 'the packaged CSS Themes sidebar had no selected theme');
+		const targetIndex = originalIndex === 0 ? 1 : 0;
+		const original = radios.nth(originalIndex);
+		const target = radios.nth(targetIndex);
+		const targetName = await target.getAttribute('aria-label');
+		assert.ok(targetName, 'the packaged CSS theme radio had no accessible name');
+
+		await focusFrameControlWithKeyboard(page, frame, original);
+		await page.keyboard.press(targetIndex > originalIndex ? 'ArrowRight' : 'ArrowLeft');
+		await waitFor(async () => await target.isChecked(),
+			'Arrow-key navigation did not select the packaged CSS theme');
+		assert.strictEqual(await target.evaluate((element) => document.activeElement === element), true,
+			'Arrow-key navigation did not retain focus on the selected packaged CSS theme');
+		assert.strictEqual(await original.isChecked(), false,
+			'the packaged CSS theme radio group did not remain exclusive');
+
+		const editButton = frame.getByRole('button', { name: 'Edit CSS' }).first();
+		const duplicateButton = frame.getByRole('button', { name: 'Duplicate' }).first();
+		const renameButton = frame.getByRole('button', { name: 'Rename' }).first();
+		const deleteButton = frame.getByRole('button', { name: 'Delete' }).first();
+		for (const control of [editButton, duplicateButton, renameButton, deleteButton]) {
+			await focusFrameControlWithKeyboard(page, frame, control);
 		}
+
+		await focusFrameControlWithKeyboard(page, frame, target);
+		await page.keyboard.press(targetIndex > originalIndex ? 'ArrowLeft' : 'ArrowRight');
+		await waitFor(async () => await original.isChecked(),
+			'Arrow-key navigation did not restore the original packaged CSS theme');
 	});
 
 	(mode === 'trusted' ? test : test.skip)('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views', async () => {
@@ -452,6 +491,23 @@ async function connectToLivePreviewFrame(expectedText: string): Promise<Frame> {
 	assert.fail('could not find the installed Live Preview CodeMirror frame');
 }
 
+async function connectToCssThemesFrame(): Promise<Frame> {
+	const browser = await connectToDebugBrowser();
+	const deadline = Date.now() + 20_000;
+	while (Date.now() < deadline) {
+		for (const context of browser.contexts()) {
+			for (const page of context.pages()) {
+				for (const frame of page.frames()) {
+					if (frame.isDetached()) continue;
+					if (await frame.locator('#mlp-sidebar-root .mlp-themes').count() > 0) return frame;
+				}
+			}
+		}
+		await delay(100);
+	}
+	assert.fail('could not find the installed CSS Themes sidebar frame');
+}
+
 async function getWorkbenchPage(): Promise<Page> {
 	const browser = await connectToDebugBrowser();
 	const pages = browser.contexts().flatMap((context) => context.pages());
@@ -485,6 +541,43 @@ function activeTabUri(): vscode.Uri | undefined {
 
 function visibleWorkbenchRow(page: Page, text: string) {
 	return page.locator('.monaco-list-row:visible').filter({ hasText: text });
+}
+
+async function selectWorkbenchTreeItemWithKeyboard(page: Page, accessibleLabel: string): Promise<void> {
+	await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+	const target = page.getByRole('treeitem', { name: accessibleLabel, exact: true });
+	await target.waitFor({ state: 'visible', timeout: 5_000 });
+	const tree = target.locator('xpath=ancestor::*[@role="tree"][1]');
+	const targetId = await target.getAttribute('id');
+	assert.ok(targetId, `the packaged Document Vault row had no active-descendant identity: ${accessibleLabel}`);
+	await tree.press('Home');
+	for (let index = 0; index < 500; index++) {
+		if (await tree.getAttribute('aria-activedescendant') === targetId) return;
+		await tree.press('ArrowDown');
+	}
+	assert.fail(`the packaged Document Vault could not reach ${accessibleLabel} with arrow-key navigation`);
+}
+
+async function firstCheckedRadioIndex(radios: ReturnType<Frame['getByRole']>): Promise<number> {
+	for (let index = 0; index < await radios.count(); index++) {
+		if (await radios.nth(index).isChecked()) return index;
+	}
+	return -1;
+}
+
+async function focusFrameControlWithKeyboard(
+	page: Page,
+	frame: Frame,
+	control: ReturnType<Frame['getByRole']>,
+): Promise<void> {
+	await control.waitFor({ state: 'visible', timeout: 5_000 });
+	const body = frame.locator('body');
+	for (let index = 0; index < 100; index++) {
+		if (await control.evaluate((element) => document.activeElement === element)) return;
+		if (index === 0 && await frame.evaluate(() => document.activeElement === document.body)) await body.press('Tab');
+		else await page.keyboard.press('Tab');
+	}
+	assert.fail(`the packaged sidebar control could not be reached through keyboard Tab navigation: ${await control.getAttribute('aria-label')}`);
 }
 
 function findHighContrastTheme(): string {

@@ -62,7 +62,12 @@ and zoom afterward. A second installed-VSIX journey operates typed-property
 validation and cancel, callout and task toggles, table-grid movement and edit
 cancel, both directions of footnote navigation, and the diagram source escape
 entirely through keyboard input. It then proves the dedicated fixture is clean
-and byte-identical.
+and byte-identical. Separate installed-VSIX journeys use VS Code's native
+`aria-activedescendant` tree model to reach a newly created note and folder with
+Home/Arrow keys, open the note with Enter, expand the folder with ArrowRight,
+and operate the CSS Themes sidebar with Tab plus native radio-group arrow keys.
+The CSS journey also reaches the separately named edit, duplicate, rename, and
+delete controls without a pointer and restores the original selected theme.
 
 Automated scans do not prove screen-reader usability. A release is not signed
 off solely because Axe reports no critical violations.

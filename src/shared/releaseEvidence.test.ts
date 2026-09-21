@@ -380,6 +380,9 @@ describe('release security evidence', () => {
 		expect(testSource).toContain('creates notes and folders in the packaged Document Vault');
 		expect(testSource).toContain('File: ${noteName}.md');
 		expect(testSource).toContain('Folder: ${folderName}');
+		expect(testSource).toContain('operates packaged CSS Themes through keyboard input');
+		expect(testSource).toContain('Arrow-key navigation did not select the packaged CSS theme');
+		expect(testSource).toContain('the packaged Document Vault did not open its created note with Enter');
 		expect(testSource).toContain('keeps packaged controls reachable in high contrast at 200 percent zoom');
 		expect(testSource).toContain('operates packaged Live Preview controls through keyboard input');
 		expect(testSource).toContain('the packaged typed-property error was not associated with its input');
