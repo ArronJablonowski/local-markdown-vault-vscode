@@ -11,6 +11,7 @@ import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSea
 import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
 import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
+import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
 
 interface DevelopmentApi {
 	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
@@ -175,6 +176,9 @@ async function syncDefaultEditorAssociation(): Promise<void> {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<DevelopmentApi | undefined> {
+	// Never replace a workspace the user chose. In an empty window, create the
+	// local default vault and stop because vscode.openFolder reloads this host.
+	if (await openDefaultVaultWhenNeeded()) return undefined;
 	context.subscriptions.push({ dispose: disposeCaseRenameCoordinators });
 	initializeDiagnostics(context);
 	diagnosticEvent('extension.activate', { mode: vscode.ExtensionMode[context.extensionMode] ?? context.extensionMode });

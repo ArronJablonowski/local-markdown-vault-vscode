@@ -27,6 +27,7 @@ describe('host security boundaries', () => {
 			'src/sidebar/styleStore.ts',
 			'src/vault/VaultIndex.ts',
 			'src/vault/VaultService.ts',
+			'src/vault/defaultVault.ts',
 		]);
 
 		const nativePromiseFsUsers = files
@@ -49,6 +50,16 @@ describe('host security boundaries', () => {
 		]);
 		expect(readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8'))
 			.toContain("import type { Stats } from 'node:fs';");
+	});
+
+	it('limits default-vault bootstrapping to a fixed Documents child in an empty window', () => {
+		const bootstrap = readFileSync(join(ROOT, 'src', 'vault', 'defaultVault.ts'), 'utf8');
+		const location = readFileSync(join(ROOT, 'src', 'vault', 'defaultVaultLocation.ts'), 'utf8');
+		expect(location).toContain("join(homeDirectory, 'Documents', DEFAULT_VAULT_FOLDER_NAME)");
+		expect(location).toContain("enabled && (!folders || folders.length === 0)");
+		expect(bootstrap).toContain('workspace.fs.createDirectory(uri)');
+		expect(bootstrap).toContain("executeCommand('vscode.openFolder', uri, false)");
+		expect(bootstrap).not.toMatch(/showOpenDialog|showSaveDialog|workspace\.fs\.writeFile/);
 	});
 
 	it('never delegates a local vault resource to the operating-system opener', () => {

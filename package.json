@@ -460,6 +460,12 @@
           "scope": "resource",
           "description": "%config.vault.updateLinksOnMove%"
         },
+        "mdLivePreview.vault.openDefaultOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "%config.vault.openDefaultOnStartup%"
+        },
         "mdLivePreview.vault.attachmentFolder": {
           "type": "string",
           "default": "assets",

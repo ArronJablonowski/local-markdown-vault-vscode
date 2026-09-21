@@ -48,6 +48,7 @@
   "config.remoteMedia.block": "Block all remote and data-URI images. Local workspace images still render.",
   "config.remoteMedia.https": "Allow images over HTTPS. Scripts, styles, fonts, HTTP, data URIs, and other remote content remain blocked.",
   "config.vault.updateLinksOnMove": "Update Markdown links and wikilinks when notes or folders are moved or renamed.",
+  "config.vault.openDefaultOnStartup": "When VS Code has no folder open, create and open a default vault at ~/Documents/Markdown Vault. An existing workspace is never replaced.",
   "config.vault.attachmentFolder": "Note-relative folder where pasted and dropped attachments are stored. The resolved folder must remain inside the vault.",
   "config.vault.sortOrder": "Sort order used by the Document Vault tree.",
   "config.vault.autoReveal": "Reveal the active Markdown file in the Document Vault tree.",

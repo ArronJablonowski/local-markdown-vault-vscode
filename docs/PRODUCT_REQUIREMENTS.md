@@ -304,7 +304,7 @@ No Phase 1 or Phase 2 feature may be released before this gate passes.
 ### 7.1 Vault definition and lifecycle
 
 - **VLT-001:** A vault is exactly one local `file:` VS Code workspace folder and all non-excluded descendants that remain within its canonical root.
-- **VLT-002:** With no workspace, a multi-root workspace, a virtual workspace, or a non-file workspace, the vault view shows a clear unsupported-state message and performs no filesystem mutation.
+- **VLT-002:** With no workspace, the extension creates and opens `~/Documents/Markdown Vault` as the default single-folder workspace unless the user disables default-vault startup. An existing workspace is never replaced. Multi-root, virtual, and non-file workspaces show a clear unsupported-state message and perform no vault filesystem mutation.
 - **VLT-003:** The extension stores preferences and rebuildable metadata in extension storage keyed by a one-way hash of the canonical vault URI. It does not create a proprietary configuration folder in the vault.
 - **VLT-004:** Markdown and attachments remain ordinary files. Removing the extension leaves a usable folder with no required migration.
 - **VLT-005:** Nested vault behavior is unsupported. The extension does not infer or honor `.obsidian` as a second vault boundary.
@@ -347,6 +347,7 @@ No Phase 1 or Phase 2 feature may be released before this gate passes.
 | --- | --- | --- | --- | --- |
 | `mdLivePreview.remoteMedia` | `block \| https` | `block` | Workspace | Controls remote note images only |
 | `mdLivePreview.vault.updateLinksOnMove` | boolean | `true` | Workspace | Automatically rewrites links during rename/move |
+| `mdLivePreview.vault.openDefaultOnStartup` | boolean | `true` | Application | Creates and opens `~/Documents/Markdown Vault` only when no folder is open |
 | `mdLivePreview.vault.attachmentFolder` | string | `assets` | Workspace | Note-relative attachment directory; must remain in vault |
 | `mdLivePreview.vault.sortOrder` | enum | `nameAsc` | Workspace | Tree sort order |
 | `mdLivePreview.vault.autoReveal` | boolean | `true` | Workspace | Reveals the active note in the Vault view |

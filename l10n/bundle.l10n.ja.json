@@ -64,6 +64,7 @@
   "Note \"{0}\" created.": "ノート「{0}」を作成しました。",
   "Only local .drawio files can be shown.": "ローカルの .drawio ファイルのみ表示できます。",
   "Open a local folder to use Document Vault": "ドキュメント Vault を使用するにはローカルフォルダーを開いてください",
+  "The default vault could not be created or opened in your Documents folder.": "Documents フォルダーに既定の Vault を作成または開くことができませんでした。",
   "Open backlink": "バックリンクを開く",
   "Open broken link source": "壊れたリンクの参照元を開く",
   "Path": "パス",

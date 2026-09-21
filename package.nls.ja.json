@@ -48,6 +48,7 @@
   "config.remoteMedia.block": "リモート画像と data URI 画像をすべてブロックします。ワークスペース内のローカル画像は表示されます。",
   "config.remoteMedia.https": "HTTPS 画像を許可します。スクリプト、スタイル、フォント、HTTP、data URI、その他のリモートコンテンツは引き続きブロックされます。",
   "config.vault.updateLinksOnMove": "ノートやフォルダーの移動・名前変更時に Markdown リンクとウィキリンクを更新します。",
+  "config.vault.openDefaultOnStartup": "VS Code でフォルダーが開かれていない場合、~/Documents/Markdown Vault に既定の Vault を作成して開きます。既存のワークスペースは置き換えません。",
   "config.vault.attachmentFolder": "貼り付けまたはドロップした添付ファイルを保存するノート相対フォルダーです。解決後の場所は Vault 内である必要があります。",
   "config.vault.sortOrder": "ドキュメント Vault ツリーの並び順です。",
   "config.vault.autoReveal": "アクティブな Markdown ファイルをドキュメント Vault ツリー内で表示します。",

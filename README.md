@@ -113,7 +113,7 @@ code --uninstall-extension arronjablonowski.local-markdown-vault
 
 ## Using the extension
 
-1. Open one local folder in VS Code. That folder is the vault boundary.
+1. Open VS Code. If no folder is already open, the extension creates and opens `~/Documents/Markdown Vault` as the default vault. If you open another local folder, that folder remains the vault boundary and is never replaced.
 2. Open a `.md` file with **Markdown Live Preview**.
 3. Open the **Local Markdown Vault** activity-bar view to manage files and use knowledge-navigation tools.
 4. Use `[[Note]]`, `[[Note|Alias]]`, `[[Note#Heading]]`, or `![[Attachment.png]]` for vault links and embeds.
@@ -137,6 +137,7 @@ Search for `Local Markdown Vault` or `mdLivePreview` in VS Code Settings.
 | Remote media | Permit HTTPS images for this workspace | Blocked |
 | Automatic link updates | Rewrite affected links after rename or move | Enabled |
 | Attachment location | Choose where pasted attachments are stored | Inside vault |
+| Open default vault on startup | Create and open `~/Documents/Markdown Vault` when no folder is open | Enabled |
 | Vault sort order | Configure Document Vault ordering | Name |
 | Reveal active file | Follow the active note in the vault tree | Enabled |
 | Excluded paths | Omit paths from indexing and navigation | Conservative defaults |
