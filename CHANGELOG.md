@@ -1,5 +1,7 @@
 # Changelog
 
+- Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
+
 - Keep in-vault Markdown links, wikilinks, Document Vault opens, and newly created notes in Live Preview when it is configured as the default editor, while leaving attachments with VS Code's normal opener.
 
 - Add a real macOS VS Code desktop journey for local knowledge navigation: an alias filters the native Quick Switcher, keyboard list navigation opens the existing note, the empty picker shows the recent note, a unique body phrase populates vault search, native Backlinks distinguishes linked from unlinked mentions and opens the source note, and the Tags tree opens a prefiltered search containing its nested-tag result.
@@ -45,6 +47,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Exercise typed-property validation and cancel, callout and task toggles, table grid navigation and edit cancel, footnote navigation, and diagram source escape entirely through keyboard input in a clean-profile installed VSIX, while proving the dedicated accessibility fixture remains byte-identical.
 - Open Quick Switcher, vault-search, Backlinks, and other indexed Markdown targets directly in Live Preview when it is the configured default editor; retain one bounded newest line jump through the webview startup handshake so a fresh search result reliably places the CodeMirror caret on its matching line.
 - Show the same delayed, sanitized, local-only wikilink preview when a rendered link receives keyboard focus, associate it as an accessible description, and verify the behavior in both the shipped browser bundle and an installed clean-profile VSIX.
 - Roll back the exact newly created note, folder, or intermediate note path when its active-vault or Workspace Trust commit guard becomes stale; directory rollback is identity-checked, reverse-order, and deliberately non-recursive.

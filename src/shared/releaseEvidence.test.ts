@@ -373,10 +373,16 @@ describe('release security evidence', () => {
 		expect(runner).toContain('MDLP_VSCODE_DEBUG_PORT: String(debugPort)');
 		expect(runner).toContain('changed the linked-note bytes');
 		expect(runner).toContain('changed the local-image bytes');
+		expect(runner).toContain('changed the accessibility-note bytes');
 		expect(testSource).toContain('isolated VSIX directory');
 		expect(testSource).toContain('vscode.workspace.isTrusted');
 		expect(testSource).toContain('walks the packaged trusted vault, editor, media, diagrams, index, and knowledge views');
 		expect(testSource).toContain('keeps packaged controls reachable in high contrast at 200 percent zoom');
+		expect(testSource).toContain('operates packaged Live Preview controls through keyboard input');
+		expect(testSource).toContain('the packaged typed-property error was not associated with its input');
+		expect(testSource).toContain('ArrowRight did not move through the packaged table grid');
+		expect(testSource).toContain('Enter on the packaged footnote return did not restore editor focus');
+		expect(testSource).toContain('Enter did not reveal the packaged diagram source');
 		expect(testSource).toContain("document.body.classList.contains('vscode-high-contrast')");
 		expect(testSource).toContain("executeCommand('workbench.action.zoomIn')");
 		expect(testSource).toContain("await editor.press('Escape')");

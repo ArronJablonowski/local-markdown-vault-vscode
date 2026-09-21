@@ -32,6 +32,32 @@ const NOTE_SOURCE = [
 	'',
 ].join('\n');
 const OBSIDIAN_SOURCE = '{"livePreview":true,"legacyEditor":false,"theme":"moonstone"}\n';
+const ACCESSIBILITY_SOURCE = [
+	'---',
+	'priority: 3',
+	'related: "[[Packaged Target]]"',
+	'---',
+	'# Packaged accessibility',
+	'',
+	'> [!NOTE]- Keyboard details',
+	'> Keyboard-reachable callout.',
+	'',
+	'- [ ] Keyboard task',
+	'',
+	'| name | value |',
+	'| --- | ---: |',
+	'| alpha | 1 |',
+	'',
+	'A keyboard claim[^1].',
+	'',
+	'[^1]: Local keyboard evidence.',
+	'',
+	'```mermaid',
+	'graph TD',
+	'  A --> B',
+	'```',
+	'',
+].join('\n');
 let debugBrowser: Browser | undefined;
 
 suite('Installed VSIX clean-profile smoke', () => {
@@ -205,6 +231,107 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.commands.executeCommand('workbench.action.zoomReset');
 			await workbench.update('colorTheme', previousTheme, vscode.ConfigurationTarget.Global);
 		}
+	});
+
+	(mode === 'trusted' ? test : test.skip)('operates packaged Live Preview controls through keyboard input', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root, 'the VSIX smoke workspace is unavailable');
+		const note = vscode.Uri.joinPath(root, 'Accessibility.md');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		const frame = await connectToLivePreviewFrame('Packaged accessibility');
+		await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
+		await frame.locator('.mlp-mermaid-wrap svg').waitFor({ state: 'visible', timeout: 20_000 });
+
+		const property = frame.locator('.mlp-property-number');
+		await focusControlWithKeyboard(frame, '.mlp-property-number');
+		await property.press('Enter');
+		const propertyInput = property.locator('input');
+		await propertyInput.fill('not a number');
+		await propertyInput.press('Enter');
+		assert.strictEqual(await propertyInput.getAttribute('aria-invalid'), 'true',
+			'the packaged typed property did not expose keyboard validation state');
+		const describedBy = await propertyInput.getAttribute('aria-describedby');
+		assert.match(describedBy ?? '', /^mlp-property-error-/,
+			'the packaged typed-property error was not associated with its input');
+		assert.strictEqual(await property.locator(`#${describedBy}`).getAttribute('role'), 'alert');
+		await propertyInput.press('Escape');
+		assert.strictEqual((await property.textContent())?.trim(), '3',
+			'Escape did not cancel the packaged property edit');
+		assert.strictEqual(await property.evaluate((element) => document.activeElement === element), true,
+			'Escape did not return focus to the packaged property control');
+
+		const callout = frame.locator('.mlp-callout-header');
+		await focusControlWithKeyboard(frame, '.mlp-callout-header');
+		assert.strictEqual(await callout.getAttribute('aria-expanded'), 'false');
+		await callout.press('Enter');
+		assert.strictEqual(await callout.getAttribute('aria-expanded'), 'true',
+			'Enter did not expand the packaged callout');
+		await callout.press('Space');
+		assert.strictEqual(await callout.getAttribute('aria-expanded'), 'false',
+			'Space did not collapse the packaged callout');
+
+		const task = frame.locator('.mlp-checkbox');
+		await focusControlWithKeyboard(frame, '.mlp-checkbox');
+		assert.strictEqual(await task.getAttribute('aria-checked'), 'false');
+		await task.press('Space');
+		await waitFor(async () => await task.getAttribute('aria-checked') === 'true',
+			'Space did not check the packaged task');
+		await task.press('Space');
+		await waitFor(async () => await task.getAttribute('aria-checked') === 'false',
+			'Space did not restore the packaged task');
+
+		const firstCell = frame.locator('.mlp-table-cell').first();
+		await focusControlWithKeyboard(frame, '.mlp-table-cell');
+		await firstCell.press('ArrowRight');
+		const secondHeader = frame.locator('.mlp-table th').nth(1);
+		assert.strictEqual(await secondHeader.evaluate((element) => document.activeElement === element), true,
+			'ArrowRight did not move through the packaged table grid');
+		await secondHeader.press('ArrowDown');
+		const secondValue = frame.locator('.mlp-table td').nth(1);
+		assert.strictEqual(await secondValue.evaluate((element) => document.activeElement === element), true,
+			'ArrowDown did not move through the packaged table grid');
+		await secondValue.press('F2');
+		assert.strictEqual(await secondValue.getAttribute('contenteditable'), 'true',
+			'F2 did not begin packaged table-cell editing');
+		await secondValue.press('Escape');
+		assert.strictEqual((await secondValue.textContent())?.trim(), '1',
+			'Escape did not cancel the packaged table-cell edit');
+
+		const reference = frame.locator('.mlp-footnote-reference');
+		await focusControlWithKeyboard(frame, '.mlp-footnote-reference');
+		await reference.press('Enter');
+		assert.strictEqual(await frame.locator('.cm-content').evaluate((element) => document.activeElement === element), true,
+			'Enter on the packaged footnote reference did not return focus to its editor target');
+		await focusControlWithKeyboard(frame, '.mlp-footnote-definition-label');
+		await frame.locator('.mlp-footnote-definition-label').press('Enter');
+		assert.strictEqual(await frame.locator('.cm-content').evaluate((element) => document.activeElement === element), true,
+			'Enter on the packaged footnote return did not restore editor focus');
+
+		const diagramSource = frame.locator('.mlp-mermaid-wrap .mlp-code-mode-btn');
+		await focusControlWithKeyboard(frame, '.mlp-mermaid-wrap .mlp-code-mode-btn');
+		assert.ok(await diagramSource.getAttribute('aria-label'),
+			'the packaged diagram source escape had no accessible name');
+		await diagramSource.press('Enter');
+		await waitFor(async () => await frame.locator('.mlp-mermaid-wrap').count() === 0,
+			'Enter did not reveal the packaged diagram source');
+		assert.ok((await frame.locator('.cm-content').textContent())?.includes('graph TD'),
+			'the packaged diagram source was not available after its keyboard escape');
+
+		const openedDocument = vscode.workspace.textDocuments
+			.find((candidate) => candidate.uri.toString() === note.toString());
+		assert.ok(openedDocument, 'the packaged accessibility note was not open');
+		assert.strictEqual(openedDocument.getText(), ACCESSIBILITY_SOURCE,
+			'the packaged keyboard journey did not restore the accessibility fixture in memory');
+		// Checking and then unchecking a task is two legitimate text edits. VS Code
+		// therefore keeps the document dirty even though its content is byte-for-byte
+		// back at the saved value; persist that identical value before the disk check.
+		await openedDocument.save();
+		assert.strictEqual(openedDocument.isDirty, false,
+			'the restored packaged accessibility note did not save cleanly');
+		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), ACCESSIBILITY_SOURCE,
+			'the packaged keyboard journey changed the accessibility fixture');
 	});
 
 	(mode === 'restricted' ? test : test.skip)('blocks packaged vault mutations in Restricted Mode', async () => {

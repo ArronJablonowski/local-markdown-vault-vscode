@@ -62,6 +62,32 @@ async function runMode(mode) {
 		'base64',
 	);
 	const obsidianSource = '{"livePreview":true,"legacyEditor":false,"theme":"moonstone"}\n';
+	const accessibilitySource = [
+		'---',
+		'priority: 3',
+		'related: "[[Packaged Target]]"',
+		'---',
+		'# Packaged accessibility',
+		'',
+		'> [!NOTE]- Keyboard details',
+		'> Keyboard-reachable callout.',
+		'',
+		'- [ ] Keyboard task',
+		'',
+		'| name | value |',
+		'| --- | ---: |',
+		'| alpha | 1 |',
+		'',
+		'A keyboard claim[^1].',
+		'',
+		'[^1]: Local keyboard evidence.',
+		'',
+		'```mermaid',
+		'graph TD',
+		'  A --> B',
+		'```',
+		'',
+	].join('\n');
 	try {
 		await Promise.all([
 			mkdir(settingsDir, { recursive: true }),
@@ -72,6 +98,7 @@ async function runMode(mode) {
 		await Promise.all([
 			writeFile(join(workspaceDir, 'README.md'), noteSource),
 			writeFile(join(workspaceDir, 'Packaged Target.md'), targetSource),
+			writeFile(join(workspaceDir, 'Accessibility.md'), accessibilitySource),
 			writeFile(join(workspaceDir, 'pixel.png'), pixelSource),
 			writeFile(join(workspaceDir, '.obsidian', 'app.json'), obsidianSource),
 			writeFile(join(settingsDir, 'settings.json'), JSON.stringify({
@@ -124,6 +151,9 @@ async function runMode(mode) {
 		}
 		if (await readFile(join(workspaceDir, 'Packaged Target.md'), 'utf8') !== targetSource) {
 			throw new Error(`${mode} VSIX smoke changed the linked-note bytes.`);
+		}
+		if (await readFile(join(workspaceDir, 'Accessibility.md'), 'utf8') !== accessibilitySource) {
+			throw new Error(`${mode} VSIX smoke changed the accessibility-note bytes.`);
 		}
 		if (!pixelSource.equals(await readFile(join(workspaceDir, 'pixel.png')))) {
 			throw new Error(`${mode} VSIX smoke changed the local-image bytes.`);

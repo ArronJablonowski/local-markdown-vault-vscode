@@ -58,7 +58,11 @@ built-in high-contrast theme, drives the workbench to at least 200 percent
 effective zoom, and follows the Escape-then-Tab path through task, callout,
 table, and source-mode controls. It verifies visible focus, viewport access,
 accessible source-control names, and restores the disposable profile's theme
-and zoom afterward.
+and zoom afterward. A second installed-VSIX journey operates typed-property
+validation and cancel, callout and task toggles, table-grid movement and edit
+cancel, both directions of footnote navigation, and the diagram source escape
+entirely through keyboard input. It then proves the dedicated fixture is clean
+and byte-identical.
 
 Automated scans do not prove screen-reader usability. A release is not signed
 off solely because Axe reports no critical violations.
