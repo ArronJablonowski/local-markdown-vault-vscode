@@ -54,9 +54,9 @@ describe('local image request client', () => {
 
 	it('cancels pending work when a document is reinitialized', async () => {
 		const pending = resolveLocalImage('old.png');
-		const cancelled = expect(pending).rejects.toThrow(/could not be loaded/i);
+		const canceled = expect(pending).rejects.toThrow(/could not be loaded/i);
 		clearLocalImageCache();
-		await cancelled;
+		await canceled;
 	});
 
 	it('rejects forged host content whose bytes do not match the declared raster type', async () => {

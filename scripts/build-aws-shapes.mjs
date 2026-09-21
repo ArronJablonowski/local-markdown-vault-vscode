@@ -23,15 +23,15 @@
  * ## What this script deliberately does NOT do
  *
  * Every coordinate is copied through verbatim. Nothing is rounded, re-scaled,
- * simplified, merged, minified, or re-drawn, and no colour is introduced. That
+ * simplified, merged, minified, or re-drawn, and no color is introduced. That
  * is a licensing requirement, not a stylistic preference: the shapes are
  * redistributed under draw.io's terms (see LICENSE-SHAPES), which cover
  * derivatives including "conversions to other formats", so the conversion is
  * kept to the minimum technically necessary to display the shapes at all.
  * Anything that altered the geometry would be a redraw, not a format change.
  *
- * Colour is likewise not this script's business: the stencils carry none, and
- * the renderer takes each shape's colour from the user's own `.drawio` file.
+ * Color is likewise not this script's business: the stencils carry none, and
+ * the renderer takes each shape's color from the user's own `.drawio` file.
  *
  * ## Shape keys
  *
@@ -39,7 +39,7 @@
  * shape's `name` attribute lowercased with spaces turned into underscores (see
  * `mxStencilRegistry.addStencil` in drawio's Graph.js). A diagram then refers to
  * it as `shape=mxgraph.aws4.group` / `resIcon=mxgraph.aws4.ec2`. The same
- * normalisation is applied here so a style string can be looked up directly.
+ * normalization is applied here so a style string can be looked up directly.
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +49,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceFile = join(root, 'vendor', 'aws4.xml');
 const outFile = join(root, 'dist', 'aws4-shapes.json');
 
-/** draw.io's own key normalisation, mirrored exactly. */
+/** draw.io's own key normalization, mirrored exactly. */
 export function stencilKey(name) {
 	return name.replace(/ /g, '_').toLowerCase();
 }

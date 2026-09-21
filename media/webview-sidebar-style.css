@@ -131,7 +131,7 @@ body {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
 }
-.mlp-action[aria-label="削除"]:hover {
+.mlp-action[aria-label="Delete"]:hover {
 	color: var(--vscode-errorForeground, #f14c4c);
 }
 

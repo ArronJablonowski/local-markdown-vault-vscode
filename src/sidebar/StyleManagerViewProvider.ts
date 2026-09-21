@@ -118,7 +118,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 			prompt: vscode.l10n.t('New name (.css is added automatically)'),
 			validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Enter a name') : undefined),
 		});
-		if (input === undefined || !vscode.workspace.isTrusted) return; // cancelled or trust changed
+		if (input === undefined || !vscode.workspace.isTrusted) return; // canceled or trust changed
 		try {
 			await this.styleStore.renameStyle(id, input);
 		} catch {
@@ -180,7 +180,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		const documentTitle = vscode.l10n.t('CSS Themes');
 
 		return `<!DOCTYPE html>
-<html lang="${escapeAttribute(vscode.env.language)}">
+<html lang="en-US">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />

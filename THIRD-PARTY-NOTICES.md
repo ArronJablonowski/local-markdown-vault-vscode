@@ -20,12 +20,12 @@ script performs only the format conversion needed to draw the shapes at all —
 draw.io's `move`/`line`/`curve`/`arc`/`close` primitives are rewritten as the
 directly equivalent SVG path commands `M`/`L`/`C`/`A`/`Z`. Every coordinate is
 copied verbatim: nothing is rounded, simplified, re-scaled, minified, or
-re-drawn, and no colour is applied to the shapes themselves.
+re-drawn, and no color is applied to the shapes themselves.
 
-**Where the colours come from.** The shapes carry no colours of their own. Each
-one is drawn in the colour written in the user's own `.drawio` file (the
+**Where the colors come from.** The shapes carry no colors of their own. Each
+one is drawn in the color written in the user's own `.drawio` file (the
 `fillColor` / `strokeColor` of that diagram element). This extension does not
-choose, alter, or substitute the colours of any AWS symbol, in either light or
+choose, alter, or substitute the colors of any AWS symbol, in either light or
 dark editor themes.
 
 **Sizing.** Shapes are scaled for display through the SVG `viewBox`, preserving
@@ -35,13 +35,13 @@ size.
 ## Syntax highlighting grammars and themes
 
 **What is bundled:** `dist/langs/*.json` — 23 TextMate grammars — together with
-four colour themes compiled into the extension. Both are written into `dist/` at
+four color themes compiled into the extension. Both are written into `dist/` at
 build time by `scripts/build-shiki-langs.mjs`, from the
 [Shiki](https://shiki.style/) packages `@shikijs/langs` and `@shikijs/themes`
 (MIT, © 2021 Pine Wu, © 2023 Anthony Fu).
 
 Shiki does not author these files. It normalises and redistributes them from
-their original projects, each of which keeps its own licence, recorded upstream
+their original projects, each of which keeps its own license, recorded upstream
 in Shiki's per-file
 [grammar NOTICE](https://github.com/shikijs/textmate-grammars-themes/blob/main/packages/tm-grammars/NOTICE)
 and [theme NOTICE](https://github.com/shikijs/textmate-grammars-themes/blob/main/packages/tm-themes/NOTICE).

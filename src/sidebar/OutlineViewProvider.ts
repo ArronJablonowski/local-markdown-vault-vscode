@@ -84,7 +84,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 		const documentTitle = vscode.l10n.t('Outline');
 
 		return `<!DOCTYPE html>
-<html lang="${escapeAttribute(vscode.env.language)}">
+<html lang="en-US">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />

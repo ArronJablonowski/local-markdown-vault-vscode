@@ -1,136 +1,66 @@
 ---
-title: Markdown Live Preview Editor の使い方
-tags:
-  - markdown
-  - live-preview
-  - showcase
+title: Using Local Markdown Vault
+tags: [markdown, preview, local]
+draft: false
 ---
 
-# Markdown Live Preview Editor
+# Local Markdown Vault Sample
 
-**書いた見た目のまま**編集できる、Markdownのライブプレビュー拡張機能です。
+Edit this document directly in Live Preview. Lines away from the cursor remain rendered, while the active source is available for precise Markdown editing.
 
-このドキュメントを実際に編集してみてください。カーソルが乗っていない行は装飾された見た目のまま、カーソルが乗った行だけ`**`や`#`が生のMarkdown記法として見えます。
+> Notes remain ordinary Markdown files. The extension does not convert them to a proprietary format.
 
-## なぜObsidianライクなのか
+## Core features
 
-VS Code標準のMarkdownプレビューは、編集用のペインとプレビュー用のペインが左右に分かれています。この拡張機能はその2つを1つにまとめ、*プレビューそのものを直接編集*できるようにします。
+- Live Preview editing
+- Syntax-highlighted fenced code
+- Mermaid and draw.io diagrams
+- Obsidian-style wikilinks and embeds
+- Typed properties, callouts, math, footnotes, tags, tasks, and tables
+- Local-only Document Vault navigation
 
-> 保存されるファイルの中身は、常に素のMarkdownです。
-> 特殊な独自フォーマットに変換されることはありません。
+### Setup checklist
 
-## 主な機能
+- [x] Open a local folder as the vault
+- [x] Create a Markdown note
+- [ ] Test moving and renaming a disposable note
 
-- ライブプレビュー編集(このドキュメントもその場で編集できます)
-- シンタックスハイライト付きコードブロック
-- Mermaidダイアグラムのその場描画
-- サイドバーから切り替えられるCSSテーマ
-- ~~生のMarkdownソースだけを見ながら書くつらさ~~ ← これとはもうお別れ
-
-### 導入手順
-
-1. VS Codeの拡張機能ビューで検索してインストールする
-2. `.md`ファイルを開き、タイトルバーの切替アイコンをクリックする
-3. プレビュー上で直接編集を始める
-
-### 進捗メモ
-
-- [x] プレビューをそのまま編集できるようにする
-- [x] コードブロックを色分け表示する
-- [ ] テーブルの生編集をもっと滑らかにする
-
-## コード例
-
-`inline code`だけでなく、フェンス付きのコードブロックも言語ごとに色分けされます。
+## Code example
 
 ```python
-def toggle_live_preview(path: str) -> None:
-    """.md を開いたときに、装飾されたプレビューへ自動で切り替える"""
-    print(f"{path} をライブプレビューで開きました")
+def open_preview(path):
+    """Open a Markdown file in Live Preview."""
+    print(f"Opened {path} in Live Preview")
 ```
 
-## 仕組み
+## Mermaid example
 
 ```mermaid
 flowchart LR
-    A[書く] --> B{カーソルが乗っている?}
-    B -- はい --> C[生のMarkdown記法を表示]
-    B -- いいえ --> D[装飾された見た目を表示]
+    A[Write Markdown] --> B{Cursor on source?}
+    B -- Yes --> C[Show Markdown syntax]
+    B -- No --> D[Show rendered content]
 ```
 
-もう少し大きな図でも、縮小されずそのままのサイズで描画されます(ドラッグでパン、`Ctrl`+ホイールまたはツールバーの+/-でズーム)。
+## Table example
 
-```mermaid
-flowchart TD
-    subgraph 書く人の操作
-        A[Markdownファイルを開く] --> B[ライブプレビューに切替]
-        B --> C[装飾された見た目のまま編集]
-    end
-    subgraph 保存されるもの
-        D[素のMarkdown]
-    end
-    subgraph 見た目のカスタマイズ
-        E[サイドバーでCSSテーマを選択] --> F[プレビューに即時反映]
-    end
-    C -->|保存| D
-    C --> E
-    F --> C
-    C --> G[コードブロックを色分け表示]
-    C --> H[Mermaidをその場でSVG描画]
-    G --> C
-    H --> C
-```
-
-## 見た目のカスタマイズ
-
-サイドバーの「CSS Themes」から、プレビューの見た目を変えるスタイルを切り替えられます。
-
-![サンプル画像(ネットワーク経由で読み込み)](https://picsum.photos/id/1015/480/270)
-
-もっと詳しく知りたい方は[GitHubリポジトリ](https://github.com/t-shoot/md-live-preview-editor)もご覧ください。
-
----
-
-## 動作確認用サンプル
-
-このセクションは、対応している記法を一通り目視確認するためのものです。
-
-### 見出しレベル(h1〜h6)
-
-#### 見出しレベル4
-
-##### 見出しレベル5
-
-###### 見出しレベル6
-
-### 空白セルを含むテーブル
-
-一部のセルが空でも、列がずれずに元の位置のまま表示されることを確認してください。
-
-| 名前 | 備考 | 状態 |
+| Name | Notes | Status |
 | --- | --- | --- |
-| Alice |  | OK |
-|  | 保留 | NG |
-| Bob | 完了 |  |
+| Alice | Ready | OK |
+|  | Pending | Review |
+| Bob | Complete |  |
 
-### 箇条書き直下のテーブル(空行なし)
+## Callout and footnote
 
-リスト項目の説明文に続けて、空行を挟まずインデントしたテーブルを書いた場合でも、表としてレンダリングされることを確認してください。
+> [!NOTE] Local files
+> Keep important notes backed up with a method you control.
 
-- 重みづけ(初期値。後から調整できる設計にする):
-  | 行動 | 経験値 |
-  |---|---|
-  | 配達1個 | 1pt |
-  | 集荷1個 | 1pt |
-  | 訪問1件 | 5pt |
-  | 良い感触1件 | 20pt |
+This sentence includes a footnote.[^1]
 
-## 対応フォーマット早見表
+[^1]: Footnotes remain ordinary Markdown.
 
-| 記法 | 表示 |
-| --- | --- |
-| 見出し | `#`〜`######` |
-| 強調 | `**太字**` / `*斜体*` |
-| リスト | 箇条書き・番号付き・タスク |
-| コード | インライン・フェンス付き(色分け) |
-| 図 | Mermaidをその場でSVG描画 |
+## Links
+
+- Internal note: [[Project Notes]]
+- Aliased note: [[Project Notes|planning notes]]
+- Standard Markdown link: [README](../README.md)

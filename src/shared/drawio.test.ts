@@ -65,7 +65,7 @@ describe('labelToPlainText', () => {
 	});
 
 	it('decodes numeric entities including CJK', () => {
-		expect(labelToPlainText('&#x65E5;&#x672C;')).toBe('日本');
+		expect(labelToPlainText('&#x65E5;&#x672C;')).toBe('\u65e5\u672c');
 	});
 
 	it('tokenizes quoted greater-than signs without exposing nested tags', () => {
@@ -177,7 +177,7 @@ describe('flattenCells / buildDiagram', () => {
 	// that owns the id and the label — reading only mxCell loses both.
 	it('reads a cell wrapped in an <object>', () => {
 		const { pages } = build(
-			`<object id="wrapped" label="Labelled">
+			`<object id="wrapped" label="labeled">
 				<mxCell style="rounded=1" vertex="1" parent="1">
 					<mxGeometry x="0" y="0" width="80" height="40" as="geometry"/>
 				</mxCell>
@@ -185,7 +185,7 @@ describe('flattenCells / buildDiagram', () => {
 		);
 		const [box] = vertices(pages[0].shapes);
 		expect(box.id).toBe('wrapped');
-		expect(box.label).toBe('Labelled');
+		expect(box.label).toBe('labeled');
 	});
 
 	// A relative vertex is an edge label, not a box; drawing it puts a stray

@@ -55,9 +55,9 @@ export interface DrawioEdge {
 	 * Ids of the shapes this edge connects, when it connects any.
 	 *
 	 * The renderer needs the actual boxes — to trim the line at their outline and
-	 * to route around them — and matching them back by comparing centre
+	 * to route around them — and matching them back by comparing center
 	 * coordinates (which is what it did before these were carried) misidentifies
-	 * the box whenever two shapes happen to share a centre, and finds nothing at
+	 * the box whenever two shapes happen to share a center, and finds nothing at
 	 * all once a coordinate is a hair off.
 	 */
 	sourceId: string | null;

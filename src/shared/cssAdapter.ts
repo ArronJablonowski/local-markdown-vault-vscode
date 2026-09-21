@@ -58,9 +58,9 @@ function transformCompound(token: string): string {
 function transformSelector(selector: string): string {
 	let s = selector.trim();
 	// A standalone `body` (optionally theme-gated) sets page-level properties —
-	// font, colour, background, max-width — which in the live preview belong on the
+	// font, color, background, max-width — which in the live preview belong on the
 	// reading column. Redirect it there, preserving any `body.vscode-*` gate so the
-	// column's dark-theme background/colour still switches correctly.
+	// column's dark-theme background/color still switches correctly.
 	const standaloneBody = /^body((?:\.[\w-]+)*)$/i.exec(s);
 	if (standaloneBody) {
 		const themeClasses = standaloneBody[1];

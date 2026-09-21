@@ -1,14 +1,11 @@
 /*
- * VS Code 標準 Markdown プレビュー テーマ
- * VS Code 本体の Markdown プレビュー機能（markdown-language-features）が実際に
- * 使っている CSS（extensions/markdown-language-features/media/markdown.css、
- * MIT License, Copyright (c) Microsoft Corporation）を元に、このアプリの
- * HTML 要素セレクタ形式に移植したもの。差分表示・コード行同期ハイライトなど、
- * このアプリに存在しない機能向けのスタイルは含めていない。
+ * VS Code Markdown Preview theme.
+ * Adapted from the CSS used by VS Code's markdown-language-features extension
+ * (MIT License, Copyright (c) Microsoft Corporation) to the HTML element
+ * selectors generated here. Styles for unsupported features are omitted.
  *
- * `--vscode-*` は VS Code がすべての webview に自動で渡す、現在のカラーテーマの
- * 実際の色を表す CSS 変数。固定のライト/ダーク2色ではなく、ユーザーが実際に
- * 使っているカラーテーマにそのまま追従する。
+ * VS Code supplies the `--vscode-*` variables to every webview. They track the
+ * user's active color theme instead of assuming one fixed light or dark pair.
  */
 body {
 	font-family: var(--vscode-editor-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif);
@@ -159,7 +156,7 @@ pre code {
 	border: 0;
 }
 
-/* VS Code がダークテーマのときはダーク配色にする */
+/* Use dark borders when VS Code is using a dark theme. */
 body.vscode-dark h1,
 body.vscode-dark h2,
 body.vscode-dark hr,
@@ -171,7 +168,7 @@ body.vscode-dark th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
-/* コントラスト強調テーマ用の上書き（VS Code本体の markdown.css に準拠） */
+/* High-contrast override based on VS Code's built-in markdown.css. */
 body.vscode-high-contrast h1 {
 	border-color: rgb(0, 0, 0);
 }

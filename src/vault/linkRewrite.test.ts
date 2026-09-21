@@ -28,14 +28,14 @@ describe('vault link rewriting', () => {
 
 	it('updates angle-wrapped Unicode and emoji destinations', () => {
 		expect(apply('[target](<Cafe\u0301 😀.md>)', 'Fixture/Index.md', {
-			oldPath: 'Fixture/Cafe\u0301 😀.md', newPath: 'Fixture/Archive/研究 🧭.md', isFolder: false,
-		})).toBe('[target](<Archive/研究 🧭.md>)');
+			oldPath: 'Fixture/Cafe\u0301 😀.md', newPath: 'Fixture/Archive/\u7814\u7a76 🧭.md', isFolder: false,
+		})).toBe('[target](<Archive/\u7814\u7a76 🧭.md>)');
 	});
 
 	it('matches canonically equivalent Unicode filenames reported by the filesystem', () => {
 		expect(apply('[target](<Café 😀.md>)', 'Fixture/Index.md', {
-			oldPath: 'Fixture/Cafe\u0301 😀.md', newPath: 'Fixture/Archive/研究 🧭.md', isFolder: false,
-		})).toBe('[target](<Archive/研究 🧭.md>)');
+			oldPath: 'Fixture/Cafe\u0301 😀.md', newPath: 'Fixture/Archive/\u7814\u7a76 🧭.md', isFolder: false,
+		})).toBe('[target](<Archive/\u7814\u7a76 🧭.md>)');
 	});
 
 	it('updates links when their containing folder moves', () => {

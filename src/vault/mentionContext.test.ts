@@ -21,9 +21,9 @@ describe('mention context', () => {
 			line: 2,
 			context: 'Discuss Project Atlas here.',
 		});
-		expect(findMentionContext('超芸術家 and 芸術 are different.', ['芸術'])).toEqual({
+		expect(findMentionContext('\u8d85\u82b8\u8853\u5bb6 and \u82b8\u8853 are different.', ['\u82b8\u8853'])).toEqual({
 			line: 1,
-			context: '超芸術家 and 芸術 are different.',
+			context: '\u8d85\u82b8\u8853\u5bb6 and \u82b8\u8853 are different.',
 		});
 	});
 });

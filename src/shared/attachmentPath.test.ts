@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { resolveAttachmentFolder, validateAttachmentFolder } from './attachmentPath';
 
 describe('attachment folder paths', () => {
-	it.each(['assets', 'attachments/images', 'メディア'])('accepts %s', (value) => {
+	it.each(['assets', 'attachments/images', '\u30e1\u30c7\u30a3\u30a2'])('accepts %s', (value) => {
 		expect(validateAttachmentFolder(value)).toBeUndefined();
 	});
 

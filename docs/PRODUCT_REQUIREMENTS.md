@@ -486,7 +486,7 @@ If the reference environment cannot meet a budget, the phase does not silently w
 ### 11.3 Localization and diagnostics
 
 - All commands, settings, warnings, errors, empty states, and accessibility labels use VS Code localization APIs.
-- English is the source language; existing Japanese localization remains supported.
+- US English is the sole interface and repository language for the initial release. Locale compatibility catalogs may mirror US English to provide a consistent fallback.
 - Errors identify the failed relative item and recovery action without exposing arbitrary content or system paths.
 - Debug logs are opt-in, local, bounded, and redact Markdown bodies, URLs, clipboard contents, and absolute paths.
 

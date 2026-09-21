@@ -186,9 +186,8 @@ suite('extension', () => {
 	test('ships its localization bundles', async () => {
 		const extension = vscode.extensions.getExtension(EXTENSION_ID);
 		assert.ok(extension);
-		// A missing bundle is invisible in an English VS Code and turns the whole
-		// UI into raw `%key%` placeholders in a Japanese one, so its presence is
-		// asserted rather than assumed.
+		// The compatibility catalog intentionally mirrors US English so changing
+		// the host locale never introduces non-English interface text.
 		for (const name of ['package.nls.json', 'package.nls.ja.json']) {
 			const uri = vscode.Uri.joinPath(extension.extensionUri, name);
 			await vscode.workspace.fs.stat(uri);

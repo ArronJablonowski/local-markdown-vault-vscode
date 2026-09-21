@@ -4,14 +4,14 @@
  * Output is a *string* rather than DOM nodes so the whole renderer stays
  * testable under plain Node, and so the caller can hand it to `innerHTML` in one
  * assignment the way the Mermaid widget already does. Everything drawn from the
- * document — labels, colours, shape names — is escaped or validated here, since
+ * document — labels, colors, shape names — is escaped or validated here, since
  * the source is a file the user merely opened and must not be able to inject
  * markup or a `javascript:` URL into the webview.
  *
  * Fidelity is deliberately bounded: draw.io's full shape library runs to
  * thousands of stencils, so the basic vocabulary (rectangle, rounded rectangle,
  * ellipse, rhombus, triangle, cylinder, hexagon, note, plus connectors) is drawn
- * properly and anything else falls back to a labelled rectangle. That keeps the
+ * properly and anything else falls back to a labeled rectangle. That keeps the
  * structure of an unfamiliar diagram readable instead of dropping the shape.
  */
 import type {
@@ -41,7 +41,7 @@ export interface AwsShapeGeometry {
  */
 export type AwsShapeLookup = (key: string) => AwsShapeGeometry | null;
 
-/** Colours used when the document does not specify its own. */
+/** Colors used when the document does not specify its own. */
 export interface DrawioTheme {
 	stroke: string;
 	fill: string;
@@ -70,10 +70,10 @@ export function escapeXml(value: string): string {
 }
 
 /**
- * Passes through only colour values that are safe to drop into a `fill` or
+ * Passes through only color values that are safe to drop into a `fill` or
  * `stroke` attribute.
  *
- * draw.io writes `#rrggbb` or a CSS colour name, and `none`. Anything else — a
+ * draw.io writes `#rrggbb` or a CSS color name, and `none`. Anything else — a
  * `url(...)` reference to a gradient that isn't there, or an attempted attribute
  * break-out — is rejected in favour of the caller's default, so a hand-edited
  * file cannot steer the rendered markup.
@@ -87,7 +87,7 @@ export function sanitizeColor(value: string | undefined, fallback: string): stri
 }
 
 /**
- * Relative luminance of a `#rgb`/`#rrggbb` colour, or `null` for anything else.
+ * Relative luminance of a `#rgb`/`#rrggbb` color, or `null` for anything else.
  *
  * Uses the sRGB coefficients rather than a plain average because the eye is far
  * more sensitive to green than to blue: averaging calls a saturated blue "light"
@@ -106,28 +106,28 @@ export function colorLuminance(color: string): number | null {
 }
 
 /**
- * Whether two colours differ enough in luminance to be read against each other.
+ * Whether two colors differ enough in luminance to be read against each other.
  *
  * A deliberately loose threshold, not a WCAG contrast ratio: the job here is
  * only to catch the "black text on a black canvas" case, and anything stricter
- * would start overriding author colours that are perfectly readable.
+ * would start overriding author colors that are perfectly readable.
  */
 export function hasContrast(a: string, b: string): boolean {
 	const la = colorLuminance(a);
 	const lb = colorLuminance(b);
-	// A colour that cannot be measured (a name, `none`) is assumed fine — better
+	// A color that cannot be measured (a name, `none`) is assumed fine — better
 	// to keep the author's choice than to override on a guess.
 	if (la === null || lb === null) return true;
 	return Math.abs(la - lb) > 0.25;
 }
 
 /**
- * Picks a label colour that is readable on the shape it sits in.
+ * Picks a label color that is readable on the shape it sits in.
  *
  * A draw.io document very often sets a shape's `fillColor` but no `fontColor` —
  * it relies on the app's own default of dark text on those pale palette fills.
- * Falling back to the *editor theme's* text colour instead makes such a label
- * near-invisible in dark mode: light grey text on a pale blue box.
+ * Falling back to the *editor theme's* text color instead makes such a label
+ * near-invisible in dark mode: light gray text on a pale blue box.
  *
  * So the fill decides. Only when the shape has no fill of its own does the label
  * fall back to the theme, where it sits on the editor background as expected.
@@ -135,7 +135,7 @@ export function hasContrast(a: string, b: string): boolean {
 export function labelColorFor(fill: string | undefined, theme: DrawioTheme): string {
 	if (!fill) return theme.text;
 	const luminance = colorLuminance(fill);
-	// A named colour, `none`, or a transparent fill: nothing reliable to measure,
+	// A named color, `none`, or a transparent fill: nothing reliable to measure,
 	// so the shape is treated as taking the page background.
 	if (luminance === null) return theme.text;
 	// Midpoint of the sRGB luminance range; the two constants are the same
@@ -323,7 +323,7 @@ function shapeBody(kind: ShapeKind, g: DrawioVertex['geometry'], attrs: string):
  * SVG `<text>` does not wrap, so the break points have to be chosen here. Width
  * is estimated from the character count rather than measured — measuring needs a
  * laid-out DOM, which this renderer deliberately does without — using a wider
- * per-character estimate for CJK, since a Japanese label fits roughly half as
+ * per-character estimate for CJK, since a full-width label fits roughly half as
  * many glyphs per line as a Latin one and would otherwise overflow its box.
  *
  * CJK text also gets no spaces to break on, so it is broken per character when a
@@ -346,7 +346,7 @@ export function wrapLabel(text: string, maxWidth: number, fontSize: number): str
 function charWidth(ch: string, fontSize: number): number {
 	// CJK ideographs, kana and full-width punctuation are square; Latin averages
 	// close to half an em in the sans-serif faces used here.
-	return /[　-ヿ㐀-䶿一-鿿豈-﫿＀-｠]/.test(ch)
+	return /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uff60]/.test(ch)
 		? fontSize
 		: fontSize * 0.55;
 }
@@ -363,7 +363,7 @@ function wrapParagraph(paragraph: string, maxWidth: number, fontSize: number): s
 	const lines: string[] = [];
 	let current = '';
 	// Split into runs that keep Latin words whole but let CJK break anywhere.
-	const tokens = paragraph.match(/[^\s　-鿿＀-｠]+|[　-鿿＀-｠]|\s+/g) ?? [paragraph];
+	const tokens = paragraph.match(/[^\s\u3000-\u9fff\uff00-\uff60]+|[\u3000-\u9fff\uff00-\uff60]|\s+/g) ?? [paragraph];
 
 	for (const token of tokens) {
 		if (/^\s+$/.test(token)) {
@@ -390,7 +390,7 @@ function wrapParagraph(paragraph: string, maxWidth: number, fontSize: number): s
 	return lines.length > 0 ? lines : [paragraph];
 }
 
-/** Emits a multi-line, centred `<text>` block. */
+/** Emits a multi-line, centered `<text>` block. */
 function renderLabel(
 	text: string,
 	cx: number,
@@ -399,7 +399,7 @@ function renderLabel(
 	style: DrawioStyle,
 	theme: DrawioTheme,
 	verticalAlign: 'middle' | 'top' = 'middle',
-	/** The shape's resolved fill, so an unstated label colour can contrast with it. */
+	/** The shape's resolved fill, so an unstated label color can contrast with it. */
 	fill?: string,
 	/**
 	 * What the label actually sits on, when that is known — the page background
@@ -424,13 +424,13 @@ function renderLabel(
 	// The override applies only where the backdrop is actually known:
 	//
 	//  - `fill` set    → the label sits on that fill, which travels with it, so
-	//                    the author's colour is right whatever the theme is.
-	//  - `backdrop`    → the label sits on the page; if the author's colour offers
-	//     given          no contrast against it, the theme's text colour wins.
+	//                    the author's color is right whatever the theme is.
+	//  - `backdrop`    → the label sits on the page; if the author's color offers
+	//     given          no contrast against it, the theme's text color wins.
 	//  - neither       → the label is drawn *outside* its shape (an AWS resource
 	//                    caption below its tile) and may land on anything — very
 	//                    often an enclosing subnet's pale fill. Nothing here can
-	//                    tell, so the author's colour is left alone rather than
+	//                    tell, so the author's color is left alone rather than
 	//                    swapped for one that guesses wrong just as easily.
 	const authored = sanitizeColor(style.get('fontcolor'), '');
 	const unreadableOnPage = backdrop !== undefined && !hasContrast(authored, backdrop);
@@ -449,7 +449,7 @@ function renderLabel(
 	const lineHeight = usedSize * LINE_HEIGHT;
 	// `dominant-baseline` support is uneven across renderers, so the first line's
 	// baseline is positioned arithmetically instead: shift up by half the block,
-	// then down by the ascender (~0.36em below the line's vertical centre).
+	// then down by the ascender (~0.36em below the line's vertical center).
 	const blockHeight = lines.length * lineHeight;
 	const firstBaseline =
 		verticalAlign === 'top' ? cy + usedSize * 0.9 : cy - blockHeight / 2 + lineHeight / 2 + usedSize * 0.36;
@@ -549,15 +549,15 @@ function longestSegmentMidpoint(pts: ReadonlyArray<{ x: number; y: number }>): {
 
 /** Id of the shared arrowhead marker; suffixed per-diagram to stay unique. */
 function markerId(uid: string, color: string): string {
-	// Colour is part of the id because SVG markers do not inherit the referencing
-	// line's stroke: one marker per distinct colour is needed, or every arrowhead
-	// comes out in whichever colour happened to be defined first.
+	// Color is part of the id because SVG markers do not inherit the referencing
+	// line's stroke: one marker per distinct color is needed, or every arrowhead
+	// comes out in whichever color happened to be defined first.
 	return `mlp-drawio-arrow-${uid}-${color.replace(/[^a-z0-9]/gi, '')}`;
 }
 
 /**
  * Trims an edge's last segment so the arrowhead stops at the shape's boundary
- * instead of at its centre.
+ * instead of at its center.
  *
  * Endpoints resolved from `source`/`target` are centres (see drawio.ts), so an
  * untrimmed arrow is drawn *underneath* the target box and its head disappears.
@@ -577,7 +577,7 @@ function trimToBoundary(
 	if (len < 1e-6) return point;
 	const ux = dx / len;
 	const uy = dy / len;
-	// Distance from the centre to the box edge along (ux, uy).
+	// Distance from the center to the box edge along (ux, uy).
 	const halfW = box.width / 2;
 	const halfH = box.height / 2;
 	const tx = Math.abs(ux) > 1e-6 ? halfW / Math.abs(ux) : Infinity;
@@ -597,7 +597,7 @@ function trimToBoundary(
  * from wherever the geometry happened to fall.
  *
  * Returns `null` when the edge does not pin that end, leaving the caller to fall
- * back to the shape's centre.
+ * back to the shape's center.
  */
 export function fixedConnectionPoint(
 	style: DrawioStyle,
@@ -667,7 +667,7 @@ export function routeOrthogonal(
 
 	// Side by side: leave through the left/right face, so turn on x first. The
 	// comparison uses the gap between the shapes' facing edges rather than the
-	// centre distance, so a wide box next to a narrow one is still judged by how
+	// center distance, so a wide box next to a narrow one is still judged by how
 	// far apart they actually sit.
 	const horizontalGap = gapBetween(from.x, to.x, sourceBox?.width, targetBox?.width);
 	const verticalGap = gapBetween(from.y, to.y, sourceBox?.height, targetBox?.height);
@@ -759,7 +759,7 @@ function segmentHitsAny(
 	return false;
 }
 
-/** Centre-to-centre distance along one axis, less the two half-extents. */
+/** Center-to-center distance along one axis, less the two half-extents. */
 function gapBetween(a: number, b: number, extentA = 0, extentB = 0): number {
 	return Math.abs(b - a) - extentA / 2 - extentB / 2;
 }
@@ -782,8 +782,8 @@ function renderEdge(
 	const dashed = edge.style.get('dashed') === '1' ? ' stroke-dasharray="6 4"' : '';
 
 	// The connected shapes come from the edge's own id references. They used to be
-	// recovered by looking for a vertex whose centre matched the endpoint, which
-	// picked the wrong box when two shapes shared a centre and found none at all
+	// recovered by looking for a vertex whose center matched the endpoint, which
+	// picked the wrong box when two shapes shared a center and found none at all
 	// when a coordinate was fractionally off.
 	const sourceBox = edge.sourceId ? vertices.get(edge.sourceId)?.geometry : undefined;
 	const targetBox = edge.targetId ? vertices.get(edge.targetId)?.geometry : undefined;
@@ -792,9 +792,9 @@ function renderEdge(
 	// reach them — so they are dropped from the list before routing.
 	const obstacles = allObstacles.filter((b) => b !== sourceBox && b !== targetBox);
 
-	// A pinned connection point replaces the shape's centre outright: the author
+	// A pinned connection point replaces the shape's center outright: the author
 	// chose that spot, and it already sits on the outline, so it must not be
-	// trimmed back afterwards the way a centre-derived endpoint is.
+	// trimmed back afterwards the way a center-derived endpoint is.
 	const exitPoint = fixedConnectionPoint(edge.style, sourceBox, 'exit');
 	const entryPoint = fixedConnectionPoint(edge.style, targetBox, 'entry');
 
@@ -811,7 +811,7 @@ function renderEdge(
 				: [];
 
 	// Back the endpoints off each shape's outline so the arrowhead is visible —
-	// but only where the point came from the shape's centre. A pinned point is
+	// but only where the point came from the shape's center. A pinned point is
 	// already on the boundary, and trimming it again would pull the line off the
 	// spot the author picked.
 	const beforeLast = routed.length > 0 ? routed[routed.length - 1] : routeFrom;
@@ -888,7 +888,7 @@ function isContainerShape(style: DrawioStyle, g: DrawioVertex['geometry'], fill:
 }
 
 /**
- * The colour a shape is actually painted with.
+ * The color a shape is actually painted with.
  *
  * `fillColor=none` is draw.io's explicit "transparent", used by every group
  * frame; defaulting it to the theme's own fill painted those frames as opaque
@@ -920,15 +920,15 @@ function resolvedFill(vertex: DrawioVertex, theme: DrawioTheme): string {
  * leaves the coordinates alone; rewriting them to a new size would be a redraw
  * of the artwork rather than a rendering of it, which the shapes' terms do not
  * allow (see LICENSE-SHAPES / THIRD-PARTY-NOTICES.md). `preserveAspectRatio`
- * defaults to `xMidYMid meet`, so a shape given a non-square box is centred
+ * defaults to `xMidYMid meet`, so a shape given a non-square box is centered
  * rather than stretched.
  *
- * ## Colour is not invented
+ * ## Color is not invented
  *
- * The stencils carry no colours. A service tile's symbol is drawn in the tile's
- * stroke colour — which is what the diagram's own `strokeColor` says, normally
+ * The stencils carry no colors. A service tile's symbol is drawn in the tile's
+ * stroke color — which is what the diagram's own `strokeColor` says, normally
  * white on the service-coloured tile — and a frame's symbol in the frame's
- * stroke colour. Nothing here picks a colour of its own, in either theme.
+ * stroke color. Nothing here picks a color of its own, in either theme.
  */
 function renderAwsGlyph(
 	vertex: DrawioVertex,
@@ -976,9 +976,9 @@ function renderAwsGlyph(
 		h = Math.max(g.height - inset * 2, 1);
 	}
 
-	// On a filled tile the symbol takes the tile's stroke colour (white, in
+	// On a filled tile the symbol takes the tile's stroke color (white, in
 	// AWS's own palette); an unfilled frame has no tile to contrast with, so its
-	// badge takes the frame's stroke colour instead.
+	// badge takes the frame's stroke color instead.
 	const glyphColor = fill === 'none' ? stroke : stroke === 'none' ? fill : stroke;
 
 	return (
@@ -1009,8 +1009,8 @@ function renderVertex(vertex: DrawioVertex, theme: DrawioTheme, awsShape?: AwsSh
 	const body = shapeBody(kind, vertex.geometry, attrs) + renderAwsGlyph(vertex, fill, stroke, awsShape);
 
 	const g = vertex.geometry;
-	// `fill` is passed so a shape that sets a colour but no fontColor gets a label
-	// that contrasts with *that* colour rather than with the editor theme.
+	// `fill` is passed so a shape that sets a color but no fontColor gets a label
+	// that contrasts with *that* color rather than with the editor theme.
 	// A `none` fill means the label sits on the page, so the theme decides.
 	const labelFill = fill === 'none' ? undefined : fill;
 
@@ -1041,7 +1041,7 @@ function renderVertex(vertex: DrawioVertex, theme: DrawioTheme, awsShape?: AwsSh
 	}
 
 	// With no fill of its own the shape is transparent, so the label really does
-	// sit on the page — that is a backdrop worth checking the author's colour
+	// sit on the page — that is a backdrop worth checking the author's color
 	// against. A filled shape carries its own, so none is passed.
 	const backdrop = labelFill === undefined ? theme.fill : undefined;
 	const label = isContainerShape(vertex.style, g, fill)

@@ -53,7 +53,7 @@ function pointIsInsideRenderedBlock(x: number, y: number): boolean {
 	for (const el of Array.from(document.querySelectorAll(BLOCK_SELECTOR))) {
 		// Only wrappers that actually contain a rendered widget: `.mlp-block` also
 		// wraps blocks whose source is already showing, and those must keep the
-		// ordinary click-to-place-caret behaviour.
+		// ordinary click-to-place-caret behavior.
 		if (!el.querySelector('.mlp-table, .mlp-mermaid-wrap, .mlp-frontmatter, .mlp-frontmatter-error')) continue;
 		const box = el.getBoundingClientRect();
 		// A few pixels of slop: a press one pixel outside the box is the same

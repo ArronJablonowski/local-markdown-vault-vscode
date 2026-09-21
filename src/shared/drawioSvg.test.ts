@@ -37,12 +37,12 @@ describe('escapeXml', () => {
 });
 
 describe('sanitizeColor', () => {
-	it('accepts hex colours', () => {
+	it('accepts hex colors', () => {
 		expect(sanitizeColor('#ff0000', '#000')).toBe('#ff0000');
 		expect(sanitizeColor('#f00', '#000')).toBe('#f00');
 	});
 
-	it('accepts plain colour names', () => {
+	it('accepts plain color names', () => {
 		expect(sanitizeColor('none', '#000')).toBe('none');
 		expect(sanitizeColor('red', '#000')).toBe('red');
 	});
@@ -111,12 +111,13 @@ describe('wrapLabel', () => {
 		expect(lines.join(' ').replace(/\s+/g, ' ')).toBe('the quick brown fox jumps over the lazy dog');
 	});
 
-	// Japanese has no spaces to break on, so a per-character break is the only
+	// CJK text can omit spaces, so a per-character break is the only
 	// way to keep the label inside its box.
 	it('breaks CJK text without spaces', () => {
-		const lines = wrapLabel('これは日本語のとても長いラベルです', 60, 12);
+		const label = '\u754c'.repeat(18);
+		const lines = wrapLabel(label, 60, 12);
 		expect(lines.length).toBeGreaterThan(1);
-		expect(lines.join('')).toBe('これは日本語のとても長いラベルです');
+		expect(lines.join('')).toBe(label);
 	});
 
 	// A single token wider than the box still has to be cut, or it runs past the
@@ -156,13 +157,13 @@ describe('renderDiagramSvg', () => {
 		expect(svg).toContain('<polygon');
 	});
 
-	it('applies the document fill and stroke colours', () => {
+	it('applies the document fill and stroke colors', () => {
 		const svg = render(box('style="fillColor=#ffcc00;strokeColor=#333333"'));
 		expect(svg).toContain('fill="#ffcc00"');
 		expect(svg).toContain('stroke="#333333"');
 	});
 
-	it('uses the theme colours when the document specifies none', () => {
+	it('uses the theme colors when the document specifies none', () => {
 		expect(render(box('value="x"'), DARK_THEME)).toContain(DARK_THEME.fill);
 		expect(render(box('value="x"'), LIGHT_THEME)).toContain(LIGHT_THEME.fill);
 	});
@@ -212,7 +213,7 @@ describe('renderDiagramSvg', () => {
 
 	// Endpoints resolved from source/target are centres; an untrimmed arrow ends
 	// under the target box and its head is never seen.
-	it('stops an edge at the target boundary, not its centre', () => {
+	it('stops an edge at the target boundary, not its center', () => {
 		const svg = render(
 			`<mxCell id="a" vertex="1" parent="1"><mxGeometry x="0" y="0" width="100" height="100" as="geometry"/></mxCell>
 			<mxCell id="b" vertex="1" parent="1"><mxGeometry x="300" y="0" width="100" height="100" as="geometry"/></mxCell>
@@ -222,9 +223,9 @@ describe('renderDiagramSvg', () => {
 		// one comes first in the markup and would otherwise be measured instead.
 		const path = /<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) [\d.-]+" fill="none"/.exec(svg);
 		expect(path).not.toBeNull();
-		// b's centre is x=350; the line must stop at its left edge, x=300.
+		// b's center is x=350; the line must stop at its left edge, x=300.
 		expect(Number(path![3])).toBeCloseTo(300, 0);
-		// and start at a's right edge, x=100, not its centre x=50.
+		// and start at a's right edge, x=100, not its center x=50.
 		expect(Number(path![1])).toBeCloseTo(100, 0);
 	});
 
@@ -274,7 +275,7 @@ describe('label contrast', () => {
 		expect(colorLuminance('#ffffff')).toBeCloseTo(1, 3);
 		expect(colorLuminance('#000000')).toBeCloseTo(0, 3);
 		// Green must read as far lighter than blue at equal channel value; a plain
-		// average would call them identical and mis-pick the text colour.
+		// average would call them identical and mis-pick the text color.
 		expect(colorLuminance('#00ff00')!).toBeGreaterThan(colorLuminance('#0000ff')!);
 	});
 
@@ -313,8 +314,8 @@ describe('label contrast', () => {
 	});
 
 	// A shape with no fill of its own sits on the editor background, so there the
-	// theme's own text colour is the correct choice.
-	it('uses the theme colour for an unfilled shape', () => {
+	// theme's own text color is the correct choice.
+	it('uses the theme color for an unfilled shape', () => {
 		const svg = render(box('style="fillColor=none" value="x"'), DARK_THEME);
 		expect(svg).toContain(`fill="${DARK_THEME.text}"`);
 	});
@@ -327,14 +328,14 @@ describe('AWS-style diagrams', () => {
 	it('reports contrast only when luminance differs enough', () => {
 		expect(hasContrast('#000000', '#ffffff')).toBe(true);
 		expect(hasContrast('#232f3e', '#2b3140')).toBe(false);
-		// An unmeasurable colour keeps the author's choice rather than guessing.
+		// An unmeasurable color keeps the author's choice rather than guessing.
 		expect(hasContrast('red', '#ffffff')).toBe(true);
 	});
 
 	// The AWS shape library hard-codes near-black captions, which vanish on a dark
 	// canvas. A label drawn *onto the page* — an unfilled frame's own title — is a
-	// case where the backdrop is known, so an unreadable colour is replaced.
-	it('overrides an unreadable authored colour on the page', () => {
+	// case where the backdrop is known, so an unreadable color is replaced.
+	it('overrides an unreadable authored color on the page', () => {
 		const svg = render(
 			`<mxCell id="g" style="shape=mxgraph.aws4.group;fillColor=none;verticalAlign=top;fontColor=#232F3E" value="AWS Cloud" vertex="1" parent="1">
 				<mxGeometry x="0" y="0" width="600" height="400" as="geometry"/>
@@ -347,9 +348,9 @@ describe('AWS-style diagrams', () => {
 
 	// A caption below an icon is drawn outside its shape and typically lands on an
 	// enclosing subnet's pale fill, not on the page. Overriding it there produced
-	// light text on pale green — worse than the colour the author chose — so the
-	// authored colour is deliberately left alone when the backdrop is unknown.
-	it('keeps an authored colour for a caption drawn outside its shape', () => {
+	// light text on pale green — worse than the color the author chose — so the
+	// authored color is deliberately left alone when the backdrop is unknown.
+	it('keeps an authored color for a caption drawn outside its shape', () => {
 		const svg = render(
 			awsIcon('style="shape=mxgraph.aws4.users;verticalLabelPosition=bottom;fontColor=#232F3E" value="Users"'),
 			DARK_THEME,
@@ -357,9 +358,9 @@ describe('AWS-style diagrams', () => {
 		expect(svg).toContain('fill="#232F3E"');
 	});
 
-	// On a filled shape the fill travels with the label, so the author's colour
+	// On a filled shape the fill travels with the label, so the author's color
 	// is still the right one and must not be second-guessed.
-	it('keeps an authored colour on a filled shape', () => {
+	it('keeps an authored color on a filled shape', () => {
 		const svg = render(awsIcon('style="fillColor=#ED7100;fontColor=#232F3E" value="EC2"'), DARK_THEME);
 		expect(svg).toContain('fill="#232F3E"');
 	});
@@ -497,16 +498,16 @@ describe('orthogonal edge routing', () => {
 		expect(/<path d="[^"]*L 30 330/.test(svg)).toBe(true);
 	});
 
-	// The boxes are found by id now; two shapes sharing a centre used to make the
-	// old centre-matching lookup pick whichever came first.
-	it('trims against the right box when two shapes share a centre', () => {
+	// The boxes are found by id now; two shapes sharing a center used to make the
+	// old center-matching lookup pick whichever came first.
+	it('trims against the right box when two shapes share a center', () => {
 		const svg = render(
 			`<mxCell id="big" style="fillColor=none" vertex="1" parent="1"><mxGeometry x="0" y="0" width="400" height="400" as="geometry"/></mxCell>
 			<mxCell id="small" vertex="1" parent="1"><mxGeometry x="180" y="180" width="40" height="40" as="geometry"/></mxCell>
 			<mxCell id="far" vertex="1" parent="1"><mxGeometry x="600" y="180" width="40" height="40" as="geometry"/></mxCell>
 			<mxCell id="e" style="edgeStyle=none" edge="1" parent="1" source="small" target="far"><mxGeometry as="geometry"/></mxCell>`,
 		);
-		// Leaving `small` (centre x=200, half-width 20) the line starts at x=220,
+		// Leaving `small` (center x=200, half-width 20) the line starts at x=220,
 		// not at the enclosing box's edge (x=400).
 		// Anchored on `fill="none"` so this reads the connector, not the arrowhead
 		// marker's own path inside <defs>, which comes first in the markup.
@@ -579,7 +580,7 @@ describe('label fitting', () => {
 	// The defect this prevents: a label longer than its box was drawn past the
 	// border, over whatever was next to it — damaging other shapes' readability.
 	it('shrinks the font until the block fits the height', () => {
-		const tall = fitLabel('とても長いラベルが狭い箱に入っている場合どうなるか', 90, 50, 12);
+		const tall = fitLabel('\u754c'.repeat(24), 90, 50, 12);
 		expect(tall.fontSize).toBeLessThan(12);
 		expect(tall.lines.length * tall.fontSize * 1.25).toBeLessThanOrEqual(50);
 	});
@@ -587,9 +588,10 @@ describe('label fitting', () => {
 	// Better a tiny label than a clipped one, and better either than dropping the
 	// text and hiding what the diagram says.
 	it('stops shrinking at the floor and keeps the text', () => {
-		const r = fitLabel('とても長い文字列'.repeat(20), 40, 12, 12);
+		const marker = '\u754c'.repeat(8);
+		const r = fitLabel(marker.repeat(20), 40, 12, 12);
 		expect(r.fontSize).toBeGreaterThanOrEqual(6);
-		expect(r.lines.join('')).toContain('とても長い');
+		expect(r.lines.join('')).toContain(marker);
 	});
 
 	it('imposes no limit when no height is given', () => {
@@ -597,7 +599,7 @@ describe('label fitting', () => {
 	});
 
 	it('renders a long label inside its shape', () => {
-		const svg = render(box('style="whiteSpace=wrap" value="とても長いラベルが狭い箱に入っている場合"'));
+		const svg = render(box(`style="whiteSpace=wrap" value="${'\u754c'.repeat(24)}"`));
 		const size = Number(/<text[^>]*font-size="([\d.]+)"/.exec(svg)![1]);
 		expect(size).toBeLessThan(12);
 		// Every baseline must stay within the shape (y = 0..50).
@@ -726,12 +728,12 @@ describe('AWS architecture symbols', () => {
 		expect(svg).toContain(`d="${SHAPES.ec2.d}"`);
 	});
 
-	// The stencils carry no colour; it must come from the user's own diagram.
-	it('colours the symbol from the diagram, not from the theme', () => {
+	// The stencils carry no color; it must come from the user's own diagram.
+	it('colors the symbol from the diagram, not from the theme', () => {
 		const light = withLookup(tile(''), LIGHT_THEME);
 		const dark = withLookup(tile(''), DARK_THEME);
 		expect(light).toContain('<path d="M 0 0 L 56 0 L 56 56 Z" fill="#ffffff"/>');
-		// Identical in both themes: nothing here adapts the symbol's colour.
+		// Identical in both themes: nothing here adapts the symbol's color.
 		expect(dark).toContain('<path d="M 0 0 L 56 0 L 56 56 Z" fill="#ffffff"/>');
 	});
 

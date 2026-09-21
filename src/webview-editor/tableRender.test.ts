@@ -87,9 +87,9 @@ describe('renderTableElement', () => {
 	it('renders a table nested in a list item, markup and alignment intact', () => {
 		// The nested case goes through the patched GFM parser (gfmTableFix.ts);
 		// this checks the rendering path end-to-end for it too.
-		expect(rowsOf(renderTable('- w:\n  | 行動 | 経験値 |\n  |---|---:|\n  | 配達 | **1pt** |\n'))).toBe(
-			'<tr><th>行動</th><th style="text-align:right">経験値</th></tr>' +
-				'<tr><td>配達</td><td style="text-align:right"><strong class="mlp-strong">1pt</strong></td></tr>',
+		expect(rowsOf(renderTable('- w:\n  | Action | Points |\n  |---|---:|\n  | Delivery | **1pt** |\n'))).toBe(
+			'<tr><th>Action</th><th style="text-align:right">Points</th></tr>' +
+				'<tr><td>Delivery</td><td style="text-align:right"><strong class="mlp-strong">1pt</strong></td></tr>',
 		);
 	});
 });

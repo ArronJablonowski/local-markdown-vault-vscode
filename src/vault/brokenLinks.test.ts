@@ -68,13 +68,13 @@ describe('broken vault links', () => {
 			target: `Missing-${index}`,
 			line: index + 1,
 		}));
-		let cancelled = false;
-		setTimeout(() => { cancelled = true; }, 0);
+		let canceled = false;
+		setTimeout(() => { canceled = true; }, 0);
 		await expect(findBrokenVaultLinksAsync(
 			[record('Source.md', links)],
 			false,
 			500,
-			() => cancelled,
+			() => canceled,
 		)).resolves.toEqual([]);
 	});
 });

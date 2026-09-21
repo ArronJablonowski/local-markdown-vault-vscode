@@ -185,7 +185,7 @@ export class StylePreviewController {
 		const nonce = createCspNonce();
 		const documentTitle = vscode.l10n.t('Style Preview');
 		return `<!DOCTYPE html>
-<html lang="${escapeAttribute(vscode.env.language)}">
+<html lang="en-US">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};" />

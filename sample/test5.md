@@ -1,39 +1,39 @@
-## 1: 直後にテキストなし(ファイル末尾が表)
+# Table Boundary Regression Cases
 
-- w:
-  | h | v |
-  |---|---|
-  | a | 1 |
+## 1. Table at end of file
 
-## 2: 表の後ろにリスト項目が続く
+| A | B |
+| --- | --- |
+| 1 | 2 |
 
-- w:
-  | h | v |
-  |---|---|
-  | a | 1 |
-- 次の項目
+## 2. List item after a table
 
-## 3: 2項目め以降に表
+| A | B |
+| --- | --- |
+| 1 | 2 |
 
-- 最初の項目
-- w:
-  | h | v |
-  |---|---|
-  | a | 1 |
+- Next item
 
-## 4: 表が2行だけ(データ行なし)
+## 3. Table after the first list item
 
-- w:
-  | h | v |
-  |---|---|
+- First item
+- Second item
 
-## 5: 見出し直後ではなく段落の後
+  | A | B |
+  | --- | --- |
+  | 1 | 2 |
 
-段落テキストです。
+## 4. Header and delimiter only
 
-- w:
-  | h | v |
-  |---|---|
-  | a | 1 |
+| A | B |
+| --- | --- |
 
-ここにカーソルを置いてください。
+## 5. Table after a paragraph
+
+This paragraph precedes the table.
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+
+Place the cursor here.

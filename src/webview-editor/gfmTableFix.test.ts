@@ -24,12 +24,12 @@ function parse(doc: string): { state: EditorState; tables: SyntaxNode[] } {
 
 describe('gfmTableFix', () => {
 	it('recognizes a table directly under a bullet list item with no blank line before it (regression)', () => {
-		const { tables } = parse('- 重みづけ：\n  | 行動 | 経験値 |\n  |---|---|\n  | 配達1個 | 1pt |\n');
+		const { tables } = parse('- Weighting:\n  | Action | Points |\n  |---|---|\n  | One delivery | 1 point |\n');
 		expect(tables).toHaveLength(1);
 	});
 
 	it('recognizes a table directly under a numbered list item with no blank line before it', () => {
-		const { tables } = parse('1. 重みづけ：\n   | a | b |\n   |---|---|\n   | c | d |\n');
+		const { tables } = parse('1. Weighting:\n   | a | b |\n   |---|---|\n   | c | d |\n');
 		expect(tables).toHaveLength(1);
 	});
 

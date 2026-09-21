@@ -65,7 +65,7 @@ describe('authoritative vault search matching', () => {
 		await expect(searchVaultWithContext(index, '-property:status=ready', 10)).resolves.toEqual([]);
 	});
 
-	it('stops scheduling note reads when an obsolete search is cancelled', async () => {
+	it('stops scheduling note reads when an obsolete search is canceled', async () => {
 		const records = Array.from({ length: 40 }, (_, index) => ({
 			...record,
 			path: `Notes/${index}.md`,
@@ -91,7 +91,7 @@ describe('authoritative vault search matching', () => {
 		expect(reads).toBe(8);
 	});
 
-	it('does not begin work for a search cancelled while queued', async () => {
+	it('does not begin work for a search canceled while queued', async () => {
 		let reads = 0;
 		const index = {
 			flushDocumentUpdates: async () => undefined,

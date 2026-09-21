@@ -59,7 +59,7 @@ function getActiveCustomEditorUri(): vscode.Uri | undefined {
 	return undefined;
 }
 
-// Files the user explicitly asked to view as plain source (via "ソースを開く"),
+// Files the user explicitly asked to view as plain source through Open Source,
 // exempted from the auto-reopen-as-Live-Preview watcher below until closed or
 // reopened in Live Preview again. Keyed by `Uri#toString()`.
 const sourceOverrideUris = new Set<string>();

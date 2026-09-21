@@ -10,7 +10,7 @@ function tags(source: string): string[] {
 
 describe('inline tags', () => {
 	it('finds Unicode and nested tags', () => {
-		expect(tags('Use #work/active and (#日本語).')).toEqual(['work/active', '日本語']);
+		expect(tags('Use #work/active and (#\u65e5\u672c\u8a9e).')).toEqual(['work/active', '\u65e5\u672c\u8a9e']);
 	});
 
 	it('does not treat headings, code, URL fragments, or numbers as tags', () => {

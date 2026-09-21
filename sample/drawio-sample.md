@@ -1,70 +1,46 @@
-# draw.io サンプル
+# draw.io Sample
 
-## 1. コードフェンスで書く
+## 1. Inline XML fence
 
-XML をそのまま ` ```drawio ` の中に書くと、その場で図になります。
+Place uncompressed draw.io XML inside a `drawio` code fence to render it in place.
 
 ```drawio
 <mxfile>
-  <diagram name="システム構成">
-    <mxGraphModel>
-      <root>
-        <mxCell id="0"/>
-        <mxCell id="1" parent="0"/>
-        <mxCell id="web" value="Web サーバー" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1">
-          <mxGeometry x="40" y="40" width="160" height="60" as="geometry"/>
-        </mxCell>
-        <mxCell id="api" value="API サーバー" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1">
-          <mxGeometry x="280" y="40" width="160" height="60" as="geometry"/>
-        </mxCell>
-        <mxCell id="db" value="データベース" style="shape=cylinder;fillColor=#ffe6cc;strokeColor=#d79b00" vertex="1" parent="1">
-          <mxGeometry x="300" y="180" width="120" height="80" as="geometry"/>
-        </mxCell>
-        <mxCell id="e1" value="HTTP" style="" edge="1" parent="1" source="web" target="api">
-          <mxGeometry as="geometry"/>
-        </mxCell>
-        <mxCell id="e2" value="SQL" style="" edge="1" parent="1" source="api" target="db">
-          <mxGeometry as="geometry"/>
-        </mxCell>
-      </root>
-    </mxGraphModel>
+  <diagram name="System Architecture">
+    <mxGraphModel><root>
+      <mxCell id="0"/>
+      <mxCell id="1" parent="0"/>
+      <mxCell id="web" value="Web Server" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1">
+        <mxGeometry x="40" y="60" width="120" height="60" as="geometry"/>
+      </mxCell>
+      <mxCell id="api" value="API Server" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1">
+        <mxGeometry x="220" y="60" width="120" height="60" as="geometry"/>
+      </mxCell>
+      <mxCell id="db" value="Database" style="shape=cylinder;fillColor=#ffe6cc;strokeColor=#d79b00" vertex="1" parent="1">
+        <mxGeometry x="400" y="60" width="120" height="60" as="geometry"/>
+      </mxCell>
+      <mxCell id="edge1" edge="1" parent="1" source="web" target="api"><mxGeometry relative="1" as="geometry"/></mxCell>
+      <mxCell id="edge2" edge="1" parent="1" source="api" target="db"><mxGeometry relative="1" as="geometry"/></mxCell>
+    </root></mxGraphModel>
   </diagram>
 </mxfile>
 ```
 
-## 2. 基本の図形
+## 2. Basic shapes
 
 ```drawio
-<mxGraphModel>
-  <root>
-    <mxCell id="0"/>
-    <mxCell id="1" parent="0"/>
-    <mxCell id="a" value="四角" vertex="1" parent="1">
-      <mxGeometry x="20" y="20" width="100" height="50" as="geometry"/>
-    </mxCell>
-    <mxCell id="b" value="楕円" style="ellipse" vertex="1" parent="1">
-      <mxGeometry x="150" y="20" width="100" height="50" as="geometry"/>
-    </mxCell>
-    <mxCell id="c" value="判断" style="rhombus" vertex="1" parent="1">
-      <mxGeometry x="280" y="10" width="100" height="70" as="geometry"/>
-    </mxCell>
-    <mxCell id="d" value="六角形" style="shape=hexagon" vertex="1" parent="1">
-      <mxGeometry x="20" y="110" width="100" height="50" as="geometry"/>
-    </mxCell>
-    <mxCell id="e" value="メモ" style="shape=note" vertex="1" parent="1">
-      <mxGeometry x="150" y="110" width="100" height="60" as="geometry"/>
-    </mxCell>
-    <mxCell id="f" value="処理" style="shape=process" vertex="1" parent="1">
-      <mxGeometry x="280" y="110" width="100" height="50" as="geometry"/>
-    </mxCell>
-  </root>
-</mxGraphModel>
+<mxGraphModel><root>
+  <mxCell id="0"/><mxCell id="1" parent="0"/>
+  <mxCell id="a" value="Rectangle" vertex="1" parent="1"><mxGeometry x="20" y="20" width="100" height="50" as="geometry"/></mxCell>
+  <mxCell id="b" value="Ellipse" style="ellipse" vertex="1" parent="1"><mxGeometry x="140" y="20" width="100" height="50" as="geometry"/></mxCell>
+  <mxCell id="c" value="Decision" style="rhombus" vertex="1" parent="1"><mxGeometry x="260" y="15" width="90" height="60" as="geometry"/></mxCell>
+</root></mxGraphModel>
 ```
 
-## 3. 外部ファイルを参照する
+## 3. External file reference
 
-draw.io アプリで作った `.drawio` ファイルは、画像と同じ書き方で読み込めます。
+An uncompressed `.drawio` file inside the vault can be referenced like an image:
 
-![構成図](./assets/architecture.drawio)
+![Architecture diagram](./assets/architecture.drawio)
 
-`.drawio.svg` や `.drawio.png` で保存したものは、これまで通り普通の画像として表示されます。
+Files exported as `.drawio.svg` or `.drawio.png` remain ordinary images.

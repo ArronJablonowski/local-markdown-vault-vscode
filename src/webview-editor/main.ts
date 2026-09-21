@@ -169,7 +169,7 @@ function createExtensions(): Extension[] {
 		),
 		// Without this a state keeps only one selection range, so Mod-d's
 		// multi-cursor search silently collapses to a single cursor — and the
-		// multiple-cursor behaviour Ctrl+B/Ctrl+I already document never had a way
+		// multiple-cursor behavior Ctrl+B/Ctrl+I already document never had a way
 		// to arise. `drawSelection` renders the extra carets, which the browser's
 		// native selection cannot show.
 		EditorState.allowMultipleSelections.of(true),

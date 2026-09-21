@@ -4,7 +4,7 @@ import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './k
 describe('knowledge command validation', () => {
 	it('accepts canonical indexed paths and bounded one-based lines', () => {
 		expect(validateOpenIndexedPathArguments('Notes/Plan.md', undefined)).toEqual({ path: 'Notes/Plan.md' });
-		expect(validateOpenIndexedPathArguments('日本語/計画.markdown', 42)).toEqual({ path: '日本語/計画.markdown', line: 42 });
+		expect(validateOpenIndexedPathArguments('\u65e5\u672c\u8a9e/\u8a08\u753b.markdown', 42)).toEqual({ path: '\u65e5\u672c\u8a9e/\u8a08\u753b.markdown', line: 42 });
 	});
 
 	it.each([
@@ -31,7 +31,7 @@ describe('knowledge command validation', () => {
 
 	it('accepts nested Unicode tags and rejects query syntax', () => {
 		expect(validateSearchTagArgument('research/local')).toBe('research/local');
-		expect(validateSearchTagArgument('計画/進行中')).toBe('計画/進行中');
+		expect(validateSearchTagArgument('\u8a08\u753b/\u9032\u884c\u4e2d')).toBe('\u8a08\u753b/\u9032\u884c\u4e2d');
 		for (const value of [undefined, {}, '', '#tag', '/tag', 'tag/', 'tag//child', 'tag OR file:secret', 'tag with spaces', 'tag\nOR path:any', 'a'.repeat(513)]) {
 			expect(validateSearchTagArgument(value)).toBeUndefined();
 		}

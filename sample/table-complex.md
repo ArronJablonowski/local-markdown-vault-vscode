@@ -1,52 +1,47 @@
-# 複雑なテーブルの表示確認
+# Complex Table Rendering Checks
 
-## 1. 装飾の入れ子
+## 1. Nested formatting
 
-| 記法 | 表示 |
-|---|---|
-| `***bi***` | ***bi*** |
-| `**a *b* c**` | **a *b* c** |
-| `**[t](https://example.com)**` | **[t](https://example.com)** |
-| `[**b** t](https://example.com)` | [**b** t](https://example.com) |
+| Syntax | Expected rendering |
+| --- | --- |
+| `***bold italic***` | ***bold italic*** |
+| `**bold with *italic***` | **bold with *italic*** |
+| `[link](https://example.com)` | [link](https://example.com) |
 
-## 2. アンダースコアと記号
+## 2. Underscores and symbols
 
-| 記法 | 表示 |
-|---|---|
-| `_em_` と `__strong__` | _em_ and __strong__ |
-| `**2 * 3**` | **2 * 3** |
-| `a * b * c` | a * b * c |
-| `\*not em\*` | \*not em\* |
+| Syntax | Expected rendering |
+| --- | --- |
+| `_em_` and `__strong__` | _em_ and __strong__ |
+| `2 * 3` | 2 * 3 |
+| escaped pipe | `a \| b` |
 
-## 3. コードとHTML
+## 3. Code and inert HTML
 
-| 記法 | 表示 |
-|---|---|
-| 複数バッククォート | ``a`b`` |
-| コード内の記法 | `**not bold**` |
-| 改行タグ | 1行目<br>2行目 |
-| 生タグ | <b>literal</b> |
-| 記号 | 1 < 2 & 3 |
+| Case | Value |
+| --- | --- |
+| Multiple backticks | ``a`b`` |
+| Markdown in code | `**not bold**` |
+| Line break | first<br>second |
+| Raw tag | <b>literal</b> |
+| Symbols | 1 < 2 & 3 |
 
-## 4. 列揃え
+## 4. Alignment
 
-| 左 | 中央 | 右 |
-|:---|:----:|----:|
-| a | b | c |
-| longer | longer | longer |
+| Left | Center | Right |
+| :--- | :---: | ---: |
+| A | B | C |
 
-## 5. 行の過不足
+## 5. Uneven rows
 
-| a | b | c |
-|---|---|---|
-| 1 |
-| 1 | 2 | 3 | 4 |
-| 1 |  | 3 |
+| A | B | C |
+| --- | --- | --- |
+| one | two |
+| one | two | three | ignored |
 
-## 6. リスト内のテーブル
+## 6. Table inside a list
 
-- 重みづけ：
-  | 行動 | 経験値 |
-  |---|---:|
-  | 配達1個 | **1pt** |
-  | `bonus` | *2pt* |
+- Weighted actions:
+  | Action | Points |
+  | --- | ---: |
+  | Delivery | **1** |

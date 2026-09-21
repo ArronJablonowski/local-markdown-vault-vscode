@@ -4,8 +4,8 @@
  * The parsing and drawing live in `shared/drawio*.ts` and are deliberately
  * DOM-free so they can be unit-tested under Node. This module is the thin layer
  * that supplies what only the webview has: a real `DOMParser`, and the VS Code
- * colour theme the diagram should adopt when the document does not specify its
- * own colours.
+ * color theme the diagram should adopt when the document does not specify its
+ * own colors.
  *
  * Unlike Mermaid, this needs no separately-loaded bundle — the renderer is a few
  * kilobytes of our own code with no dependencies, so it is bundled directly into

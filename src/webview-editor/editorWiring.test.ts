@@ -13,7 +13,7 @@ import { join } from 'node:path';
  *
  * Asserting on the source text is crude, but the alternative is booting a real
  * CodeMirror against a DOM, and what needs guarding here is only "is this line
- * present" rather than any behaviour. The same file's behaviour is covered by
+ * present" rather than any behavior. The same file's behavior is covered by
  * the integration and e2e suites.
  */
 const MAIN = readFileSync(join(__dirname, 'main.ts'), 'utf8');
@@ -25,7 +25,7 @@ const THEME = readFileSync(
 describe('editor wiring', () => {
 	it('enables multiple selections', () => {
 		// Without this, every extra cursor collapses into one: Ctrl+D does nothing
-		// and Ctrl+B/Ctrl+I silently lose their multi-cursor behaviour.
+		// and Ctrl+B/Ctrl+I silently lose their multi-cursor behavior.
 		expect(MAIN).toContain('allowMultipleSelections.of(true)');
 	});
 

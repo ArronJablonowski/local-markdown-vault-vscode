@@ -162,7 +162,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		const documentTitle = vscode.l10n.t('Markdown Live Preview');
 
 		return `<!DOCTYPE html>
-<html lang="${escapeAttribute(vscode.env.language)}">
+<html lang="en-US">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} blob:${remoteImageSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src ${webview.cspSource};" />
@@ -184,7 +184,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		const explanation = vscode.l10n.t('Markdown Live Preview is limited to documents no larger than 20 MiB.');
 		const action = vscode.l10n.t('Use Open Source in the editor toolbar to edit this file as plain Markdown.');
 		return `<!DOCTYPE html>
-<html lang="${escapeAttribute(vscode.env.language)}">
+<html lang="en-US">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource};" />

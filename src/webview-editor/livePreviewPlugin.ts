@@ -1154,7 +1154,7 @@ function cellFromPoint(event: MouseEvent, table: HTMLElement): HTMLElement | nul
 		}
 	}
 	// Fall back to the event's own target when the point matched nothing (a click
-	// on the table's outer edge), so behaviour is never *worse* than before.
+	// on the table's outer edge), so behavior is never *worse* than before.
 	const cell = found ?? direct;
 	return cell && table.contains(cell) ? cell : null;
 }
@@ -1770,7 +1770,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
  * link is expected to do — it used to require Ctrl/Cmd, and a plain click fell
  * through to CodeMirror instead, putting the caret in the text and unrendering
  * the link into its `[label](url)` source. Ctrl/Cmd-click keeps working, so
- * the habit from the old behaviour still does the right thing.
+ * the habit from the old behavior still does the right thing.
  *
  * Editing a link's own text is still possible: click just outside it, or use
  * the keyboard. That is the same trade every rendered block makes here.

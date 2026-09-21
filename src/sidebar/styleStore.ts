@@ -43,11 +43,11 @@ interface StyleFile {
 }
 
 const NEW_STYLE_TEMPLATE = `/*
- * 新しい Markdown Live Preview スタイル。
- * VS Code の Markdown プレビューと同じ CSS 形式（HTML 要素セレクタ）で書けます。
- * 例: body, h1〜h6, p, strong, em, a, ul, ol, li, code, pre, blockquote,
+ * New Local Markdown Vault style.
+ * Use the same element-selector format as VS Code Markdown preview CSS.
+ * Examples: body, h1-h6, p, strong, em, a, ul, ol, li, code, pre, blockquote,
  *     table, th, td, hr, img, input[type=checkbox]
- * ダークテーマ用に上書きしたいときは body.vscode-dark を接頭辞に付けます。
+ * Prefix a rule with body.vscode-dark to override it for dark themes.
  */
 h1 {
 	color: #4493f8;
@@ -231,7 +231,7 @@ export class StyleStore {
 		return uri;
 	}
 
-	/** Copy a style to "<name> のコピー.css" (uniquified). The copy is not auto-enabled. */
+	/** Copy a style to a unique "<name> copy.css" file. The copy is not auto-enabled. */
 	async duplicateStyle(id: string): Promise<vscode.Uri | undefined> {
 		if (!vscode.workspace.isTrusted) return undefined;
 		const files = await this.listAllStyleFiles();

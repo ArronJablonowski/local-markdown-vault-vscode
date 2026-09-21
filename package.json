@@ -545,6 +545,7 @@
     "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:cache-restart && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
     "package": "vsce package --no-dependencies && node scripts/verify-vsix.mjs",
     "package:verify": "node scripts/verify-vsix.mjs",
+    "language:verify": "node scripts/verify-us-english.mjs",
     "security:dependencies": "node scripts/verify-dependency-policy.mjs",
     "security:audit": "npm audit --audit-level=high",
     "security:sbom": "cyclonedx-npm --package-lock-only --omit dev --output-reproducible --validate --output-format JSON --output-file local-markdown-vault.cdx.json",

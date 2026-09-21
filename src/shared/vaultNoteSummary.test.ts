@@ -50,7 +50,7 @@ describe('vault note webview summaries', () => {
 	it('chunks by exact UTF-8 message size as well as note count', () => {
 		const notes = Array.from({ length: 250 }, (_, index) => createVaultNoteSummary({
 			path: `Note-${index}.md`, basename: `Note-${index}`,
-			aliases: Array.from({ length: 100 }, (_, alias) => `別名-${index}-${alias}-${'界'.repeat(400)}`),
+			aliases: Array.from({ length: 100 }, (_, alias) => `alias-${index}-${alias}-${'\u754c'.repeat(400)}`),
 			headings: [], blockIds: [],
 		}));
 		const chunks = chunkVaultNoteSummaries(notes, 7);

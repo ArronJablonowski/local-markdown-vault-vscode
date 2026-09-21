@@ -301,7 +301,7 @@ suite('Document Vault filesystem transactions', () => {
 		const fixtureRelative = fixture.fsPath.slice(service.rootUri.fsPath.length + 1).replace(/\\/g, '/');
 		const externalFolder = vscode.Uri.joinPath(fixture, 'External Folder');
 		const externalNote = vscode.Uri.joinPath(externalFolder, 'Watched Note.md');
-		const noteBytes = bytes('# External watcher\n\nUnchanged 日本語 🧭.\n');
+		const noteBytes = bytes('# External watcher\n\nUnchanged \u65e5\u672c\u8a9e 🧭.\n');
 		await vscode.workspace.fs.createDirectory(externalFolder);
 		await vscode.workspace.fs.writeFile(externalNote, noteBytes);
 		const originalPath = `${fixtureRelative}/External Folder/Watched Note.md`;
@@ -313,16 +313,16 @@ suite('Document Vault filesystem transactions', () => {
 		await waitForVaultTreePaths(api, fixtureRelative, (paths) => paths.includes(`${fixtureRelative}/External Folder`));
 		await waitForVaultTreePaths(api, `${fixtureRelative}/External Folder`, (paths) => paths.includes(originalPath));
 
-		const renamedFolder = vscode.Uri.joinPath(fixture, '外部 🧭');
+		const renamedFolder = vscode.Uri.joinPath(fixture, '\u5916\u90e8 🧭');
 		await vscode.workspace.fs.rename(externalFolder, renamedFolder, { overwrite: false });
-		const renamedPath = `${fixtureRelative}/外部 🧭/Watched Note.md`;
+		const renamedPath = `${fixtureRelative}/\u5916\u90e8 🧭/Watched Note.md`;
 		await waitForCondition(() => {
 			const paths = api.getVaultIndexRecords().map((record) => record.path);
 			return paths.includes(renamedPath) && !paths.includes(originalPath);
 		}, 'external Unicode folder rename did not converge in the vault index');
 		await waitForVaultTreePaths(api, fixtureRelative, (paths) =>
-			paths.includes(`${fixtureRelative}/外部 🧭`) && !paths.includes(`${fixtureRelative}/External Folder`));
-		await waitForVaultTreePaths(api, `${fixtureRelative}/外部 🧭`, (paths) => paths.includes(renamedPath));
+			paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`) && !paths.includes(`${fixtureRelative}/External Folder`));
+		await waitForVaultTreePaths(api, `${fixtureRelative}/\u5916\u90e8 🧭`, (paths) => paths.includes(renamedPath));
 		assertBytesEqual(
 			await vscode.workspace.fs.readFile(vscode.Uri.joinPath(renamedFolder, 'Watched Note.md')),
 			noteBytes,
@@ -334,7 +334,7 @@ suite('Document Vault filesystem transactions', () => {
 			() => !api.getVaultIndexRecords().some((record) => record.path === renamedPath),
 			'external folder deletion did not leave the vault index',
 		);
-		await waitForVaultTreePaths(api, fixtureRelative, (paths) => !paths.includes(`${fixtureRelative}/外部 🧭`));
+		await waitForVaultTreePaths(api, fixtureRelative, (paths) => !paths.includes(`${fixtureRelative}/\u5916\u90e8 🧭`));
 	});
 
 	test('authorizes only vault-confined mutation sources without following a symlink leaf', async () => {
@@ -553,18 +553,18 @@ suite('Document Vault filesystem transactions', () => {
 		const archive = await service.createFolder(fixture, 'Archive');
 		const source = await service.createNote(fixture, 'Cafe\u0301 😀');
 		const index = await service.createNote(fixture, 'Index');
-		const noteBytes = bytes('# Cafe\u0301 😀\n\nUnicode content: 日本語, naïve, 🧭.\n');
+		const noteBytes = bytes('# Cafe\u0301 😀\n\nUnicode content: \u65e5\u672c\u8a9e, naïve, 🧭.\n');
 		await vscode.workspace.fs.writeFile(source, noteBytes);
 		await vscode.workspace.fs.writeFile(index, bytes('[target](<Cafe\u0301 😀.md>)\n'));
 
-		const destination = vscode.Uri.joinPath(archive, '研究 🧭.md');
+		const destination = vscode.Uri.joinPath(archive, '\u7814\u7a76 🧭.md');
 		assert.strictEqual(await api.renameOrMoveMany([
 			{ source, destination, isFolder: false },
 		]), true);
 		assertBytesEqual(await vscode.workspace.fs.readFile(destination), noteBytes, 'Unicode move changed note bytes');
 		await assertMissing(source);
 		const indexDocument = await vscode.workspace.openTextDocument(index);
-		assert.strictEqual(indexDocument.getText(), '[target](<Archive/研究 🧭.md>)\n');
+		assert.strictEqual(indexDocument.getText(), '[target](<Archive/\u7814\u7a76 🧭.md>)\n');
 	});
 
 	test('rewrites a basename wikilink when a nested .markdown note is renamed', async () => {

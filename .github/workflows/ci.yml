@@ -19,6 +19,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm run security:dependencies
+      - run: npm run language:verify
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       # Product performance budgets are measured on the documented reference

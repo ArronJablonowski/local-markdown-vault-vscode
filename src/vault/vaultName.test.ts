@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { noteFileName, validateVaultEntryName, validateVaultRelativeNotePath } from './vaultName';
 
 describe('vault entry names', () => {
-	it.each(['Note', '日本語.md', 'my note', '.hidden'])('accepts %s', (name) => {
+	it.each(['Note', '\u65e5\u672c\u8a9e.md', 'my note', '.hidden'])('accepts %s', (name) => {
 		expect(validateVaultEntryName(name)).toBeUndefined();
 	});
 
@@ -17,7 +17,7 @@ describe('vault entry names', () => {
 });
 
 describe('validateVaultRelativeNotePath', () => {
-	it.each(['Note', 'Folder/New Note', './Folder/日本語.markdown', 'Nested/Deep/Note.md'])(
+	it.each(['Note', 'Folder/New Note', './Folder/\u65e5\u672c\u8a9e.markdown', 'Nested/Deep/Note.md'])(
 		'accepts safe vault-relative note path %s',
 		(path) => expect(validateVaultRelativeNotePath(path)).toBeUndefined(),
 	);
