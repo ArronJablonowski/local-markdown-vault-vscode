@@ -7,6 +7,7 @@ import type { RemoteMediaPolicy, VaultNoteSummary } from '../shared/messages';
 import { resolveWorkspaceRemoteMediaPolicy } from '../shared/securitySettings';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 import { createCspNonce } from '../shared/cspNonce';
+import { MarkdownAutoSaveController } from './markdownAutoSave';
 
 function remoteMediaPolicy(resource: vscode.Uri): RemoteMediaPolicy {
 	const inspected = vscode.workspace
@@ -15,10 +16,11 @@ function remoteMediaPolicy(resource: vscode.Uri): RemoteMediaPolicy {
 	return resolveWorkspaceRemoteMediaPolicy(vscode.workspace.isTrusted, inspected);
 }
 
-export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvider {
+export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvider, vscode.Disposable {
 	static readonly viewType = 'mdLivePreview.editor';
 
 	private readonly sessions = new Set<DocumentSyncSession>();
+	private readonly autoSave = new MarkdownAutoSaveController();
 
 	private constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -32,7 +34,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		getVaultNotes: () => VaultNoteSummary[],
 	): { disposable: vscode.Disposable; provider: MarkdownLivePreviewProvider } {
 		const provider = new MarkdownLivePreviewProvider(context, getCss, getVaultNotes);
-		const disposable = vscode.window.registerCustomEditorProvider(MarkdownLivePreviewProvider.viewType, provider, {
+		const registration = vscode.window.registerCustomEditorProvider(MarkdownLivePreviewProvider.viewType, provider, {
 			// Hidden editors are reconstructed from the authoritative TextDocument
 			// plus bounded caret/scroll hints stored by the webview. Keeping the full
 			// iframe alive would prolong rendered untrusted content, parsers, timers,
@@ -40,6 +42,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 			webviewOptions: { retainContextWhenHidden: false },
 			supportsMultipleEditorsPerDocument: true,
 		});
+		const disposable = vscode.Disposable.from(registration, provider);
 		return { disposable, provider };
 	}
 
@@ -60,6 +63,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 			return;
 		}
 		webviewPanel.webview.html = this.buildHtml(webviewPanel.webview, remoteMediaPolicy(document.uri));
+		const autoSaveTracking = this.autoSave.track(document);
 
 		const session = new DocumentSyncSession(
 			document,
@@ -71,9 +75,16 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		this.sessions.add(session);
 
 		webviewPanel.onDidDispose(() => {
+			autoSaveTracking.dispose();
 			session.dispose();
 			this.sessions.delete(session);
 		});
+	}
+
+	dispose(): void {
+		this.autoSave.dispose();
+		for (const session of this.sessions) session.dispose();
+		this.sessions.clear();
 	}
 
 	/** Called when the enabled CSS snippet set changes, to hot-reload every open panel. */

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { CodeThemeSetting, DefaultEditorSetting, HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
+import type { CodeThemeSetting, DefaultEditorSetting, EditingModeSetting, HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
 import { StyleStore } from './styleStore';
 import { StylePreviewController } from './StylePreviewController';
 import { escapeAttribute } from '../shared/i18n';
@@ -27,6 +27,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 			vscode.workspace.onDidChangeConfiguration((e) => {
 				if (
 					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditor`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditingMode`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.codeTheme`)
 				) {
 					void this.pushStyles();
@@ -129,9 +130,11 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	private getSettings(): SidebarSettings {
 		const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 		const defaultEditor = config.get<string>('defaultEditor', 'prompt');
+		const defaultEditingMode = config.get<string>('defaultEditingMode', 'editing');
 		const codeTheme = config.get<string>('codeTheme', 'auto');
 		return {
 			defaultEditor: (['prompt', 'livePreview', 'default'].includes(defaultEditor) ? defaultEditor : 'prompt') as DefaultEditorSetting,
+			defaultEditingMode: (['editing', 'locked'].includes(defaultEditingMode) ? defaultEditingMode : 'editing') as EditingModeSetting,
 			codeTheme: (['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(codeTheme) ? codeTheme : 'auto') as CodeThemeSetting,
 		};
 	}

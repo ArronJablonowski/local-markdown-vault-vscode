@@ -199,6 +199,17 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 	);
 	section.appendChild(
 		buildSelect(
+			t('sidebar.defaultEditingMode'),
+			settings.defaultEditingMode,
+			[
+				['editing', t('sidebar.defaultEditingMode.editing')],
+				['locked', t('sidebar.defaultEditingMode.locked')],
+			],
+			(v) => post({ type: 'setSetting', key: 'defaultEditingMode', value: v }),
+		),
+	);
+	section.appendChild(
+		buildSelect(
 			t('sidebar.codeTheme'),
 			settings.codeTheme,
 			[

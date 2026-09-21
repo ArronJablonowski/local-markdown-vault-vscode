@@ -119,6 +119,35 @@ test.describe('live preview editing', () => {
 	});
 });
 
+test.describe('locked Live Preview mode', () => {
+	test('starts locked, blocks document mutations, and unlocks from the upper-right toggle', async ({ page }) => {
+		await mountEditor(page, '# Locked note\n', { editingMode: 'locked' });
+		const editor = page.locator('.cm-content');
+		const toggle = page.getByRole('button', { name: 'Locked: select to edit the document' });
+		await expect(editor).toHaveAttribute('contenteditable', 'false');
+		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+		await page.evaluate(() => {
+			(window as unknown as { __posted: unknown[] }).__posted = [];
+		});
+		await editor.click();
+		await page.keyboard.type('malicious mutation');
+		await expect(editor).toContainText('Locked note');
+		await expect(editor).not.toContainText('malicious mutation');
+		expect(await page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string }> }).__posted.some((message) => message.type === 'edit'),
+		)).toBe(false);
+
+		await toggle.click();
+		await expect(editor).toHaveAttribute('contenteditable', 'true');
+		await expect(page.getByRole('button', { name: 'Editing: select to lock the editor' })).toHaveAttribute('aria-pressed', 'false');
+		await editor.click();
+		await page.keyboard.type('X');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string }> }).__posted.some((message) => message.type === 'edit'),
+		)).toBe(true);
+	});
+});
+
 test.describe('Markdown list editing', () => {
 	test('continues an ordered list with the next number on Enter', async ({ page }) => {
 		await mountEditor(page, '7. Seventh item');

@@ -440,6 +440,25 @@
           "default": "prompt",
           "description": "%config.defaultEditor%"
         },
+        "mdLivePreview.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.autoSave%"
+        },
+        "mdLivePreview.defaultEditingMode": {
+          "type": "string",
+          "enum": [
+            "editing",
+            "locked"
+          ],
+          "enumDescriptions": [
+            "%config.defaultEditingMode.editing%",
+            "%config.defaultEditingMode.locked%"
+          ],
+          "default": "editing",
+          "description": "%config.defaultEditingMode%"
+        },
         "mdLivePreview.remoteMedia": {
           "type": "string",
           "enum": [

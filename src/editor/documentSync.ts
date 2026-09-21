@@ -801,6 +801,7 @@ export class DocumentSyncSession {
 		);
 		const diagramRenderingAllowed =
 			vscode.workspace.isTrusted && configuration.get<'safe' | 'off'>('diagramRendering', 'safe') === 'safe';
+		const editingMode = configuration.get<'editing' | 'locked'>('defaultEditingMode', 'editing');
 		const workspaceRoot = localWorkspaceVaultRoot(this.document.uri);
 		const currentVaultPath = workspaceRoot?.scheme === 'file'
 			? relative(workspaceRoot.fsPath, this.document.uri.fsPath).replace(/\\/g, '/')
@@ -817,6 +818,7 @@ export class DocumentSyncSession {
 			remoteMedia,
 			workspaceTrusted: vscode.workspace.isTrusted,
 			diagramRenderingAllowed,
+			editingMode: editingMode === 'locked' ? 'locked' : 'editing',
 			// Large vault summaries cross in bounded follow-up chunks so opening an
 			// editor never serializes one multi-megabyte IPC message synchronously.
 			vaultNotes: [],

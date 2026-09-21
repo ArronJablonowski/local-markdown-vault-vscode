@@ -37,6 +37,15 @@ suite('settings and views', () => {
 		await config().update('codeTheme', previous, vscode.ConfigurationTarget.Global);
 	});
 
+	test('defaultEditingMode accepts Editing and Locked', async () => {
+		const previous = config().get('defaultEditingMode');
+		for (const value of ['editing', 'locked']) {
+			await config().update('defaultEditingMode', value, vscode.ConfigurationTarget.Global);
+			assert.strictEqual(config().get('defaultEditingMode'), value);
+		}
+		await config().update('defaultEditingMode', previous, vscode.ConfigurationTarget.Global);
+	});
+
 	test('contributes the vault, outline, and theme views into its own container', () => {
 		const extension = vscode.extensions.getExtension('arronjablonowski.local-markdown-vault');
 		assert.ok(extension);

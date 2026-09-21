@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 
 /**
@@ -76,13 +79,66 @@ suite('document editing', () => {
 		const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
 		assert.strictEqual(text, '# Fresh\n', 'opening the custom editor rewrote the file');
 	});
+
+	test('the custom editor automatically saves a burst of Markdown edits once', async () => {
+		await vscode.commands.executeCommand('vscode.openWith', file, 'mdLivePreview.editor');
+		const document = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === file.toString());
+		assert.ok(document, 'the custom editor did not open its TextDocument');
+		let saves = 0;
+		const listener = vscode.workspace.onDidSaveTextDocument((saved) => {
+			if (saved.uri.toString() === file.toString()) saves++;
+		});
+		try {
+			const first = new vscode.WorkspaceEdit();
+			first.insert(file, new vscode.Position(2, 4), ' first');
+			assert.strictEqual(await vscode.workspace.applyEdit(first), true);
+			const second = new vscode.WorkspaceEdit();
+			second.insert(file, new vscode.Position(2, 10), ' second');
+			assert.strictEqual(await vscode.workspace.applyEdit(second), true);
+			await waitFor(async () => {
+				const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+				return text.includes('Body first second.');
+			});
+			assert.strictEqual(saves, 1, 'the edit burst should be coalesced into one disk save');
+			assert.strictEqual(document.isDirty, false);
+		} finally {
+			listener.dispose();
+		}
+	});
+
+	test('automatic save rejects a workspace symlink that escapes the vault', async () => {
+		const outsideDirectory = await mkdtemp(join(tmpdir(), 'local-markdown-vault-autosave-'));
+		const outsidePath = join(outsideDirectory, 'outside.md');
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(workspaceRoot);
+		const linkedPath = vscode.Uri.joinPath(workspaceRoot, `linked-${Date.now()}.md`);
+		await writeFile(outsidePath, '# Outside\n', 'utf8');
+		await symlink(outsidePath, linkedPath.fsPath);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', linkedPath, 'mdLivePreview.editor');
+			const document = vscode.workspace.textDocuments.find(
+				(candidate) => candidate.uri.toString() === linkedPath.toString() || candidate.uri.fsPath === outsidePath,
+			);
+			assert.ok(document, 'the symlinked document did not open');
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(document.uri, new vscode.Position(0, 0), 'unsaved ');
+			assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+			await new Promise((resolve) => setTimeout(resolve, 900));
+			assert.strictEqual(await readFile(outsidePath, 'utf8'), '# Outside\n');
+			await vscode.commands.executeCommand('workbench.action.files.revert');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await rm(linkedPath.fsPath, { force: true });
+			await rm(outsideDirectory, { recursive: true, force: true });
+		}
+	});
 });
 
 /** Polls until `check` passes, or fails the test after `timeoutMs`. */
-async function waitFor(check: () => boolean, timeoutMs = 5000): Promise<void> {
+async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		if (check()) return;
+		if (await check()) return;
 		await new Promise((resolve) => setTimeout(resolve, 50));
 	}
 	assert.fail('condition was not met within the timeout');

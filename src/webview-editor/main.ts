@@ -1,4 +1,4 @@
-import { EditorState, Annotation, type Extension, ChangeSet, Prec } from '@codemirror/state';
+import { EditorState, Annotation, type Extension, ChangeSet, Compartment, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, indentWithTab, temporarilySetTabFocusMode } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -57,6 +57,10 @@ let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let workspaceTrusted = false;
 let vaultNotesChunkGeneration = -1;
 let pendingVaultNoteChunks: VaultNoteSummary[] = [];
+let editingAllowed = true;
+let initialEditingModeReceived = false;
+let modeButton: HTMLButtonElement | undefined;
+const editingCompartment = new Compartment();
 
 function flush() {
 	flushTimer = undefined;
@@ -144,6 +148,15 @@ function persistEditorUiState() {
 function createExtensions(): Extension[] {
 	const markdownSupport = markdown({ extensions: GFM });
 	return [
+		// Locked mode is enforced at the transaction boundary, not just by hiding
+		// the caret. This also blocks edits dispatched by rendered task, property,
+		// and table controls while still allowing authoritative host updates.
+		EditorState.transactionFilter.of((transaction) =>
+			editingAllowed || !transaction.docChanged || transaction.annotation(remoteChange)
+				? transaction
+				: [],
+		),
+		editingCompartment.of(EditorView.editable.of(editingAllowed)),
 		markdownSupport,
 		// Extend closeBrackets' default pair set (`( [ { ' "`) with the emphasis
 		// marks so `*bold/italic*` and `_italic_` also auto-pair and wrap a
@@ -166,6 +179,7 @@ function createExtensions(): Extension[] {
 		Prec.highest(createLinkClickHandler((href) => postToHost({ type: 'openLink', href }))),
 		createImagePasteHandler(
 			(atPos, images, needsOwnParagraph) => {
+				if (!editingAllowed) return;
 				setImagePasteDiagnostic();
 				postToHost({ type: 'pasteImages', atPos, images, needsOwnParagraph });
 			},
@@ -229,9 +243,9 @@ function createExtensions(): Extension[] {
 			// otherwise the host's document is missing the latest edits when it acts,
 			// undoing the wrong change and leaving the webview's local text duplicated
 			// relative to what ends up in the file.
-			{ key: 'Mod-z', run: () => { flushNow(); postToHost({ type: 'undo' }); return true; } },
-			{ key: 'Mod-y', run: () => { flushNow(); postToHost({ type: 'redo' }); return true; } },
-			{ key: 'Mod-Shift-z', run: () => { flushNow(); postToHost({ type: 'redo' }); return true; } },
+			{ key: 'Mod-z', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'undo' }); } return true; } },
+			{ key: 'Mod-y', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
+			{ key: 'Mod-Shift-z', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
 			{ key: 'Mod-b', run: toggleEmphasisCommand('**') },
 			{ key: 'Mod-i', run: toggleEmphasisCommand('*') },
 			indentWithTab,
@@ -258,6 +272,38 @@ function createExtensions(): Extension[] {
 		}),
 		EditorView.lineWrapping,
 	];
+}
+
+function updateEditingModeUi(): void {
+	const root = document.getElementById('mlp-root');
+	root?.classList.toggle('mlp-editor-locked', !editingAllowed);
+	if (!modeButton) return;
+	const label = editingAllowed ? t('editor.mode.editing') : t('editor.mode.locked');
+	modeButton.textContent = editingAllowed ? 'Editing' : 'Locked';
+	modeButton.title = label;
+	modeButton.setAttribute('aria-label', label);
+	modeButton.setAttribute('aria-pressed', String(!editingAllowed));
+}
+
+function setEditingAllowed(next: boolean): void {
+	if (editingAllowed === next) {
+		updateEditingModeUi();
+		return;
+	}
+	if (!next) flushNow();
+	editingAllowed = next;
+	view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed)) });
+	updateEditingModeUi();
+}
+
+function ensureEditingModeButton(): void {
+	if (modeButton) return;
+	modeButton = document.createElement('button');
+	modeButton.type = 'button';
+	modeButton.className = 'mlp-editing-mode-toggle';
+	modeButton.addEventListener('click', () => setEditingAllowed(!editingAllowed));
+	document.getElementById('mlp-root')?.appendChild(modeButton);
+	updateEditingModeUi();
 }
 
 // A fresh EditorState's selection defaults to position 0 — i.e. line 1 — which
@@ -298,6 +344,7 @@ function createView(text: string) {
 		state: initialStateFor(text),
 		parent: root,
 	});
+	ensureEditingModeButton();
 	restoreScrollPosition();
 }
 
@@ -338,6 +385,10 @@ onHostMessage((message) => {
 			setLocalImageContext(message.currentVaultPath);
 			setRemoteMediaPolicy(message.remoteMedia);
 			setDiagramRenderingAllowed(message.diagramRenderingAllowed);
+			if (!initialEditingModeReceived) {
+				editingAllowed = message.editingMode === 'editing';
+				initialEditingModeReceived = true;
+			}
 			setVaultNotes(message.vaultNotes, message.currentVaultPath);
 			applyUserCss(message.workspaceTrusted ? message.css : '');
 			// A re-init means a different document (or the same one reloaded), so
@@ -346,6 +397,7 @@ onHostMessage((message) => {
 			clearWikiEmbedCache();
 			clearLocalImageCache();
 			resetView(message.text);
+			updateEditingModeUi();
 			break;
 		case 'ackEdit':
 			baseVersion = message.version;

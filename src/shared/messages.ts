@@ -45,6 +45,7 @@ export type HostToEditorMessage =
 			remoteMedia: RemoteMediaPolicy;
 			workspaceTrusted: boolean;
 			diagramRenderingAllowed: boolean;
+			editingMode: EditingModeSetting;
 			vaultNotes: VaultNoteSummary[];
 			currentVaultPath: string;
 	  }
@@ -90,9 +91,11 @@ export interface StyleEntry {
 
 /** The extension settings the sidebar surfaces and can change. */
 export type DefaultEditorSetting = 'prompt' | 'livePreview' | 'default';
+export type EditingModeSetting = 'editing' | 'locked';
 export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dark' | 'github-light';
 export interface SidebarSettings {
 	defaultEditor: DefaultEditorSetting;
+	defaultEditingMode: EditingModeSetting;
 	codeTheme: CodeThemeSetting;
 }
 

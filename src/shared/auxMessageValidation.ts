@@ -55,6 +55,7 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 	if (
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
 		((value.key === 'defaultEditor' && ['prompt', 'livePreview', 'default'].includes(String(value.value))) ||
+			(value.key === 'defaultEditingMode' && ['editing', 'locked'].includes(String(value.value))) ||
 			(value.key === 'codeTheme' && ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.value))))
 	) {
 		return { ok: true, value: value as unknown as SidebarToHostMessage };
@@ -90,8 +91,9 @@ export function validateHostToSidebarMessage(value: unknown): ValidationResult<H
 		cssLength += bytes;
 	}
 	if (
-		!exact(value.settings, ['defaultEditor', 'codeTheme']) ||
+		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme']) ||
 		!['prompt', 'livePreview', 'default'].includes(String(value.settings.defaultEditor)) ||
+		!['editing', 'locked'].includes(String(value.settings.defaultEditingMode)) ||
 		!['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.settings.codeTheme))
 	) return { ok: false, reason: 'Invalid sidebar settings.' };
 	if (!['vscode-light', 'vscode-dark', 'vscode-high-contrast'].includes(String(value.themeKind))) return { ok: false, reason: 'Invalid sidebar theme.' };

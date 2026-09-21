@@ -146,6 +146,7 @@ export function validateHostToEditorMessage(
 				'remoteMedia',
 				'workspaceTrusted',
 				'diagramRenderingAllowed',
+				'editingMode',
 				'vaultNotes',
 				'currentVaultPath',
 			];
@@ -159,6 +160,7 @@ export function validateHostToEditorMessage(
 				(value.remoteMedia !== 'block' && value.remoteMedia !== 'https') ||
 				typeof value.workspaceTrusted !== 'boolean' ||
 				typeof value.diagramRenderingAllowed !== 'boolean' ||
+				(value.editingMode !== 'editing' && value.editingMode !== 'locked') ||
 				!validVaultRelativePath(value.currentVaultPath, true) ||
 				!validVaultNotes(value.vaultNotes) ||
 				!withinSerializedByteLimit(value.vaultNotes, MAX_VAULT_NOTE_CHUNK_BYTES)

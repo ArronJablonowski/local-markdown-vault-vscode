@@ -27,6 +27,11 @@ import { calloutIcon, parseCalloutHeader } from './callouts';
 import type { RemoteMediaPolicy } from '../shared/messages';
 import { resolveLocalImage } from './localImageClient';
 import { isAbsoluteWebUrl } from '../shared/linkTarget';
+import {
+	findInlineHighlightRanges,
+	MAX_HIGHLIGHT_LINE_CHARACTERS,
+	MAX_HIGHLIGHTS_PER_VIEWPORT,
+} from './inlineHighlight';
 
 const HEADING_LINE_CLASS: Record<string, string> = {
 	ATXHeading1: 'mlp-line-h1',
@@ -1407,7 +1412,7 @@ export function blockReplacedLines(state: EditorState, item: SyntaxNode): Set<nu
 /** True when the list item owning this mark is a GFM task item ("- [ ] ..."). */
 function listItemIsTask(state: EditorState, listMark: SyntaxNodeRef): boolean {
 	const line = state.doc.lineAt(listMark.from);
-	const after = state.sliceDoc(listMark.to, line.to);
+	const after = state.sliceDoc(listMark.to, Math.min(line.to, listMark.to + 64));
 	return /^\s*\[[^\]\r\n]\]/.test(after);
 }
 
@@ -1472,25 +1477,27 @@ function buildDecorations(view: EditorView): DecorationSet {
 	// whenever the caret touches the construct (the same source-reveal behavior
 	// used by emphasis and links).
 	const highlighted = new Set<string>();
+	let highlightBudget = MAX_HIGHLIGHTS_PER_VIEWPORT;
 	for (const visible of view.visibleRanges) {
 		const firstLine = doc.lineAt(visible.from).number;
 		const lastLine = doc.lineAt(visible.to).number;
 		for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber++) {
 			const line = doc.line(lineNumber);
-			const customTask = /^(\s*[-+*]\s+)(\[[^ xX\]\r\n]\])/.exec(line.text);
+			const linePrefix = state.sliceDoc(line.from, Math.min(line.to, line.from + MAX_HIGHLIGHT_LINE_CHARACTERS));
+			const customTask = /^(\s*[-+*]\s+)(\[[^ xX\]\r\n]\])/.exec(linePrefix.slice(0, 4_096));
 			if (customTask) {
 				const markerFrom = line.from + customTask[1].length;
 				if (hasAncestor(tree.resolveInner(markerFrom, 1), 'ListItem') && !cursorTouchesRange(state, markerFrom, markerFrom + 3)) {
 					pushReplace(markerFrom, markerFrom + 3, Decoration.replace({ widget: new CheckboxWidget(true, markerFrom) }));
 				}
 			}
-			for (const match of line.text.matchAll(/==([^=\r\n](?:.*?[^=\r\n])?)==/g)) {
-				const index = match.index ?? 0;
-				const from = line.from + index;
-				const to = from + match[0].length;
+			for (const match of findInlineHighlightRanges(linePrefix, highlightBudget)) {
+				const from = line.from + match.from;
+				const to = line.from + match.to;
 				const key = `${from}:${to}`;
 				if (highlighted.has(key) || isInsideCode(tree.resolveInner(from + 2, 1))) continue;
 				highlighted.add(key);
+				highlightBudget--;
 				decorations.push(Decoration.mark({ tagName: 'mark', class: 'mlp-highlight' }).range(from + 2, to - 2));
 				if (!cursorTouchesRange(state, from, to)) {
 					pushReplace(from, from + 2, hiddenMarkerDeco);

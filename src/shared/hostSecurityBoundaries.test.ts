@@ -92,6 +92,19 @@ describe('host security boundaries', () => {
 		expect(sync).not.toContain('baseUri');
 	});
 
+	it('confines automatic saves to a canonical open workspace document', () => {
+		const source = readFileSync(join(ROOT, 'src', 'editor', 'markdownAutoSave.ts'), 'utf8');
+		expect(source).toContain("document.uri.scheme !== 'file'");
+		expect(source).toContain("document.languageId !== 'markdown'");
+		expect(source).toContain('localWorkspaceVaultRoot(document.uri)');
+		expect(source).toContain('isCanonicalPathInside(vaultRoot.fsPath, document.uri.fsPath)');
+		expect(source).toContain('this.tracked.get(document.uri.toString()) !== state');
+		expect(source).toContain('state.generation !== generation');
+		expect(source).toContain('!isEditorDocumentWithinLimit(document.getText())');
+		expect(source.match(/document\.save\(\)/g)).toHaveLength(1);
+		expect(source).not.toMatch(/workspace\.fs|writeFile|applyEdit/);
+	});
+
 	it('revokes stale vault authority across workspace-folder changes', () => {
 		const registration = readFileSync(join(ROOT, 'src', 'vault', 'registerVault.ts'), 'utf8');
 		const service = readFileSync(join(ROOT, 'src', 'vault', 'VaultService.ts'), 'utf8');

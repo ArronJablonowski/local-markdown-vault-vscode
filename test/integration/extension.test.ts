@@ -86,6 +86,8 @@ suite('extension', () => {
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
 		assert.strictEqual(config.get('codeTheme'), 'auto');
 		assert.strictEqual(config.get('defaultEditor'), 'prompt');
+		assert.strictEqual(config.get('autoSave'), true);
+		assert.strictEqual(config.get('defaultEditingMode'), 'editing');
 		assert.strictEqual(config.get('remoteMedia'), 'block');
 		assert.strictEqual(config.get('diagramRendering'), 'safe');
 		assert.strictEqual(config.get('vault.updateLinksOnMove'), true);

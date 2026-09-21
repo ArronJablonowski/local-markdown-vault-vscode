@@ -45,6 +45,7 @@ export async function mountEditor(
 		css?: string;
 		vaultNotes?: Array<{ path: string; basename: string; aliases: string[]; headings: Array<{ text: string; line: number }>; blockIds: string[] }>;
 		currentVaultPath?: string;
+		editingMode?: 'editing' | 'locked';
 	} = {},
 ): Promise<void> {
 	const script = readFileSync(join(ROOT, 'dist', 'webview-editor.js'), 'utf8');
@@ -100,7 +101,7 @@ ${style}
 </body>
 </html>`);
 
-	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath }) => {
+	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath, editingMode }) => {
 		window.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
@@ -113,6 +114,7 @@ ${style}
 					remoteMedia,
 					workspaceTrusted,
 					diagramRenderingAllowed,
+					editingMode,
 					vaultNotes,
 					currentVaultPath,
 				},
@@ -126,6 +128,7 @@ ${style}
 		css: options.css ?? '',
 		vaultNotes: options.vaultNotes ?? [],
 		currentVaultPath: options.currentVaultPath ?? '',
+		editingMode: options.editingMode ?? 'editing',
 	});
 
 	await page.waitForSelector('.cm-content');
@@ -148,7 +151,7 @@ export async function mountStyleSidebar(
 			data: {
 				type: 'init',
 				styles: entries,
-				settings: { defaultEditor: 'prompt', codeTheme: 'auto' },
+				settings: { defaultEditor: 'prompt', defaultEditingMode: 'editing', codeTheme: 'auto' },
 				themeKind: 'vscode-dark',
 				workspaceTrusted: trusted,
 			},

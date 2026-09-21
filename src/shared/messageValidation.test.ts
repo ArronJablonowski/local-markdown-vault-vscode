@@ -129,6 +129,7 @@ describe('validateHostToEditorMessage', () => {
 		remoteMedia: 'block',
 		workspaceTrusted: true,
 		diagramRenderingAllowed: true,
+		editingMode: 'editing',
 		vaultNotes: [],
 		currentVaultPath: 'Note.md',
 	};
@@ -138,6 +139,7 @@ describe('validateHostToEditorMessage', () => {
 		expect(validateHostToEditorMessage({ ...init, protocolVersion: 2 }, 0).ok).toBe(false);
 		expect(validateHostToEditorMessage({ ...init, execute: true }, 0).ok).toBe(false);
 		expect(validateHostToEditorMessage({ ...init, baseUri: 'https://file.example/' }, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ ...init, editingMode: 'arbitrary' }, 0).ok).toBe(false);
 		for (const currentVaultPath of ['../Note.md', '/Note.md', 'C:/Note.md', 'Folder//Note.md', 'Folder\\Note.md', 'Note.md\nOther']) {
 			expect(validateHostToEditorMessage({ ...init, currentVaultPath }, 0).ok).toBe(false);
 		}

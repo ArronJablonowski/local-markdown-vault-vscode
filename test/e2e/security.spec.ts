@@ -29,6 +29,12 @@ const HARNESS_RESOURCES = new Set([
 ]);
 
 test.describe('hostile Markdown boundaries', () => {
+	test('bounds highlight decorations from a malicious single line', async ({ page }) => {
+		await mountEditor(page, `Intro\n\n${'==x=='.repeat(2_048)}\n`);
+		await expect(page.locator('.mlp-highlight')).toHaveCount(512);
+		await expect(page.locator('.cm-content')).toContainText('==x==');
+	});
+
 	for (const fixture of CORPUS) {
 		test(`keeps ${fixture.file} inert, bounded, and network silent`, async ({ page }) => {
 			const networkRequests: string[] = [];

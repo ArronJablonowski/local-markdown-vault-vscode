@@ -8,6 +8,22 @@ const STYLES = [
 ];
 
 test.describe('CSS theme sidebar accessibility', () => {
+	test('offers Markdown Editor and a default Locked or Editing mode', async ({ page }) => {
+		await mountStyleSidebar(page, STYLES);
+		const defaultEditor = page.getByLabel('Default editor');
+		await expect(defaultEditor.locator('option')).toHaveText([
+			'VS Code default',
+			'Markdown Live Preview',
+			'Markdown Editor',
+		]);
+		const defaultMode = page.getByLabel('Default Live Preview mode');
+		await expect(defaultMode.locator('option')).toHaveText(['Editing', 'Locked']);
+		await defaultMode.selectOption('locked');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; key?: string; value?: string }> }).__posted.at(-1),
+		)).toEqual({ type: 'setSetting', key: 'defaultEditingMode', value: 'locked' });
+	});
+
 	test('selects a theme with native radio keyboard behavior', async ({ page }) => {
 		await mountStyleSidebar(page, STYLES);
 		const radios = page.getByRole('radio');

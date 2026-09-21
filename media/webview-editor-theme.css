@@ -22,7 +22,35 @@ html, body {
 }
 
 #mlp-root {
+	position: relative;
 	height: 100%;
+}
+
+.mlp-editing-mode-toggle {
+	position: absolute;
+	top: 8px;
+	right: 18px;
+	z-index: 20;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	padding: 3px 8px;
+	color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+	background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+	cursor: pointer;
+}
+
+.mlp-editing-mode-toggle:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
+.mlp-editing-mode-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.mlp-editor-locked .cm-cursor,
+.mlp-editor-locked .cm-dropCursor {
+	display: none;
 }
 
 .cm-editor {
