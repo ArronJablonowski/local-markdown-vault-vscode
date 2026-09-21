@@ -4,13 +4,14 @@
 
 The extension source and rebuilt `local-markdown-vault-0.2.0.vsix` were assessed on macOS using code review, dependency and secret scanning, disposable VS Code profiles, disposable vaults, outside-vault canaries, the checked-in malicious Markdown corpus, forged protocol messages, symlink and traversal probes, resource-limit tests, and browser request observation.
 
-Three low-severity weaknesses were confirmed during the security-hardening work and are fixed:
+Four low-severity weaknesses were confirmed during the security-hardening work and are fixed:
 
 1. First-run default-vault creation accepted a pre-positioned symlink named `~/Documents/Markdown Vault` and could open its target as the workspace.
 2. Link validation accepted literal or percent-encoded Unicode bidirectional formatting controls that could disguise a destination in user-facing link confirmation or operating-system UI.
 3. The repository language-verification gate followed symbolic links and did not limit the size of files it read. This affected a CI/build-time defense and was not reachable through Markdown opened by the installed extension.
+4. Obsidian-style `==highlight==` rendering could scan and create an unbounded number of decorations on one permitted-size visible line, allowing a malicious note to cause excessive rendering work.
 
-No critical, high, or medium vulnerability was reproduced. The current revalidation found no additional exploitable runtime issue. Automated active testing found no script execution, unsolicited extension-managed request, unsafe command activation, outside-vault file disclosure, outside-vault mutation, unbounded protocol queue, or active raw-HTML/SVG payload.
+No critical, high, or medium vulnerability was reproduced. Automated active testing found no script execution, unsolicited extension-managed request, unsafe command activation, outside-vault file disclosure, outside-vault mutation, unbounded protocol queue, or active raw-HTML/SVG payload. The new autosave path was tested with burst edits and an outside-vault symlink canary; it saved the ordinary vault note once and did not modify the symlink target.
 
 This result is evidence for the tested build and threat model, not a guarantee that the extension is vulnerability-free. Version `0.2.0` remains pre-release software until the release checklist, including manual VoiceOver review, is complete.
 
@@ -18,7 +19,7 @@ This result is evidence for the tested build and threat model, not a guarantee t
 
 - Platform: macOS on Apple silicon
 - VS Code under test: `1.138.0`
-- Reviewed runtime baseline: commit `9b9e0ada43c52754eb9a301dfad13162cdcb8662`
+- Reviewed runtime baseline: commit `870691d0eef736f617f85aeb5511a4d3d66b5fad`
 - Extension package: rebuilt locally from the assessed source
 - Package identity: `arronjablonowski.local-markdown-vault` version `0.2.0`
 - Vault model: one local `file:` workspace folder
@@ -42,6 +43,8 @@ The assessment covered extension-owned behavior. VS Code itself logged GitHub ac
 - Build and release scripts, including symbolic-link and oversized-file probes
 - Packaged VSIX contents and behavior rather than source-only modules
 - Runtime and development dependency advisories, secret history, SBOM generation, and deterministic lockfile policy
+- Automatic-save lifecycle, edit coalescing, local-file restrictions, canonical workspace containment, symlink escape, and failed-save behavior
+- Locked-mode transaction enforcement across typing, undo/redo, rendered controls, and image paste
 
 ## Findings and remediation
 
@@ -83,6 +86,16 @@ The repository's US English verification script used metadata calls that followe
 
 The verifier now uses link-aware metadata, rejects every symbolic link, and refuses files larger than 16 MiB before reading them. Its self-test creates both an outside-repository symbolic-link probe and an oversized-file probe, and requires both to fail safely.
 
+### LMV-2026-04 — Unbounded inline-highlight decoration work
+
+**Severity before fix:** Low
+
+**Status:** Fixed in `870691d0eef736f617f85aeb5511a4d3d66b5fad`
+
+A permitted-size Markdown line containing many thousands of `==…==` pairs could make the visible-range renderer scan the entire line and allocate a decoration for every pair. This was an availability issue confined to the editor webview; it did not enable script execution, network access, host command execution, or filesystem access.
+
+Highlight scanning is now limited to 256 KiB per visible line and 512 highlight decorations per viewport. Custom task-marker detection and task-list lookahead are also bounded. Unit and browser tests exercise a hostile line and confirm that the editor remains available while the underlying Markdown remains intact.
+
 ## Security controls confirmed by review
 
 - Webviews use `default-src 'none'`, cryptographic nonces, narrow source directives, and minimal `localResourceRoots`. The two `style-src 'unsafe-inline'` exceptions are documented and limited to CodeMirror and rendered preview styling.
@@ -93,31 +106,33 @@ The verifier now uses link-aware metadata, rejects every symbolic link, and refu
 - Remote media is disabled by default and, when explicitly enabled per workspace, is restricted to HTTPS images. The extension has no account, telemetry, analytics, synchronization, background upload, or general-purpose network client.
 - Custom CSS rejects imports, external URLs, dangerous at-rules, scope escapes, and rules capable of hiding or impersonating extension controls.
 - Restricted Mode preserves plain Markdown editing while disabling diagrams, custom CSS, remote media, attachment mutation, and vault-wide mutations.
+- Autosave has no webview-supplied path parameter. It can call VS Code's native save only for an already-open, dirty, size-limited Markdown document in the single local workspace vault after canonical containment succeeds. Timers are coalesced per document, shared across split views, canceled when the final view closes, and never retried in an unbounded loop.
+- Locked mode rejects document-changing CodeMirror transactions, including changes requested by rendered task, property, and table controls. Image-paste and host undo/redo requests are independently suppressed while locked. Host-originated document updates remain visible.
 - No `eval`, `new Function`, dynamic script creation, or production child-process execution was found. The sole packaged network fetch is the pinned AWS language-shapes data required by syntax highlighting and is governed by package integrity evidence and webview CSP.
 
 ## Verification results
 
 | Gate | Result |
 | --- | --- |
-| Focused security and boundary tests | 385 passed across 17 files |
-| Complete unit/component/performance suite | 916 passed across 85 files |
-| Coverage measurement | 60.64% lines; 64.01% branches |
-| Browser end-to-end suite | 94 passed |
-| Full VS Code extension-host integration | 73 passed; 18 platform/mode-specific tests skipped as designed |
+| Focused security and boundary tests | Passed as part of the complete and browser suites |
+| Complete unit/component/performance suite | 921 passed across 86 files |
+| Coverage measurement | 60.36% lines; 63.90% branches |
+| Browser end-to-end suite | 114 passed |
+| Full VS Code extension-host integration | 76 passed; 18 platform/mode-specific tests skipped as designed |
 | Cache restart integration | Seed and recovery phases passed |
 | Restricted Mode integration | 4 passed |
 | Focused macOS desktop transactions | 9 passed |
-| 10,000-item filesystem performance gate | Passed; cold index under 0.83 seconds, incremental update under 0.17 seconds in this run |
+| 10,000-item filesystem performance gate | Passed; cold index under 0.82 seconds, incremental update under 0.17 seconds in this run |
 | Installed VSIX clean-profile matrix | Trusted: 9 passed; Restricted Mode: 5 passed; disabled extension: 1 passed; remaining cases skipped by design |
 | Package policy | Passed; 59 files verified |
 | Dependency policy | Passed; 797 locked packages, 182 production packages, 5 reviewed disabled install-script packages |
 | npm runtime dependency audit | 0 known vulnerabilities |
 | npm complete dependency audit | 0 known vulnerabilities |
 | CycloneDX SBOM | Generated and validated |
-| Repository secret scan | 214 commits scanned; no leak found |
-| GitHub CodeQL, dependency, and secret alerts | 0 open alerts at the reviewed baseline |
+| Repository secret scan | 219 commits scanned; no leak found |
+| GitHub CodeQL, dependency, and secret alerts | 0 open alerts at the prior pushed baseline; exact-baseline workflows must pass after this update is pushed |
 
-GitHub's exact-baseline [CI](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629522954), [CodeQL](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629522931), and [secret-scanning](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629523060) workflows completed successfully.
+GitHub's prior-baseline [CI](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629522954), [CodeQL](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629522931), and [secret-scanning](https://github.com/ArronJablonowski/local-markdown-vault-vscode/actions/runs/35629523060) workflows completed successfully. The pushed update is not release-ready until its own workflows also complete successfully.
 
 The browser and macOS desktop gates explicitly observed HTTP(S) traffic generated while hostile Markdown was open. No extension-originated request escaped the expected harness resources with remote media disabled. The outside-vault canaries remained unread and unchanged.
 
