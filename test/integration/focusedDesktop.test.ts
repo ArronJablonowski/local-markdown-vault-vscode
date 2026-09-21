@@ -158,7 +158,13 @@ suite('focused macOS desktop transactions', () => {
 			'---',
 			'# Quick target',
 		].join('\n')));
-		await vscode.workspace.fs.writeFile(searchTarget, bytes(`# Search target\n\n${searchPhrase}\n`));
+		await vscode.workspace.fs.writeFile(searchTarget, bytes([
+			'# Search target',
+			'',
+			...Array.from({ length: 24 }, (_, index) => `Search filler ${index + 1}`),
+			searchPhrase,
+			'',
+		].join('\n')));
 		await vscode.workspace.fs.writeFile(knowledgeTarget, bytes('# Desktop knowledge target\n'));
 		await vscode.workspace.fs.writeFile(linkedSource, bytes('A linked mention: [[Desktop Knowledge Target]].\n'));
 		await vscode.workspace.fs.writeFile(unlinkedSource, bytes('An unlinked Desktop Knowledge Target mention.\n'));
@@ -181,10 +187,27 @@ suite('focused macOS desktop transactions', () => {
 		await waitFor(() => activeTabUri()?.toString() === quickTarget.toString(),
 			'Quick Switcher keyboard acceptance did not open the aliased note');
 
-		await vscode.commands.executeCommand('mdLivePreview.vaultSearch');
-		await chooseNativeQuickPick(page, searchPhrase, 'Desktop Search Target');
-		await waitFor(() => activeTabUri()?.toString() === searchTarget.toString(),
-			'vault-search keyboard acceptance did not open the body-text result');
+		const editorConfiguration = vscode.workspace.getConfiguration('mdLivePreview');
+		const priorGlobalEditor = editorConfiguration.inspect<string>('defaultEditor')?.globalValue;
+		await editorConfiguration.update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
+		try {
+			await vscode.commands.executeCommand('mdLivePreview.vaultSearch');
+			await chooseNativeQuickPick(page, searchPhrase, 'Desktop Search Target');
+			await waitFor(() => {
+				const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+				return input instanceof vscode.TabInputCustom
+					&& input.viewType === 'mdLivePreview.editor'
+					&& input.uri.toString() === searchTarget.toString();
+			}, 'vault-search keyboard acceptance did not open the body-text result in Live Preview');
+			const searchFrame = await connectToLivePreviewFrame(searchPhrase);
+			await waitFor(() => searchFrame.evaluate((phrase) => {
+				const anchor = window.getSelection()?.anchorNode;
+				const parent = anchor instanceof Element ? anchor : anchor?.parentElement;
+				return parent?.closest('.cm-line')?.textContent?.includes(phrase) === true;
+			}, searchPhrase), 'vault-search navigation did not place the caret on the matching Live Preview line');
+		} finally {
+			await editorConfiguration.update('defaultEditor', priorGlobalEditor, vscode.ConfigurationTarget.Global);
+		}
 
 		await vscode.commands.executeCommand('mdLivePreview.quickSwitcher');
 		await observeAndCancelNativeQuickPick(page, 'Desktop Search Target');

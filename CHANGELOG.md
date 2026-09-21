@@ -43,6 +43,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Open Quick Switcher, vault-search, Backlinks, and other indexed Markdown targets directly in Live Preview when it is the configured default editor; retain one bounded newest line jump through the webview startup handshake so a fresh search result reliably places the CodeMirror caret on its matching line.
 - Show the same delayed, sanitized, local-only wikilink preview when a rendered link receives keyboard focus, associate it as an accessible description, and verify the behavior in both the shipped browser bundle and an installed clean-profile VSIX.
 - Roll back the exact newly created note, folder, or intermediate note path when its active-vault or Workspace Trust commit guard becomes stale; directory rollback is identity-checked, reverse-order, and deliberately non-recursive.
 - Bind native vault commands, Quick Switcher creation, and indexed-note navigation to the vault that started them, rechecking Workspace Trust at mutation commit boundaries so a workspace change cannot act on or reveal a stale vault.

@@ -126,8 +126,8 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		this.findActiveSession()?.jumpToLine(line);
 	}
 
-	/** Reveals a line in an already-open Live Preview target after link navigation. */
-	private jumpToDocument(uri: vscode.Uri, line: number): boolean {
+	/** Reveals a line in an already-open Live Preview target after local navigation. */
+	jumpToDocument(uri: vscode.Uri, line: number): boolean {
 		let found = false;
 		for (const session of this.sessions) {
 			if (session.getDocument().uri.toString() !== uri.toString()) continue;

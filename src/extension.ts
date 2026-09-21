@@ -182,7 +182,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 	// shikiHost.ts); this is the only place that knows where the extension was
 	// installed to.
 	setGrammarRoot(context.extensionPath);
-	const vaultRegistration = await registerVault(context);
+	let livePreviewProvider: MarkdownLivePreviewProvider | undefined;
+	const vaultRegistration = await registerVault(context, {
+		revealOpenedLine: (uri, line) => livePreviewProvider?.jumpToDocument(uri, line) ?? false,
+	});
 
 	const styleStore = new StyleStore(context);
 	await styleStore.initialize();
@@ -194,6 +197,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 			.filter((record) => isCanonicalVaultNoteIdentity(record.path, record.basename))
 			.map(createVaultNoteSummary) ?? [],
 	);
+	livePreviewProvider = provider;
 	context.subscriptions.push(providerDisposable);
 	context.subscriptions.push(styleStore.onDidChange(() => provider.broadcastCssChanged()));
 	context.subscriptions.push(vaultRegistration.onDidChangeIndex(() => provider.broadcastVaultNotesChanged()));

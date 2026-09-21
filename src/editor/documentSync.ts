@@ -22,6 +22,7 @@ import { isOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
 import { isDrawioPath } from '../shared/drawioPath';
 import { executeCaseAwareRedo } from '../vault/CaseRenameCoordinator';
 import { BoundedSerialQueue } from '../shared/boundedSerialQueue';
+import { PendingLineNavigation } from './pendingLineNavigation';
 import { TokenBucketRateLimiter } from '../shared/tokenBucketRateLimiter';
 
 /**
@@ -93,6 +94,7 @@ export class DocumentSyncSession {
 	private needsRehighlight = false;
 	private pendingCss = false;
 	private pendingVaultNotes = false;
+	private readonly pendingLineNavigation = new PendingLineNavigation();
 	private readyReceived = false;
 	private vaultNotesGeneration = 0;
 	private disposed = false;
@@ -165,6 +167,7 @@ export class DocumentSyncSession {
 					this.needsFullSync = true;
 					this.needsRehighlight = true;
 				}
+				this.flushPendingJump();
 				break;
 			case 'edit':
 				if (!this.enqueueMutation(() => this.applyEdit(message.changes, message.baseVersion))) this.sendInit();
@@ -995,6 +998,23 @@ export class DocumentSyncSession {
 	}
 
 	jumpToLine(line: number): void {
+		const deliver = this.pendingLineNavigation.request(
+			line,
+			this.document.lineCount,
+			this.readyReceived && this.visible,
+		);
+		if (deliver === undefined) {
+			// Opening a custom editor resolves before its webview necessarily sends
+			// `ready`. Retain only the newest local-navigation target so a search or
+			// Backlinks jump cannot be lost during startup, without creating a queue.
+			return;
+		}
+		this.post({ type: 'jumpToLine', line: deliver });
+	}
+
+	private flushPendingJump(): void {
+		const line = this.pendingLineNavigation.flush(this.readyReceived && this.visible);
+		if (line === undefined) return;
 		this.post({ type: 'jumpToLine', line });
 	}
 
@@ -1064,6 +1084,7 @@ export class DocumentSyncSession {
 			this.needsRehighlight = false;
 			this.scheduleRehighlight(true);
 		}
+		this.flushPendingJump();
 	}
 
 	dispose() {

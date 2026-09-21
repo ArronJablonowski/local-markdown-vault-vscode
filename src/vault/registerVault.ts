@@ -23,7 +23,15 @@ export interface VaultRegistration {
 	getTreePaths(parentPath?: string): Promise<readonly string[]>;
 }
 
-export async function registerVault(context: vscode.ExtensionContext): Promise<VaultRegistration> {
+export interface VaultRegistrationOptions {
+	/** Reveals an indexed line when the selected note opens in Live Preview. */
+	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean;
+}
+
+export async function registerVault(
+	context: vscode.ExtensionContext,
+	options: VaultRegistrationOptions = {},
+): Promise<VaultRegistration> {
 	const provider = new VaultTreeProvider();
 	await provider.initialize();
 	let treeRevision = 0;
@@ -137,6 +145,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				context,
 				() => generation === vaultGeneration && targetIndex === index,
 				trackVaultPicker,
+				options.revealOpenedLine,
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vaultSearch', async () => {
@@ -148,6 +157,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				'',
 				() => generation === vaultGeneration && targetIndex === index,
 				trackVaultPicker,
+				options.revealOpenedLine,
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.rebuildIndex', async () => {
@@ -204,6 +214,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				context,
 				request.line,
 				() => targetIndex === index,
+				options.revealOpenedLine,
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.searchTag', async (tag: unknown) => {
@@ -219,6 +230,7 @@ export async function registerVault(context: vscode.ExtensionContext): Promise<V
 				`tag:${requestedTag}`,
 				() => generation === vaultGeneration && targetIndex === index,
 				trackVaultPicker,
+				options.revealOpenedLine,
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.backlinks.filter', async () => {
@@ -601,6 +613,7 @@ async function showQuickSwitcher(
 	context: vscode.ExtensionContext,
 	isCurrent: () => boolean,
 	trackPicker: <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>) => () => void,
+	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 ): Promise<void> {
 	// Quick Switcher is an index-backed user action, so an unsaved alias or note
 	// title must win even when the command lands inside the document debounce.
@@ -631,7 +644,7 @@ async function showQuickSwitcher(
 		if (!selected) return;
 		picker.hide();
 		if (selected.record) {
-			await openIndexedRecord(index, selected.record, context, undefined, isCurrent);
+			await openIndexedRecord(index, selected.record, context, undefined, isCurrent, revealOpenedLine);
 			return;
 		}
 		const service = provider.service;
@@ -672,6 +685,7 @@ async function showVaultSearch(
 	initialValue: string,
 	isCurrent: () => boolean,
 	trackPicker: <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>) => () => void,
+	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 ): Promise<void> {
 	const picker = vscode.window.createQuickPick<VaultQuickPickItem>();
 	const untrack = trackPicker(picker);
@@ -721,7 +735,7 @@ async function showVaultSearch(
 		const record = selected?.record;
 		if (!record) return;
 		picker.hide();
-		await openIndexedRecord(index, record, context, selected.matchLine, isCurrent);
+		await openIndexedRecord(index, record, context, selected.matchLine, isCurrent, revealOpenedLine);
 	});
 	picker.onDidHide(() => {
 		closed = true;
@@ -768,16 +782,29 @@ async function openIndexedRecord(
 	context: vscode.ExtensionContext,
 	line?: number,
 	isCurrent: () => boolean = () => true,
+	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 ): Promise<void> {
 	if (!isCurrent()) return;
 	const uri = index.vault.uriForRelative(record.path);
 	try {
 		await index.vault.assertRegularFileInside(uri);
 		if (!isCurrent()) return;
-		await vscode.commands.executeCommand('vscode.open', uri);
+		const configuredEditor = vscode.workspace
+			.getConfiguration('mdLivePreview', uri)
+			.get<string>('defaultEditor', 'prompt');
+		if (configuredEditor === 'livePreview') {
+			// Opening the configured custom editor directly avoids a plain-text tab
+			// followed by an asynchronous conversion, which can otherwise discard
+			// the search result's requested line before CodeMirror mounts.
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+		} else {
+			await vscode.commands.executeCommand('vscode.open', uri);
+		}
 		if (!isCurrent()) return;
 		await rememberRecent(index, record.path, context);
-		if (line !== undefined && isCurrent()) await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
+		if (line !== undefined && isCurrent() && !revealOpenedLine?.(uri, line)) {
+			await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
+		}
 	} catch {
 		if (isCurrent()) void vscode.window.showWarningMessage(vscode.l10n.t('The indexed note could not be opened securely.'));
 	}
