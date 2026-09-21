@@ -1,5 +1,7 @@
 # Changelog
 
+- Reject a pre-positioned symlink at the default `~/Documents/Markdown Vault` leaf, verify directory identity across canonicalization, and open only the verified canonical path; reject literal and percent-encoded Unicode bidi controls in authored links to prevent destination spoofing.
+
 - Harden custom CSS and draw.io parsing: reject modern nested CSS rules that could escape preview-content scoping and obscure trusted controls, and reject XML DTD/entity declarations before `DOMParser` can perform external or expansion work.
 
 - Create and open `~/Documents/Markdown Vault` from an empty VS Code window by default, without replacing an existing workspace; expose an application-level setting to disable this startup behavior.

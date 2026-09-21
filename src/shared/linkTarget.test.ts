@@ -42,6 +42,10 @@ describe('resolveLinkTarget', () => {
 			'mailto:a@example.com?subject=hello%0d%0abcc:attacker@example.com',
 			'mailto:a@example.com?body=hello%00world',
 			'mailto:a@example.com?subject=%ZZ',
+			'https://safe.example/\u202Egpj.exe',
+			'https://safe.example/%E2%80%AEgpj.exe',
+			'mailto:a@example.com?subject=%E2%80%AEexample.com',
+			'Notes/\u2066spoofed.md',
 		])('blocks %s', (value) => {
 			expect(resolveLinkTarget(value)).toEqual({ kind: 'blocked', value });
 		});

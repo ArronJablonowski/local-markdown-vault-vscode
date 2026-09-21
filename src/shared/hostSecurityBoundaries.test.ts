@@ -27,7 +27,6 @@ describe('host security boundaries', () => {
 			'src/sidebar/styleStore.ts',
 			'src/vault/VaultIndex.ts',
 			'src/vault/VaultService.ts',
-			'src/vault/defaultVault.ts',
 		]);
 
 		const nativePromiseFsUsers = files
@@ -38,6 +37,7 @@ describe('host security boundaries', () => {
 			'src/editor/canonicalContainment.ts',
 			'src/editor/shikiHost.ts',
 			'src/vault/VaultService.ts',
+			'src/vault/defaultVaultFilesystem.ts',
 		]);
 
 		const nativeFsUsers = files
@@ -47,6 +47,7 @@ describe('host security boundaries', () => {
 		expect(nativeFsUsers).toEqual([
 			'src/vault/LinkRewriteService.ts',
 			'src/vault/VaultService.ts',
+			'src/vault/defaultVaultFilesystem.ts',
 		]);
 		expect(readFileSync(join(ROOT, 'src', 'vault', 'LinkRewriteService.ts'), 'utf8'))
 			.toContain("import type { Stats } from 'node:fs';");
@@ -57,7 +58,7 @@ describe('host security boundaries', () => {
 		const location = readFileSync(join(ROOT, 'src', 'vault', 'defaultVaultLocation.ts'), 'utf8');
 		expect(location).toContain("join(homeDirectory, 'Documents', DEFAULT_VAULT_FOLDER_NAME)");
 		expect(location).toContain("enabled && (!folders || folders.length === 0)");
-		expect(bootstrap).toContain('workspace.fs.createDirectory(uri)');
+		expect(bootstrap).toContain('createSafeDefaultVaultDirectory(defaultVaultPath(homedir()))');
 		expect(bootstrap).toContain("executeCommand('vscode.openFolder', uri, false)");
 		expect(bootstrap).not.toMatch(/showOpenDialog|showSaveDialog|workspace\.fs\.writeFile/);
 	});

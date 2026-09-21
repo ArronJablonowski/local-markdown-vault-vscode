@@ -26,11 +26,23 @@ export type LinkTarget =
  * unambiguous behavior for authored Markdown links.
  */
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+// Unicode bidi formatting controls can make a malicious destination appear to
+// have a different host or filename in confirmation UI and system dialogs.
+const BIDI_CONTROL_RE = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+function containsUnsafeDisplayControl(value: string): boolean {
+	if (BIDI_CONTROL_RE.test(value)) return true;
+	try {
+		return BIDI_CONTROL_RE.test(decodeURIComponent(value));
+	} catch {
+		return true;
+	}
+}
 
 export function resolveLinkTarget(href: string): LinkTarget {
 	const trimmed = href.trim();
 	if (!trimmed) return { kind: 'ignore' };
-	if (/[\u0000-\u001f\u007f]/.test(trimmed)) {
+	if (/[\u0000-\u001f\u007f]/.test(trimmed) || containsUnsafeDisplayControl(trimmed)) {
 		return { kind: 'blocked', value: trimmed };
 	}
 	if (trimmed.startsWith('#')) {

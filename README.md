@@ -167,6 +167,7 @@ Additional references:
 - [Obsidian compatibility](docs/OBSIDIAN_COMPATIBILITY.md)
 - [Migration and rollback](docs/MIGRATION.md)
 - [Accessibility](docs/ACCESSIBILITY.md)
+- [Latest active security assessment](docs/SECURITY_ASSESSMENT_2026-09-21.md)
 - [Security policy](SECURITY.md)
 
 ## Known limitations

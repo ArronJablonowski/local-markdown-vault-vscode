@@ -14,6 +14,7 @@ docs/**
 !docs/ACCESSIBILITY.md
 !docs/MIGRATION.md
 !docs/OBSIDIAN_COMPATIBILITY.md
+!docs/SECURITY_ASSESSMENT_2026-09-21.md
 esbuild.js
 scripts/**
 vendor/aws4.xml

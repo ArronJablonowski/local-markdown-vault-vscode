@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { homedir } from 'node:os';
 import { defaultVaultPath, shouldOpenDefaultVault } from './defaultVaultLocation';
+import { createSafeDefaultVaultDirectory } from './defaultVaultFilesystem';
 
 /**
  * Creates and opens the default vault on first use from an empty window.
@@ -14,9 +15,9 @@ export async function openDefaultVaultWhenNeeded(): Promise<boolean> {
 		.get<boolean>('openDefaultOnStartup', true);
 	if (!shouldOpenDefaultVault(vscode.workspace.workspaceFolders, enabled)) return false;
 
-	const uri = vscode.Uri.file(defaultVaultPath(homedir()));
 	try {
-		await vscode.workspace.fs.createDirectory(uri);
+		const canonicalPath = await createSafeDefaultVaultDirectory(defaultVaultPath(homedir()));
+		const uri = vscode.Uri.file(canonicalPath);
 		await vscode.commands.executeCommand('vscode.openFolder', uri, false);
 		return true;
 	} catch {
