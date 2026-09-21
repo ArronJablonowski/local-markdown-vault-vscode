@@ -10,7 +10,7 @@ const STYLES = [
 test.describe('CSS theme sidebar accessibility', () => {
 	test('offers Markdown Editor and a default Locked or Editing mode', async ({ page }) => {
 		await mountStyleSidebar(page, STYLES);
-		const defaultEditor = page.getByLabel('Default editor');
+		const defaultEditor = page.getByLabel('Default viewing mode');
 		await expect(defaultEditor.locator('option')).toHaveText([
 			'VS Code default',
 			'Markdown Live Preview',

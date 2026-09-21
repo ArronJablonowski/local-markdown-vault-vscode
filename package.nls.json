@@ -40,7 +40,7 @@
   "config.codeTheme.githubDark": "GitHub Dark palette.",
   "config.codeTheme.githubLight": "GitHub Light palette.",
   "config.enabledStyles": "The CSS theme applied to the live preview. Pick one exclusively from \"CSS Themes\" in the sidebar (global setting).",
-  "config.defaultEditor": "Controls whether .md files open in Markdown Live Preview by default.",
+  "config.defaultEditor": "Selects the default viewing mode used when opening Markdown files.",
   "config.defaultEditor.prompt": "Use VS Code's current default editor association.",
   "config.defaultEditor.livePreview": "Open .md files in Markdown Live Preview.",
   "config.defaultEditor.default": "Open .md files in the Markdown Editor.",

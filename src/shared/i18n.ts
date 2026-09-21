@@ -127,7 +127,7 @@ const en = {
 	'sidebar.rename': 'Rename',
 	'sidebar.delete': 'Delete',
 	'sidebar.settings': 'Settings',
-	'sidebar.defaultEditor': 'Default editor',
+	'sidebar.defaultEditor': 'Default viewing mode',
 	'sidebar.defaultEditor.prompt': 'VS Code default',
 	'sidebar.defaultEditor.livePreview': 'Markdown Live Preview',
 	'sidebar.defaultEditor.default': 'Markdown Editor',
