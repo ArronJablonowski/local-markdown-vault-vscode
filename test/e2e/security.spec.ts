@@ -147,6 +147,16 @@ test.describe('hostile Markdown boundaries', () => {
 		expect(appliedCss).not.toContain('--cover');
 		await expect(warning).toBeVisible();
 
+		// CSS nesting can otherwise move `&` into an ancestor selector and escape
+		// the document-content scope applied by the extension.
+		await postToWebview(page, {
+			type: 'applyCss',
+			css: 'h1 { body:has(&) { display: none; } }',
+		});
+		expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe('none');
+		expect(await page.locator('#mlp-user-css').evaluate((element) => element.textContent ?? '')).not.toContain('body:has');
+		await expect(warning).toBeVisible();
+
 		await postToWebview(page, { type: 'applyCss', css: 'h1 { color: rgb(1, 2, 3); }' });
 		await expect(warning).toBeHidden();
 	});

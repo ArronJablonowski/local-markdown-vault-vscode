@@ -1,5 +1,7 @@
 # Changelog
 
+- Harden custom CSS and draw.io parsing: reject modern nested CSS rules that could escape preview-content scoping and obscure trusted controls, and reject XML DTD/entity declarations before `DOMParser` can perform external or expansion work.
+
 - Create and open `~/Documents/Markdown Vault` from an empty VS Code window by default, without replacing an existing workspace; expose an application-level setting to disable this startup behavior.
 
 - Exercise native Document Vault Home/Arrow/Enter navigation across packaged platforms and CSS Themes Tab/radio-arrow/action reachability against installed macOS and Windows VSIX builds; retain platform-independent Linux sidebar keyboard coverage and leave manual VoiceOver/Orca judgment for accessibility sign-off.

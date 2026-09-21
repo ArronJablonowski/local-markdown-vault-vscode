@@ -179,6 +179,19 @@ describe('stripNetworkedCss', () => {
 	])('rejects CSS capable of hiding or impersonating controls: %s', (css) => {
 		expect(stripNetworkedCss(css)).toBe('');
 	});
+
+	it.each([
+		'h1 { body:has(&) { display: none; } }',
+		'h1 { .mlp-mermaid-toolbar & { position: fixed; z-index: 9999; } }',
+		'h1 { @media all { body:has(&) { opacity: 0; } } }',
+	])('rejects nested CSS that can escape selector scoping: %s', (css) => {
+		expect(stripNetworkedCss(css)).toBe('');
+	});
+
+	it('does not mistake braces inside a declaration string for nested CSS', () => {
+		const css = 'code::before { content: "{"; color: red; }';
+		expect(stripNetworkedCss(css)).toBe(css);
+	});
 });
 
 describe('scopePreviewCss', () => {

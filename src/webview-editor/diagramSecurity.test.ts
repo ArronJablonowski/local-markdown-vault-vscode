@@ -39,4 +39,12 @@ describe('diagram input limits', () => {
 			DiagramLimitError,
 		);
 	});
+
+	it.each([
+		'<!DOCTYPE mxfile [<!ENTITY x "expanded">]><mxfile>&x;</mxfile>',
+		'<!doctype mxfile SYSTEM "https://network.invalid/diagram.dtd"><mxfile/>',
+		'<!ENTITY x SYSTEM "file:///etc/passwd"><mxfile/>',
+	])('rejects draw.io declarations before XML parsing: %s', (xml) => {
+		expect(() => assertDiagramInputWithinLimits('drawio', xml)).toThrow(DiagramLimitError);
+	});
 });

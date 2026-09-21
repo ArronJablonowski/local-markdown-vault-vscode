@@ -651,7 +651,37 @@ function containsOnlyWhitespaceAndComments(input: string): boolean {
 	return true;
 }
 
+/**
+ * A normal style rule must contain declarations only. Modern CSS nesting lets
+ * a nested selector place the outer selector (`&`) inside an ancestor such as
+ * `body:has(&)`, which can escape the document-content scope applied later.
+ * Reject structural braces while ignoring inert braces in strings/comments.
+ */
+function containsNestedRule(body: string): boolean {
+	let i = 0;
+	while (i < body.length) {
+		if (body[i] === '/' && body[i + 1] === '*') {
+			const end = body.indexOf('*/', i + 2);
+			if (end === -1) return false;
+			i = end + 2;
+			continue;
+		}
+		if (body[i] === '"' || body[i] === "'") {
+			i = skipString(body, i);
+			continue;
+		}
+		if (body[i] === '\\') {
+			i += 2;
+			continue;
+		}
+		if (body[i] === '{' || body[i] === '}') return true;
+		i++;
+	}
+	return false;
+}
+
 function unsafePreviewRule(selector: string, body: string): boolean {
+	if (containsNestedRule(body)) return true;
 	const decodedSelector = decodeCssForSecurity(selector);
 	const decodedBody = decodeCssForSecurity(body);
 	const decoded = `${decodedSelector}{${decodedBody}}`;

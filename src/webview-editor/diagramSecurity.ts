@@ -91,6 +91,12 @@ export function assertDiagramInputWithinLimits(kind: 'mermaid' | 'drawio', sourc
 		if (source.length > MAX_DRAWIO_XML_CHARACTERS) {
 			throw new DiagramLimitError(t('diagram.drawioInputLimit'));
 		}
+		// DTDs are unnecessary for draw.io files. Reject them before DOMParser so
+		// neither external entities nor internal expansion can consume resources or
+		// attempt resolution before the post-parse element/depth limits execute.
+		if (/<\s*!(?:doctype|entity)\b/i.test(source)) {
+			throw new DiagramLimitError(t('diagram.drawioUnsafeXml'));
+		}
 		return;
 	}
 
