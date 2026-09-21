@@ -7,6 +7,11 @@ const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 const mode = process.env.MDLP_VSIX_SMOKE_MODE;
 const vsixOnly = mode === 'trusted' || mode === 'restricted' ? test : test.skip;
 const disabledOnly = mode === 'disabled' ? test : test.skip;
+// Linux Electron exposes editor webviews to the loopback CDP session but not
+// sidebar WebviewView out-of-process frames. The same packaged keyboard path is
+// enforced on macOS and Windows; Linux still runs the sidebar DOM/E2E suite and
+// verifies that the installed view can be revealed through the extension host.
+const cssThemesKeyboardOnly = mode === 'trusted' && process.platform !== 'linux' ? test : test.skip;
 const NOTE_SOURCE = [
 	'# Packaged smoke',
 	'',
@@ -149,7 +154,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await vscode.workspace.fs.stat(folder);
 	});
 
-	(mode === 'trusted' ? test : test.skip)('operates packaged CSS Themes through keyboard input', async () => {
+	cssThemesKeyboardOnly('operates packaged CSS Themes through keyboard input', async () => {
 		const page = await getWorkbenchPage();
 		await page.bringToFront();
 		await vscode.commands.executeCommand('workbench.view.extension.mdLivePreview');

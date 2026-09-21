@@ -65,9 +65,14 @@ entirely through keyboard input. It then proves the dedicated fixture is clean
 and byte-identical. Separate installed-VSIX journeys use VS Code's native
 `aria-activedescendant` tree model to reach a newly created note and folder with
 Home/Arrow keys, open the note with Enter, expand the folder with ArrowRight,
-and operate the CSS Themes sidebar with Tab plus native radio-group arrow keys.
-The CSS journey also reaches the separately named edit, duplicate, rename, and
-delete controls without a pointer and restores the original selected theme.
+and, on macOS and Windows, operate the CSS Themes sidebar with Tab plus native
+radio-group arrow keys. The CSS journey also reaches the separately named edit,
+duplicate, rename, and delete controls without a pointer and restores the
+original selected theme. Linux Electron currently exposes editor webviews but
+not sidebar `WebviewView` out-of-process frames to the loopback Playwright/CDP
+session, so Linux enforces the sidebar's semantic keyboard behavior in the
+platform-independent browser suite and verifies that the installed view can be
+revealed in the extension-host suite; manual Orca review remains required.
 
 Automated scans do not prove screen-reader usability. A release is not signed
 off solely because Axe reports no critical violations.

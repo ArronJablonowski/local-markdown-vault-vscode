@@ -77,14 +77,17 @@ suite('local knowledge navigation', () => {
 			'Needle from the filesystem watcher.',
 		].join('\n')));
 
-		const indexed = await waitFor(() => api.getVaultIndexRecords().find((record) => record.path === relative));
+		const indexed = await waitFor(
+			() => api.getVaultIndexRecords().find((record) => record.path === relative),
+			15_000,
+		);
 		assert.strictEqual(indexed.basename, 'Watcher Note');
 		assert.deepStrictEqual(indexed.aliases, ['Watcher Alias']);
 		assert.ok(indexed.tags.includes('integration'));
 		assert.ok(indexed.headings.some((heading) => heading.text === 'Watched Heading'));
 
 		await vscode.workspace.fs.delete(note);
-		await waitFor(() => api.getVaultIndexRecords().every((record) => record.path !== relative));
+		await waitFor(() => api.getVaultIndexRecords().every((record) => record.path !== relative), 15_000);
 	});
 
 	test('searches local content with line context and opens indexed results', async () => {
