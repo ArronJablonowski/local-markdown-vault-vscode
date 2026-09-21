@@ -675,6 +675,12 @@ async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
 	await widget.waitFor({ state: 'visible', timeout: 5_000 });
 	const input = widget.locator('.quick-input-box input');
 	await input.fill(value);
-	await input.press('Enter');
+	await input.focus();
+	assert.ok(await input.evaluate((element) => document.activeElement === element),
+		'VS Code did not focus the native input before keyboard submission');
+	// Submit through the workbench keyboard instead of a locator-scoped press.
+	// The input disappears as VS Code accepts it, and locator actionability can
+	// otherwise race that teardown on slower headless Linux runners.
+	await page.keyboard.press('Enter');
 	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
