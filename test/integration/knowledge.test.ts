@@ -35,9 +35,13 @@ interface DevelopmentApi {
 suite('local knowledge navigation', () => {
 	let api: DevelopmentApi;
 	let root: vscode.Uri;
+	let originalDefaultEditor: string | undefined;
 	const fixtures: vscode.Uri[] = [];
 
 	suiteSetup(async () => {
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		originalDefaultEditor = editorConfig.inspect<string>('defaultEditor')?.globalValue;
+		await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
 		const extension = vscode.extensions.getExtension<DevelopmentApi>(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);
 		api = await extension.activate();
@@ -45,6 +49,11 @@ suite('local knowledge navigation', () => {
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		assert.ok(folder?.uri.scheme === 'file', 'the integration workspace must be a local folder');
 		root = folder.uri;
+	});
+
+	suiteTeardown(async () => {
+		await vscode.workspace.getConfiguration('mdLivePreview')
+			.update('defaultEditor', originalDefaultEditor, vscode.ConfigurationTarget.Global);
 	});
 
 	teardown(async () => {

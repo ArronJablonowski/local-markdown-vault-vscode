@@ -55,6 +55,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Make VS Code's Markdown Editor the default viewing mode for new installations
+  while preserving any viewing mode the user has explicitly selected.
 - Let a second Return on the final blank line of a fenced code block move the
   caret to a normal Markdown line after the closing fence, including when the
   block is at the end of the file, while preserving ordinary multiline code

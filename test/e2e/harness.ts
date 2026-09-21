@@ -151,7 +151,7 @@ export async function mountStyleSidebar(
 			data: {
 				type: 'init',
 				styles: entries,
-				settings: { defaultEditor: 'prompt', defaultEditingMode: 'editing', codeTheme: 'auto' },
+				settings: { defaultEditor: 'markdownEditor', defaultEditingMode: 'editing', codeTheme: 'auto' },
 				themeKind: 'vscode-dark',
 				workspaceTrusted: trusted,
 			},

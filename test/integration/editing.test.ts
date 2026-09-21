@@ -15,6 +15,18 @@ import * as vscode from 'vscode';
  */
 suite('document editing', () => {
 	let file: vscode.Uri;
+	let originalDefaultEditor: string | undefined;
+
+	suiteSetup(async () => {
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		originalDefaultEditor = editorConfig.inspect<string>('defaultEditor')?.globalValue;
+		await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+	});
+
+	suiteTeardown(async () => {
+		await vscode.workspace.getConfiguration('mdLivePreview')
+			.update('defaultEditor', originalDefaultEditor, vscode.ConfigurationTarget.Global);
+	});
 
 	setup(async () => {
 		const folder = vscode.workspace.workspaceFolders?.[0];

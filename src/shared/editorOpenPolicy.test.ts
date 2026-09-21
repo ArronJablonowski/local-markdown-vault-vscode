@@ -32,6 +32,12 @@ describe('configured Markdown editor selection', () => {
 		expect(editorViewType('default')).toBe('vscode.markdown.editor');
 	});
 
+	it('uses Markdown Editor when no valid setting has been stored', () => {
+		expect(normalizeDefaultEditorSetting(undefined)).toBe('markdownEditor');
+		expect(normalizeDefaultEditorSetting('invalid')).toBe('markdownEditor');
+		expect(editorViewType(undefined)).toBe('vscode.markdown.editor');
+	});
+
 	it('only applies viewing modes to Markdown files', () => {
 		expect(configuredEditorViewTypeForPath('/Vault/Note.md', 'markdownPreview'))
 			.toBe('vscode.markdown.preview.editor');

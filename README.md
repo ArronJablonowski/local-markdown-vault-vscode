@@ -311,7 +311,7 @@ off if you prefer to save manually.
 
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
-| Default viewing mode | Choose VS Code default, Text Editor, Markdown Preview, Markdown Editor, or Markdown Live Preview | VS Code default |
+| Default viewing mode | Choose VS Code default, Text Editor, Markdown Preview, Markdown Editor, or Markdown Live Preview | Markdown Editor |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
 | Automatic save | Save every coalesced change to an open vault Markdown file in any viewing mode | Enabled |
 | Remote media | Permit HTTPS images for this workspace | Blocked |

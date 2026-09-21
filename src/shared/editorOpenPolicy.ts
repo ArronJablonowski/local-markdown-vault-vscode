@@ -1,5 +1,7 @@
 import type { DefaultEditorSetting } from './messages';
 
+export const DEFAULT_EDITOR_SETTING: DefaultEditorSetting = 'markdownEditor';
+
 export const DEFAULT_EDITOR_SETTINGS: readonly DefaultEditorSetting[] = [
 	'prompt',
 	'textEditor',
@@ -13,7 +15,7 @@ export function normalizeDefaultEditorSetting(value: string | undefined): Defaul
 	if (value === 'default') return 'markdownEditor';
 	return DEFAULT_EDITOR_SETTINGS.includes(value as DefaultEditorSetting)
 		? value as DefaultEditorSetting
-		: 'prompt';
+		: DEFAULT_EDITOR_SETTING;
 }
 
 /** Returns the VS Code editor view type for an explicit viewing-mode choice. */

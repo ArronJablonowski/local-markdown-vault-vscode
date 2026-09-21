@@ -12,7 +12,7 @@ import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
 import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
 import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
-import { editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
+import { DEFAULT_EDITOR_SETTING, editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
 
 interface DevelopmentApi {
 	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
@@ -109,7 +109,7 @@ const REOPEN_RETRY_DELAYS_MS = [150, 500, 1500];
  * tab/column so no split is created.
  */
 async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Promise<void> {
-	const configured = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', 'prompt');
+	const configured = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
 	const viewType = editorViewType(configured);
 	if (!viewType || viewType === 'default') return;
 
@@ -162,7 +162,7 @@ async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Prom
 
 async function syncDefaultEditorAssociation(): Promise<void> {
 	const config = vscode.workspace.getConfiguration('mdLivePreview');
-	const configured = config.get<string>('defaultEditor', 'prompt');
+	const configured = config.get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
 	const mode = normalizeDefaultEditorSetting(configured);
 	// Earlier builds stored `default` while labeling it Markdown Editor. Preserve
 	// that user choice and replace the obsolete value with its correct name.

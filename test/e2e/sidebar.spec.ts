@@ -18,6 +18,7 @@ test.describe('CSS theme sidebar accessibility', () => {
 			'Markdown Editor',
 			'Markdown Live Preview',
 		]);
+		await expect(defaultEditor).toHaveValue('markdownEditor');
 		const defaultMode = page.getByLabel('Default Live Preview mode');
 		await expect(defaultMode.locator('option')).toHaveText(['Editing', 'Locked']);
 		await defaultMode.selectOption('locked');

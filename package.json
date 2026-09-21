@@ -441,7 +441,7 @@
             "%config.defaultEditor.markdownEditor%",
             "%config.defaultEditor.livePreview%"
           ],
-          "default": "prompt",
+          "default": "markdownEditor",
           "description": "%config.defaultEditor%"
         },
         "mdLivePreview.autoSave": {

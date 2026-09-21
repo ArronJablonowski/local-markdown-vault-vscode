@@ -85,7 +85,7 @@ suite('extension', () => {
 	test('contributes its settings with the documented defaults', () => {
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
 		assert.strictEqual(config.get('codeTheme'), 'auto');
-		assert.strictEqual(config.get('defaultEditor'), 'prompt');
+		assert.strictEqual(config.get('defaultEditor'), 'markdownEditor');
 		assert.strictEqual(config.get('autoSave'), true);
 		assert.strictEqual(config.get('defaultEditingMode'), 'editing');
 		assert.strictEqual(config.get('remoteMedia'), 'block');
