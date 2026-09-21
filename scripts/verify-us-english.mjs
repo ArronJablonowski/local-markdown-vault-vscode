@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 
+const MAX_TEXT_FILE_BYTES = 16 * 1024 * 1024;
 const textExtensions = new Set([
 	'.css', '.html', '.js', '.json', '.md', '.mjs', '.svg', '.ts', '.txt', '.yaml', '.yml',
 ]);
@@ -19,14 +20,30 @@ const listed = execFileSync('git', [
 	'ls-files', '--cached', '--others', '--exclude-standard', '-z',
 ], { encoding: 'utf8' });
 
-const paths = listed.split('\0').filter((path) => path && existsSync(path) && statSync(path).isFile());
+const paths = listed.split('\0').filter(Boolean);
 const failures = [];
 
 for (const path of paths) {
 	if (/[^\x20-\x7e]/u.test(path)) {
 		failures.push(`${path}: tracked and release-bound paths must use printable ASCII`);
 	}
+	let metadata;
+	try {
+		metadata = lstatSync(path);
+	} catch {
+		// Staged deletions can remain in the index until the next commit.
+		continue;
+	}
+	if (metadata.isSymbolicLink()) {
+		failures.push(`${path}: symbolic links are not permitted because language verification must remain inside the checkout`);
+		continue;
+	}
+	if (!metadata.isFile()) continue;
 	if (!textExtensions.has(extname(path).toLowerCase())) continue;
+	if (metadata.size > MAX_TEXT_FILE_BYTES) {
+		failures.push(`${path}: text file exceeds the 16 MiB language-verification limit`);
+		continue;
+	}
 
 	const lines = readFileSync(path, 'utf8').split(/\r?\n/u);
 	for (let index = 0; index < lines.length; index += 1) {

@@ -58,7 +58,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Standardize repository paths, documentation, source comments, samples, tests,
   and interface text on US English. Locale compatibility catalogs now mirror
   the US English source catalog, and CI rejects non-English scripts in text
-  files, non-ASCII tracked paths, and a defined set of non-US spellings.
+  files, non-ASCII tracked paths, and a defined set of non-US spellings. The
+  language gate rejects symbolic links and text files larger than 16 MiB so an
+  untrusted contribution cannot make CI read outside the checkout or exhaust
+  memory through this scanner.
 - Keep rendered tables mounted while keyboard focus moves between their cells,
   preventing a delayed CodeMirror refresh from replacing the focused grid with
   raw Markdown during arrow-key navigation.
