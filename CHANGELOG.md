@@ -55,6 +55,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Let a second Return on the final blank line of a fenced code block move the
+  caret to a normal Markdown line after the closing fence, including when the
+  block is at the end of the file, while preserving ordinary multiline code
+  entry and Down Arrow navigation through the closing fence.
 - Name the Document Vault tree after the actual local folder shown in Finder,
   refresh its affected parent immediately after external filesystem events,
   and run one 50 ms coalesced reconciliation pass so bulk changes and folder

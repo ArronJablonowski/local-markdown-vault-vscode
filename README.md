@@ -253,6 +253,18 @@ This statement has a source.[^source]
 [^source]: A local footnote definition.
 ```
 
+#### Add and leave a code block
+
+````markdown
+```javascript
+console.log('Stored locally');
+```
+````
+
+After the last line of code, press Return once to create an empty code line and
+press Return again to continue writing below the code block. You can also press
+Down Arrow to move to the closing fence and then press Return.
+
 #### Add tags and aliases
 
 ```markdown

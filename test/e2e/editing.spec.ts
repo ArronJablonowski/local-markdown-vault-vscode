@@ -199,3 +199,55 @@ test.describe('Markdown list editing', () => {
 		await expect(page.locator('.cm-line').nth(1)).toHaveText('');
 	});
 });
+
+test.describe('fenced code editing', () => {
+	test('pressing Enter on a blank final code line leaves the fenced block', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```');
+		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
+		await codeLine.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('After');
+
+		await expect(page.locator('.cm-line').last()).toHaveText('After');
+		await expect(page.locator('.cm-line').last()).not.toHaveClass(/mlp-line-code/);
+	});
+
+	test('leaving a fenced block inserts a normal line before following text', async ({ page }) => {
+		await mountEditor(page, '```js\nconst value = 1;\n```\nFollowing');
+		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
+		await codeLine.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('After');
+
+		const inserted = page.locator('.cm-line', { hasText: 'After' });
+		await expect(inserted).not.toHaveClass(/mlp-line-code/);
+		await expect(page.locator('.cm-line').last()).toHaveText('Following');
+	});
+
+	test('a single Enter after non-empty code remains inside the block', async ({ page }) => {
+		await mountEditor(page, '~~~js\nconst first = 1;\n~~~');
+		const codeLine = page.locator('.cm-line', { hasText: 'const first = 1;' });
+		await codeLine.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('const second = 2;');
+
+		await expect(page.locator('.cm-line', { hasText: 'const second = 2;' })).toHaveClass(/mlp-line-code/);
+	});
+
+	test('ArrowDown and Enter leave a fenced code block at the end of a document', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```');
+		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
+		await codeLine.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('After');
+
+		await expect(page.locator('.cm-line').last()).toHaveText('After');
+	});
+});
