@@ -19,7 +19,7 @@ This result is evidence for the tested build and threat model, not a guarantee t
 
 - Platform: macOS on Apple silicon
 - VS Code under test: `1.138.0`
-- Reviewed runtime baseline: commit `870691d0eef736f617f85aeb5511a4d3d66b5fad`
+- Reviewed runtime baseline: commit `48bbc815d49ca5e60e77839bab2fb47d5a27260e`
 - Extension package: rebuilt locally from the assessed source
 - Package identity: `arronjablonowski.local-markdown-vault` version `0.2.0`
 - Vault model: one local `file:` workspace folder
