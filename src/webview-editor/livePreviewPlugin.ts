@@ -830,6 +830,13 @@ class TableWidget extends WidgetType {
 
 		/** Swaps a cell to its raw Markdown and puts the caret in it. */
 		const beginEditing = (cell: HTMLElement, caret: 'all' | 'end'): void => {
+			// Widget contenteditable attributes bypass the parent editor's DOM
+			// editability. Keep locked cells inert as well as rejecting transactions.
+			if (!view.state.facet(EditorView.editable)) {
+				protectRenderedBlockFromCaret();
+				cell.focus();
+				return;
+			}
 			if (editing === cell) return;
 			if (editing) commit(editing);
 			const ref = readCellRef(cell);
@@ -1034,6 +1041,7 @@ class TableWidget extends WidgetType {
 			refreshTableActions();
 		});
 		table.addEventListener('keydown', (event) => {
+			if (!view.state.facet(EditorView.editable)) protectRenderedBlockFromCaret();
 			if (editing || event.altKey || event.ctrlKey || event.metaKey) return;
 			const target = event.target as HTMLElement | null;
 			const cell = target?.closest('.mlp-table-cell') as HTMLElement | null;
@@ -1128,14 +1136,23 @@ class TableWidget extends WidgetType {
 			});
 			view.focus();
 		};
+		const cutSelectedTable = (event: ClipboardEvent): void => {
+			if (!tableBlockSelected || !event.clipboardData) return;
+			copySelectedTable(event);
+			if (!event.defaultPrevented) return;
+			event.stopImmediatePropagation();
+			if (view.state.facet(EditorView.editable)) deleteSelectedTable(new KeyboardEvent('keydown', { key: 'Delete' }));
+		};
 		const clearTableSelectionOutside = (event: PointerEvent): void => {
 			if (tableBlockSelected && !wrap.contains(event.target as Node | null)) setTableBlockSelected(false);
 		};
 		view.dom.addEventListener('copy', copySelectedTable, true);
+		view.dom.addEventListener('cut', cutSelectedTable, true);
 		view.dom.addEventListener('keydown', deleteSelectedTable, true);
 		view.dom.addEventListener('pointerdown', clearTableSelectionOutside, true);
 		tableWidgetCleanup.set(wrap, () => {
 			view.dom.removeEventListener('copy', copySelectedTable, true);
+			view.dom.removeEventListener('cut', cutSelectedTable, true);
 			view.dom.removeEventListener('keydown', deleteSelectedTable, true);
 			view.dom.removeEventListener('pointerdown', clearTableSelectionOutside, true);
 		});

@@ -170,6 +170,9 @@ function createExtensions(): Extension[] {
 			return [];
 		}),
 		editingCompartment.of(EditorView.editable.of(editingAllowed)),
+		// A non-contenteditable (locked) document still needs keyboard focus for
+		// selection, Copy, and the guarded editor shortcuts.
+		EditorView.contentAttributes.of({ tabindex: '0' }),
 		whitespaceCompartment.of([]),
 		markdownSupport,
 		codeFolding(),
@@ -259,11 +262,11 @@ function createExtensions(): Extension[] {
 			// than any other handler, and so each jump can mark its selection as a
 			// search match. Replace has no default binding in searchKeymap; VS Code
 			// puts it on Mod-Alt-f, and the panel carries both fields either way.
-			{ key: 'Mod-f', run: openSearchPanelFocused },
-			{ key: 'Mod-Alt-f', run: openSearchPanelFocused },
-			{ key: 'F3', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
-			{ key: 'Mod-g', run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
-			{ key: 'Mod-d', run: markingSearchSelection(selectNextOccurrence) },
+			{ key: 'Mod-f', stopPropagation: true, run: openSearchPanelFocused },
+			{ key: 'Mod-Alt-f', stopPropagation: true, run: openSearchPanelFocused },
+			{ key: 'F3', stopPropagation: true, run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
+			{ key: 'Mod-g', stopPropagation: true, run: markingSearchSelection(findNext), shift: markingSearchSelection(findPrevious) },
+			{ key: 'Mod-d', stopPropagation: true, run: markingSearchSelection(selectNextOccurrence) },
 			// Escape closes the panel; it must not swallow the key when no panel is
 			// open, so `closeSearchPanel`'s own false return is passed through.
 			{ key: 'Escape', run: closeSearchPanel },
@@ -276,11 +279,14 @@ function createExtensions(): Extension[] {
 			// otherwise the host's document is missing the latest edits when it acts,
 			// undoing the wrong change and leaving the webview's local text duplicated
 			// relative to what ends up in the file.
-			{ key: 'Mod-z', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'undo' }); } return true; } },
-			{ key: 'Mod-y', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
-			{ key: 'Mod-Shift-z', run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
-			{ key: 'Mod-b', run: toggleEmphasisCommand('**') },
-			{ key: 'Mod-i', run: toggleEmphasisCommand('*') },
+			// VS Code forwards bubbled webview shortcuts even when defaultPrevented.
+			// Stop these handled keys or one press can undo/redo twice: our ordered
+			// host message plus the workbench's forwarded native command.
+			{ key: 'Mod-z', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'undo' }); } return true; } },
+			{ key: 'Mod-y', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
+			{ key: 'Mod-Shift-z', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
+			{ key: 'Mod-b', stopPropagation: true, run: toggleEmphasisCommand('**') },
+			{ key: 'Mod-i', stopPropagation: true, run: toggleEmphasisCommand('*') },
 			indentWithTab,
 			...defaultKeymap,
 			// Tab indents Markdown, matching the requested Obsidian-style editing

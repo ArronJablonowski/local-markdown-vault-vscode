@@ -1,5 +1,12 @@
 # Changelog
 
+- Prevent handled Undo/Redo shortcuts from bubbling to VS Code and executing twice; keep formatting and Find shortcuts from also triggering workbench actions. Verify native Cut/Paste followed by one-step Undo/Redo and automatic save, and keep locked document text keyboard-focusable.
+
+- Fix Cut and Delete on native rendered-table selections so they cannot operate on an unrelated stale editor selection. Preserve table structure for plain-text cell selections, support whole-table Cut, and keep ambiguous rich-text selections non-destructive.
+- Keep locked table cells noneditable, including mouse clicks and F2, without allowing temporary unsaved text to appear.
+- Close an unfinished top-level code fence safely when exiting at the end of a note, preserving its code and matching its fence character and length.
+- Expand QA with real system clipboard cut/paste/autosave/undo checks, table selection regressions, and an isolated installed-app vault workflow that can exercise modal trash confirmations outside VS Code's extension-test mode.
+
 - Add a brief glimmer to the Live Preview Lock/Edit switch on locked clicks and edit attempts, matching the native editor's reminder. Unlocking stops it; reduced-motion and forced-color modes suppress the animation.
 
 - Make Markdown Live Preview the default for new installations and missing or invalid viewing preferences. Preserve explicitly saved viewing choices and manual Text Editor switches.

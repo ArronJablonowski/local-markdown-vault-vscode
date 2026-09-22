@@ -110,6 +110,16 @@ suite('focused cross-platform desktop transactions', () => {
 			const page = await getWorkbenchPage();
 			for (let attempt = 0; attempt < 3; attempt++) {
 				await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor');
+				// openWith returns before the native webview finishes loading. Opening
+				// a picker during that focus handoff can dismiss it before the click.
+				await waitFor(async () => {
+					for (const frame of page.frames()) {
+						if (await frame.locator('.md-editor').count() &&
+							(await frame.locator('.md-editor').textContent())?.includes('Switch mode')) return true;
+					}
+					return false;
+				}, 'the native Markdown Editor was not ready for a viewing-mode change');
+				await page.bringToFront();
 				await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 				void vscode.commands.executeCommand('workbench.action.reopenWithEditor');
 				const choice = page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({ hasText: 'Text Editor' });
@@ -177,6 +187,52 @@ suite('focused cross-platform desktop transactions', () => {
 			}
 			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
 			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original);
+		} finally {
+			await vscode.env.clipboard.writeText(previousClipboard);
+		}
+	});
+
+	test('cuts mouse-selected table text, autosaves, and restores it with host undo', async () => {
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			const fixture = await makeFixture('mouse-cut');
+			const note = await service.createNote(fixture, 'Cut selection');
+			const original = 'Before cut\n\n| Name | Value |\n| --- | --- |\n| Alpha bravo | Charlie delta |\n\nAfter\n';
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Before cut');
+			const bounds = await frame.locator('.mlp-table td').first().boundingBox();
+			assert.ok(bounds);
+			await frame.page().mouse.move(bounds.x + 12, bounds.y + bounds.height / 2);
+			await frame.page().mouse.down();
+			await frame.page().mouse.move(bounds.x + 53, bounds.y + bounds.height / 2, { steps: 10 });
+			await frame.page().mouse.up();
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+x' : 'Control+x');
+			await waitFor(async () => (await vscode.env.clipboard.readText()).trim() === 'Alpha', 'native Cut copied the wrong text');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original.replace('Alpha', ''),
+				'the selected text was not cut and automatically saved');
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+v' : 'Control+v');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original,
+				'native Paste did not restore the clipboard text at the cut position');
+			const undoChanges: string[] = [];
+			const undoListener = vscode.workspace.onDidChangeTextDocument(event => {
+				if (event.document.uri.toString() === note.toString()) undoChanges.push(event.document.getText());
+			});
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original.replace('Alpha', ''),
+				'undo did not remove only the pasted text').catch(async (error) => {
+				throw new Error(`${error.message}; changes=${JSON.stringify(undoChanges)}; document=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText())}; focus=${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 500))}`);
+			}).finally(() => undoListener.dispose());
+			await frame.locator('.cm-line').first().click();
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original,
+				'host undo did not restore and automatically save the original table');
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original.replace('Alpha', ''),
+				'one Redo did not replay only the cut');
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original,
+				'second Redo did not replay the paste');
 		} finally {
 			await vscode.env.clipboard.writeText(previousClipboard);
 		}

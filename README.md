@@ -281,6 +281,12 @@ bottom of that table.
 Drag across rendered text to highlight and copy it. Use **Select entire table**
 in **Table options** to highlight the complete table; Copy places its Markdown
 source on the clipboard, and Backspace or Delete removes the selected table.
+Cut also copies and removes a selected table. In Edit mode, Cut, Backspace, and
+Delete can remove mouse-selected plain text within rendered table cells without
+affecting other rows or paragraphs. For a partial selection inside formatted
+cell text (such as bold text or a link), click the cell to edit its Markdown
+before cutting or deleting; ambiguous rendered selections are left unchanged.
+Locked mode never removes table content.
 
 In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
 (Windows/Linux) work in both Edit and Locked modes. You can select part of a
@@ -329,6 +335,10 @@ press Return again to continue writing below the code block. You can also press
 Down Arrow to move to the closing fence and then press Return. To leave the code
 block immediately from any code line, press Command+Return on macOS or
 Ctrl+Return on Windows and Linux.
+For an unfinished top-level fenced block at the end of a note, these exit
+actions add the matching closing fence before placing the caret on a normal
+line. Existing code is preserved. Nested unfinished fences still need their
+closing fence entered explicitly.
 
 Every fenced code block, including a block containing only one line, has a
 **Copy** button in Markdown Live Preview and Markdown Preview. The button copies

@@ -175,6 +175,26 @@ suite('Installed VSIX clean-profile smoke', () => {
 			'the packaged Document Vault did not expand its created folder with ArrowRight',
 		);
 		await vscode.workspace.fs.stat(folder);
+
+		// Exercise native selection and prompts, not direct VaultService calls.
+		await selectWorkbenchTreeItemWithKeyboard(page, `File: ${noteName}.md`);
+		// Native macOS context menus are outside Chromium's automation surface.
+		// Pass the same validated context argument, then operate the real prompt.
+		const rename = vscode.commands.executeCommand('mdLivePreview.vault.rename', { uri: note });
+		await acceptNativeInputBox(page, 'Packaged Renamed Note.md');
+		await rename;
+		const renamed = vscode.Uri.joinPath(root, 'Packaged Renamed Note.md');
+		await waitFor(async () => { try { await vscode.workspace.fs.stat(renamed); return true; } catch { return false; } }, 'rename did not complete');
+		await assert.rejects(async () => vscode.workspace.fs.stat(note));
+		await selectWorkbenchTreeItemWithKeyboard(page, 'File: Packaged Renamed Note.md');
+		const move = vscode.commands.executeCommand('mdLivePreview.vault.move', { uri: renamed });
+		await acceptNativeInputBox(page, folderName);
+		await move;
+		const moved = vscode.Uri.joinPath(folder, 'Packaged Renamed Note.md');
+		await waitFor(async () => { try { await vscode.workspace.fs.stat(moved); return true; } catch { return false; } }, 'move did not complete');
+		await assert.rejects(async () => vscode.workspace.fs.stat(renamed));
+		// VS Code refuses modal confirmations in extension-test mode. The normal
+		// installed-app workflow in run-vault-ui-qa.mjs covers confirmed trash.
 	});
 
 	cssThemesKeyboardOnly('operates packaged CSS Themes through keyboard input', async () => {
@@ -785,6 +805,7 @@ async function openQuickSwitcher(page: Page): Promise<Locator> {
 }
 
 async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
+	await page.bringToFront();
 	// Drive the input through the workbench keyboard. Locator-scoped fill/press
 	// waits for actionability while VS Code animates and later tears down this
 	// transient overlay, which can race indefinitely on headless Linux.
@@ -821,5 +842,8 @@ async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
 			await delay(50);
 		}
 	}
-	assert.fail('VS Code did not accept keyboard text in the native input');
+	assert.fail(`VS Code did not accept keyboard text in the native input: ${await page.evaluate(() => JSON.stringify({
+		focused: document.activeElement?.outerHTML,
+		inputs: Array.from(document.querySelectorAll<HTMLInputElement>('.quick-input-box input')).map(input => ({ value: input.value, placeholder: input.placeholder })),
+	}))}`);
 }

@@ -9,6 +9,27 @@ interface FenceRange {
 const MAX_FENCE_SCAN_LINES = 10_000;
 const MAX_FENCE_CANDIDATES = 128;
 
+/** Close only a parser-confirmed, top-level unfinished fence at EOF. */
+function closeUnfinishedFence(view: Parameters<Command>[0], node: SyntaxNode): boolean {
+	const { state } = view;
+	if (node.parent?.name !== 'Document' || node.to !== state.doc.length) return false;
+	const marks = node.getChildren('CodeMark');
+	if (marks.length !== 1) return false;
+	const opener = state.doc.lineAt(marks[0].from);
+	if (!/^ {0,3}(?:`{3,}|~{3,})/.test(opener.text)) return false;
+	const fence = state.sliceDoc(marks[0].from, marks[0].to);
+	if (!/^(?:`{3,}|~{3,})$/.test(fence)) return false;
+	const last = state.doc.line(state.doc.lines);
+	const insert = (last.text.length ? '\n' : '') + fence + '\n';
+	view.dispatch({
+		changes: { from: state.doc.length, insert },
+		selection: { anchor: state.doc.length + insert.length },
+		scrollIntoView: true,
+		userEvent: 'input',
+	});
+	return true;
+}
+
 function fencedCodeAncestor(node: SyntaxNode | null): SyntaxNode | null {
 	for (let current = node; current; current = current.parent) {
 		if (current.name === 'FencedCode') return current;
@@ -44,7 +65,7 @@ function moveAfterFencedCode(view: Parameters<Command>[0], node: SyntaxNode): bo
 	const { state } = view;
 	const marks = node.getChildren('CodeMark');
 	const closingMark = marks.length >= 2 ? marks.at(-1) : undefined;
-	if (!closingMark) return false;
+	if (!closingMark) return closeUnfinishedFence(view, node);
 	const closingLine = state.doc.lineAt(closingMark.from);
 
 	if (closingLine.number < state.doc.lines) {
@@ -104,7 +125,11 @@ export const exitFencedCodeOnBlankLine: Command = (view) => {
 
 	const cursor = selection.main.head;
 	const line = state.doc.lineAt(cursor);
-	if (line.text.trim().length !== 0 || line.number >= state.doc.lines) return false;
+	if (line.text.trim().length !== 0) return false;
+	if (line.number === state.doc.lines) {
+		const unfinished = fencedCodeAncestor(syntaxTree(state).resolveInner(cursor, -1));
+		return unfinished ? closeUnfinishedFence(view, unfinished) : false;
+	}
 
 	const closingLine = state.doc.line(line.number + 1);
 	const node = fencedCodeAncestor(syntaxTree(state).resolveInner(line.from, 1));

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EditorState, EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
-import { escapeFencedCode } from './codeFenceEditing';
+import { escapeFencedCode, exitFencedCodeOnBlankLine } from './codeFenceEditing';
 import { exitEmptyMarkdownSection } from './sectionEditing';
 import { deleteFullySelectedFencedCode } from './blockSelection';
 
@@ -11,8 +11,31 @@ function view(doc: string, cursor = doc.length): EditorView {
 }
 
 describe('code editing safety', () => {
-	it('does not mistake an opening fence for a closing fence', () => {
+	it('adds a real closing fence without mistaking the opener for the closing fence', () => {
 		const editor = view('```text\none\ntwo');
+		expect(escapeFencedCode(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: editor.state.doc.length, insert: '\n```\n' },
+			selection: { anchor: editor.state.doc.length + 5 },
+		}));
+	});
+
+	it.each(['```', '~~~~', '`````'])('closes an unfinished %s fence after a final blank line', (fence) => {
+		const editor = view(`${fence}text\nkeep this code\n`);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: editor.state.doc.length, insert: `${fence}\n` },
+		}));
+	});
+
+	it('keeps a single Enter inside nonempty unfinished code', () => {
+		const editor = view('```text\nkeep this code');
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
+	it('does not guess a closing prefix for a nested unfinished fence', () => {
+		const editor = view('> ```text\n> code\n> ');
 		expect(escapeFencedCode(editor)).toBe(false);
 		expect(editor.dispatch).not.toHaveBeenCalled();
 	});
