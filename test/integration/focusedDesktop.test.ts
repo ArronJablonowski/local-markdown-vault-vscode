@@ -110,7 +110,8 @@ suite('focused cross-platform desktop transactions', () => {
 		const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 		await frame.page().keyboard.press(`${primaryModifier}+z`);
 		await waitFor(() => document.getText() === original, 'the platform undo shortcut did not undo the Live Preview edit');
-		await frame.page().keyboard.press(`${primaryModifier}+Shift+z`);
+		const redoShortcut = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y';
+		await frame.page().keyboard.press(redoShortcut);
 		await waitFor(() => document.getText() === edited, 'the platform redo shortcut did not redo the Live Preview edit');
 
 		await frame.page().keyboard.press(`${primaryModifier}+s`);

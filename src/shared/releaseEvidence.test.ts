@@ -304,7 +304,8 @@ describe('release security evidence', () => {
 		expect(testSource).toContain("frame.locator('.cm-content')");
 		expect(testSource).toContain("process.platform === 'darwin' ? 'Meta' : 'Control'");
 		expect(testSource).toContain('keyboard.press(`${primaryModifier}+z`)');
-		expect(testSource).toContain('keyboard.press(`${primaryModifier}+Shift+z`)');
+		expect(testSource).toContain("process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y'");
+		expect(testSource).toContain('keyboard.press(redoShortcut)');
 		expect(testSource).toContain('keyboard.press(`${primaryModifier}+s`)');
 		expect(testSource).toContain('Live Preview did not render the external file change');
 		expect(testSource).toContain('drives native knowledge pickers and views with keyboard navigation');
