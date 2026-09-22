@@ -346,7 +346,7 @@ off if you prefer to save manually.
 
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
-| Default viewing mode | Choose VS Code default, Text Editor, Markdown Preview, VS Code Markdown Editor, Markdown Editor, or Markdown Live Preview. **Markdown Editor** is Local Markdown Vault's Obsidian-style editor; **VS Code Markdown Editor** is Microsoft's separate editor. | Markdown Editor |
+| Default viewing mode | **Markdown Editor** opens VS Code's built-in Markdown Editor; **VS Code Markdown Editor** is a compatible alias for that same view. **Markdown Live Preview** opens Local Markdown Vault's custom editor. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Editor |
 | Vault file tabs | Reuse one preview tab while browsing, or keep every opened vault file in a separate tab | Reuse one preview tab |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
 | Automatic save | Save every coalesced change to an open vault Markdown file in any viewing mode | Enabled |

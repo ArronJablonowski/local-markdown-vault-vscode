@@ -30,7 +30,7 @@ suite('settings and views', () => {
 			textEditor: 'default',
 			markdownPreview: 'vscode.markdown.preview.editor',
 			vscodeMarkdownEditor: 'vscode.markdown.editor',
-			markdownEditor: 'mdLivePreview.editor',
+			markdownEditor: 'vscode.markdown.editor',
 			livePreview: 'mdLivePreview.editor',
 		};
 		for (const [value, expectedViewType] of Object.entries(expectedViewTypes)) {
@@ -43,6 +43,35 @@ suite('settings and views', () => {
 				return associations?.['*.md'] === expectedViewType
 					&& associations?.['*.markdown'] === expectedViewType;
 			});
+		}
+	});
+
+	test('opens new Markdown files in the selected editor through VS Code and the vault', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root);
+		for (const [mode, expected] of [
+			['markdownEditor', 'vscode.markdown.editor'],
+			['livePreview', 'mdLivePreview.editor'],
+		]) {
+			await config().update('defaultEditor', mode, vscode.ConfigurationTarget.Global);
+			await waitFor(() => vscode.workspace.getConfiguration()
+				.get<Record<string, string>>('workbench.editorAssociations')?.['*.md'] === expected);
+			for (const path of ['README.md', 'obsidian-core.md']) {
+				const uri = vscode.Uri.joinPath(root, path);
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.commands.executeCommand('vscode.open', uri);
+				await waitFor(() => {
+					const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+					return input instanceof vscode.TabInputCustom && input.viewType === expected
+						&& input.uri.toString() === uri.toString();
+				});
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', path);
+				const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+				assert.ok(input instanceof vscode.TabInputCustom);
+				assert.strictEqual(input.viewType, expected);
+				assert.strictEqual(input.uri.toString(), uri.toString());
+			}
 		}
 	});
 
