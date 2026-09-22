@@ -441,7 +441,20 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 			await waitFor(() => activeTabUri()?.toString() === vscode.Uri.joinPath(root, 'README.md').toString(),
 				'the installed Restricted Mode Live Preview did not become active');
-			const frame = await connectToLivePreviewFrame('Packaged smoke');
+			let frame: Frame;
+			try {
+				frame = await connectToLivePreviewFrame('Packaged smoke', 5_000);
+			} catch {
+				// Some Electron hosts restore the custom-editor tab before attaching
+				// its out-of-process frame. Reopening that same local document is a
+				// bounded recovery that also verifies the packaged provider can be
+				// resolved repeatedly in Restricted Mode.
+				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+				await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.joinPath(root, 'README.md'), 'mdLivePreview.editor');
+				await waitFor(() => activeTabUri()?.toString() === vscode.Uri.joinPath(root, 'README.md').toString(),
+					'the retried Restricted Mode Live Preview did not become active');
+				frame = await connectToLivePreviewFrame('Packaged smoke');
+			}
 			await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
 			await waitFor(async () => (await frame.locator('.mlp-image[alt="Packaged local image"]').getAttribute('src'))?.startsWith('blob:') === true,
 				'Restricted Mode did not retain secure local-image rendering');
@@ -478,9 +491,9 @@ suite('Installed VSIX clean-profile smoke', () => {
 	});
 });
 
-async function connectToLivePreviewFrame(expectedText: string): Promise<Frame> {
+async function connectToLivePreviewFrame(expectedText: string, timeoutMs = 20_000): Promise<Frame> {
 	const browser = await connectToDebugBrowser();
-	const deadline = Date.now() + 20_000;
+	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		for (const context of browser.contexts()) {
 			for (const page of context.pages()) {
@@ -527,8 +540,14 @@ async function connectToCssThemesFrame(): Promise<Frame> {
 async function getWorkbenchPage(): Promise<Page> {
 	const browser = await connectToDebugBrowser();
 	const pages = browser.contexts().flatMap((context) => context.pages());
-	assert.ok(pages.length > 0, 'the installed VSIX workbench page is unavailable');
-	return pages[0];
+	for (const page of pages) {
+		try {
+			if (await page.locator('.monaco-workbench').count() > 0) return page;
+		} catch {
+			// A background page can close while the workbench is being selected.
+		}
+	}
+	assert.fail('the installed VSIX workbench page is unavailable');
 }
 
 async function connectToDebugBrowser(): Promise<Browser> {
@@ -680,11 +699,29 @@ function delay(ms: number): Promise<void> {
 }
 
 async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
-	const widget = page.locator('.quick-input-widget:visible');
-	await widget.waitFor({ state: 'visible', timeout: 5_000 });
-	await typeNativeQuickInput(page, value);
-	await page.keyboard.press('Enter');
+	const targetPage = await findNativeQuickInputPage(page);
+	const widget = targetPage.locator('.quick-input-widget:visible');
+	await typeNativeQuickInput(targetPage, value);
+	await targetPage.keyboard.press('Enter');
 	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
+}
+
+async function findNativeQuickInputPage(preferredPage: Page): Promise<Page> {
+	const browser = await connectToDebugBrowser();
+	const deadline = Date.now() + 5_000;
+	while (Date.now() < deadline) {
+		const pages = browser.contexts().flatMap((context) => context.pages());
+		const candidates = [preferredPage, ...pages.filter((page) => page !== preferredPage)];
+		for (const page of candidates) {
+			try {
+				if (await page.locator('.quick-input-widget:visible').count() > 0) return page;
+			} catch {
+				// Ignore pages that close while VS Code presents the native overlay.
+			}
+		}
+		await delay(50);
+	}
+	assert.fail('VS Code did not present the native input box on an active workbench page');
 }
 
 async function openQuickSwitcher(page: Page): Promise<Locator> {
