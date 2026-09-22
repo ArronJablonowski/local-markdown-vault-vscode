@@ -142,6 +142,10 @@ test.describe('locked Live Preview mode', () => {
 		const toggle = page.getByRole('button', { name: 'Locked: select to edit the document' });
 		await expect(editor).toHaveAttribute('contenteditable', 'false');
 		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+		await expect(toggle.locator('[data-editing-mode="locked"]')).toHaveClass(/is-selected/);
+		await expect(toggle.locator('[data-editing-mode="editing"]')).not.toHaveClass(/is-selected/);
+		await expect(toggle.locator('svg')).toHaveCount(2);
+		await expect(toggle).toHaveText('');
 		await page.evaluate(() => {
 			(window as unknown as { __posted: unknown[] }).__posted = [];
 		});
@@ -156,6 +160,13 @@ test.describe('locked Live Preview mode', () => {
 		await toggle.click();
 		await expect(editor).toHaveAttribute('contenteditable', 'true');
 		await expect(page.getByRole('button', { name: 'Editing: select to lock the editor' })).toHaveAttribute('aria-pressed', 'false');
+		const unlockedToggle = page.getByRole('button', { name: 'Editing: select to lock the editor' });
+		await expect(unlockedToggle.locator('[data-editing-mode="editing"]')).toHaveClass(/is-selected/);
+		await unlockedToggle.screenshot({ path: test.info().outputPath('editing-toggle.png') });
+		await unlockedToggle.press('Space');
+		await expect(editor).toHaveAttribute('contenteditable', 'false');
+		await page.getByRole('button', { name: 'Locked: select to edit the document' }).press('Enter');
+		await expect(editor).toHaveAttribute('contenteditable', 'true');
 		await editor.click();
 		await page.keyboard.type('X');
 		await expect.poll(() => page.evaluate(() =>

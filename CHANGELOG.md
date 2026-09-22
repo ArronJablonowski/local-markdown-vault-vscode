@@ -1,5 +1,7 @@
 # Changelog
 
+- Match Markdown Editor's compact Lock/Edit control in Markdown Live Preview: an outlined pill with lock and pencil icons, a highlighted active mode, keyboard operation, and accessible mode labels. The lock still blocks edits at the transaction boundary.
+
 - Review the conversation's functionality requirements and record implemented features, view-specific gaps, and remaining release gates in `docs/FUNCTIONALITY_REVIEW_2026-09-22.md`.
 - Preserve unselected text in unfinished code fences, preserve multi-cursor deletion semantics, and stop section-exit commands from erasing code that resembles empty Markdown markup or mistaking an opening fence for its closing delimiter.
 - Activate automatically at startup and for Markdown so default-vault setup and autosave do not require first opening an extension view. Recheck the current vault after asynchronous autosave authorization.

@@ -31,12 +31,39 @@ html, body {
 	top: 8px;
 	right: 18px;
 	z-index: 20;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: 4px;
-	padding: 3px 8px;
-	color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
-	background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, rgba(127, 127, 127, 0.35)));
+	border-radius: 999px;
+	padding: 3px;
+	color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+	background: var(--vscode-editor-background);
 	cursor: pointer;
+}
+
+.mlp-editing-mode-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+.mlp-editing-mode-icon.is-selected {
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #007acc);
+	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+}
+
+.mlp-editing-mode-icon svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 .mlp-editing-mode-toggle:hover {

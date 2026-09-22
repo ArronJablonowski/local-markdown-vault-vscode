@@ -306,7 +306,9 @@ function updateEditingModeUi(): void {
 	root?.classList.toggle('mlp-editor-locked', !editingAllowed);
 	if (!modeButton) return;
 	const label = editingAllowed ? t('editor.mode.editing') : t('editor.mode.locked');
-	modeButton.textContent = editingAllowed ? 'Editing' : 'Locked';
+	modeButton.querySelectorAll<HTMLElement>('[data-editing-mode]').forEach((segment) => {
+		segment.classList.toggle('is-selected', segment.dataset.editingMode === (editingAllowed ? 'editing' : 'locked'));
+	});
 	modeButton.title = label;
 	modeButton.setAttribute('aria-label', label);
 	modeButton.setAttribute('aria-pressed', String(!editingAllowed));
@@ -328,6 +330,29 @@ function ensureEditingModeButton(): void {
 	modeButton = document.createElement('button');
 	modeButton.type = 'button';
 	modeButton.className = 'mlp-editing-mode-toggle';
+	// Fixed local vector icons, never document-derived markup. Keep one native
+	// toggle button so Space/Enter and its existing accessible state still work.
+	for (const [mode, paths] of [
+		['locked', ['M5 7V5a3 3 0 0 1 6 0v2', 'M4 7h8v7H4z', 'M8 10v1']],
+		['editing', ['M3 10.5 10.5 3a1.4 1.4 0 0 1 2.5 2.5L5.5 13 2 14z', 'm9 4.5 2.5 2.5']],
+	] as const) {
+		const segment = document.createElement('span');
+		segment.className = 'mlp-editing-mode-icon';
+		segment.dataset.editingMode = mode;
+		segment.setAttribute('aria-hidden', 'true');
+		const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		icon.setAttribute('viewBox', '0 0 16 16');
+		icon.setAttribute('width', '16');
+		icon.setAttribute('height', '16');
+		icon.setAttribute('focusable', 'false');
+		for (const geometry of paths) {
+			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path.setAttribute('d', geometry);
+			icon.appendChild(path);
+		}
+		segment.appendChild(icon);
+		modeButton.appendChild(segment);
+	}
 	modeButton.addEventListener('click', () => setEditingAllowed(!editingAllowed));
 	document.getElementById('mlp-root')?.appendChild(modeButton);
 	updateEditingModeUi();
