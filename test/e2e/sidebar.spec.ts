@@ -15,6 +15,7 @@ test.describe('CSS theme sidebar accessibility', () => {
 			'VS Code default',
 			'Text Editor',
 			'Markdown Preview',
+			'VS Code Markdown Editor',
 			'Markdown Editor',
 			'Markdown Live Preview',
 		]);

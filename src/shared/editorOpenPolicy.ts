@@ -6,6 +6,7 @@ export const DEFAULT_EDITOR_SETTINGS: readonly DefaultEditorSetting[] = [
 	'prompt',
 	'textEditor',
 	'markdownPreview',
+	'vscodeMarkdownEditor',
 	'markdownEditor',
 	'livePreview',
 ];
@@ -23,7 +24,10 @@ export function editorViewType(value: string | undefined): string | undefined {
 	switch (normalizeDefaultEditorSetting(value)) {
 		case 'textEditor': return 'default';
 		case 'markdownPreview': return 'vscode.markdown.preview.editor';
-		case 'markdownEditor': return 'vscode.markdown.editor';
+		case 'vscodeMarkdownEditor': return 'vscode.markdown.editor';
+		// "Markdown Editor" is this product's Obsidian-style editing surface.
+		// Keep the older "Markdown Live Preview" choice as a compatible alias.
+		case 'markdownEditor':
 		case 'livePreview': return 'mdLivePreview.editor';
 		default: return undefined;
 	}

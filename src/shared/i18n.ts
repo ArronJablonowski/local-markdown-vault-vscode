@@ -136,6 +136,7 @@ const en = {
 	'sidebar.defaultEditor.prompt': 'VS Code default',
 	'sidebar.defaultEditor.textEditor': 'Text Editor',
 	'sidebar.defaultEditor.markdownPreview': 'Markdown Preview',
+	'sidebar.defaultEditor.vscodeMarkdownEditor': 'VS Code Markdown Editor',
 	'sidebar.defaultEditor.markdownEditor': 'Markdown Editor',
 	'sidebar.defaultEditor.livePreview': 'Markdown Live Preview',
 	'sidebar.vaultOpenBehavior': 'Vault file tabs',

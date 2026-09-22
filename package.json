@@ -439,6 +439,7 @@
             "prompt",
             "textEditor",
             "markdownPreview",
+            "vscodeMarkdownEditor",
             "markdownEditor",
             "livePreview"
           ],
@@ -446,6 +447,7 @@
             "%config.defaultEditor.prompt%",
             "%config.defaultEditor.textEditor%",
             "%config.defaultEditor.markdownPreview%",
+            "%config.defaultEditor.vscodeMarkdownEditor%",
             "%config.defaultEditor.markdownEditor%",
             "%config.defaultEditor.livePreview%"
           ],

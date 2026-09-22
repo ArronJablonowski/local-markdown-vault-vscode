@@ -1,6 +1,6 @@
 # Obsidian 100-file comparison
 
-This comparison makes Markdown Live Preview the Obsidian-parity viewing mode.
+This comparison makes the extension-owned **Markdown Editor** (also available through the legacy **Markdown Live Preview** alias) the Obsidian-parity viewing mode.
 The built-in VS Code Text Editor and Markdown Preview remain available, but the
 extension does not modify their rendering or editing behavior.
 
@@ -95,4 +95,3 @@ precedence over pixel-level equivalence.
 - `npm run fixtures:obsidian`
 - `npx playwright test test/e2e/obsidian100Compatibility.spec.ts`
 - `npm run test:e2e`
-

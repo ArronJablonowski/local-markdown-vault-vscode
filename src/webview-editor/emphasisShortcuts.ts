@@ -10,6 +10,28 @@ export interface EmphasisEdit {
 }
 
 /**
+ * True when an empty caret is immediately before the closing marker of a
+ * non-empty emphasis span on the same line. Obsidian treats a second Cmd/Ctrl
+ * + B or I here as "finish formatting" and moves past the closing marker.
+ */
+export function isBeforeClosingEmphasisMarker(
+	linePrefix: string,
+	lineSuffix: string,
+	marker: string,
+): boolean {
+	if (!lineSuffix.startsWith(marker)) return false;
+	const opening = linePrefix.lastIndexOf(marker);
+	if (opening < 0 || opening + marker.length === linePrefix.length) return false;
+	// A single-star italic shortcut must not mistake one half of a bold or
+	// bold+italic marker for its own opening/closing pair.
+	if (marker === '*') {
+		if (linePrefix[opening - 1] === '*' || linePrefix[opening + 1] === '*') return false;
+		if (lineSuffix[marker.length] === '*') return false;
+	}
+	return true;
+}
+
+/**
  * Computes the single-edit toggle for wrapping/unwrapping a selection in a
  * Markdown emphasis marker ("**" for bold, "*" for italic). Pure function:
  * takes only the three text fragments the decision needs (the selected text,
@@ -53,6 +75,17 @@ export function toggleEmphasisCommand(marker: string): Command {
 	return (view) => {
 		const { state } = view;
 		const changes = state.changeByRange((range) => {
+			if (range.empty) {
+				const line = state.doc.lineAt(range.from);
+				const prefix = state.sliceDoc(line.from, range.from);
+				const suffix = state.sliceDoc(range.from, line.to);
+				if (isBeforeClosingEmphasisMarker(prefix, suffix, marker)) {
+					return {
+						changes: { from: range.from, to: range.from, insert: '' },
+						range: EditorSelection.cursor(range.from + marker.length),
+					};
+				}
+			}
 			const selected = state.sliceDoc(range.from, range.to);
 			const before = state.sliceDoc(Math.max(0, range.from - marker.length), range.from);
 			const after = state.sliceDoc(range.to, Math.min(state.doc.length, range.to + marker.length));

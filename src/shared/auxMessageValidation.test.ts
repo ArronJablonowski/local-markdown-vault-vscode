@@ -24,6 +24,7 @@ describe('auxiliary webview message validation', () => {
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'livePreview' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'textEditor' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'markdownPreview' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'vscodeMarkdownEditor' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'markdownEditor' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditor', value: 'default' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditingMode', value: 'locked' }).ok).toBe(true);

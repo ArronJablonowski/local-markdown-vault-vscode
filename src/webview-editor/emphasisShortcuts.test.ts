@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { computeEmphasisToggle } from './emphasisShortcuts';
+import { computeEmphasisToggle, isBeforeClosingEmphasisMarker } from './emphasisShortcuts';
 
 /** Applies one toggle to a plain string buffer, mirroring what the real
  * CodeMirror command does to a document — used only to drive the round-trip
@@ -15,6 +15,13 @@ function applyOnce(doc: string, from: number, to: number, marker: string) {
 }
 
 describe('computeEmphasisToggle', () => {
+	it('recognizes the end of non-empty bold and italic spans', () => {
+		expect(isBeforeClosingEmphasisMarker('Before **bold', '** after', '**')).toBe(true);
+		expect(isBeforeClosingEmphasisMarker('Before *italic', '* after', '*')).toBe(true);
+		expect(isBeforeClosingEmphasisMarker('Before **', '** after', '**')).toBe(false);
+		expect(isBeforeClosingEmphasisMarker('Before **bold', '** after', '*')).toBe(false);
+	});
+
 	it('inserts an empty marker pair and places the cursor inside when there is no selection', () => {
 		const edit = computeEmphasisToggle('', '', '', 5, 5, '**');
 		expect(edit).toEqual({ from: 5, to: 5, insert: '****', selFrom: 7, selTo: 7 });

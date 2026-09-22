@@ -94,6 +94,7 @@ export type DefaultEditorSetting =
 	| 'prompt'
 	| 'textEditor'
 	| 'markdownPreview'
+	| 'vscodeMarkdownEditor'
 	| 'markdownEditor'
 	| 'livePreview';
 export type EditingModeSetting = 'editing' | 'locked';

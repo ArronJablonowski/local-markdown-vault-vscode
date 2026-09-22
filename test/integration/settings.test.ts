@@ -29,7 +29,8 @@ suite('settings and views', () => {
 			prompt: undefined,
 			textEditor: 'default',
 			markdownPreview: 'vscode.markdown.preview.editor',
-			markdownEditor: 'vscode.markdown.editor',
+			vscodeMarkdownEditor: 'vscode.markdown.editor',
+			markdownEditor: 'mdLivePreview.editor',
 			livePreview: 'mdLivePreview.editor',
 		};
 		for (const [value, expectedViewType] of Object.entries(expectedViewTypes)) {

@@ -193,6 +193,7 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 				['prompt', t('sidebar.defaultEditor.prompt')],
 				['textEditor', t('sidebar.defaultEditor.textEditor')],
 				['markdownPreview', t('sidebar.defaultEditor.markdownPreview')],
+				['vscodeMarkdownEditor', t('sidebar.defaultEditor.vscodeMarkdownEditor')],
 				['markdownEditor', t('sidebar.defaultEditor.markdownEditor')],
 				['livePreview', t('sidebar.defaultEditor.livePreview')],
 			],
