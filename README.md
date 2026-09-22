@@ -312,6 +312,15 @@ Mermaid runs locally in strict mode. Script execution, click callbacks, external
 
 For a complete comparison corpus, see [`test/fixtures/obsidian-advanced`](test/fixtures/obsidian-advanced) and the [Obsidian compatibility guide](docs/OBSIDIAN_COMPATIBILITY.md).
 
+### Use the Obsidian Dark theme
+
+Local Markdown Vault includes an independently authored `obsidian-dark.css`
+theme with an Obsidian-inspired dark palette, typography, headings, links,
+tasks, highlights, callouts, tables, code blocks, and properties. Open the
+**Local Markdown Vault** sidebar, expand **CSS Themes**, and select
+`obsidian-dark.css`. Custom CSS is intentionally disabled in Restricted Mode;
+trust the vault workspace before enabling a theme you have reviewed.
+
 Common shortcuts:
 
 | Action | macOS | Windows/Linux |

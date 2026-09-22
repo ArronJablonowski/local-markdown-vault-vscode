@@ -91,6 +91,14 @@ describe('stripNetworkedCss', () => {
 		expect(result.css).toBe(css);
 	});
 
+	it('retains the complete bundled Obsidian Dark theme without a security warning', () => {
+		const css = readFileSync(new URL('../../media/sample-styles/obsidian-dark.css', import.meta.url), 'utf8');
+		const result = sanitizePreviewCss(css);
+		expect(result.rejected).toBe(false);
+		expect(result.css).toBe(css);
+		expect(decodeCssForSecurity(css)).not.toMatch(/@import|url\s*\(/i);
+	});
+
 	it.each([
 		'@import "https://example.com/theme.css";',
 		'h1 { background: url(https://example.com/pixel.png); }',

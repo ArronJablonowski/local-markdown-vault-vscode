@@ -180,9 +180,12 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const radios = frame.getByRole('radio');
 		await waitFor(async () => await radios.count() >= 2,
 			'the packaged CSS Themes sidebar did not expose its bundled radio controls');
+		const radioCount = await radios.count();
 		const originalIndex = await firstCheckedRadioIndex(radios);
 		assert.ok(originalIndex >= 0, 'the packaged CSS Themes sidebar had no selected theme');
-		const targetIndex = originalIndex === 0 ? 1 : 0;
+		// Move to an adjacent radio so the assertion remains correct when bundled
+		// theme additions change the size of this native radio group.
+		const targetIndex = originalIndex < radioCount - 1 ? originalIndex + 1 : originalIndex - 1;
 		const original = radios.nth(originalIndex);
 		const target = radios.nth(targetIndex);
 		const targetName = await target.getAttribute('aria-label');
