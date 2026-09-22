@@ -129,6 +129,14 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const createNote = vscode.commands.executeCommand('mdLivePreview.vault.newNote');
 		await acceptNativeInputBox(page, noteName);
 		await createNote;
+		await waitFor(async () => {
+			try {
+				await vscode.workspace.fs.stat(note);
+				return true;
+			} catch {
+				return false;
+			}
+		}, 'the packaged Document Vault did not create a note');
 		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), '',
 			'the packaged Document Vault did not create an empty Markdown note');
 		await waitFor(() => activeTabUri()?.toString() === note.toString(),
@@ -137,8 +145,13 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const createFolder = vscode.commands.executeCommand('mdLivePreview.vault.newFolder');
 		await acceptNativeInputBox(page, folderName);
 		await createFolder;
-		assert.ok((await vscode.workspace.fs.stat(folder)).type & vscode.FileType.Directory,
-			'the packaged Document Vault did not create a folder');
+		await waitFor(async () => {
+			try {
+				return Boolean((await vscode.workspace.fs.stat(folder)).type & vscode.FileType.Directory);
+			} catch {
+				return false;
+			}
+		}, 'the packaged Document Vault did not create a folder');
 
 		await selectWorkbenchTreeItemWithKeyboard(page, `File: ${noteName}.md`);
 		await page.keyboard.press('Enter');
@@ -702,6 +715,14 @@ async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
 	const targetPage = await findNativeQuickInputPage(page);
 	const widget = targetPage.locator('.quick-input-widget:visible');
 	await typeNativeQuickInput(targetPage, value);
+	await targetPage.evaluate(() => {
+		const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
+		const visible = widgets.find((candidate) => {
+			const style = getComputedStyle(candidate);
+			return style.display !== 'none' && style.visibility !== 'hidden' && candidate.getClientRects().length > 0;
+		});
+		visible?.querySelector<HTMLInputElement>('.quick-input-box input')?.focus();
+	});
 	await targetPage.keyboard.press('Enter');
 	await widget.waitFor({ state: 'hidden', timeout: 5_000 });
 }
@@ -744,20 +765,37 @@ async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
 	// Drive the input through the workbench keyboard. Locator-scoped fill/press
 	// waits for actionability while VS Code animates and later tears down this
 	// transient overlay, which can race indefinitely on headless Linux.
-	await waitFor(() => page.evaluate(() => {
-		const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
-		const visible = widgets.find((candidate) => {
-			const style = getComputedStyle(candidate);
-			return style.display !== 'none' && style.visibility !== 'hidden' && candidate.getClientRects().length > 0;
+	const deadline = Date.now() + 5_000;
+	while (Date.now() < deadline) {
+		const focused = await page.evaluate(() => {
+			const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
+			const visible = widgets.find((candidate) => {
+				const style = getComputedStyle(candidate);
+				return style.display !== 'none' && style.visibility !== 'hidden' && candidate.getClientRects().length > 0;
+			});
+			const input = visible?.querySelector<HTMLInputElement>('.quick-input-box input');
+			if (!input) return false;
+			input.focus();
+			input.select();
+			return document.activeElement === input;
 		});
-		const input = visible?.querySelector<HTMLInputElement>('.quick-input-box input');
-		if (!input) return false;
-		input.focus();
-		return document.activeElement === input;
-	}), 'VS Code did not focus the native input before keyboard submission', 5_000);
-	await page.keyboard.insertText(value);
-	await waitFor(() => page.evaluate((expected) => {
-		const input = document.activeElement;
-		return input instanceof HTMLInputElement && input.value === expected;
-	}, value), 'VS Code did not accept keyboard text in the native input', 5_000);
+		if (!focused) {
+			await delay(50);
+			continue;
+		}
+		await page.keyboard.insertText(value);
+		for (let attempt = 0; attempt < 10; attempt++) {
+			const accepted = await page.evaluate((expected) => {
+				const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
+				const visible = widgets.find((candidate) => {
+					const style = getComputedStyle(candidate);
+					return style.display !== 'none' && style.visibility !== 'hidden' && candidate.getClientRects().length > 0;
+				});
+				return visible?.querySelector<HTMLInputElement>('.quick-input-box input')?.value === expected;
+			}, value);
+			if (accepted) return;
+			await delay(50);
+		}
+	}
+	assert.fail('VS Code did not accept keyboard text in the native input');
 }
