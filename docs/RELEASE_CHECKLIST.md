@@ -121,7 +121,7 @@ reported as automated evidence.
 - [x] Deleting the metadata cache and selecting **Rebuild Vault Index** never changes note or attachment files.
 - [x] Inspect a generated metadata cache and confirm it contains no frontmatter values, task text, or body-derived search tokens; startup rebuild still restores complete search and navigation behavior.
 
-The macOS move/link and real Live Preview keyboard transactions are covered by `npm run test:integration:focused:macos`. The runner targets its isolated workbench over a loopback-only debugging endpoint, clicks the shipped CodeMirror editor, dispatches keyboard events, and verifies the authoritative `TextDocument` after edit, undo, and redo.
+The cross-platform move/link and real Live Preview keyboard transactions are covered by `npm run test:integration:focused`. The runner targets its isolated workbench over a loopback-only debugging endpoint, clicks the shipped CodeMirror editor, dispatches platform keyboard events, and verifies the authoritative `TextDocument` after edit, undo, redo, save, checkbox autosave, external replacement, secured local media, hostile Markdown, and native knowledge navigation. The older `test:integration:focused:macos` command remains as a compatibility alias.
 
 ## Product and accessibility gate
 
@@ -138,9 +138,9 @@ The macOS move/link and real Live Preview keyboard transactions are covered by `
 
 | Platform | Version/filesystem | Integration | Trash and path cases | Installed VSIX smoke test | Reviewer/date |
 | --- | --- | --- | --- | --- | --- |
-| Windows | GitHub `windows-latest`; runner-default filesystem | Passed | Manual trash/filesystem review pending | Passed | Automated / 2026-09-20 |
-| macOS | GitHub `macos-latest`; runner-default filesystem | Passed | Manual trash/filesystem review pending | Passed | Automated / 2026-09-20 |
-| Linux | GitHub `ubuntu-24.04`; runner-default filesystem | Passed | Manual trash/filesystem review pending | Passed | Automated / 2026-09-20 |
+| Windows | GitHub `windows-latest`; runner-default filesystem | Previous matrix passed; current cross-platform focused run pending | Recycle Bin restore review pending | Previous package passed | Automated / current candidate pending |
+| macOS | GitHub `macos-latest`; runner-default filesystem | Current local source and focused suites passed | Native Trash bytes passed; restore review pending | Previous package passed | Automated / 2026-09-21 |
+| Linux | GitHub `ubuntu-24.04`; runner-default filesystem | Previous matrix passed; current cross-platform focused run pending | Desktop Trash restore review pending | Previous package passed | Automated / current candidate pending |
 
 ## Packaged-VSIX smoke test
 

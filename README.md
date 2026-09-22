@@ -2,7 +2,7 @@
 
 Secure, local-only Markdown editing for Visual Studio Code, with an Obsidian-style Live Preview and a workspace Document Vault.
 
-> **Project status:** usable macOS developer preview in active pre-release development. Install from source or a locally built VSIX. Windows and Linux qualification is planned later, and the extension is not yet published to the Visual Studio Marketplace.
+> **Project status:** cross-platform desktop release candidate in active pre-release development. The same VSIX supports macOS, Windows, and Linux. It is ready for platform testing but is not yet published to the Visual Studio Marketplace.
 
 Local Markdown Vault keeps notes and attachments as ordinary files in one local VS Code workspace. It does not provide cloud sync, accounts, telemetry, publishing, or background uploads.
 
@@ -21,7 +21,7 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 
 ### Document Vault
 
-- Native VS Code tree named after the actual Finder folder for notes, folders, and attachments
+- Native VS Code tree named after the actual workspace folder shown by Finder, File Explorer, or the Linux file manager
 - Create, rename, move, delete/trash, drag-and-drop, sort, refresh, and reveal
 - Immediate external-file updates with a coalesced reconciliation pass for folder renames and bulk changes
 - Automatic Markdown and wikilink updates after file or folder moves
@@ -57,27 +57,27 @@ The first supported vault model is exactly one local `file:` workspace folder. M
 ## Requirements
 
 - Visual Studio Code 1.90 or newer
-- macOS for the initially supported developer preview
+- macOS, Windows, or desktop Linux
 - A local folder opened as a VS Code workspace
 - Node.js 24 LTS and npm to build from source
 - Git to clone the repository
 
 ## Install from source
 
-### Install the prebuilt macOS test package
+### Install the prebuilt desktop test package
 
 Download [local-markdown-vault-0.2.0.vsix](https://github.com/ArronJablonowski/local-markdown-vault-vscode/raw/refs/heads/main/releases/local-markdown-vault-0.2.0.vsix). You can install it entirely inside VS Code without administrator privileges or the `code` terminal command:
 
 1. Open VS Code.
-2. Open the **Extensions** panel by selecting its activity-bar icon or pressing `Shift+Cmd+X` on macOS.
+2. Open the **Extensions** panel by selecting its activity-bar icon. The shortcut is `Shift+Cmd+X` on macOS and `Ctrl+Shift+X` on Windows/Linux.
 3. Select the **...** menu at the top of the Extensions panel.
 4. Select **Install from VSIX...**.
 5. Choose the downloaded `local-markdown-vault-0.2.0.vsix` file.
 6. Select **Reload Now** if VS Code prompts you to reload.
 
-If the **...** menu is unavailable, press `Shift+Cmd+P` to open the Command Palette, run **Extensions: Install from VSIX...**, and select the same file. The expected SHA-256 checksum is recorded in [`releases/SHA256SUMS`](releases/SHA256SUMS).
+If the **...** menu is unavailable, open the Command Palette with `Shift+Cmd+P` on macOS or `Ctrl+Shift+P` on Windows/Linux, run **Extensions: Install from VSIX...**, and select the same file. The expected SHA-256 checksum is recorded in [`releases/SHA256SUMS`](releases/SHA256SUMS).
 
-The package is a macOS developer preview. Test it with a disposable vault before using important documents.
+The package is a cross-platform release candidate. Test it with a disposable vault before using important documents.
 
 ### 1. Clone and install dependencies
 
@@ -335,7 +335,7 @@ npm test               # unit tests
 npm run test:e2e       # browser end-to-end tests
 npm run test:integration
 npm run test:integration:cache-restart
-npm run test:integration:focused:macos # requires a foreground macOS desktop
+npm run test:integration:focused # requires a desktop session; use xvfb-run on headless Linux
 npm run package        # verify and create the VSIX
 ```
 
@@ -346,15 +346,15 @@ Additional references:
 - [Contributing and development workflow](CONTRIBUTING.md)
 - [Obsidian compatibility](docs/OBSIDIAN_COMPATIBILITY.md)
 - [Migration and rollback](docs/MIGRATION.md)
+- [Windows and Linux testing](docs/PLATFORM_TESTING.md)
 - [Accessibility](docs/ACCESSIBILITY.md)
 - [Latest active security assessment](docs/SECURITY_ASSESSMENT_2026-09-21.md)
 - [Security policy](SECURITY.md)
 
 ## Known limitations
 
-- macOS is the only initially supported preview platform. Windows and Linux run in the automated portability matrix but remain unsupported until their manual filesystem, Trash, accessibility, and packaged-extension reviews are completed later in the development lifecycle.
 - Only one local workspace folder is supported as a vault.
-- Case-only rename transactions pass the automated Windows, macOS, and Linux matrix. Native macOS Trash movement, native text/vault transaction undo/redo, and real Live Preview keyboard undo/redo are automated on macOS; assistive-technology verification and Windows/Linux Trash behavior still require manual platform sign-off.
+- Windows, macOS, and Linux run the same source, package, filesystem, Trash, undo/redo, autosave, security, Restricted Mode, cache-recovery, and installed-VSIX validation gates. Platform-specific manual usability testing is still required before a production release.
 - VoiceOver, NVDA, and Orca checks remain part of the manual pre-release matrix.
 - Large-vault performance depends on storage, exclusions, note size, and available system resources.
 - The extension is under active security hardening and is not yet declared production-ready for hostile files.

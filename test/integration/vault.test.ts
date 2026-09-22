@@ -819,22 +819,32 @@ suite('Document Vault filesystem transactions', () => {
 		);
 	});
 
-	test('moves an accepted note to macOS Trash without changing its bytes', async function () {
-		if (process.platform !== 'darwin') this.skip();
+	test('moves an accepted note to the operating-system trash', async () => {
 		const fixture = await makeFixture();
 		const name = `Local Markdown Vault Trash Probe ${randomUUID()}`;
 		const source = await service.createNote(fixture, name);
 		const noteBytes = bytes('# Trash probe\n\nExact bytes must survive the native trash move.\n');
 		await vscode.workspace.fs.writeFile(source, noteBytes);
-		const trashedPath = join(homedir(), '.Trash', `${name}.md`);
+		const trashedPath = process.platform === 'darwin'
+			? join(homedir(), '.Trash', `${name}.md`)
+			: process.platform === 'linux'
+				? join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'Trash', 'files', `${name}.md`)
+				: undefined;
+		const trashInfoPath = process.platform === 'linux'
+			? join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'Trash', 'info', `${name}.md.trashinfo`)
+			: undefined;
 
 		try {
 			await service.moveToTrash(source, false);
 			await assertMissing(source);
-			assertBytesEqual(new Uint8Array(await readFile(trashedPath)), noteBytes, 'native trash changed note bytes');
+			if (trashedPath) {
+				assertBytesEqual(new Uint8Array(await readFile(trashedPath)), noteBytes, 'native trash changed note bytes');
+			}
 		} finally {
-			// The probe name is UUID-qualified; remove only that exact test artifact.
-			await unlink(trashedPath).catch(() => undefined);
+			// The probe name is UUID-qualified; remove only that exact test artifact
+			// on platforms whose Trash has a directly addressable files directory.
+			if (trashedPath) await unlink(trashedPath).catch(() => undefined);
+			if (trashInfoPath) await unlink(trashInfoPath).catch(() => undefined);
 		}
 	});
 

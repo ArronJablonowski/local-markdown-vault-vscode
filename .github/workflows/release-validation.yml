@@ -75,6 +75,12 @@ jobs:
       - name: Cache-free startup integration test (macOS and Windows)
         if: runner.os != 'Linux'
         run: npm run test:integration:cache-restart
+      - name: Focused desktop integration test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration:focused
+      - name: Focused desktop integration test (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:integration:focused
       - run: npm run package
       - name: Packaged VSIX smoke tests (Linux)
         if: runner.os == 'Linux'

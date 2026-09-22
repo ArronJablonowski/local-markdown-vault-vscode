@@ -37,7 +37,7 @@ interface DevelopmentApi {
 	settleCaseRenameTransactions(): Promise<void>;
 }
 
-suite('focused macOS desktop transactions', () => {
+suite('focused cross-platform desktop transactions', () => {
 	if (process.env.MDLP_FOCUSED_DESKTOP_TEST !== '1') return;
 
 	let api: DevelopmentApi;
@@ -46,7 +46,6 @@ suite('focused macOS desktop transactions', () => {
 	const fixtures: vscode.Uri[] = [];
 
 	suiteSetup(async function () {
-		if (process.platform !== 'darwin') this.skip();
 		await bringIsolatedWorkbenchToFront();
 		const extension = vscode.extensions.getExtension<DevelopmentApi>(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);
@@ -89,7 +88,7 @@ suite('focused macOS desktop transactions', () => {
 		const fixture = await makeFixture('live-preview');
 		const note = await service.createNote(fixture, 'Focused Live Preview');
 		const original = '# Live Preview\n';
-		const inserted = 'mac-live-preview ';
+		const inserted = 'desktop-live-preview ';
 		await vscode.workspace.fs.writeFile(note, bytes(original));
 		const document = await vscode.workspace.openTextDocument(note);
 		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
@@ -103,18 +102,19 @@ suite('focused macOS desktop transactions', () => {
 		const editor = frame.locator('.cm-content');
 		await editor.click();
 		await frame.page().keyboard.type(inserted);
-		await waitFor(() => document.getText().includes(inserted), 'macOS keyboard input did not reach Live Preview');
+		await waitFor(() => document.getText().includes(inserted), 'desktop keyboard input did not reach Live Preview');
 		const edited = document.getText();
 		assert.notStrictEqual(edited, original);
 		await waitFor(() => document.isDirty, 'Live Preview keyboard input did not mark the document dirty');
 
-		await frame.page().keyboard.press('Meta+z');
-		await waitFor(() => document.getText() === original, 'Cmd+Z did not undo the Live Preview edit in the TextDocument');
-		await frame.page().keyboard.press('Meta+Shift+z');
-		await waitFor(() => document.getText() === edited, 'Cmd+Shift+Z did not redo the Live Preview edit in the TextDocument');
+		const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+		await frame.page().keyboard.press(`${primaryModifier}+z`);
+		await waitFor(() => document.getText() === original, 'the platform undo shortcut did not undo the Live Preview edit');
+		await frame.page().keyboard.press(`${primaryModifier}+Shift+z`);
+		await waitFor(() => document.getText() === edited, 'the platform redo shortcut did not redo the Live Preview edit');
 
-		await frame.page().keyboard.press('Meta+s');
-		await waitFor(() => !document.isDirty, 'Cmd+S did not save the Live Preview document');
+		await frame.page().keyboard.press(`${primaryModifier}+s`);
+		await waitFor(() => !document.isDirty, 'the platform save shortcut did not save the Live Preview document');
 		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), edited);
 
 		const external = '# External Live Preview update\n';

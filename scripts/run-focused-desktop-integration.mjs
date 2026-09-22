@@ -6,8 +6,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 
-if (process.platform !== 'darwin') throw new Error('The focused desktop gate currently supports macOS only.');
-
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const profileRoot = await mkdtemp(join(tmpdir(), 'mdlp-focus-'));
 const userDataDir = join(profileRoot, 'u');
@@ -19,6 +17,7 @@ try {
 	await Promise.all([mkdir(settingsDir, { recursive: true }), mkdir(extensionsDir, { recursive: true })]);
 	await writeFile(join(settingsDir, 'settings.json'), JSON.stringify({
 		'files.autoSave': 'off',
+		'mdLivePreview.defaultEditor': 'textEditor',
 		'workbench.startupEditor': 'none',
 		'update.mode': 'none',
 	}, null, 2));
@@ -60,12 +59,10 @@ try {
 				ELECTRON_RUN_AS_NODE: undefined,
 			},
 		});
-		child.once('error', (error) => {
-			rejectRun(error);
-		});
+		child.once('error', rejectRun);
 		child.once('exit', (code, signal) => {
 			if (code === 0) resolveRun();
-			else rejectRun(new Error(`Focused macOS host exited with ${code ?? signal ?? 'an unknown status'}.`));
+			else rejectRun(new Error(`Focused desktop host exited with ${code ?? signal ?? 'an unknown status'}.`));
 		});
 	});
 } finally {

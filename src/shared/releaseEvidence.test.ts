@@ -286,23 +286,26 @@ describe('release security evidence', () => {
 		}
 	});
 
-	it('keeps the focused macOS transaction gate explicit and reproducible', () => {
+	it('keeps the focused cross-platform desktop gate explicit and reproducible', () => {
 		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 			scripts?: Record<string, string>;
 		};
-		expect(manifest.scripts?.['test:integration:focused:macos'])
-			.toContain('node scripts/run-focused-macos-integration.mjs');
-		const runner = readFileSync(join(ROOT, 'scripts', 'run-focused-macos-integration.mjs'), 'utf8');
-		expect(runner).toContain("process.platform !== 'darwin'");
+		expect(manifest.scripts?.['test:integration:focused'])
+			.toContain('node scripts/run-focused-desktop-integration.mjs');
+		const runner = readFileSync(join(ROOT, 'scripts', 'run-focused-desktop-integration.mjs'), 'utf8');
 		expect(runner).toContain("MDLP_FOCUSED_DESKTOP_TEST: '1'");
 		expect(runner).toContain('`--remote-debugging-port=${debugPort}`');
 		expect(runner).toContain('MDLP_VSCODE_DEBUG_PORT: String(debugPort)');
+		const releaseWorkflow = readFileSync(join(ROOT, '.github', 'workflows', 'release-validation.yml'), 'utf8');
+		expect(releaseWorkflow.match(/npm run test:integration:focused/g)).toHaveLength(2);
+		expect(releaseWorkflow).toContain('xvfb-run -a npm run test:integration:focused');
 		const testSource = readFileSync(join(ROOT, 'test', 'integration', 'focusedDesktop.test.ts'), 'utf8');
 		expect(testSource).toContain('chromium.connectOverCDP');
 		expect(testSource).toContain("frame.locator('.cm-content')");
-		expect(testSource).toContain("keyboard.press('Meta+z')");
-		expect(testSource).toContain("keyboard.press('Meta+Shift+z')");
-		expect(testSource).toContain("keyboard.press('Meta+s')");
+		expect(testSource).toContain("process.platform === 'darwin' ? 'Meta' : 'Control'");
+		expect(testSource).toContain('keyboard.press(`${primaryModifier}+z`)');
+		expect(testSource).toContain('keyboard.press(`${primaryModifier}+Shift+z`)');
+		expect(testSource).toContain('keyboard.press(`${primaryModifier}+s`)');
 		expect(testSource).toContain('Live Preview did not render the external file change');
 		expect(testSource).toContain('drives native knowledge pickers and views with keyboard navigation');
 		expect(testSource).toContain("executeCommand('mdLivePreview.quickSwitcher')");

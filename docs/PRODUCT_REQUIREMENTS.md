@@ -9,7 +9,7 @@
 | Document status | Approved implementation roadmap |
 | Audience | Project owner, maintainers, security reviewers, and implementation engineers |
 | Last researched | 2026-09-19 |
-| Delivery model | Local-only VS Code extension; macOS-first developer preview |
+| Delivery model | Local-only VS Code extension; Windows, macOS, and Linux desktop release candidate |
 
 ## 1. Executive summary
 
@@ -21,7 +21,7 @@ Security is the release gate, not a parallel enhancement. Before vault or render
 
 The roadmap intentionally targets the parts of Obsidian that support local writing and knowledge management. It does not attempt to clone the entire Obsidian application.
 
-The first user-facing developer preview supports macOS. The implementation remains portable and continues to run hosted Windows and Linux checks, but those operating systems are not support claims until their manual filesystem, Trash, accessibility, and packaged-extension qualification is completed in Phase 4.
+The desktop release candidate supports one universal VSIX on Windows, macOS, and Linux. Automated platform qualification covers filesystem, Trash, keyboard editing, security, accessibility structure, and installed-package behavior; manual assistive-technology and platform usability review remains part of Phase 4 release sign-off.
 
 ## 2. Product vision and principles
 
@@ -556,7 +556,7 @@ Deliver URL and network policy, path confinement, runtime schemas, CSP tightenin
 
 Deliver the native tree, safe filesystem operations, automatic transactional link rewriting, attachments, watchers, exclusions, settings, and vault-level tests.
 
-**Done for the macOS developer preview:** every `VLT-*` requirement passes on macOS; link updates are one-step undoable; no operation escapes the vault; and external filesystem changes converge without restart. Hosted Windows and Linux automation must stay green, while manual support qualification for those platforms is deferred to Phase 4.
+**Done for the desktop release candidate:** every `VLT-*` requirement passes the Windows, macOS, and Linux automated matrix; link updates are one-step undoable; no operation escapes the vault; operating-system Trash is exercised without a permanent-delete fallback; and external filesystem changes converge without restart. Manual platform usability and assistive-technology qualification remains a Phase 4 release gate.
 
 ### Phase 2 Editor parity
 

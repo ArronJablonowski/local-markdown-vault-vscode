@@ -55,6 +55,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Promote the universal VSIX to a Windows, macOS, and Linux release candidate;
+  run the focused desktop keyboard, undo/redo, autosave, navigation, local-media,
+  and hostile-Markdown journeys on all three operating systems, and exercise
+  operating-system Trash on every platform.
 - Make VS Code's Markdown Editor the default viewing mode for new installations
   while preserving any viewing mode the user has explicitly selected.
 - Let a second Return on the final blank line of a fenced code block move the
