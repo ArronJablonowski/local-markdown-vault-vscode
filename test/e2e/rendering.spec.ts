@@ -402,21 +402,53 @@ test.describe('block rendering', () => {
 		await expect(colored.first()).toBeVisible({ timeout: 5000 });
 	});
 
-	test('only code blocks over eight lines can be collapsed and expanded', async ({ page }) => {
+	test('code blocks with eight or more lines can be collapsed and expanded', async ({ page }) => {
+		const sevenLines = Array.from({ length: 7 }, (_, index) => `tiny ${index + 1}`).join('\n');
 		const eightLines = Array.from({ length: 8 }, (_, index) => `short ${index + 1}`).join('\n');
 		const nineLines = Array.from({ length: 9 }, (_, index) => `long ${index + 1}`).join('\n');
-		await mountEditor(page, `\`\`\`text\n${eightLines}\n\`\`\`\n\n\`\`\`text\n${nineLines}\n\`\`\`\n`);
+		await mountEditor(page, `\`\`\`text\n${sevenLines}\n\`\`\`\n\n\`\`\`text\n${eightLines}\n\`\`\`\n\n\`\`\`text\n${nineLines}\n\`\`\`\n`);
 
 		const collapse = page.getByRole('button', { name: 'Collapse code block' });
-		await expect(collapse).toHaveCount(1);
-		await expect(collapse).toHaveAttribute('aria-expanded', 'true');
-		await collapse.click();
+		await expect(collapse).toHaveCount(2);
+		await expect(collapse.first()).toHaveAttribute('aria-expanded', 'true');
+		await collapse.first().click();
 		await expect(page.getByRole('button', { name: 'Expand code block' })).toHaveAttribute('aria-expanded', 'false');
-		await expect(page.locator('.mlp-line-code-collapsed-hidden')).toHaveCount(8);
+		await expect(page.locator('.cm-content')).not.toContainText('short 8');
+		await expect(page.locator('.cm-content')).toContainText('long 9');
 
 		await page.getByRole('button', { name: 'Expand code block' }).press('Enter');
-		await expect(page.getByRole('button', { name: 'Collapse code block' })).toHaveAttribute('aria-expanded', 'true');
-		await expect(page.locator('.mlp-line-code-collapsed-hidden')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Collapse code block' })).toHaveCount(2);
+		await expect(page.locator('.cm-content')).toContainText('short 8');
+	});
+
+	test('an unfinished eight-line fence folds in locked mode without losing its final line', async ({ page }) => {
+		const code = Array.from({ length: 8 }, (_, index) => `unfinished ${index + 1}`).join('\n');
+		await mountEditor(page, `\`\`\`text\n${code}`, { editingMode: 'locked' });
+		await page.getByRole('button', { name: 'Collapse code block' }).press('Enter');
+		await expect(page.locator('.cm-content')).not.toContainText('unfinished 8');
+		await page.getByRole('button', { name: 'Expand code block' }).press('Space');
+		await expect(page.locator('.cm-content')).toContainText('unfinished 8');
+		await expect(page.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
+	});
+
+	test('large code stays folded after scrolling and unrelated edits, and copies all hidden lines', async ({ page }) => {
+		const code = Array.from({ length: 200 }, (_, index) => `code line ${index + 1}`).join('\n');
+		await mountEditor(page, `Before\n\n\`\`\`text\n${code}\n\`\`\`\n\nAfter\n\n${'paragraph\n\n'.repeat(200)}`);
+		await page.getByRole('button', { name: 'Collapse code block' }).click();
+		await expect(page.locator('.cm-content')).not.toContainText('code line 2');
+		await page.locator('.cm-line', { hasText: /^After$/ }).click();
+		await page.keyboard.press('End');
+		await page.keyboard.type(' edited');
+		await page.locator('.cm-scroller').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+		await expect.poll(() => page.locator('.cm-scroller').evaluate((element) => element.scrollTop)).toBeGreaterThan(500);
+		await page.setViewportSize({ width: 800, height: 500 });
+		await page.locator('.cm-scroller').evaluate((element) => { element.scrollTop = 0; });
+		await expect(page.getByRole('button', { name: 'Expand code block' })).toBeVisible();
+		await expect(page.locator('.cm-content')).not.toContainText('code line 2');
+		await page.getByRole('button', { name: 'Copy code block', exact: true }).click();
+		await expect.poll(() => page.evaluate(() => (window as unknown as { __posted: Array<{ type: string; text?: string }> }).__posted.find((message) => message.type === 'copyCode')?.text)).toBe(code);
+		await page.getByRole('button', { name: 'Expand code block' }).press('Space');
+		await expect(page.locator('.cm-content')).toContainText('code line 2');
 	});
 
 	test('a CSS theme sent by the host reaches the document', async ({ page }) => {

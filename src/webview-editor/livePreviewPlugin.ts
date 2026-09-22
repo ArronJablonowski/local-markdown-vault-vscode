@@ -1,5 +1,5 @@
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
 import type { Range, EditorState } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
@@ -358,27 +358,28 @@ class CopyCodeWidget extends WidgetType {
 		private readonly to: number,
 		private readonly revealPos: number,
 		private readonly lineCount: number,
+		private readonly collapsed: boolean,
 	) {
 		super();
 	}
 	eq(other: CopyCodeWidget): boolean {
-		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos && other.lineCount === this.lineCount;
+		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos && other.lineCount === this.lineCount && other.collapsed === this.collapsed;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const host = document.createElement('span');
 		host.className = 'mlp-copy-code-host';
-		let collapsed = false;
+		host.dataset.codeFrom = String(this.from);
+		const collapsed = this.collapsed;
 		const setCollapsed = (next: boolean) => {
-			collapsed = next;
-			const firstLine = host.closest('.cm-line') as HTMLElement | null;
-			firstLine?.classList.toggle('mlp-line-code-collapsed', collapsed);
-			let line = firstLine?.nextElementSibling as HTMLElement | null;
-			while (line?.classList.contains('mlp-line-code')) {
-				line.classList.toggle('mlp-line-code-collapsed-hidden', collapsed);
-				if (line.classList.contains('mlp-line-code-last')) break;
-				line = line.nextElementSibling as HTMLElement | null;
-			}
-			view.requestMeasure();
+			const firstLine = view.state.doc.lineAt(this.from);
+			const range = { from: firstLine.to, to: this.to };
+			// Folding belongs to editor state, not transient viewport DOM. Keep the
+			// first code line and controls visible; never change the Markdown bytes.
+			view.dispatch({
+				effects: (next ? foldEffect : unfoldEffect).of(range),
+				...(next && view.state.selection.ranges.some((selection) => selection.from < range.to && selection.to > range.from)
+					? { selection: { anchor: firstLine.from } } : {}),
+			});
 		};
 		// Code-mode first, so the button order matches every other block: the
 		// `</>` control sits leftmost in the group.
@@ -404,7 +405,7 @@ class CopyCodeWidget extends WidgetType {
 				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
-		if (this.lineCount > 8) {
+		if (this.lineCount >= 8) {
 			const collapseButton = document.createElement('button');
 			collapseButton.type = 'button';
 			collapseButton.className = 'mlp-collapse-code-btn';
@@ -422,7 +423,7 @@ class CopyCodeWidget extends WidgetType {
 				event.preventDefault();
 				event.stopPropagation();
 				setCollapsed(!collapsed);
-				updateButton();
+				view.dom.querySelector<HTMLButtonElement>(`[data-code-from="${this.from}"] .mlp-collapse-code-btn`)?.focus();
 			});
 			updateButton();
 			host.appendChild(collapseButton);
@@ -1560,6 +1561,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 	const { doc } = state;
 	const decorations: Range<Decoration>[] = [];
 	const seenReplace = new Set<string>();
+	const seenCodeControls = new Set<number>();
 	const seenLine = new Map<number, string>();
 	const tree = syntaxTree(state);
 	// blockDecorationsField renders the whole frontmatter block as its own
@@ -1857,11 +1859,13 @@ function buildDecorations(view: EditorView): DecorationSet {
 						// normal height so it stays clickable/navigable for editing the language
 						// tag. Skip this for an empty fence (no content lines at all) so there's
 						// still a box to show.
-						const hasContentLines = lastLineNum > firstLineNum + 1;
+						const hasClosingFence = node.node.getChildren('CodeMark').length >= 2;
+						const finalCodeLine = hasClosingFence ? lastLineNum - 1 : lastLineNum;
+						const hasContentLines = finalCodeLine > firstLineNum;
 						const firstFenceHidden =
 							hasContentLines && !cursorTouchesRange(state, doc.line(firstLineNum).from, doc.line(firstLineNum).to);
 						const lastFenceHidden =
-							hasContentLines && !cursorTouchesRange(state, doc.line(lastLineNum).from, doc.line(lastLineNum).to);
+							hasClosingFence && hasContentLines && !cursorTouchesRange(state, doc.line(lastLineNum).from, doc.line(lastLineNum).to);
 						const firstContentLine = firstFenceHidden ? firstLineNum + 1 : firstLineNum;
 						const lastContentLine = lastFenceHidden ? lastLineNum - 1 : lastLineNum;
 						addLineRange(node.from, node.to, (n) => {
@@ -1877,13 +1881,19 @@ function buildDecorations(view: EditorView): DecorationSet {
 						// indentation the block is nested under, so a hand-made selection
 						// needs tidying before it can be pasted. The button copies the
 						// content lines exactly, with neither fence nor indentation.
-						if (lastLineNum > firstLineNum) {
+						if (lastLineNum > firstLineNum && !seenCodeControls.has(node.from)) {
+							seenCodeControls.add(node.from);
 							const codeFrom = hasContentLines ? doc.line(firstLineNum + 1).from : doc.line(firstLineNum).to;
-							const codeTo = hasContentLines ? doc.line(lastLineNum - 1).to : codeFrom;
-							const contentLineCount = hasContentLines ? lastLineNum - firstLineNum - 1 : 0;
+							const codeTo = hasContentLines ? doc.line(finalCodeLine).to : codeFrom;
+							const contentLineCount = hasContentLines ? finalCodeLine - firstLineNum : 0;
+							let collapsed = false;
+							const foldFrom = doc.lineAt(codeFrom).to;
+							foldedRanges(state).between(foldFrom, codeTo, (from, to) => {
+								if (from === foldFrom && to === codeTo) collapsed = true;
+							});
 							decorations.push(
 								Decoration.widget({
-									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount),
+									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount, collapsed),
 									side: -1,
 								}).range(codeFrom),
 							);
@@ -1963,7 +1973,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
 		}
 
 		update(update: ViewUpdate) {
-			if (update.docChanged || update.viewportChanged || update.selectionSet) {
+			if (update.docChanged || update.viewportChanged || update.selectionSet || foldedRanges(update.startState) !== foldedRanges(update.state)) {
 				this.decorations = buildDecorations(update.view);
 			}
 		}

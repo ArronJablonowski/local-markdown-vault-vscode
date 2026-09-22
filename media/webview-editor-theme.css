@@ -308,14 +308,6 @@ html, body {
 	outline: 1px solid var(--vscode-focusBorder, #0078d4);
 	outline-offset: 1px;
 }
-.cm-line.mlp-line-code-collapsed {
-	border-bottom-left-radius: 6px;
-	border-bottom-right-radius: 6px;
-	padding-bottom: 0.5em;
-}
-.cm-line.mlp-line-code-collapsed-hidden {
-	display: none !important;
-}
 /* Confirmation states, held briefly after a click. */
 .mlp-copy-code-btn.mlp-copy-code-btn-done {
 	opacity: 1;

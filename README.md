@@ -302,7 +302,7 @@ Text and code can also be highlighted normally with the mouse. Backspace or
 Delete removes the highlighted text; selecting every visible line of a fenced
 code block removes its hidden opening and closing fences as well.
 
-Code blocks containing more than eight lines also have a chevron control in
+Code blocks containing eight or more lines also have a chevron control in
 Markdown Live Preview and Markdown Preview. Select it, or focus it and press
 Return or Space, to collapse or expand the block.
 

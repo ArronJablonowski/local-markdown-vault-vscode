@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix code-block collapsing at the eight-line boundary. Live Preview now uses CodeMirror folding state instead of hiding transient DOM rows, preserving collapsed blocks through scrolling, resizing, and unrelated edits. Copy retains all hidden code, keyboard expansion remains available, and unfinished fences include their final line. Markdown Preview uses the same eight-line minimum.
+
 - Match Markdown Editor's compact Lock/Edit control in Markdown Live Preview: an outlined pill with lock and pencil icons, a highlighted active mode, keyboard operation, and accessible mode labels. The lock still blocks edits at the transaction boundary.
 
 - Review the conversation's functionality requirements and record implemented features, view-specific gaps, and remaining release gates in `docs/FUNCTIONALITY_REVIEW_2026-09-22.md`.

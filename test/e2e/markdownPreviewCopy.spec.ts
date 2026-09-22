@@ -60,13 +60,13 @@ test.describe('Markdown Preview code copy controls', () => {
 		await expect.poll(() => page.evaluate(() => (window as unknown as { __copied: string }).__copied)).toBe('updated text');
 	});
 
-	test('collapses only blocks over eight lines and expands them with the keyboard', async ({ page }) => {
+	test('collapses blocks with eight or more lines and expands them with the keyboard', async ({ page }) => {
 		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
 		const style = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.css'), 'utf8');
-		const eight = Array.from({ length: 8 }, (_, index) => `short ${index + 1}`).join('\n');
-		const nine = Array.from({ length: 9 }, (_, index) => `long ${index + 1}`).join('\n');
+		const seven = Array.from({ length: 7 }, (_, index) => `short ${index + 1}`).join('\n');
+		const eight = Array.from({ length: 8 }, (_, index) => `long ${index + 1}`).join('\n');
 		await page.setContent(`<!doctype html><html><head><style>${style}</style></head><body class="vscode-body">
-			<pre><code>${eight}</code></pre><pre><code>${nine}</code></pre>
+			<pre><code>${seven}</code></pre><pre><code>${eight}</code></pre>
 			<script>${script.replace(/<\/script>/gi, '<\\/script>')}</script>
 		</body></html>`);
 

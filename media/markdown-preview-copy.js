@@ -58,7 +58,7 @@
 		const withoutTrailingNewline = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
 		const lineCount = withoutTrailingNewline ? withoutTrailingNewline.split('\n').length : 0;
 		const existingCollapse = pre.querySelector(`:scope > .${COLLAPSE_BUTTON_CLASS}`);
-		if (lineCount <= 8) {
+		if (lineCount < 8) {
 			existingCollapse?.remove();
 			code.hidden = false;
 			pre.classList.remove('lmv-code-collapsed');

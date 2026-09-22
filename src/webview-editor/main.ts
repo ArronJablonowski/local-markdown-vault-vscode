@@ -11,6 +11,7 @@ import {
 	selectNextOccurrence,
 } from '@codemirror/search';
 import { insertNewlineContinueMarkupCommand, markdown } from '@codemirror/lang-markdown';
+import { codeFolding } from '@codemirror/language';
 import { GFM } from './gfmTableFix';
 import {
 	livePreviewPlugin,
@@ -167,6 +168,7 @@ function createExtensions(): Extension[] {
 		),
 		editingCompartment.of(EditorView.editable.of(editingAllowed)),
 		markdownSupport,
+		codeFolding(),
 		// Extend closeBrackets' default pair set (`( [ { ' "`) with the emphasis
 		// marks so `*bold/italic*` and `_italic_` also auto-pair and wrap a
 		// selection when typed — the same mechanism VS Code and most editors use

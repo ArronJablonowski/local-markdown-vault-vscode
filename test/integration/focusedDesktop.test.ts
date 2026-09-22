@@ -63,6 +63,25 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('folds eight-line code in the actual editor without changing the file', async () => {
+		const fixture = await makeFixture('fold-code');
+		const note = await service.createNote(fixture, 'Fold code');
+		const code = Array.from({ length: 8 }, (_, index) => `fold line ${index + 1}`).join('\n');
+		const original = `# Fold code\n\n\`\`\`text\n${code}\n\`\`\`\n\nAfter\n`;
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Fold code');
+		await frame.getByRole('button', { name: 'Collapse code block', exact: true }).click();
+		await waitFor(async () => await frame.getByRole('button', { name: 'Expand code block', exact: true }).count() === 1,
+			'the folded block did not expose one expand control');
+		assert.ok(!(await frame.locator('.cm-content').textContent())?.includes('fold line 8'));
+		await frame.getByRole('button', { name: 'Expand code block', exact: true }).press('Enter');
+		await waitFor(async () => (await frame.locator('.cm-content').textContent())?.includes('fold line 8') === true,
+			'keyboard expansion did not restore the last code line');
+		assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+		assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original);
+	});
+
 	test('copies code through the host when the browser clipboard rejects access', async () => {
 		const previousClipboard = await vscode.env.clipboard.readText();
 		try {
@@ -80,7 +99,8 @@ suite('focused cross-platform desktop transactions', () => {
 			await frame.getByRole('button', { name: 'Copy code block', exact: true }).click();
 			await waitFor(async () => (await vscode.env.clipboard.readText()) === code,
 				'the code copy button did not write the exact block to the system clipboard');
-			assert.strictEqual(await frame.locator('.mlp-copy-code-btn').textContent(), '✓');
+			await waitFor(async () => (await frame.locator('.mlp-copy-code-btn').textContent()) === '✓',
+				'the host clipboard acknowledgment did not update the copy control');
 		} finally {
 			await vscode.env.clipboard.writeText(previousClipboard);
 		}
