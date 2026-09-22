@@ -1,6 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import { allowRevealOnce } from './cmUtils';
 import { t } from '../shared/i18n';
+import { copyCodeToClipboard } from './codeClipboard';
 
 /**
  * The "show me the source" control shared by every rendered block widget
@@ -131,18 +132,9 @@ export function createCopyCodeButton(getCode: () => string): HTMLButtonElement {
 				button.classList.remove('mlp-copy-code-btn-done', 'mlp-copy-code-btn-failed');
 			}, 1200);
 		};
-		// `navigator.clipboard` is unavailable in some webview configurations, and
-		// rejects when the document is not focused; neither should throw past here.
+		// VS Code owns clipboard access; webview browser permissions are unreliable.
 		try {
-			const clipboard = navigator.clipboard;
-			if (!clipboard?.writeText) {
-				done(false);
-				return;
-			}
-			clipboard.writeText(getCode()).then(
-				() => done(true),
-				() => done(false),
-			);
+			void copyCodeToClipboard(getCode()).then(done, () => done(false));
 		} catch {
 			done(false);
 		}

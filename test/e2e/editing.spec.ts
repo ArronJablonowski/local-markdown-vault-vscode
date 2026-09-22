@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditor, postToWebview } from './harness';
 
 const DOC = '# Heading\n\nBefore ![alt](assets/pic.png) after.\n\nPlain paragraph.\n';
 
@@ -287,6 +287,24 @@ test.describe('Markdown list editing', () => {
 });
 
 test.describe('fenced code editing', () => {
+	test('copies exact code through the host and reports confirmed success or failure', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```text\nfirst Ω\n  second\n```\n\nAfter');
+		const button = page.getByRole('button', { name: 'Copy code block', exact: true });
+		await button.click();
+		const request = await page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; requestId: number; text: string }> }).__posted
+				.find(message => message.type === 'copyCode'));
+		expect(request?.text).toBe('first Ω\n  second');
+		await expect(button).not.toHaveText('✓');
+		await postToWebview(page, { type: 'copyCodeResult', requestId: request!.requestId, ok: true });
+		await expect(button).toHaveText('✓');
+		await button.click();
+		const second = await page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; requestId: number }> }).__posted
+				.filter(message => message.type === 'copyCode').at(-1));
+		await postToWebview(page, { type: 'copyCodeResult', requestId: second!.requestId, ok: false });
+		await expect(button).toHaveText('✕');
+	});
 	test('shows a copy button for a single-line fenced block', async ({ page }) => {
 		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```\n\nAfter');
 		await page.locator('.cm-line', { hasText: 'After' }).click();

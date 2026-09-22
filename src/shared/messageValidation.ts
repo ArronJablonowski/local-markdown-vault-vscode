@@ -135,6 +135,10 @@ export function validateHostToEditorMessage(
 ): ValidationResult<HostToEditorMessage> {
 	if (!isRecord(value) || typeof value.type !== 'string') return { ok: false, reason: 'Message is not an object.' };
 	switch (value.type) {
+		case 'copyCodeResult':
+			return hasExactKeys(value, ['type', 'requestId', 'ok']) && isNonNegativeInteger(value.requestId) && typeof value.ok === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid clipboard result.' };
 		case 'init': {
 			const keys = [
 				'type',
@@ -292,6 +296,11 @@ export function validateEditorToHostMessage(
 	if (!isRecord(value) || typeof value.type !== 'string') return { ok: false, reason: 'Message is not an object.' };
 
 	switch (value.type) {
+		case 'copyCode':
+			return hasExactKeys(value, ['type', 'requestId', 'text']) && isNonNegativeInteger(value.requestId)
+				&& typeof value.text === 'string' && withinByteLimit(value.text, MAX_EDITOR_MESSAGE_TEXT_BYTES)
+				? { ok: true, value: value as unknown as EditorToHostMessage }
+				: { ok: false, reason: 'Invalid clipboard request.' };
 		case 'ready':
 		case 'undo':
 		case 'redo':

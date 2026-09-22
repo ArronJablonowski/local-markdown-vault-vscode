@@ -99,6 +99,8 @@ export class DocumentSyncSession {
 	private readyReceived = false;
 	private vaultNotesGeneration = 0;
 	private disposed = false;
+	private clipboardWritePending = false;
+	private readonly clipboardRateLimiter = new TokenBucketRateLimiter(4, 1_000);
 	private readonly localImageLimiter = new RequestLimiter(MAX_CONCURRENT_LOCAL_IMAGE_READS);
 	private readonly drawioLimiter = new RequestLimiter(MAX_CONCURRENT_DRAWIO_READS);
 	private readonly embedLimiter = new RequestLimiter(MAX_CONCURRENT_EMBED_READS);
@@ -155,6 +157,18 @@ export class DocumentSyncSession {
 
 	private handleMessage(message: EditorToHostMessage) {
 		switch (message.type) {
+			case 'copyCode': {
+				if (this.disposed || !this.webviewPanel.active || this.clipboardWritePending || !this.clipboardRateLimiter.tryTake()) {
+					this.post({ type: 'copyCodeResult', requestId: message.requestId, ok: false });
+					break;
+				}
+				this.clipboardWritePending = true;
+				void Promise.resolve().then(() => vscode.env.clipboard.writeText(message.text)).then(
+					() => this.post({ type: 'copyCodeResult', requestId: message.requestId, ok: true }),
+					() => this.post({ type: 'copyCodeResult', requestId: message.requestId, ok: false }),
+				).finally(() => { this.clipboardWritePending = false; });
+				break;
+			}
 			case 'ready':
 				if (this.readyReceived) {
 					diagnosticEventRateLimited('protocol.duplicateReadyRejected');

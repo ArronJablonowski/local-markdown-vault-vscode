@@ -63,6 +63,29 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('copies code through the host when the browser clipboard rejects access', async () => {
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			const fixture = await makeFixture('copy-code');
+			const note = await service.createNote(fixture, 'Copy Code');
+			const code = 'console.log("clipboard Ω");';
+			await vscode.workspace.fs.writeFile(note, bytes('# Copy test\n\n```js\n' + code + '\n```\n\nAfter'));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			const frame = await connectToLivePreviewFrame('Copy test');
+			await frame.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: { writeText: () => Promise.reject(new Error('Clipboard permission denied')) },
+			}));
+			await frame.getByRole('button', { name: 'Copy code block', exact: true }).click();
+			await waitFor(async () => (await vscode.env.clipboard.readText()) === code,
+				'the code copy button did not write the exact block to the system clipboard');
+			assert.strictEqual(await frame.locator('.mlp-copy-code-btn').textContent(), '✓');
+		} finally {
+			await vscode.env.clipboard.writeText(previousClipboard);
+		}
+	});
+
 	test('undo and redo one text edit at a time in the focused editor', async () => {
 		const fixture = await makeFixture('text');
 		const note = await service.createNote(fixture, 'Focused Editing');

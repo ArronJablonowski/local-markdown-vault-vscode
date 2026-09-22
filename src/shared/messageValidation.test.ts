@@ -11,6 +11,17 @@ import {
 } from './messageValidation';
 
 describe('validateEditorToHostMessage', () => {
+	it('bounds clipboard requests and validates their acknowledgements', () => {
+		const request = { type: 'copyCode', requestId: 1, text: 'print("hello")' };
+		expect(validateEditorToHostMessage(request, 0).ok).toBe(true);
+		for (const invalid of [
+			{ ...request, requestId: -1 }, { ...request, requestId: 0.5 },
+			{ ...request, text: 42 }, { ...request, command: 'run' },
+			{ ...request, text: 'é'.repeat(MAX_EDITOR_MESSAGE_TEXT_BYTES) },
+		]) expect(validateEditorToHostMessage(invalid, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ type: 'copyCodeResult', requestId: 1, ok: true }, 0).ok).toBe(true);
+		expect(validateHostToEditorMessage({ type: 'copyCodeResult', requestId: 1, ok: 'true' }, 0).ok).toBe(false);
+	});
 	it.each(['ready', 'undo', 'redo'] as const)('accepts %s with no extra fields', (type) => {
 		expect(validateEditorToHostMessage({ type }, 10)).toEqual({ ok: true, value: { type } });
 		expect(validateEditorToHostMessage({ type, extra: true }, 10).ok).toBe(false);

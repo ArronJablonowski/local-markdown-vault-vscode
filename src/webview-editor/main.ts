@@ -50,6 +50,7 @@ import { escapeInlineHighlight, exitInlineHighlightOnEnter } from './inlineHighl
 import { insertSoftLineBreak } from './softLineBreak';
 import { deleteFullySelectedFencedCode } from './blockSelection';
 import { exitEmptyMarkdownSection } from './sectionEditing';
+import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -396,6 +397,7 @@ setWikilinkOpener((href) => postToHost({ type: 'openLink', href }));
 setWikiEmbedPoster((message) => postToHost(message as Parameters<typeof postToHost>[0]));
 setLocalImagePoster((message) => postToHost(message as Parameters<typeof postToHost>[0]));
 
+setCodeClipboardPoster(postToHost);
 onHostMessage((message) => {
 	// `drawioFile` replies are routed to whichever widget requested them, not
 	// handled by the switch below.
@@ -403,6 +405,9 @@ onHostMessage((message) => {
 	if (handleWikiEmbedMessage(message)) return;
 	if (handleLocalImageMessage(message)) return;
 	switch (message.type) {
+		case 'copyCodeResult':
+			handleCodeClipboardResult(message.requestId, message.ok);
+			break;
 		case 'init':
 			workspaceTrusted = message.workspaceTrusted;
 			baseVersion = message.version;

@@ -35,6 +35,7 @@ export interface PastedImagePayload {
 }
 
 export type HostToEditorMessage =
+	| { type: 'copyCodeResult'; requestId: number; ok: boolean }
 	| {
 			type: 'init';
 			protocolVersion: typeof EDITOR_PROTOCOL_VERSION;
@@ -66,6 +67,7 @@ export type HostToEditorMessage =
 	| { type: 'vaultNotesChunk'; generation: number; offset: number; total: number; notes: VaultNoteSummary[] };
 
 export type EditorToHostMessage =
+	| { type: 'copyCode'; requestId: number; text: string }
 	| { type: 'ready' }
 	| { type: 'edit'; baseVersion: number; changes: TextChange[] }
 	| { type: 'undo' }
