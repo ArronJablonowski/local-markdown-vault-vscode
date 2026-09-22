@@ -1,5 +1,11 @@
 # Changelog
 
+- Review the conversation's functionality requirements and record implemented features, view-specific gaps, and remaining release gates in `docs/FUNCTIONALITY_REVIEW_2026-09-22.md`.
+- Preserve unselected text in unfinished code fences, preserve multi-cursor deletion semantics, and stop section-exit commands from erasing code that resembles empty Markdown markup or mistaking an opening fence for its closing delimiter.
+- Activate automatically at startup and for Markdown so default-vault setup and autosave do not require first opening an extension view. Recheck the current vault after asynchronous autosave authorization.
+- Preserve intentional source splits and preview/focus state during default-editor conversion, cancel stale closed-tab retries, and avoid copying unrelated workspace editor associations into user settings.
+- Refresh Markdown Preview copy/collapse controls when incremental rendering replaces a code node, so Copy uses the current text. Clarify that our Obsidian compatibility and rendering protections apply to Markdown Live Preview, not VS Code's built-in Markdown Editor.
+
 - Match Obsidian's completed-task appearance by striking through checked task text immediately; unchecking removes the strikethrough, and checkbox edits continue to use the automatic-save path.
 
 - Reject a pre-positioned symlink at the default `~/Documents/Markdown Vault` leaf, verify directory identity across canonicalization, and open only the verified canonical path; reject literal and percent-encoded Unicode bidi controls in authored links to prevent destination spoofing.

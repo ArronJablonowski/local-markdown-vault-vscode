@@ -4,11 +4,21 @@ Secure, local-only Markdown editing for Visual Studio Code, with an Obsidian-sty
 
 > **Project status:** cross-platform desktop release candidate in active pre-release development. The same VSIX supports macOS, Windows, and Linux. It is ready for platform testing but is not yet published to the Visual Studio Marketplace.
 
+See the [functionality review](docs/FUNCTIONALITY_REVIEW_2026-09-22.md) for the
+request-by-request implementation status, verified fixes, and remaining gaps.
+
 Local Markdown Vault keeps notes and attachments as ordinary files in one local VS Code workspace. It does not provide cloud sync, accounts, telemetry, publishing, or background uploads.
 
 ## What it provides
 
 ### Live Preview editor
+
+These rendering and interaction features belong to **Markdown Live Preview**.
+The default **Markdown Editor** is VS Code's separate built-in editor: our CSS
+themes, lock default, code-block controls, and editing fixes do not customize
+that editor. Select **Markdown Live Preview** in **CSS Themes > Settings >
+Default viewing mode** to use the extension's Obsidian-style implementation.
+The default remains **Markdown Editor**, as requested.
 
 - CodeMirror-based Markdown editing with formatting rendered in place
 - Source reveal around the cursor and normal text selection behavior
@@ -31,6 +41,11 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 - Incremental metadata index that can be rebuilt from the files in the workspace
 
 ### Local-first security
+
+The rendering protections below apply to **Markdown Live Preview**. Built-in
+Markdown Editor and Markdown Preview use VS Code's own rendering and security
+policies; the extension cannot guarantee its remote-image or inert-HTML policy
+in those views. Vault filesystem protections apply to extension vault actions.
 
 - Remote images are blocked by default
 - Raw HTML is rendered as inert text

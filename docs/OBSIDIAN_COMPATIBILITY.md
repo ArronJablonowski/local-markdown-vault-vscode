@@ -8,6 +8,8 @@ mean that this extension is an Obsidian clone or that it reads Obsidian's
 application configuration.
 
 This document describes the compatibility target for the packaged extension.
+Its rendering and editing claims apply to **Markdown Live Preview**, not the
+separate built-in **Markdown Editor** selected by the default viewing setting.
 Security restrictions take precedence when Obsidian or another Markdown
 renderer would execute active content or load a remote resource.
 

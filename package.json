@@ -71,7 +71,10 @@
     "Visualization",
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:markdown"
+  ],
   "main": "./dist/extension.js",
   "l10n": "./l10n",
   "contributes": {

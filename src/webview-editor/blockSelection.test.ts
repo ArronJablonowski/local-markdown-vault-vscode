@@ -28,4 +28,9 @@ describe('fullySelectedFenceRange', () => {
 		const editor = state(doc);
 		expect(fullySelectedFenceRange(editor, doc.indexOf('one'), doc.indexOf('two') + 3)).toBeNull();
 	});
+
+	it('never deletes an unselected final line of an unfinished fence', () => {
+		const doc = '```text\none\ntwo\nKEEP THIS';
+		expect(fullySelectedFenceRange(state(doc), doc.indexOf('one'), doc.indexOf('two') + 3)).toBeNull();
+	});
 });

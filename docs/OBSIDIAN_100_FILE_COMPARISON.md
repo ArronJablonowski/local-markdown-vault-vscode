@@ -1,8 +1,11 @@
 # Obsidian 100-file comparison
 
-This comparison makes the extension-owned **Markdown Editor** (also available through the legacy **Markdown Live Preview** alias) the Obsidian-parity viewing mode.
-The built-in VS Code Text Editor and Markdown Preview remain available, but the
-extension does not modify their rendering or editing behavior.
+This comparison tests the extension-owned **Markdown Live Preview** view.
+**Markdown Editor** and its **VS Code Markdown Editor** settings alias select
+VS Code's separate built-in editor. The results below do not establish parity
+for that built-in editor. Earlier wording incorrectly conflated these views.
+The built-in Text Editor and Markdown Preview remain available; contributed
+Preview copy/collapse controls are tested separately.
 
 ## Reproducible corpus
 

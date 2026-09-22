@@ -109,12 +109,14 @@ const REOPEN_RETRY_DELAYS_MS = [150, 500, 1500];
  * tab/column so no split is created.
  */
 async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Promise<void> {
-	const configured = vscode.workspace.getConfiguration('mdLivePreview').get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
-	const viewType = editorViewType(configured);
-	if (!viewType || viewType === 'default') return;
-
+	// Delayed retries must not resurrect a closed tab or override a view the
+	// user selected while VS Code was settling the original open operation.
+	if (!tab.group.tabs.includes(tab)) return;
 	const input = tab.input;
 	if (!(input instanceof vscode.TabInputText)) return;
+	const configured = vscode.workspace.getConfiguration('mdLivePreview', input.uri).get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
+	const viewType = editorViewType(configured);
+	if (!viewType || viewType === 'default') return;
 	const uriKey = input.uri.toString();
 	if (sourceOverrideUris.has(uriKey)) return;
 	if (reopeningUris.has(uriKey)) return;
@@ -135,20 +137,10 @@ async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Prom
 			'vscode.openWith',
 			input.uri,
 			viewType,
-			tab.group.viewColumn,
+			{ viewColumn: tab.group.viewColumn, preview: tab.isPreview, preserveFocus: !tab.isActive },
 		);
-		// `vscode.openWith` is expected to replace the originating tab in place,
-		// but some ways of opening the file (e.g. a URI handled by another
-		// extension's own logic after calling `showTextDocument`) can leave that
-		// original plain-text tab open alongside the new Live Preview one.
-		// Close any such leftover so at most one tab remains for this file.
-		for (const group of vscode.window.tabGroups.all) {
-			for (const leftover of group.tabs) {
-				if (leftover.input instanceof vscode.TabInputText && leftover.input.uri.toString() === uriKey) {
-					await vscode.window.tabGroups.close(leftover);
-				}
-			}
-		}
+		// VS Code owns replacement of the originating tab. Never close matching
+		// source tabs in other groups: they may be intentional split views.
 	} catch {
 		// `openWith` rejected (e.g. the tab hadn't fully settled yet) — the file
 		// is still sitting there as plain text with nothing else queued to
@@ -171,7 +163,8 @@ async function syncDefaultEditorAssociation(): Promise<void> {
 	}
 	const rootConfig = vscode.workspace.getConfiguration();
 	const associations = {
-		...(rootConfig.get<Record<string, string>>('workbench.editorAssociations') ?? {}),
+		// Do not promote unrelated workspace associations into user settings.
+		...(rootConfig.inspect<Record<string, string>>('workbench.editorAssociations')?.globalValue ?? {}),
 	};
 
 	const viewType = editorViewType(mode);

@@ -127,6 +127,27 @@ suite('custom editor', () => {
 			}
 		}
 	});
+
+	test('opening a configured editor preserves an intentional source split', async () => {
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const splitFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'review-source-split.md');
+		await vscode.workspace.fs.writeFile(splitFile, new TextEncoder().encode('# Split\n'));
+		await config.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+		await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(splitFile), { viewColumn: vscode.ViewColumn.One, preview: false });
+		const sourceGroup = vscode.window.tabGroups.activeTabGroup;
+		try {
+			await config.update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
+			await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(splitFile), { viewColumn: vscode.ViewColumn.Beside, preview: true });
+			await waitFor(() => vscode.window.tabGroups.all.some((group) => group !== sourceGroup
+				&& group.tabs.some((tab) => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'mdLivePreview.editor')));
+			await delay(250);
+			assert.ok(sourceGroup.tabs.some((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === splitFile.toString()), 'the original source split was closed');
+		} finally {
+			await config.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(splitFile);
+		}
+	});
 });
 
 function delay(milliseconds: number): Promise<void> {

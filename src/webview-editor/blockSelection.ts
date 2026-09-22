@@ -21,6 +21,9 @@ export function fullySelectedFenceRange(state: EditorState, from: number, to: nu
 	const endNode = fencedCodeAncestor(tree.resolveInner(Math.max(from, to - 1), -1))
 		?? fencedCodeAncestor(tree.resolveInner(Math.max(from, to - 1), 1));
 	if (!startNode || startNode.from !== endNode?.from || startNode.to !== endNode.to) return null;
+	// An unfinished fence has only its opening CodeMark. Its last line is code,
+	// not a hidden closing delimiter: widening would delete unselected content.
+	if (startNode.getChildren('CodeMark').length < 2) return null;
 
 	const firstLine = state.doc.lineAt(startNode.from).number;
 	const lastLine = state.doc.lineAt(Math.max(startNode.from, startNode.to - 1)).number;
@@ -33,6 +36,7 @@ export function fullySelectedFenceRange(state: EditorState, from: number, to: nu
 
 /** Deletes a fully selected fenced block, including its hidden fence lines. */
 export const deleteFullySelectedFencedCode: Command = (view) => {
+	if (view.state.selection.ranges.length !== 1) return false;
 	const selection = view.state.selection.main;
 	const range = fullySelectedFenceRange(view.state, selection.from, selection.to);
 	if (!range) return false;

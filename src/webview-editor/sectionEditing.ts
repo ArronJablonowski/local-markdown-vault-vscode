@@ -1,4 +1,6 @@
 import type { Command } from '@codemirror/view';
+import { syntaxTree } from '@codemirror/language';
+import type { SyntaxNode } from '@lezer/common';
 
 // A line containing only blockquote prefixes and/or an empty list marker. The
 // list portion also accepts Obsidian task markers, including custom one-letter
@@ -29,6 +31,11 @@ export const exitEmptyMarkdownSection: Command = (view) => {
 	const { state } = view;
 	if (state.selection.ranges.length !== 1 || !state.selection.main.empty) return false;
 	const cursor = state.selection.main.head;
+	for (const bias of [-1, 1] as const) {
+		for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(cursor, bias); node; node = node.parent) {
+			if (node.name === 'FencedCode' || node.name === 'CodeBlock') return false;
+		}
+	}
 	const line = state.doc.lineAt(cursor);
 	if (cursor !== line.to || !isEmptySectionContinuation(line.text)) return false;
 

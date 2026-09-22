@@ -84,6 +84,22 @@ suite('settings and views', () => {
 		await config().update('codeTheme', previous, vscode.ConfigurationTarget.Global);
 	});
 
+	test('does not copy workspace editor associations into user settings', async () => {
+		const root = vscode.workspace.getConfiguration();
+		const key = 'workbench.editorAssociations';
+		const originalWorkspace = root.inspect<Record<string, string>>(key)?.workspaceValue;
+		const originalGlobal = root.inspect<Record<string, string>>(key)?.globalValue;
+		try {
+			await root.update(key, { ...originalWorkspace, '*.review-workspace-only': 'default' }, vscode.ConfigurationTarget.Workspace);
+			await config().update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
+			await waitFor(() => root.inspect<Record<string, string>>(key)?.globalValue?.['*.md'] === 'mdLivePreview.editor');
+			assert.strictEqual(root.inspect<Record<string, string>>(key)?.globalValue?.['*.review-workspace-only'], undefined);
+		} finally {
+			await root.update(key, originalWorkspace, vscode.ConfigurationTarget.Workspace);
+			await root.update(key, originalGlobal, vscode.ConfigurationTarget.Global);
+		}
+	});
+
 	test('defaultEditingMode accepts Editing and Locked', async () => {
 		const previous = config().get('defaultEditingMode');
 		for (const value of ['editing', 'locked']) {

@@ -42,7 +42,8 @@ function textualFenceAroundLine(state: Parameters<Command>[0]['state'], lineNumb
 
 function moveAfterFencedCode(view: Parameters<Command>[0], node: SyntaxNode): boolean {
 	const { state } = view;
-	const closingMark = node.getChildren('CodeMark').at(-1);
+	const marks = node.getChildren('CodeMark');
+	const closingMark = marks.length >= 2 ? marks.at(-1) : undefined;
 	if (!closingMark) return false;
 	const closingLine = state.doc.lineAt(closingMark.from);
 

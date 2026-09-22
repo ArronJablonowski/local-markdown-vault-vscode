@@ -5,6 +5,7 @@
 	const COLLAPSE_BUTTON_CLASS = 'lmv-code-collapse-button';
 	const MAX_BLOCKS = 10_000;
 	const MAX_COPY_CHARACTERS = 5 * 1024 * 1024;
+	const renderedCode = new WeakMap();
 	let refreshPending = false;
 
 	function setResult(button, succeeded) {
@@ -20,6 +21,14 @@
 	function addCopyButton(code) {
 		const pre = code.parentElement;
 		if (!pre || pre.tagName !== 'PRE') return;
+		// VS Code can replace only the code node during a preview update. Controls
+		// attached to its surviving parent must not retain the old node's text.
+		if (renderedCode.has(pre) && renderedCode.get(pre) !== code) {
+			pre.querySelector(`:scope > .${BUTTON_CLASS}`)?.remove();
+			pre.querySelector(`:scope > .${COLLAPSE_BUTTON_CLASS}`)?.remove();
+			pre.classList.remove('lmv-code-collapsed');
+		}
+		renderedCode.set(pre, code);
 
 		pre.classList.add('lmv-code-copy-host');
 		if (!pre.querySelector(`:scope > .${BUTTON_CLASS}`)) {

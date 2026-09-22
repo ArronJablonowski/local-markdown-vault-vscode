@@ -415,6 +415,18 @@ test.describe('fenced code editing', () => {
 		await expect(page.locator('.cm-line', { hasText: 'const second = 2;' })).toHaveClass(/mlp-line-code/);
 	});
 
+	test('Enter preserves code that looks like an empty Markdown bullet', async ({ page }) => {
+		await mountEditor(page, '```text\n- \nkeep\n```');
+		const marker = page.locator('.cm-line.mlp-line-code').filter({ hasText: '-' });
+		await marker.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('new code');
+		await expect(page.locator('.cm-line.mlp-line-code').filter({ hasText: '-' })).toHaveCount(1);
+		await expect(page.locator('.cm-line', { hasText: 'new code' })).toHaveClass(/mlp-line-code/);
+		await expect(page.locator('.cm-line', { hasText: 'keep' })).toHaveCount(1);
+	});
+
 	test('ArrowDown and Enter leave a fenced code block at the end of a document', async ({ page }) => {
 		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```');
 		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });

@@ -12,6 +12,12 @@ const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
  * localization bundles actually shipping.
  */
 suite('extension', () => {
+	test('activates for startup and Markdown without requiring the custom editor', () => {
+		const extension = vscode.extensions.getExtension(EXTENSION_ID);
+		assert.ok(extension);
+		assert.ok(extension.packageJSON.activationEvents.includes('onStartupFinished'));
+		assert.ok(extension.packageJSON.activationEvents.includes('onLanguage:markdown'));
+	});
 	test('is installed and activates', async () => {
 		const extension = vscode.extensions.getExtension(EXTENSION_ID);
 		assert.ok(extension, `extension ${EXTENSION_ID} is not installed`);

@@ -40,6 +40,26 @@ test.describe('Markdown Preview code copy controls', () => {
 		expect(await page.evaluate(() => (window as unknown as { __executed?: boolean }).__executed)).toBeUndefined();
 	});
 
+	test('copies the current code after VS Code replaces a rendered code node', async ({ page }) => {
+		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
+		await page.setContent('<html><body><pre><code>old text</code></pre></body></html>');
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (value: string) => {
+				(window as unknown as { __copied: string }).__copied = value;
+			} } });
+		});
+		await page.addScriptTag({ content: script });
+		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
+		await page.evaluate(() => {
+			const code = document.createElement('code');
+			code.textContent = 'updated text';
+			document.querySelector('pre > code')!.replaceWith(code);
+		});
+		await page.waitForFunction(() => document.querySelector('pre > code')?.textContent === 'updated text');
+		await page.getByRole('button', { name: 'Copy code block' }).click();
+		await expect.poll(() => page.evaluate(() => (window as unknown as { __copied: string }).__copied)).toBe('updated text');
+	});
+
 	test('collapses only blocks over eight lines and expands them with the keyboard', async ({ page }) => {
 		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
 		const style = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.css'), 'utf8');

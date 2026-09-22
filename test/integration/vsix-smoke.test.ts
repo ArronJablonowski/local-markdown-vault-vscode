@@ -83,6 +83,13 @@ suite('Installed VSIX clean-profile smoke', () => {
 			`the target extension was not loaded from the isolated VSIX directory: ${extension.extensionPath}`,
 		);
 		assert.strictEqual(extension.packageJSON.version, process.env.MDLP_VSIX_VERSION);
+		// Do not explicitly activate first: that hid a missing startup trigger
+		// whenever the user opened only VS Code's built-in Markdown Editor.
+		const activationDeadline = Date.now() + 15_000;
+		while (!extension.isActive && Date.now() < activationDeadline) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		assert.strictEqual(extension.isActive, true, 'the packaged extension did not activate automatically');
 		const productionApi = await extension.activate();
 		assert.strictEqual(extension.isActive, true);
 		assert.strictEqual(productionApi, undefined, 'the packaged extension exposed its development-only test API');

@@ -141,7 +141,8 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			this.tracked.get(document.uri.toString()) !== state ||
 			state.generation !== generation ||
 			!document.isDirty ||
-			!this.enabled(document)
+			!this.enabled(document) ||
+			localWorkspaceVaultRoot(document.uri)?.toString() !== vaultRoot.toString()
 		) return;
 
 		state.saving = true;
