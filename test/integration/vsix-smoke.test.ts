@@ -688,7 +688,9 @@ async function focusControlWithKeyboard(frame: Frame, selector: string): Promise
 	}));
 	if (await frame.evaluate((targetSelector) => document.activeElement?.matches(targetSelector) === true, selector)) return;
 	for (let index = 1; index < 200; index++) {
-		await frame.locator(':focus').press('Tab');
+		// Send the real workbench key without waiting on a transient :focus
+		// locator; a rendered control can replace itself between those steps.
+		await frame.page().keyboard.press('Tab');
 		if (visited.length < 40) visited.push(await frame.evaluate(() => {
 			const active = document.activeElement as HTMLElement | null;
 			return active ? `${active.tagName.toLowerCase()}.${active.className}` : 'none';
@@ -729,7 +731,9 @@ async function acceptNativeInputBox(page: Page, value: string): Promise<void> {
 
 async function findNativeQuickInputPage(preferredPage: Page): Promise<Page> {
 	const browser = await connectToDebugBrowser();
-	const deadline = Date.now() + 5_000;
+	// Hosted Linux can take several seconds to reveal a second native input
+	// immediately after opening the note created by the first one.
+	const deadline = Date.now() + 15_000;
 	while (Date.now() < deadline) {
 		const pages = browser.contexts().flatMap((context) => context.pages());
 		const candidates = [preferredPage, ...pages.filter((page) => page !== preferredPage)];
@@ -783,7 +787,8 @@ async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
 			await delay(50);
 			continue;
 		}
-		await page.keyboard.insertText(value);
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+		await page.keyboard.type(value, { delay: 10 });
 		for (let attempt = 0; attempt < 10; attempt++) {
 			const accepted = await page.evaluate((expected) => {
 				const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
