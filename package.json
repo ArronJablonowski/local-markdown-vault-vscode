@@ -226,6 +226,12 @@
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
+        "command": "mdLivePreview.vault.copyAbsolutePath",
+        "title": "%command.vault.copyAbsolutePath%",
+        "category": "%command.category%",
+        "enablement": "mdLivePreview.vaultAvailable"
+      },
+      {
         "command": "mdLivePreview.vault.revealInOS",
         "title": "%command.vault.revealInOS%",
         "category": "%command.category%",
@@ -384,9 +390,14 @@
           "group": "2_copy@1"
         },
         {
-          "command": "mdLivePreview.vault.revealInOS",
+          "command": "mdLivePreview.vault.copyAbsolutePath",
           "when": "view == mdLivePreview.vault && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
           "group": "2_copy@2"
+        },
+        {
+          "command": "mdLivePreview.vault.revealInOS",
+          "when": "view == mdLivePreview.vault && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)",
+          "group": "2_copy@3"
         },
         {
           "command": "mdLivePreview.vault.move",

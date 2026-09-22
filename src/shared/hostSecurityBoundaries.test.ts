@@ -17,6 +17,19 @@ function productionTypeScriptFiles(directory = join(ROOT, 'src')): string[] {
 }
 
 describe('host security boundaries', () => {
+	it('offers absolute-path copying for vault files and folders without requiring trust', () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+		const command = 'mdLivePreview.vault.copyAbsolutePath';
+		expect(manifest.contributes.commands).toContainEqual(expect.objectContaining({
+			command, title: '%command.vault.copyAbsolutePath%', enablement: 'mdLivePreview.vaultAvailable',
+		}));
+		expect(manifest.contributes.menus['view/item/context']).toContainEqual({
+			command,
+			when: 'view == mdLivePreview.vault && (viewItem == vaultFile || viewItem == vaultFolder || viewItem == vaultSymlink)',
+			group: '2_copy@2',
+		});
+	});
+
 	it('confines direct filesystem APIs to reviewed production boundaries', () => {
 		const files = productionTypeScriptFiles();
 		const workspaceFsUsers = files
@@ -361,7 +374,7 @@ describe('host security boundaries', () => {
 		expect(vault).toContain('if (values.length > 256) return []');
 		expect(vault).toContain('resolved.some((value) => value === undefined)');
 		expect(vault).toContain('target === undefined ? undefined : await resolveCommandEntry(this.provider, target)');
-		for (const command of ['open', 'newNote', 'newFolder', 'rename', 'move', 'delete', 'copyRelativePath', 'revealInOS']) {
+		for (const command of ['open', 'newNote', 'newFolder', 'rename', 'move', 'delete', 'copyRelativePath', 'copyAbsolutePath', 'revealInOS']) {
 			expect(vault).toMatch(new RegExp(
 				`registerCommand\\('mdLivePreview\\.vault\\.${command}', async \\(entry\\??: unknown`,
 			));

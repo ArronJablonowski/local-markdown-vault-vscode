@@ -35,6 +35,7 @@ Existing explicitly saved viewing preferences are preserved when updating.
 
 - Native VS Code tree named after the actual workspace folder shown by Finder, File Explorer, or the Linux file manager
 - Create, rename, move, delete/trash, drag-and-drop, sort, refresh, and reveal
+- Right-click any vault file or folder and choose **Copy Absolute Path** to copy its full operating-system path, or **Copy Vault-Relative Path** for a path relative to the vault
 - Immediate external-file updates with a coalesced reconciliation pass for folder renames and bulk changes
 - Automatic Markdown and wikilink updates after file or folder moves
 - Local vault search, Quick Switcher, backlinks, unlinked mentions, recent notes, tags, aliases, and hover previews

@@ -182,6 +182,7 @@ suite('Document Vault filesystem transactions', () => {
 			'mdLivePreview.vault.move',
 			'mdLivePreview.vault.delete',
 			'mdLivePreview.vault.copyRelativePath',
+			'mdLivePreview.vault.copyAbsolutePath',
 			'mdLivePreview.vault.revealInOS',
 		]) {
 			await assert.doesNotReject(async () => { await vscode.commands.executeCommand(command, {}); });
@@ -203,6 +204,27 @@ suite('Document Vault filesystem transactions', () => {
 			[{ uri: note }, {}],
 		);
 		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), '# Secure target\n');
+	});
+
+	test('copies native absolute file and folder paths and rejects invalid targets', async () => {
+		const previous = await vscode.env.clipboard.readText();
+		try {
+			const fixture = await makeFixture();
+			const folder = await service.createFolder(fixture, 'Path with spaces Ω');
+			const note = await service.createNote(folder, 'Note Ω');
+			for (const uri of [folder, note]) {
+				await vscode.commands.executeCommand('mdLivePreview.vault.copyAbsolutePath', { uri });
+				assert.strictEqual(await vscode.env.clipboard.readText(), uri.fsPath);
+			}
+			await vscode.env.clipboard.writeText('unchanged');
+			for (const entry of [{}, { uri: note.toString() }, { uri: vscode.Uri.file(tmpdir()) },
+				{ uri: vscode.Uri.joinPath(folder, 'missing.md') }, { uri: note.with({ scheme: 'https' }) }]) {
+				await vscode.commands.executeCommand('mdLivePreview.vault.copyAbsolutePath', entry);
+				assert.strictEqual(await vscode.env.clipboard.readText(), 'unchanged');
+			}
+		} finally {
+			await vscode.env.clipboard.writeText(previous);
+		}
 	});
 
 	test('counts descendants and rejects a symlink escape', async () => {

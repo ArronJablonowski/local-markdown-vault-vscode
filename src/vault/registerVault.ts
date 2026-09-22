@@ -472,6 +472,14 @@ export async function registerVault(
 			const relative = service.relativePath(item.uri);
 			if (relative !== undefined && provider.service === service) await vscode.env.clipboard.writeText(relative);
 		}),
+		vscode.commands.registerCommand('mdLivePreview.vault.copyAbsolutePath', async (entry?: unknown) => {
+			const service = provider.service;
+			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
+			if (!item || !service || provider.service !== service) return;
+			// Copy the displayed entry's native path, not a URI or symlink target.
+			// Validation checks the entry without opening its contents.
+			await vscode.env.clipboard.writeText(item.uri.fsPath);
+		}),
 		vscode.commands.registerCommand('mdLivePreview.vault.revealInOS', async (entry?: unknown) => {
 			const service = provider.service;
 			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);

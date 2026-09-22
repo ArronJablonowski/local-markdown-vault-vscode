@@ -26,6 +26,7 @@
   "command.vault.rename": "Rename Vault Item",
   "command.vault.move": "Move Vault Item…",
   "command.vault.copyRelativePath": "Copy Vault-Relative Path",
+  "command.vault.copyAbsolutePath": "Copy Absolute Path",
   "command.vault.revealInOS": "Reveal in File Manager",
   "command.quickSwitcher": "Quick Switcher",
   "command.vaultSearch": "Search Document Vault",

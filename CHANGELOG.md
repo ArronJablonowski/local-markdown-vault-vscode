@@ -1,5 +1,7 @@
 # Changelog
 
+- Add Copy Absolute Path to the Vault file/folder context menu, using native operating-system paths and validating the selected vault entry before copying.
+
 - Prevent handled Undo/Redo shortcuts from bubbling to VS Code and executing twice; keep formatting and Find shortcuts from also triggering workbench actions. Verify native Cut/Paste followed by one-step Undo/Redo and automatic save, and keep locked document text keyboard-focusable.
 
 - Fix Cut and Delete on native rendered-table selections so they cannot operate on an unrelated stale editor selection. Preserve table structure for plain-text cell selections, support whole-table Cut, and keep ambiguous rich-text selections non-destructive.
