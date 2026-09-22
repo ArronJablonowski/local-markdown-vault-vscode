@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { CodeThemeSetting, DefaultEditorSetting, EditingModeSetting, HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind } from '../shared/messages';
+import type { CodeThemeSetting, DefaultEditorSetting, EditingModeSetting, HostToSidebarMessage, SidebarSettings, SidebarToHostMessage, ThemeKind, VaultOpenBehaviorSetting } from '../shared/messages';
 import { StyleStore } from './styleStore';
 import { StylePreviewController } from './StylePreviewController';
 import { escapeAttribute } from '../shared/i18n';
@@ -7,6 +7,7 @@ import { validateSidebarToHostMessage } from '../shared/auxMessageValidation';
 import { createCspNonce } from '../shared/cspNonce';
 import { diagnosticEventRateLimited } from '../diagnostics';
 import { DEFAULT_EDITOR_SETTING, normalizeDefaultEditorSetting } from '../shared/editorOpenPolicy';
+import { DEFAULT_VAULT_OPEN_BEHAVIOR, normalizeVaultOpenBehavior } from '../shared/vaultOpenBehavior';
 
 const CONFIG_SECTION = 'mdLivePreview';
 
@@ -29,7 +30,8 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 				if (
 					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditor`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditingMode`) ||
-					e.affectsConfiguration(`${CONFIG_SECTION}.codeTheme`)
+					e.affectsConfiguration(`${CONFIG_SECTION}.codeTheme`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.vault.openBehavior`)
 				) {
 					void this.pushStyles();
 				}
@@ -105,9 +107,10 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 				await this.styleStore.deleteStyle(message.id);
 				break;
 			case 'setSetting':
+				const configKey = message.key === 'vaultOpenBehavior' ? 'vault.openBehavior' : message.key;
 				await vscode.workspace
 					.getConfiguration(CONFIG_SECTION)
-					.update(message.key, message.value, vscode.ConfigurationTarget.Global);
+					.update(configKey, message.value, vscode.ConfigurationTarget.Global);
 				break;
 		}
 	}
@@ -133,10 +136,12 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		const defaultEditor = config.get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
 		const defaultEditingMode = config.get<string>('defaultEditingMode', 'editing');
 		const codeTheme = config.get<string>('codeTheme', 'auto');
+		const vaultOpenBehavior = config.get<string>('vault.openBehavior', DEFAULT_VAULT_OPEN_BEHAVIOR);
 		return {
 			defaultEditor: normalizeDefaultEditorSetting(defaultEditor),
 			defaultEditingMode: (['editing', 'locked'].includes(defaultEditingMode) ? defaultEditingMode : 'editing') as EditingModeSetting,
 			codeTheme: (['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(codeTheme) ? codeTheme : 'auto') as CodeThemeSetting,
+			vaultOpenBehavior: normalizeVaultOpenBehavior(vaultOpenBehavior) as VaultOpenBehaviorSetting,
 		};
 	}
 

@@ -57,6 +57,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Reuse one VS Code preview tab by default when opening files from Document
+  Vault and local knowledge views, with a **Vault file tabs** setting that can
+  instead keep every file in a separate tab.
 - Keep an accessible copy button on every fenced code block in Markdown Live
   Preview and Markdown Preview, including single-line blocks; bound preview
   scanning and clipboard payloads and never use network access.

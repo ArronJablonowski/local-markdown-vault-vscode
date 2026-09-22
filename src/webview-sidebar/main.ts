@@ -201,6 +201,17 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 	);
 	section.appendChild(
 		buildSelect(
+			t('sidebar.vaultOpenBehavior'),
+			settings.vaultOpenBehavior,
+			[
+				['reuseTab', t('sidebar.vaultOpenBehavior.reuseTab')],
+				['newTab', t('sidebar.vaultOpenBehavior.newTab')],
+			],
+			(v) => post({ type: 'setSetting', key: 'vaultOpenBehavior', value: v }),
+		),
+	);
+	section.appendChild(
+		buildSelect(
 			t('sidebar.defaultEditingMode'),
 			settings.defaultEditingMode,
 			[

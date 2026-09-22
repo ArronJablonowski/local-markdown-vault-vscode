@@ -19,6 +19,16 @@ test.describe('CSS theme sidebar accessibility', () => {
 			'Markdown Live Preview',
 		]);
 		await expect(defaultEditor).toHaveValue('markdownEditor');
+		const vaultTabs = page.getByLabel('Vault file tabs');
+		await expect(vaultTabs.locator('option')).toHaveText([
+			'Reuse one preview tab',
+			'Open each file in a new tab',
+		]);
+		await expect(vaultTabs).toHaveValue('reuseTab');
+		await vaultTabs.selectOption('newTab');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; key?: string; value?: string }> }).__posted.at(-1),
+		)).toEqual({ type: 'setSetting', key: 'vaultOpenBehavior', value: 'newTab' });
 		const defaultMode = page.getByLabel('Default Live Preview mode');
 		await expect(defaultMode.locator('option')).toHaveText(['Editing', 'Locked']);
 		await defaultMode.selectOption('locked');

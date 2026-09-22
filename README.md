@@ -322,6 +322,7 @@ off if you prefer to save manually.
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
 | Default viewing mode | Choose VS Code default, Text Editor, Markdown Preview, Markdown Editor, or Markdown Live Preview | Markdown Editor |
+| Vault file tabs | Reuse one preview tab while browsing, or keep every opened vault file in a separate tab | Reuse one preview tab |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
 | Automatic save | Save every coalesced change to an open vault Markdown file in any viewing mode | Enabled |
 | Remote media | Permit HTTPS images for this workspace | Blocked |

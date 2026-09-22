@@ -91,6 +91,7 @@ suite('extension', () => {
 		assert.strictEqual(config.get('remoteMedia'), 'block');
 		assert.strictEqual(config.get('diagramRendering'), 'safe');
 		assert.strictEqual(config.get('vault.updateLinksOnMove'), true);
+		assert.strictEqual(config.get('vault.openBehavior'), 'reuseTab');
 		assert.strictEqual(config.get('vault.attachmentFolder'), 'assets');
 		assert.strictEqual(config.get('vault.sortOrder'), 'nameAsc');
 		assert.strictEqual(config.get('vault.autoReveal'), true);

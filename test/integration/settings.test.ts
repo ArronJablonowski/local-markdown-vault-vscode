@@ -11,13 +11,16 @@ import * as vscode from 'vscode';
 suite('settings and views', () => {
 	const config = () => vscode.workspace.getConfiguration('mdLivePreview');
 	let original: string | undefined;
+	let originalOpenBehavior: string | undefined;
 
 	suiteSetup(() => {
 		original = config().get('defaultEditor');
+		originalOpenBehavior = config().get('vault.openBehavior');
 	});
 
 	suiteTeardown(async () => {
 		await config().update('defaultEditor', original, vscode.ConfigurationTarget.Global);
+		await config().update('vault.openBehavior', originalOpenBehavior, vscode.ConfigurationTarget.Global);
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
@@ -58,6 +61,31 @@ suite('settings and views', () => {
 			assert.strictEqual(config().get('defaultEditingMode'), value);
 		}
 		await config().update('defaultEditingMode', previous, vscode.ConfigurationTarget.Global);
+	});
+
+	test('reuses one preview tab by default and can keep files in separate tabs', async () => {
+		const folder = vscode.workspace.workspaceFolders?.[0];
+		assert.ok(folder);
+		const first = vscode.Uri.joinPath(folder.uri, 'README.md');
+		const second = vscode.Uri.joinPath(folder.uri, 'obsidian-core.md');
+		await config().update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
+		try {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await config().update('vault.openBehavior', 'reuseTab', vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', 'README.md');
+			await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', 'obsidian-core.md');
+			assert.deepStrictEqual(openMarkdownTabUris(first, second), [second.toString()]);
+			assert.strictEqual(vscode.window.tabGroups.activeTabGroup.activeTab?.isPreview, true);
+
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await config().update('vault.openBehavior', 'newTab', vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', 'README.md');
+			await vscode.commands.executeCommand('mdLivePreview.openIndexedPath', 'obsidian-core.md');
+			assert.deepStrictEqual(openMarkdownTabUris(first, second).sort(), [first.toString(), second.toString()].sort());
+			assert.strictEqual(vscode.window.tabGroups.activeTabGroup.activeTab?.isPreview, false);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		}
 	});
 
 	test('contributes the vault, outline, and theme views into its own container', () => {
@@ -121,6 +149,21 @@ suite('settings and views', () => {
 		}
 	});
 });
+
+function openMarkdownTabUris(...targets: vscode.Uri[]): string[] {
+	const wanted = new Set(targets.map((uri) => uri.toString()));
+	const open: string[] = [];
+	for (const group of vscode.window.tabGroups.all) {
+		for (const tab of group.tabs) {
+			const input = tab.input;
+			if (
+				(input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom) &&
+				wanted.has(input.uri.toString())
+			) open.push(input.uri.toString());
+		}
+	}
+	return open;
+}
 
 async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
 	const deadline = Date.now() + timeoutMs;

@@ -98,10 +98,12 @@ export type DefaultEditorSetting =
 	| 'livePreview';
 export type EditingModeSetting = 'editing' | 'locked';
 export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dark' | 'github-light';
+export type VaultOpenBehaviorSetting = 'reuseTab' | 'newTab';
 export interface SidebarSettings {
 	defaultEditor: DefaultEditorSetting;
 	defaultEditingMode: EditingModeSetting;
 	codeTheme: CodeThemeSetting;
+	vaultOpenBehavior: VaultOpenBehaviorSetting;
 }
 
 /** Which VS Code theme is active, so previews gate `body.vscode-*` rules correctly. */

@@ -491,6 +491,20 @@
           "scope": "resource",
           "description": "%config.vault.updateLinksOnMove%"
         },
+        "mdLivePreview.vault.openBehavior": {
+          "type": "string",
+          "enum": [
+            "reuseTab",
+            "newTab"
+          ],
+          "enumDescriptions": [
+            "%config.vault.openBehavior.reuseTab%",
+            "%config.vault.openBehavior.newTab%"
+          ],
+          "default": "reuseTab",
+          "scope": "application",
+          "description": "%config.vault.openBehavior%"
+        },
         "mdLivePreview.vault.openDefaultOnStartup": {
           "type": "boolean",
           "default": true,

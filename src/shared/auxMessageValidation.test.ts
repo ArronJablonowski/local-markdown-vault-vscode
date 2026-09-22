@@ -29,6 +29,9 @@ describe('auxiliary webview message validation', () => {
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditingMode', value: 'locked' }).ok).toBe(true);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'defaultEditingMode', value: 'arbitrary' }).ok).toBe(false);
 		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'codeTheme', value: 'github-dark' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'vaultOpenBehavior', value: 'reuseTab' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'vaultOpenBehavior', value: 'newTab' }).ok).toBe(true);
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'vaultOpenBehavior', value: 'replacePinnedTab' }).ok).toBe(false);
 	});
 
 	it('validates messages sent into auxiliary webviews', () => {
@@ -42,7 +45,12 @@ describe('auxiliary webview message validation', () => {
 		const sidebar = {
 			type: 'init',
 			styles: [],
-			settings: { defaultEditor: 'prompt', defaultEditingMode: 'editing', codeTheme: 'auto' },
+			settings: {
+				defaultEditor: 'prompt',
+				defaultEditingMode: 'editing',
+				codeTheme: 'auto',
+				vaultOpenBehavior: 'reuseTab',
+			},
 			themeKind: 'vscode-dark',
 			workspaceTrusted: false,
 		};

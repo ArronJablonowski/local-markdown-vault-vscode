@@ -56,7 +56,8 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
 		((value.key === 'defaultEditor' && ['prompt', 'textEditor', 'markdownPreview', 'markdownEditor', 'livePreview'].includes(String(value.value))) ||
 			(value.key === 'defaultEditingMode' && ['editing', 'locked'].includes(String(value.value))) ||
-			(value.key === 'codeTheme' && ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.value))))
+			(value.key === 'codeTheme' && ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.value))) ||
+			(value.key === 'vaultOpenBehavior' && ['reuseTab', 'newTab'].includes(String(value.value))))
 	) {
 		return { ok: true, value: value as unknown as SidebarToHostMessage };
 	}
@@ -91,10 +92,11 @@ export function validateHostToSidebarMessage(value: unknown): ValidationResult<H
 		cssLength += bytes;
 	}
 	if (
-		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme']) ||
+		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior']) ||
 		!['prompt', 'textEditor', 'markdownPreview', 'markdownEditor', 'livePreview'].includes(String(value.settings.defaultEditor)) ||
 		!['editing', 'locked'].includes(String(value.settings.defaultEditingMode)) ||
-		!['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.settings.codeTheme))
+		!['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.settings.codeTheme)) ||
+		!['reuseTab', 'newTab'].includes(String(value.settings.vaultOpenBehavior))
 	) return { ok: false, reason: 'Invalid sidebar settings.' };
 	if (!['vscode-light', 'vscode-dark', 'vscode-high-contrast'].includes(String(value.themeKind))) return { ok: false, reason: 'Invalid sidebar theme.' };
 	return { ok: true, value: value as unknown as HostToSidebarMessage };
