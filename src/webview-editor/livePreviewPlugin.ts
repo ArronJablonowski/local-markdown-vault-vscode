@@ -23,7 +23,7 @@ import {
 	type TableEditModel,
 } from './tableEdit';
 import { t } from '../shared/i18n';
-import { calloutIcon, parseCalloutHeader } from './callouts';
+import { calloutIcon, createCalloutOutlineIcon, parseCalloutHeader } from './callouts';
 import type { RemoteMediaPolicy } from '../shared/messages';
 import { resolveLocalImage } from './localImageClient';
 import { isAbsoluteWebUrl } from '../shared/linkTarget';
@@ -308,7 +308,9 @@ class CalloutHeaderWidget extends WidgetType {
 		const icon = document.createElement('span');
 		icon.className = 'mlp-callout-icon';
 		icon.setAttribute('aria-hidden', 'true');
-		icon.textContent = calloutIcon(this.type);
+		const outline = createCalloutOutlineIcon(this.type);
+		if (outline) icon.append(outline);
+		else icon.textContent = calloutIcon(this.type);
 		const label = document.createElement('span');
 		label.className = 'mlp-callout-title';
 		label.textContent = this.title;

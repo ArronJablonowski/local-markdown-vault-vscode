@@ -1,5 +1,7 @@
 # Changelog
 
+- Give Live Preview callouts rounded tinted panels instead of inherited blockquote styling. Add local outline icons for Abstract and Warning (including their aliases), and correct title-only and collapsed panel corners.
+
 - Add Copy Absolute Path to the Vault file/folder context menu, using native operating-system paths and validating the selected vault entry before copying.
 
 - Prevent handled Undo/Redo shortcuts from bubbling to VS Code and executing twice; keep formatting and Find shortcuts from also triggering workbench actions. Verify native Cut/Paste followed by one-step Undo/Redo and automatic save, and keep locked document text keyboard-focusable.

@@ -211,7 +211,7 @@ img {
 	color: #d8a657;
 }
 
-.mlp-line-callout {
+.cm-line.mlp-line-callout {
 	background-color: color-mix(in srgb, var(--mlp-callout-color) 12%, var(--obsidian-background-secondary));
 }
 

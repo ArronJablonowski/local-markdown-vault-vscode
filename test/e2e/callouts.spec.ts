@@ -2,6 +2,36 @@ import { expect, test } from '@playwright/test';
 import { mountEditor } from './harness';
 
 test.describe('Obsidian-style callouts', () => {
+	test('keeps Abstract and Warning bodies joined to their colored headers', async ({ page }, testInfo) => {
+		await mountEditor(page, 'Callout examples\n\n> [!abstract]\n> A concise summary with **important details**.\n\n> [!warning]\n> Review this warning before continuing.\n\n> [!abstract]\n\n> [!warning]\n\nAfter\n');
+		for (const type of ['abstract', 'warning']) {
+			const lines = page.locator(`.mlp-callout-${type}`);
+			const backgrounds = await lines.evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor));
+			expect(new Set(backgrounds).size).toBe(1);
+			await expect(lines.nth(1)).toHaveCSS('border-bottom-left-radius', '6px');
+		}
+		await page.screenshot({ path: testInfo.outputPath('callout-panels.png') });
+	});
+
+	for (const type of ['abstract', 'warning', 'summary', 'caution']) {
+		test(`${type} has a tinted rounded panel and a safe outline icon`, async ({ page }) => {
+			await mountEditor(page, `Intro\n\n> [!${type}]\n\nAfter\n`);
+			const panel = page.locator('.mlp-line-callout');
+			await expect(panel).toHaveCount(1);
+			await expect(panel).toHaveCSS('border-left-width', '0px');
+			await expect(panel).toHaveCSS('border-top-left-radius', '6px');
+			await expect(panel).toHaveCSS('border-bottom-left-radius', '6px');
+			const expected = ['abstract', 'summary'].includes(type) ? 'Abstract' : 'Warning';
+			await expect(panel.locator('.mlp-callout-title')).toHaveText(expected);
+			await expect(panel.locator('.mlp-callout-icon svg')).toHaveCount(1);
+			const colors = await panel.evaluate(el => ({ actual: getComputedStyle(el).backgroundColor,
+				color: getComputedStyle(el).getPropertyValue('--mlp-callout-color') }));
+			expect(colors.actual).not.toBe('rgba(127, 127, 127, 0.05)');
+			expect(colors.color.trim()).toBe(expected === 'Abstract' ? '#00b8a9' : '#e9973f');
+			await expect(panel.locator('script, foreignObject, image, use, [onclick]')).toHaveCount(0);
+		});
+	}
+
 	test('renders a titled callout and preserves its content', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n> [!warning] Read this\n> Important local content.\n');
 		await expect(page.locator('.mlp-callout-header')).toHaveText(/Read this/);

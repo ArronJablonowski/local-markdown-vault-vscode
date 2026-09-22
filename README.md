@@ -205,6 +205,9 @@ Start a blockquote with `[!type]`. Add `-` to start collapsed or `+` to start ex
 > [!note] Local note
 > This information stays in the vault.
 
+> [!abstract]
+> A short summary of the key points.
+
 > [!warning]- Security reminder
 > Expand this callout before enabling remote media.
 
@@ -213,6 +216,10 @@ Start a blockquote with `[!type]`. Add `-` to start collapsed or `+` to start ex
 ```
 
 Supported standard families include `note`, `abstract`, `info`, `todo`, `tip`, `success`, `question`, `warning`, `failure`, `danger`, `bug`, `example`, and `quote`. Common Obsidian aliases such as `faq`, `important`, `caution`, and `cite` are also recognized.
+
+In Markdown Live Preview, Abstract uses a teal panel with a document icon;
+Warning uses an amber panel with a warning-triangle icon. Both support title-only
+callouts (just `> [!abstract]` or `> [!warning]`), custom titles, and body text.
 
 #### Add YAML properties
 

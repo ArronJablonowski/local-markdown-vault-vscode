@@ -503,20 +503,30 @@ html, body {
 
 .mlp-line-callout {
 	--mlp-callout-color: var(--vscode-textLink-foreground, #3794ff);
-	background: color-mix(in srgb, var(--mlp-callout-color) 14%, transparent);
-	border-left: 3px solid var(--mlp-callout-color);
-	padding-left: 0.75em;
-	padding-right: 0.75em;
+}
+
+.cm-line.mlp-line-callout {
+	background: color-mix(in srgb, var(--mlp-callout-color) 10%, transparent);
+	border-left: 0;
+	padding-left: 1em;
+	padding-right: 1em;
+	color: var(--vscode-editor-foreground);
 }
 
 .mlp-line-callout-first {
-	border-radius: 4px 4px 0 0;
-	padding-top: 0.45em;
+	border-radius: 6px 6px 0 0;
+	padding-top: 0.75em;
 }
 
 .mlp-line-callout-last {
-	border-radius: 0 0 4px 4px;
-	padding-bottom: 0.45em;
+	border-radius: 0 0 6px 6px;
+	padding-bottom: 0.75em;
+}
+
+.mlp-line-callout-first.mlp-line-callout-last,
+.mlp-line-callout-first:has(.mlp-callout-header[aria-expanded="false"]) {
+	border-radius: 6px;
+	padding-bottom: 0.75em;
 }
 
 .mlp-callout-abstract { --mlp-callout-color: #00b8a9; }
@@ -557,7 +567,9 @@ html, body {
 	justify-content: center;
 	width: 1.1em;
 	font-weight: 700;
+	flex-shrink: 0;
 }
+.mlp-callout-icon svg { width: 1.1em; height: 1.1em; }
 .mlp-callout-chevron { font-size: 1.2em; }
 .mlp-callout-content-collapsed { display: none !important; }
 
