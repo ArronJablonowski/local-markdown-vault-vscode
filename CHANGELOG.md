@@ -1,5 +1,7 @@
 # Changelog
 
+- Prevent active CSS themes (including older Obsidian-style themes) from replacing callout panel hues with ordinary gray blockquote backgrounds and borders. Keep the tint across every quoted body line, including blank quoted lines.
+
 - Give Live Preview callouts rounded tinted panels instead of inherited blockquote styling. Add local outline icons for Abstract and Warning (including their aliases), and correct title-only and collapsed panel corners.
 
 - Add Copy Absolute Path to the Vault file/folder context menu, using native operating-system paths and validating the selected vault entry before copying.

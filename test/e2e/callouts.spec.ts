@@ -1,7 +1,31 @@
 import { expect, test } from '@playwright/test';
 import { mountEditor } from './harness';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 test.describe('Obsidian-style callouts', () => {
+	for (const theme of ['obsidian-dark.css', 'older-quote-theme']) {
+		test(`tints the whole callout despite ${theme} quote styling`, async ({ page }, testInfo) => {
+			const css = theme === 'older-quote-theme'
+				? 'blockquote { background: #262626; border-left: 3px solid #a88bfa; }'
+				: readFileSync(join(__dirname, '../../media/sample-styles/obsidian-dark.css'), 'utf8');
+			await mountEditor(page, 'Intro\n\n> [!abstract]\n> Summary text.\n>\n> More details.\n\n> [!warning]\n> Important warning.\n\n> Ordinary quote\n\nAfter\n', { css });
+			for (const type of ['abstract', 'warning']) {
+				const lines = page.locator(`.mlp-callout-${type}`);
+				const backgrounds = await lines.evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor));
+				expect(new Set(backgrounds).size).toBe(1);
+				expect(backgrounds[0]).not.toBe('rgb(38, 38, 38)');
+				for (const line of await lines.all()) {
+					await expect(line).not.toHaveClass(/mlp-line-quote/);
+					await expect(line).toHaveCSS('border-left-width', '0px');
+				}
+			}
+			await expect(page.locator('.mlp-line-quote')).toHaveCount(1);
+			await expect(page.locator('.mlp-line-quote')).toHaveCSS('border-left-width', '3px');
+			await page.screenshot({ path: testInfo.outputPath('themed-callouts.png') });
+		});
+	}
+
 	test('keeps Abstract and Warning bodies joined to their colored headers', async ({ page }, testInfo) => {
 		await mountEditor(page, 'Callout examples\n\n> [!abstract]\n> A concise summary with **important details**.\n\n> [!warning]\n> Review this warning before continuing.\n\n> [!abstract]\n\n> [!warning]\n\nAfter\n');
 		for (const type of ['abstract', 'warning']) {

@@ -1886,6 +1886,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, callout.collapsed) }),
 									);
 								}
+								// A callout is not an ordinary quote for styling purposes.
+								// User themes adapt blockquote rules to mlp-line-quote;
+								// adding that class here overrides the entire colored panel.
+								return; // still descend to hide quote markers and render content
 							}
 						}
 						addLineRange(node.from, node.to, (_n, first, last) => {

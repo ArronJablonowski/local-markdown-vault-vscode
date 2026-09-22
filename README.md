@@ -220,6 +220,9 @@ Supported standard families include `note`, `abstract`, `info`, `todo`, `tip`, `
 In Markdown Live Preview, Abstract uses a teal panel with a document icon;
 Warning uses an amber panel with a warning-triangle icon. Both support title-only
 callouts (just `> [!abstract]` or `> [!warning]`), custom titles, and body text.
+To keep an entire section inside the tinted panel, prefix each of its lines
+with `>`, including blank lines. A heading or paragraph outside the blockquote
+is not part of the callout.
 
 #### Add YAML properties
 
