@@ -61,97 +61,6 @@ function getActiveCustomEditorUri(): vscode.Uri | undefined {
 	return undefined;
 }
 
-// Files the user explicitly asked to view as plain source through Open Source,
-// exempted from the auto-reopen-as-Live-Preview watcher below until closed or
-// reopened in Live Preview again. Keyed by `Uri#toString()`.
-const sourceOverrideUris = new Set<string>();
-
-// URIs currently being converted to their configured Markdown editor.
-// `onDidChangeTabs` can report the same tab open in both its `opened` and
-// `changed` batches, which without this guard would race two overlapping
-// `vscode.openWith` calls for the same file and could leave two tabs open.
-const reopeningUris = new Set<string>();
-
-/**
- * Whether VS Code considers this tab's document to be Markdown. Prefers the
- * document's actual language mode over the filename: a file recognized as
- * Markdown (via the user's own `files.associations`, for instance) is still
- * picked up even when its name doesn't literally end in ".md" — e.g. a
- * duplicate download renamed by some tool to "note.md(1)". Falls back to the
- * filename check only when no matching open document is found yet (the tab
- * may not have one tracked at the very first `opened` event).
- */
-function isMarkdownTab(input: vscode.TabInputText): boolean {
-	const uriKey = input.uri.toString();
-	const openDoc = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uriKey);
-	if (openDoc) return openDoc.languageId === 'markdown';
-	return /\.(?:md|markdown)$/i.test(input.uri.path);
-}
-
-// Short, bounded backoff for configured-editor retries below — covers
-// two distinct failure modes seen from third-party callers (AI chat panels,
-// other extensions' "open this file" links) that this extension can't inspect
-// or fix directly: (1) the document's language mode hasn't been assigned yet
-// at the moment its tab first appears, so `isMarkdownTab` misses a file that
-// *is* genuinely Markdown; (2) `vscode.openWith` itself intermittently rejects
-// right after such a caller's own open call, before VS Code has finished
-// settling that tab. Both are transient by nature — a short retry recovers
-// them without any visible flicker, where giving up immediately would leave
-// the file stuck showing as plain/raw text with no further trigger to fix it.
-const REOPEN_RETRY_DELAYS_MS = [150, 500, 1500];
-
-/**
- * Some ways of opening a `.md` file (e.g. `vscode.window.showTextDocument`,
- * used by many extensions — including AI chat panels — to open a referenced
- * file) bypass `workbench.editorAssociations` entirely and always land in the
- * plain text editor. This watches every tab as it opens/changes and reopens
- * any such file in the explicitly configured Markdown view, reusing the same
- * tab/column so no split is created.
- */
-async function maybeReopenAsConfiguredEditor(tab: vscode.Tab, attempt = 0): Promise<void> {
-	// Delayed retries must not resurrect a closed tab or override a view the
-	// user selected while VS Code was settling the original open operation.
-	if (!tab.group.tabs.includes(tab)) return;
-	const input = tab.input;
-	if (!(input instanceof vscode.TabInputText)) return;
-	const configured = vscode.workspace.getConfiguration('mdLivePreview', input.uri).get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
-	const viewType = editorViewType(configured);
-	if (!viewType || viewType === 'default') return;
-	const uriKey = input.uri.toString();
-	if (sourceOverrideUris.has(uriKey)) return;
-	if (reopeningUris.has(uriKey)) return;
-
-	const retry = () => {
-		if (attempt >= REOPEN_RETRY_DELAYS_MS.length) return;
-		setTimeout(() => void maybeReopenAsConfiguredEditor(tab, attempt + 1), REOPEN_RETRY_DELAYS_MS[attempt]);
-	};
-
-	if (!isMarkdownTab(input)) {
-		retry();
-		return;
-	}
-
-	reopeningUris.add(uriKey);
-	try {
-		await vscode.commands.executeCommand(
-			'vscode.openWith',
-			input.uri,
-			viewType,
-			{ viewColumn: tab.group.viewColumn, preview: tab.isPreview, preserveFocus: !tab.isActive },
-		);
-		// VS Code owns replacement of the originating tab. Never close matching
-		// source tabs in other groups: they may be intentional split views.
-	} catch {
-		// `openWith` rejected (e.g. the tab hadn't fully settled yet) — the file
-		// is still sitting there as plain text with nothing else queued to
-		// retrigger this watcher, so retry ourselves rather than leaving it stuck.
-		reopeningUris.delete(uriKey);
-		retry();
-		return;
-	}
-	reopeningUris.delete(uriKey);
-}
-
 async function syncDefaultEditorAssociation(): Promise<void> {
 	const config = vscode.workspace.getConfiguration('mdLivePreview');
 	const configured = config.get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
@@ -225,14 +134,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 		vscode.commands.registerCommand('mdLivePreview.openWithLivePreview', async () => {
 			const uri = getActiveMarkdownUri();
 			if (!uri) return;
-			sourceOverrideUris.delete(uri.toString());
 			const viewColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
 			await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownLivePreviewProvider.viewType, viewColumn);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.openWithSource', async () => {
 			const uri = getActiveCustomEditorUri();
 			if (!uri) return;
-			sourceOverrideUris.add(uri.toString());
 			const viewColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
 			await vscode.commands.executeCommand('vscode.openWith', uri, 'default', viewColumn);
 		}),
@@ -241,20 +148,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 		}),
 	);
 
-	context.subscriptions.push(
-		vscode.workspace.onDidCloseTextDocument((doc) => {
-			sourceOverrideUris.delete(doc.uri.toString());
-		}),
-		vscode.window.tabGroups.onDidChangeTabs((e) => {
-			// Only enforce the configured default for newly opened tabs. A `changed`
-			// event is also how VS Code reports an explicit "Reopen Editor With…"
-			// choice. Reprocessing those events immediately replaced a user-selected
-			// Text Editor with the configured Markdown Editor.
-			for (const tab of e.opened) {
-				void maybeReopenAsConfiguredEditor(tab);
-			}
-		}),
-	);
+	// Defaults belong in editor associations and our explicit vault-open policy.
+	// Tab events do not reveal whether an open was a deliberate mode switch.
+	// Reopening text tabs here races VS Code's Text Editor picker and overrides
+	// explicit source opens (including intentional source splits).
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {

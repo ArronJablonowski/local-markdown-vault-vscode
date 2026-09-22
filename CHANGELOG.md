@@ -1,5 +1,7 @@
 # Changelog
 
+- Stop racing explicit Text Editor selections with automatic tab reopening. Keep defaults in VS Code editor associations and vault-open actions; preserve explicit source opens and splits without delayed retries that switch them back.
+
 - Add an off-by-default Show spaces and line breaks setting to CSS Themes and VS Code Settings. Update open Markdown Live Preview tabs immediately with display-only space, tab, and return markers, without modifying files or clipboard text.
 
 - Restore visible mouse-selection highlighting in Markdown Live Preview. Copy partial rendered-table text correctly, bridge table-to-paragraph drags into editor selections, and test mixed code/table content and long scrolling selections in both Edit and Locked modes.

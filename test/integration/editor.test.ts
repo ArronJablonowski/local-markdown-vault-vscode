@@ -80,6 +80,23 @@ suite('custom editor', () => {
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), file.toString());
 	});
 
+	test('respects an explicit Text Editor choice on a newly opened tab', async () => {
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		const fresh = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'explicit-source-new-tab.md');
+		await vscode.workspace.fs.writeFile(fresh, new TextEncoder().encode('# Explicit source\n'));
+		await editorConfig.update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
+		try {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand('vscode.openWith', fresh, 'default');
+			await new Promise(resolve => setTimeout(resolve, 2300));
+			assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText, 'explicit source open was overridden by the default-editor watcher');
+		} finally {
+			await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(fresh);
+		}
+	});
+
 	test('respects an explicit Reopen Editor With Text Editor choice', async () => {
 		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
 		await editorConfig.update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
@@ -137,7 +154,7 @@ suite('custom editor', () => {
 		const sourceGroup = vscode.window.tabGroups.activeTabGroup;
 		try {
 			await config.update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
-			await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(splitFile), { viewColumn: vscode.ViewColumn.Beside, preview: true });
+			await vscode.commands.executeCommand('vscode.openWith', splitFile, 'mdLivePreview.editor', { viewColumn: vscode.ViewColumn.Beside, preview: true });
 			await waitFor(() => vscode.window.tabGroups.all.some((group) => group !== sourceGroup
 				&& group.tabs.some((tab) => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'mdLivePreview.editor')));
 			await delay(250);

@@ -156,6 +156,11 @@ code --uninstall-extension arronjablonowski.local-markdown-vault
 
 ### Advanced Markdown how-to
 
+Selecting **Text Editor** explicitly keeps that tab in source mode, even when
+Markdown Editor is your default. Normal file opens and Document Vault opens
+still use the configured default. Other extensions that explicitly request a
+text editor are also respected rather than forcibly reopened in another mode.
+
 **Built-in Markdown Editor limitation:** If Enter or Command/Ctrl+Enter leaves
 the cursor inside the final nested list, switch to **Text Editor**, leave one
 blank line after the list, and type the start of your next paragraph at column

@@ -98,6 +98,33 @@ suite('focused cross-platform desktop transactions', () => {
 		await waitFor(async () => (await vscode.workspace.openTextDocument(note)).getText() === original + 'Independent paragraph continued', 'typing did not stay in the independent paragraph');
 	});
 
+	test('one Text Editor picker selection stays in source mode with Markdown Editor as default', async () => {
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const prior = config.inspect<string>('defaultEditor')?.globalValue;
+		try {
+			await config.update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
+			const fixture = await makeFixture('switch-mode');
+			const note = await service.createNote(fixture, 'Switch mode');
+			const original = '# Switch mode\n\n- Parent\n  - Child\n';
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			const page = await getWorkbenchPage();
+			for (let attempt = 0; attempt < 3; attempt++) {
+				await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor');
+				await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+				void vscode.commands.executeCommand('workbench.action.reopenWithEditor');
+				const choice = page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({ hasText: 'Text Editor' });
+				await choice.waitFor({ state: 'visible' });
+				await choice.click();
+				await waitFor(async () => vscode.window.activeTextEditor?.document.uri.toString() === note.toString(), 'one Text Editor selection did not open source');
+				await new Promise(resolve => setTimeout(resolve, 2300));
+				assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText);
+				assert.strictEqual(vscode.window.activeTextEditor?.document.getText(), original);
+			}
+		} finally {
+			await config.update('defaultEditor', prior, vscode.ConfigurationTarget.Global);
+		}
+	});
+
 	test('updates whitespace display live without modifying the note', async () => {
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
 		const previous = config.inspect<string>('showWhitespace')?.workspaceValue;
