@@ -57,6 +57,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Add a deterministic 100-note Obsidian comparison vault spanning ten syntax,
+  interaction, stress, and security categories; verify every note with the
+  shipped Live Preview bundle and record a native Obsidian 1.13.7 comparison.
 - Reuse one VS Code preview tab by default when opening files from Document
   Vault and local knowledge views, with a **Vault file tabs** setting that can
   instead keep every file in a separate tab.

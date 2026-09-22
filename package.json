@@ -573,6 +573,7 @@
     }
   },
   "scripts": {
+    "fixtures:obsidian": "node scripts/generate-obsidian-comparison-fixtures.mjs",
     "compile": "node esbuild.js && tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

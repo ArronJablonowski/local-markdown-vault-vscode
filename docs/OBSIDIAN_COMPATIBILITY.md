@@ -24,6 +24,11 @@ that ship in the VSIX. The security-differences note is an explicit negative
 test: active HTML, unsafe links, remote tracking media, and attempts to weaken
 Mermaid strict mode must remain inert or blocked.
 
+The deterministic 100-note matrix in
+`test/fixtures/obsidian-comparison-100/` expands this coverage across ten syntax
+and interaction categories with increasing file sizes. Its native and automated
+results are recorded in [OBSIDIAN_100_FILE_COMPARISON.md](OBSIDIAN_100_FILE_COMPARISON.md).
+
 ## Research basis
 
 The compatibility matrix is based on Obsidian's official documentation for

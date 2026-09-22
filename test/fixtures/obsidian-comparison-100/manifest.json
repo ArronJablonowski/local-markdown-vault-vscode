@@ -1,0 +1,2266 @@
+{
+  "schemaVersion": 1,
+  "fileCount": 100,
+  "records": [
+    {
+      "id": 1,
+      "path": "basic-formatting/001-compatibility-001.md",
+      "category": "basic-formatting",
+      "variant": 1,
+      "bytes": 322,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 2,
+      "path": "basic-formatting/002-compatibility-002.md",
+      "category": "basic-formatting",
+      "variant": 2,
+      "bytes": 439,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 3,
+      "path": "basic-formatting/003-compatibility-003.md",
+      "category": "basic-formatting",
+      "variant": 3,
+      "bytes": 556,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 4,
+      "path": "basic-formatting/004-compatibility-004.md",
+      "category": "basic-formatting",
+      "variant": 4,
+      "bytes": 790,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 5,
+      "path": "basic-formatting/005-compatibility-005.md",
+      "category": "basic-formatting",
+      "variant": 5,
+      "bytes": 1258,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 6,
+      "path": "basic-formatting/006-compatibility-006.md",
+      "category": "basic-formatting",
+      "variant": 6,
+      "bytes": 1729,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 7,
+      "path": "basic-formatting/007-compatibility-007.md",
+      "category": "basic-formatting",
+      "variant": 7,
+      "bytes": 2673,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 8,
+      "path": "basic-formatting/008-compatibility-008.md",
+      "category": "basic-formatting",
+      "variant": 8,
+      "bytes": 4089,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 9,
+      "path": "basic-formatting/009-compatibility-009.md",
+      "category": "basic-formatting",
+      "variant": 9,
+      "bytes": 5977,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 10,
+      "path": "basic-formatting/010-compatibility-010.md",
+      "category": "basic-formatting",
+      "variant": 10,
+      "bytes": 8881,
+      "assertions": [
+        "heading",
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "highlight",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "source-reveal"
+      ]
+    },
+    {
+      "id": 11,
+      "path": "lists-and-tasks/011-compatibility-011.md",
+      "category": "lists-and-tasks",
+      "variant": 1,
+      "bytes": 293,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 12,
+      "path": "lists-and-tasks/012-compatibility-012.md",
+      "category": "lists-and-tasks",
+      "variant": 2,
+      "bytes": 411,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 13,
+      "path": "lists-and-tasks/013-compatibility-013.md",
+      "category": "lists-and-tasks",
+      "variant": 3,
+      "bytes": 529,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 14,
+      "path": "lists-and-tasks/014-compatibility-014.md",
+      "category": "lists-and-tasks",
+      "variant": 4,
+      "bytes": 765,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 15,
+      "path": "lists-and-tasks/015-compatibility-015.md",
+      "category": "lists-and-tasks",
+      "variant": 5,
+      "bytes": 1237,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 16,
+      "path": "lists-and-tasks/016-compatibility-016.md",
+      "category": "lists-and-tasks",
+      "variant": 6,
+      "bytes": 1712,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 17,
+      "path": "lists-and-tasks/017-compatibility-017.md",
+      "category": "lists-and-tasks",
+      "variant": 7,
+      "bytes": 2664,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 18,
+      "path": "lists-and-tasks/018-compatibility-018.md",
+      "category": "lists-and-tasks",
+      "variant": 8,
+      "bytes": 4092,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 19,
+      "path": "lists-and-tasks/019-compatibility-019.md",
+      "category": "lists-and-tasks",
+      "variant": 9,
+      "bytes": 5997,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 20,
+      "path": "lists-and-tasks/020-compatibility-020.md",
+      "category": "lists-and-tasks",
+      "variant": 10,
+      "bytes": 8856,
+      "assertions": [
+        "nested-bullets",
+        "ordered-list",
+        "tasks",
+        "completed-task-strikethrough"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "enter-continues-list",
+        "tab-indents-list",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 21,
+      "path": "links-and-wikilinks/021-compatibility-021.md",
+      "category": "links-and-wikilinks",
+      "variant": 1,
+      "bytes": 302,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 22,
+      "path": "links-and-wikilinks/022-compatibility-022.md",
+      "category": "links-and-wikilinks",
+      "variant": 2,
+      "bytes": 420,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 23,
+      "path": "links-and-wikilinks/023-compatibility-023.md",
+      "category": "links-and-wikilinks",
+      "variant": 3,
+      "bytes": 538,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 24,
+      "path": "links-and-wikilinks/024-compatibility-024.md",
+      "category": "links-and-wikilinks",
+      "variant": 4,
+      "bytes": 774,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 25,
+      "path": "links-and-wikilinks/025-compatibility-025.md",
+      "category": "links-and-wikilinks",
+      "variant": 5,
+      "bytes": 1246,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 26,
+      "path": "links-and-wikilinks/026-compatibility-026.md",
+      "category": "links-and-wikilinks",
+      "variant": 6,
+      "bytes": 1721,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 27,
+      "path": "links-and-wikilinks/027-compatibility-027.md",
+      "category": "links-and-wikilinks",
+      "variant": 7,
+      "bytes": 2673,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 28,
+      "path": "links-and-wikilinks/028-compatibility-028.md",
+      "category": "links-and-wikilinks",
+      "variant": 8,
+      "bytes": 4101,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 29,
+      "path": "links-and-wikilinks/029-compatibility-029.md",
+      "category": "links-and-wikilinks",
+      "variant": 9,
+      "bytes": 6005,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 30,
+      "path": "links-and-wikilinks/030-compatibility-030.md",
+      "category": "links-and-wikilinks",
+      "variant": 10,
+      "bytes": 8863,
+      "assertions": [
+        "wikilink",
+        "alias",
+        "heading-fragment",
+        "markdown-link",
+        "unresolved-wikilink"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "wikilink-navigation",
+        "wikilink-completion"
+      ]
+    },
+    {
+      "id": 31,
+      "path": "tables/031-compatibility-031.md",
+      "category": "tables",
+      "variant": 1,
+      "bytes": 208,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 32,
+      "path": "tables/032-compatibility-032.md",
+      "category": "tables",
+      "variant": 2,
+      "bytes": 326,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 33,
+      "path": "tables/033-compatibility-033.md",
+      "category": "tables",
+      "variant": 3,
+      "bytes": 465,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 34,
+      "path": "tables/034-compatibility-034.md",
+      "category": "tables",
+      "variant": 4,
+      "bytes": 721,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 35,
+      "path": "tables/035-compatibility-035.md",
+      "category": "tables",
+      "variant": 5,
+      "bytes": 1214,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 36,
+      "path": "tables/036-compatibility-036.md",
+      "category": "tables",
+      "variant": 6,
+      "bytes": 1236,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 37,
+      "path": "tables/037-compatibility-037.md",
+      "category": "tables",
+      "variant": 7,
+      "bytes": 1259,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 38,
+      "path": "tables/038-compatibility-038.md",
+      "category": "tables",
+      "variant": 8,
+      "bytes": 1281,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 39,
+      "path": "tables/039-compatibility-039.md",
+      "category": "tables",
+      "variant": 9,
+      "bytes": 1304,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 40,
+      "path": "tables/040-compatibility-040.md",
+      "category": "tables",
+      "variant": 10,
+      "bytes": 1327,
+      "assertions": [
+        "table",
+        "alignment",
+        "escaped-pipe"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "table-cell-edit",
+        "table-keyboard-navigation"
+      ]
+    },
+    {
+      "id": 41,
+      "path": "callouts-and-quotes/041-compatibility-041.md",
+      "category": "callouts-and-quotes",
+      "variant": 1,
+      "bytes": 348,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 42,
+      "path": "callouts-and-quotes/042-compatibility-042.md",
+      "category": "callouts-and-quotes",
+      "variant": 2,
+      "bytes": 466,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 43,
+      "path": "callouts-and-quotes/043-compatibility-043.md",
+      "category": "callouts-and-quotes",
+      "variant": 3,
+      "bytes": 584,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 44,
+      "path": "callouts-and-quotes/044-compatibility-044.md",
+      "category": "callouts-and-quotes",
+      "variant": 4,
+      "bytes": 820,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 45,
+      "path": "callouts-and-quotes/045-compatibility-045.md",
+      "category": "callouts-and-quotes",
+      "variant": 5,
+      "bytes": 1292,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 46,
+      "path": "callouts-and-quotes/046-compatibility-046.md",
+      "category": "callouts-and-quotes",
+      "variant": 6,
+      "bytes": 1767,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 47,
+      "path": "callouts-and-quotes/047-compatibility-047.md",
+      "category": "callouts-and-quotes",
+      "variant": 7,
+      "bytes": 2719,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 48,
+      "path": "callouts-and-quotes/048-compatibility-048.md",
+      "category": "callouts-and-quotes",
+      "variant": 8,
+      "bytes": 4147,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 49,
+      "path": "callouts-and-quotes/049-compatibility-049.md",
+      "category": "callouts-and-quotes",
+      "variant": 9,
+      "bytes": 6051,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 50,
+      "path": "callouts-and-quotes/050-compatibility-050.md",
+      "category": "callouts-and-quotes",
+      "variant": 10,
+      "bytes": 8908,
+      "assertions": [
+        "callout-note",
+        "callout-warning",
+        "folded-callout",
+        "nested-task",
+        "blockquote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "callout-fold-toggle",
+        "checkbox-toggle"
+      ]
+    },
+    {
+      "id": 51,
+      "path": "properties-and-tags/051-compatibility-051.md",
+      "category": "properties-and-tags",
+      "variant": 1,
+      "bytes": 353,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 52,
+      "path": "properties-and-tags/052-compatibility-052.md",
+      "category": "properties-and-tags",
+      "variant": 2,
+      "bytes": 470,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 53,
+      "path": "properties-and-tags/053-compatibility-053.md",
+      "category": "properties-and-tags",
+      "variant": 3,
+      "bytes": 589,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 54,
+      "path": "properties-and-tags/054-compatibility-054.md",
+      "category": "properties-and-tags",
+      "variant": 4,
+      "bytes": 824,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 55,
+      "path": "properties-and-tags/055-compatibility-055.md",
+      "category": "properties-and-tags",
+      "variant": 5,
+      "bytes": 1297,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 56,
+      "path": "properties-and-tags/056-compatibility-056.md",
+      "category": "properties-and-tags",
+      "variant": 6,
+      "bytes": 1771,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 57,
+      "path": "properties-and-tags/057-compatibility-057.md",
+      "category": "properties-and-tags",
+      "variant": 7,
+      "bytes": 2724,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 58,
+      "path": "properties-and-tags/058-compatibility-058.md",
+      "category": "properties-and-tags",
+      "variant": 8,
+      "bytes": 4151,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 59,
+      "path": "properties-and-tags/059-compatibility-059.md",
+      "category": "properties-and-tags",
+      "variant": 9,
+      "bytes": 6056,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 60,
+      "path": "properties-and-tags/060-compatibility-060.md",
+      "category": "properties-and-tags",
+      "variant": 10,
+      "bytes": 8914,
+      "assertions": [
+        "typed-properties",
+        "aliases",
+        "yaml-tags",
+        "inline-tags"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "property-edit"
+      ]
+    },
+    {
+      "id": 61,
+      "path": "code-and-literals/061-compatibility-061.md",
+      "category": "code-and-literals",
+      "variant": 1,
+      "bytes": 272,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 62,
+      "path": "code-and-literals/062-compatibility-062.md",
+      "category": "code-and-literals",
+      "variant": 2,
+      "bytes": 390,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 63,
+      "path": "code-and-literals/063-compatibility-063.md",
+      "category": "code-and-literals",
+      "variant": 3,
+      "bytes": 508,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 64,
+      "path": "code-and-literals/064-compatibility-064.md",
+      "category": "code-and-literals",
+      "variant": 4,
+      "bytes": 744,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 65,
+      "path": "code-and-literals/065-compatibility-065.md",
+      "category": "code-and-literals",
+      "variant": 5,
+      "bytes": 1216,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 66,
+      "path": "code-and-literals/066-compatibility-066.md",
+      "category": "code-and-literals",
+      "variant": 6,
+      "bytes": 1691,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 67,
+      "path": "code-and-literals/067-compatibility-067.md",
+      "category": "code-and-literals",
+      "variant": 7,
+      "bytes": 2643,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 68,
+      "path": "code-and-literals/068-compatibility-068.md",
+      "category": "code-and-literals",
+      "variant": 8,
+      "bytes": 4071,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 69,
+      "path": "code-and-literals/069-compatibility-069.md",
+      "category": "code-and-literals",
+      "variant": 9,
+      "bytes": 5975,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 70,
+      "path": "code-and-literals/070-compatibility-070.md",
+      "category": "code-and-literals",
+      "variant": 10,
+      "bytes": 8835,
+      "assertions": [
+        "inline-code",
+        "fenced-code",
+        "single-line-fence",
+        "indented-code",
+        "copy-buttons"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "copy-code",
+        "enter-in-code",
+        "exit-code-block"
+      ]
+    },
+    {
+      "id": 71,
+      "path": "math-and-footnotes/071-compatibility-071.md",
+      "category": "math-and-footnotes",
+      "variant": 1,
+      "bytes": 358,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 72,
+      "path": "math-and-footnotes/072-compatibility-072.md",
+      "category": "math-and-footnotes",
+      "variant": 2,
+      "bytes": 476,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 73,
+      "path": "math-and-footnotes/073-compatibility-073.md",
+      "category": "math-and-footnotes",
+      "variant": 3,
+      "bytes": 594,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 74,
+      "path": "math-and-footnotes/074-compatibility-074.md",
+      "category": "math-and-footnotes",
+      "variant": 4,
+      "bytes": 830,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 75,
+      "path": "math-and-footnotes/075-compatibility-075.md",
+      "category": "math-and-footnotes",
+      "variant": 5,
+      "bytes": 1302,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 76,
+      "path": "math-and-footnotes/076-compatibility-076.md",
+      "category": "math-and-footnotes",
+      "variant": 6,
+      "bytes": 1777,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 77,
+      "path": "math-and-footnotes/077-compatibility-077.md",
+      "category": "math-and-footnotes",
+      "variant": 7,
+      "bytes": 2730,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 78,
+      "path": "math-and-footnotes/078-compatibility-078.md",
+      "category": "math-and-footnotes",
+      "variant": 8,
+      "bytes": 4160,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 79,
+      "path": "math-and-footnotes/079-compatibility-079.md",
+      "category": "math-and-footnotes",
+      "variant": 9,
+      "bytes": 6064,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 80,
+      "path": "math-and-footnotes/080-compatibility-080.md",
+      "category": "math-and-footnotes",
+      "variant": 10,
+      "bytes": 8922,
+      "assertions": [
+        "inline-math",
+        "block-math",
+        "named-footnote",
+        "inline-footnote"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "footnote-navigation"
+      ]
+    },
+    {
+      "id": 81,
+      "path": "embeds-and-navigation/081-compatibility-081.md",
+      "category": "embeds-and-navigation",
+      "variant": 1,
+      "bytes": 322,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 82,
+      "path": "embeds-and-navigation/082-compatibility-082.md",
+      "category": "embeds-and-navigation",
+      "variant": 2,
+      "bytes": 440,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 83,
+      "path": "embeds-and-navigation/083-compatibility-083.md",
+      "category": "embeds-and-navigation",
+      "variant": 3,
+      "bytes": 558,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 84,
+      "path": "embeds-and-navigation/084-compatibility-084.md",
+      "category": "embeds-and-navigation",
+      "variant": 4,
+      "bytes": 794,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 85,
+      "path": "embeds-and-navigation/085-compatibility-085.md",
+      "category": "embeds-and-navigation",
+      "variant": 5,
+      "bytes": 1266,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 86,
+      "path": "embeds-and-navigation/086-compatibility-086.md",
+      "category": "embeds-and-navigation",
+      "variant": 6,
+      "bytes": 1266,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 87,
+      "path": "embeds-and-navigation/087-compatibility-087.md",
+      "category": "embeds-and-navigation",
+      "variant": 7,
+      "bytes": 1266,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 88,
+      "path": "embeds-and-navigation/088-compatibility-088.md",
+      "category": "embeds-and-navigation",
+      "variant": 8,
+      "bytes": 1266,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 89,
+      "path": "embeds-and-navigation/089-compatibility-089.md",
+      "category": "embeds-and-navigation",
+      "variant": 9,
+      "bytes": 1266,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 90,
+      "path": "embeds-and-navigation/090-compatibility-090.md",
+      "category": "embeds-and-navigation",
+      "variant": 10,
+      "bytes": 1267,
+      "assertions": [
+        "note-embed",
+        "heading-embed",
+        "block-id",
+        "block-link",
+        "remote-image-blocked"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "embed-open-source",
+        "block-navigation"
+      ]
+    },
+    {
+      "id": 91,
+      "path": "unicode-stress-and-security/091-compatibility-091.md",
+      "category": "unicode-stress-and-security",
+      "variant": 1,
+      "bytes": 758,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 92,
+      "path": "unicode-stress-and-security/092-compatibility-092.md",
+      "category": "unicode-stress-and-security",
+      "variant": 2,
+      "bytes": 1272,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 93,
+      "path": "unicode-stress-and-security/093-compatibility-093.md",
+      "category": "unicode-stress-and-security",
+      "variant": 3,
+      "bytes": 1786,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 94,
+      "path": "unicode-stress-and-security/094-compatibility-094.md",
+      "category": "unicode-stress-and-security",
+      "variant": 4,
+      "bytes": 2657,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 95,
+      "path": "unicode-stress-and-security/095-compatibility-095.md",
+      "category": "unicode-stress-and-security",
+      "variant": 5,
+      "bytes": 4245,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 96,
+      "path": "unicode-stress-and-security/096-compatibility-096.md",
+      "category": "unicode-stress-and-security",
+      "variant": 6,
+      "bytes": 5833,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 97,
+      "path": "unicode-stress-and-security/097-compatibility-097.md",
+      "category": "unicode-stress-and-security",
+      "variant": 7,
+      "bytes": 8849,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 98,
+      "path": "unicode-stress-and-security/098-compatibility-098.md",
+      "category": "unicode-stress-and-security",
+      "variant": 8,
+      "bytes": 13293,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 99,
+      "path": "unicode-stress-and-security/099-compatibility-099.md",
+      "category": "unicode-stress-and-security",
+      "variant": 9,
+      "bytes": 19210,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    },
+    {
+      "id": 100,
+      "path": "unicode-stress-and-security/100-compatibility-100.md",
+      "category": "unicode-stress-and-security",
+      "variant": 10,
+      "bytes": 28227,
+      "assertions": [
+        "unicode",
+        "long-line",
+        "raw-html-inert",
+        "unsafe-links-inert",
+        "traversal-blocked",
+        "bounded-mermaid"
+      ],
+      "interactions": [
+        "select-text",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "large-selection",
+        "scroll-stability"
+      ]
+    }
+  ]
+}
