@@ -486,8 +486,15 @@ async function connectToLivePreviewFrame(expectedText: string): Promise<Frame> {
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
 					if (frame.isDetached()) continue;
-					const editor = frame.locator('.cm-content');
-					if (await editor.count() > 0 && (await editor.textContent())?.includes(expectedText)) return frame;
+					try {
+						const editor = frame.locator('.cm-content');
+						if (await editor.count() > 0 && (await editor.textContent())?.includes(expectedText)) return frame;
+					} catch (error) {
+						// VS Code replaces webview frames while restoring or refreshing an
+						// editor. Resume discovery when that happens between enumeration
+						// and the locator query, but retain every unrelated Playwright error.
+						if (!frame.isDetached()) throw error;
+					}
 				}
 			}
 		}
@@ -504,7 +511,11 @@ async function connectToCssThemesFrame(): Promise<Frame> {
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
 					if (frame.isDetached()) continue;
-					if (await frame.locator('#mlp-sidebar-root').count() > 0) return frame;
+					try {
+						if (await frame.locator('#mlp-sidebar-root').count() > 0) return frame;
+					} catch (error) {
+						if (!frame.isDetached()) throw error;
+					}
 				}
 			}
 		}
