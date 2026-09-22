@@ -232,8 +232,8 @@ test.describe('Markdown list editing', () => {
 		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
 		await page.keyboard.press('Enter');
 
-		await expect(page.locator('.cm-line')).toHaveCount(2);
-		await expect(page.locator('.cm-line').nth(1)).toHaveText('');
+		await expect(page.locator('.cm-line')).toHaveCount(3);
+		await expect(page.locator('.cm-line').nth(2)).toHaveText('');
 	});
 
 	test('ends a task list when its current checkbox is empty', async ({ page }) => {
@@ -242,8 +242,47 @@ test.describe('Markdown list editing', () => {
 		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
 		await page.keyboard.press('Enter');
 
-		await expect(page.locator('.cm-line')).toHaveCount(2);
-		await expect(page.locator('.cm-line').nth(1)).toHaveText('');
+		await expect(page.locator('.cm-line')).toHaveCount(3);
+		await expect(page.locator('.cm-line').nth(2)).toHaveText('');
+	});
+
+	test('repeated Enter escapes a nested list at the bottom of the page', async ({ page }) => {
+		await mountEditor(page, '- Parent\n  - Nested item');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Unrelated row');
+
+		const lastLine = page.locator('.cm-line').last();
+		await expect(lastLine).toHaveText('Unrelated row');
+		await expect(lastLine).not.toHaveClass(/mlp-line-list/);
+	});
+
+	test('Enter escapes an indented Shift+Enter continuation at the bottom of the page', async ({ page }) => {
+		await mountEditor(page, '- List item');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Shift+Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Unrelated row');
+
+		const lastLine = page.locator('.cm-line').last();
+		await expect(lastLine).toHaveText('Unrelated row');
+		await expect(lastLine).not.toHaveClass(/mlp-line-list/);
+	});
+
+	test('repeated Enter escapes a quote or callout at the bottom of the page', async ({ page }) => {
+		await mountEditor(page, '> [!note] Section\n> Final content');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Unrelated row');
+
+		const lastLine = page.locator('.cm-line').last();
+		await expect(lastLine).toHaveText('Unrelated row');
+		await expect(lastLine).not.toHaveClass(/mlp-line-callout|mlp-line-quote/);
 	});
 });
 

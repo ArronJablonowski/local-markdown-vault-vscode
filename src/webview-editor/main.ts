@@ -49,6 +49,7 @@ import {
 import { escapeInlineHighlight, exitInlineHighlightOnEnter } from './inlineHighlightEditing';
 import { insertSoftLineBreak } from './softLineBreak';
 import { deleteFullySelectedFencedCode } from './blockSelection';
+import { exitEmptyMarkdownSection } from './sectionEditing';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -218,6 +219,7 @@ function createExtensions(): Extension[] {
 				key: 'Enter',
 				run: (editor) => exitFencedCodeOnBlankLine(editor)
 					|| exitInlineHighlightOnEnter(editor)
+					|| exitEmptyMarkdownSection(editor)
 					|| continueMarkdownMarkup(editor),
 			},
 			{

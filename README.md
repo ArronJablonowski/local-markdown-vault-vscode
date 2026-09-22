@@ -18,6 +18,7 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 - YAML properties, highlighted text, color-coded callouts, math, footnotes, tags, and interactive task lists
 - Smart list editing that continues ordered numbers and unchecked tasks on Return
 - Obsidian-style Shift+Return soft lines that stay inside the current list item
+- Repeated Return reliably exits nested lists, tasks, quotes, and callouts—even at the bottom of a note
 - Solid, hollow, and square markers that distinguish nested bullet levels
 
 ### Document Vault
