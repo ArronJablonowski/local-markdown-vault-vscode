@@ -142,6 +142,9 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await waitFor(() => activeTabUri()?.toString() === note.toString(),
 			'the packaged Document Vault did not open its created note');
 
+		await page.bringToFront();
+		await vscode.commands.executeCommand('workbench.view.extension.mdLivePreview');
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
 		const createFolder = vscode.commands.executeCommand('mdLivePreview.vault.newFolder');
 		await acceptNativeInputBox(page, folderName);
 		await createFolder;
@@ -788,7 +791,7 @@ async function typeNativeQuickInput(page: Page, value: string): Promise<void> {
 			continue;
 		}
 		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
-		await page.keyboard.type(value, { delay: 10 });
+		await page.keyboard.type(value, { delay: 30 });
 		for (let attempt = 0; attempt < 10; attempt++) {
 			const accepted = await page.evaluate((expected) => {
 				const widgets = Array.from(document.querySelectorAll<HTMLElement>('.quick-input-widget'));
