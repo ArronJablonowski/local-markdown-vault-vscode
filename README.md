@@ -17,6 +17,7 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 - Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
 - YAML properties, highlighted text, color-coded callouts, math, footnotes, tags, and interactive task lists
 - Smart list editing that continues ordered numbers and unchecked tasks on Return
+- Obsidian-style Shift+Return soft lines that stay inside the current list item
 - Solid, hollow, and square markers that distinguish nested bullet levels
 
 ### Document Vault
@@ -245,6 +246,10 @@ Select a rendered table cell to edit it or use the table controls to insert, mov
 The header row remains visible while a long table scrolls, then stops at the
 bottom of that table.
 
+Drag across rendered text to highlight and copy it. Use **Select entire table**
+in the table toolbar to highlight the complete table; Copy places its Markdown
+source on the clipboard, and Backspace or Delete removes the selected table.
+
 #### Add math and footnotes
 
 ```markdown
@@ -276,6 +281,10 @@ Ctrl+Return on Windows and Linux.
 Every fenced code block, including a block containing only one line, has a
 **Copy** button in Markdown Live Preview and Markdown Preview. The button copies
 only the code, without the opening or closing fence.
+
+Text and code can also be highlighted normally with the mouse. Backspace or
+Delete removes the highlighted text; selecting every visible line of a fenced
+code block removes its hidden opening and closing fences as well.
 
 Code blocks containing more than eight lines also have a chevron control in
 Markdown Live Preview and Markdown Preview. Select it, or focus it and press

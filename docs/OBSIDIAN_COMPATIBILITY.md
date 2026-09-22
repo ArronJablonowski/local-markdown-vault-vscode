@@ -45,7 +45,10 @@ opened directly in Obsidian 1.13.7 on macOS and reviewed in Live Preview. That
 review confirmed source reveal, three-level list markers, non-empty task-state
 completion, highlight presentation, editing-comment presentation, typed
 properties, standard callout color families and icons, folding, nested
-callouts, wikilinks, embeds, tables, math, footnotes, and Mermaid structure.
+callouts, wikilinks, embeds, tables, math, footnotes, and Mermaid structure. A
+direct Obsidian 1.13.7 keyboard comparison also confirmed that Shift+Enter
+creates a continuation line without a new marker, aligned by two spaces after
+a bullet, three after `1.`, and six after `- [ ]`.
 
 ## Supported note syntax
 
@@ -65,6 +68,7 @@ callouts, wikilinks, embeds, tables, math, footnotes, and Mermaid structure.
 | Tags | Supported | Inline and YAML tags, including nested tags, feed the local Tags view. Code and headings are not interpreted as tags. |
 | Tasks | Supported | Checkboxes are keyboard and pointer operable and change only their source marker. As in Obsidian, every non-space task-state character is treated as completed. |
 | Tables | Supported | Cells can be edited in place; row and column insertion, deletion, movement, sorting, and alignment preserve Markdown source where possible. |
+| Editing interactions | Supported | Shift+Enter creates an aligned soft continuation line. Mouse-highlighted text can be copied or deleted; complete rendered tables and fenced code blocks support safe whole-block copy or deletion. |
 | Mermaid | Supported with security differences | Diagrams are bounded and sanitized. HTML labels, click callbacks, external resources, and document attempts to weaken strict mode are disabled. |
 | draw.io file embeds | Supported with security differences | Local uncompressed diagram files are parsed with explicit limits and sanitized before display. Compressed draw.io input and active external content are not supported. |
 | Raw HTML | Displayed as inert source | Raw HTML is never executed. No setting enables arbitrary HTML execution. |

@@ -104,6 +104,7 @@ const en = {
 	'table.addRow': 'Add a row',
 	'table.addColumn': 'Add a column',
 	'table.toolbar': 'Table editing controls',
+	'table.select': 'Select entire table',
 	'table.insertRowAbove': 'Insert row above selected row',
 	'table.insertRowBelow': 'Insert row below selected row',
 	'table.deleteRow': 'Delete selected row',

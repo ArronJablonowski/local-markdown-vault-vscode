@@ -47,6 +47,8 @@ import {
 	exitFencedCodeOnBlankLine,
 } from './codeFenceEditing';
 import { escapeInlineHighlight, exitInlineHighlightOnEnter } from './inlineHighlightEditing';
+import { insertSoftLineBreak } from './softLineBreak';
+import { deleteFullySelectedFencedCode } from './blockSelection';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -204,6 +206,14 @@ function createExtensions(): Extension[] {
 		search({ top: true }),
 		searchRevealExtension,
 		Prec.highest(keymap.of([
+			{ key: 'Backspace', run: deleteFullySelectedFencedCode },
+			{ key: 'Delete', run: deleteFullySelectedFencedCode },
+			{
+				// Obsidian uses Shift+Enter for a continuation inside the current
+				// paragraph/list item. It inserts no new bullet, number, or checkbox.
+				key: 'Shift-Enter',
+				run: insertSoftLineBreak,
+			},
 			{
 				key: 'Enter',
 				run: (editor) => exitFencedCodeOnBlankLine(editor)

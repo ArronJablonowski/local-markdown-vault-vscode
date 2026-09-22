@@ -153,6 +153,45 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table th')).toHaveCount(5);
 	});
 
+	test('mouse-selected table text can be copied without entering cell editing', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n| Name | Value |\n| --- | --- |\n| Alpha | Bravo |\n\nAfter\n');
+		const cell = page.locator('.mlp-table td').first();
+		const box = await cell.boundingBox();
+		expect(box).not.toBeNull();
+		await page.mouse.move(box!.x + 8, box!.y + box!.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box!.x + box!.width - 8, box!.y + box!.height / 2, { steps: 8 });
+		await page.mouse.up();
+
+		expect((await page.evaluate(() => window.getSelection()?.toString() ?? '')).trim()).toBe('Alpha');
+		await expect(cell).not.toHaveAttribute('contenteditable', 'true');
+	});
+
+	test('an entire rendered table can be selected, copied as Markdown, and deleted', async ({ page }) => {
+		const tableSource = '| Name | Value |\n| --- | --- |\n| Alpha | Bravo |';
+		await mountEditor(page, `Before\n\n${tableSource}\n\nAfter\n`);
+		const selectTable = page.getByRole('button', { name: 'Select entire table' });
+		await selectTable.click();
+		await expect(page.locator('.mlp-table-wrap')).toHaveClass(/mlp-table-block-selected/);
+
+		await page.evaluate(() => {
+			document.addEventListener('copy', (event) => {
+				(window as unknown as { __copiedTable?: string }).__copiedTable = event.clipboardData?.getData('text/plain') ?? '';
+			}, { once: true });
+		});
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+c' : 'Control+c');
+		await expect.poll(() => page.evaluate(() => (window as unknown as { __copiedTable?: string }).__copiedTable)).toBe(tableSource);
+
+		await page.keyboard.press('Backspace');
+		await expect(page.locator('.mlp-table')).toHaveCount(0);
+		await expect(page.locator('.cm-content')).toContainText('Before');
+		await expect(page.locator('.cm-content')).toContainText('After');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: Array<{ type: string; changes?: Array<{ insert: string }> }> }).__posted
+				.filter((message) => message.type === 'edit').at(-1)?.changes?.[0]?.insert,
+		)).toBe('');
+	});
+
 	test('table controls move and delete the selected row and column', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n| a | b | c |\n| --- | --- | --- |\n| one | 1 | x |\n| two | 2 | y |\n| three | 3 | z |\n\nAfter\n');
 

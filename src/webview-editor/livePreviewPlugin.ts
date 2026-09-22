@@ -122,6 +122,8 @@ const cellInlineHooks: CellInlineHooks = {
 	resolveImageSrcAsync: requestLocalImage,
 };
 
+const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
+
 class ImageWidget extends WidgetType {
 	constructor(
 		private readonly src: string,
@@ -592,6 +594,12 @@ class TableWidget extends WidgetType {
 		// so a cell shows its *rendered* form until the user actually goes to
 		// change it, and its raw Markdown only while being edited.
 		let editing: HTMLElement | null = null;
+		let tableBlockSelected = false;
+		const setTableBlockSelected = (selected: boolean) => {
+			tableBlockSelected = selected;
+			wrap.classList.toggle('mlp-table-block-selected', selected);
+			wrap.setAttribute('aria-selected', String(selected));
+		};
 		// The cell most recently clicked or tabbed to, remembered after editing
 		// ends so the code-mode button can put the caret back where the user was.
 		let lastCell: HTMLElement | null = null;
@@ -869,6 +877,7 @@ class TableWidget extends WidgetType {
 		const DRAG_SLOP_PX = 4;
 
 		table.addEventListener('mousedown', (event) => {
+			setTableBlockSelected(false);
 			pressedCell = null;
 			// Ctrl/Cmd-click opens a link (createLinkClickHandler) and the secondary
 			// button opens a context menu; neither is ours to take.
@@ -897,7 +906,19 @@ class TableWidget extends WidgetType {
 			event.stopPropagation();
 			// Released far from where it went down: that was a drag, and the text it
 			// selected is a copy gesture. Leave the selection alone.
-			if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > DRAG_SLOP_PX) return;
+			if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > DRAG_SLOP_PX) {
+				requestAnimationFrame(() => {
+					const selection = window.getSelection?.();
+					if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+					const range = selection.getRangeAt(0);
+					const cells = Array.from(table.querySelectorAll('.mlp-table-cell'));
+					const selectedCells = cells.filter((candidate) => {
+						try { return range.intersectsNode(candidate); } catch { return false; }
+					});
+					setTableBlockSelected(cells.length > 0 && selectedCells.length === cells.length);
+				});
+				return;
+			}
 			// A single press that nonetheless left text selected is the tail of a
 			// drag that ended near its start; also a copy gesture.
 			if (event.detail <= 1 && hasTextSelectionWithin(table)) return;
@@ -1006,6 +1027,42 @@ class TableWidget extends WidgetType {
 			};
 		};
 
+		const copySelectedTable = (event: ClipboardEvent): void => {
+			if (!tableBlockSelected || !event.clipboardData) return;
+			const current = currentTableModel();
+			if (!current) return;
+			event.clipboardData.setData('text/plain', view.state.sliceDoc(current.from, current.to));
+			event.preventDefault();
+		};
+		const deleteSelectedTable = (event: KeyboardEvent): void => {
+			if (!tableBlockSelected || (event.key !== 'Backspace' && event.key !== 'Delete')) return;
+			if (event.altKey || event.ctrlKey || event.metaKey) return;
+			const current = currentTableModel();
+			if (!current) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			window.getSelection?.()?.removeAllRanges();
+			setTableBlockSelected(false);
+			view.dispatch({
+				changes: { from: current.from, to: current.to, insert: '' },
+				selection: { anchor: current.from },
+				scrollIntoView: true,
+				userEvent: 'delete.selection',
+			});
+			view.focus();
+		};
+		const clearTableSelectionOutside = (event: PointerEvent): void => {
+			if (tableBlockSelected && !wrap.contains(event.target as Node | null)) setTableBlockSelected(false);
+		};
+		view.dom.addEventListener('copy', copySelectedTable, true);
+		view.dom.addEventListener('keydown', deleteSelectedTable, true);
+		view.dom.addEventListener('pointerdown', clearTableSelectionOutside, true);
+		tableWidgetCleanup.set(wrap, () => {
+			view.dom.removeEventListener('copy', copySelectedTable, true);
+			view.dom.removeEventListener('keydown', deleteSelectedTable, true);
+			view.dom.removeEventListener('pointerdown', clearTableSelectionOutside, true);
+		});
+
 		/**
 		 * Rebuilds the whole table through `change` and replaces it in the
 		 * document.
@@ -1066,6 +1123,13 @@ class TableWidget extends WidgetType {
 			});
 			return button;
 		};
+		const selectTableButton = makeAddButton('▦', t('table.select'), () => {
+			window.getSelection?.()?.removeAllRanges();
+			setTableBlockSelected(true);
+			selectTableButton.focus();
+		});
+		selectTableButton.className = 'mlp-table-action-btn';
+		toolbar.appendChild(selectTableButton);
 
 		const tableActionButtons: HTMLButtonElement[] = [];
 		const makeActionButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
@@ -1168,6 +1232,12 @@ class TableWidget extends WidgetType {
 		// position in the document. Letting mousedown through in particular is what
 		// allows a drag to select cell text for copying.
 		return true;
+	}
+	destroy(dom: HTMLElement): void {
+		const wrap = dom.matches('.mlp-table-wrap') ? dom : dom.querySelector<HTMLElement>('.mlp-table-wrap');
+		if (!wrap) return;
+		tableWidgetCleanup.get(wrap)?.();
+		tableWidgetCleanup.delete(wrap);
 	}
 }
 

@@ -598,6 +598,11 @@ html, body {
 	padding-right: 18px;
 	margin-right: -18px;
 }
+.mlp-table-wrap.mlp-table-block-selected {
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
+	background: var(--vscode-editor-selectionBackground, rgba(0, 122, 204, 0.28));
+}
 /* Strip above the table holding its controls. Right-aligned so the button lines
    up with the table's own right edge rather than floating loose. */
 .mlp-table-toolbar {

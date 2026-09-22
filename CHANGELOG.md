@@ -57,6 +57,11 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Support mouse text selection and deletion throughout Live Preview, including
+  exact-source copy/delete for a selected rendered table and whole-block
+  deletion when every visible line of fenced code is selected.
+- Match Obsidian 1.13.7 Shift+Enter behavior: create a soft continuation line
+  without another bullet, number, or task checkbox, aligned beneath list text.
 - Keep table header rows visible while long tables scroll, and add accessible
   collapse/expand controls to fenced code blocks longer than eight lines in
   Markdown Live Preview and Markdown Preview.

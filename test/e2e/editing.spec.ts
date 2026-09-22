@@ -55,6 +55,22 @@ test.describe('live preview editing', () => {
 		await expect(page.locator('.cm-line').first()).toContainText('#');
 	});
 
+	test('mouse-highlighted paragraph text can be deleted with Backspace', async ({ page }) => {
+		await mountEditor(page, 'Alpha bravo charlie');
+		const line = page.locator('.cm-line');
+		const box = await line.boundingBox();
+		expect(box).not.toBeNull();
+		await page.mouse.move(box!.x + 2, box!.y + box!.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box!.x + 44, box!.y + box!.height / 2, { steps: 6 });
+		await page.mouse.up();
+		expect((await page.evaluate(() => window.getSelection()?.toString() ?? '')).trim()).toBe('Alpha');
+
+		await page.keyboard.press('Backspace');
+		await expect(line).not.toContainText('Alpha');
+		await expect(line).toContainText('bravo charlie');
+	});
+
 	test('undo flushes the pending edit before asking the host to undo', async ({ page }) => {
 		await page.evaluate(() => {
 			(window as unknown as { __posted: unknown[] }).__posted = [];
@@ -149,6 +165,37 @@ test.describe('locked Live Preview mode', () => {
 });
 
 test.describe('Markdown list editing', () => {
+	test('Shift+Enter creates an Obsidian-style continuation without another list marker', async ({ page }) => {
+		const cases = [
+			{ source: '- Bullet item', insert: '\n  ' },
+			{ source: '1. Numbered item', insert: '\n   ' },
+			{ source: '- [ ] Task item', insert: '\n      ' },
+		];
+
+		for (const entry of cases) {
+			await mountEditor(page, entry.source);
+			await page.locator('.cm-content').click();
+			await page.keyboard.press('End');
+			await page.keyboard.press('Shift+Enter');
+			await expect(page.locator('.cm-line')).toHaveCount(2);
+			await expect.poll(() => page.evaluate(() =>
+				(window as unknown as { __posted: Array<{ type: string; changes?: Array<{ insert: string }> }> }).__posted
+					.filter((message) => message.type === 'edit').at(-1)?.changes?.[0]?.insert,
+			)).toBe(entry.insert);
+		}
+	});
+
+	test('Shift+Enter creates a plain line in a paragraph', async ({ page }) => {
+		await mountEditor(page, 'First line');
+		await page.locator('.cm-content').click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Shift+Enter');
+		await page.keyboard.type('Second line');
+
+		await expect(page.locator('.cm-line')).toHaveCount(2);
+		await expect(page.locator('.cm-line').nth(1)).toHaveText('Second line');
+	});
+
 	test('continues an ordered list with the next number on Enter', async ({ page }) => {
 		await mountEditor(page, '7. Seventh item');
 		await page.locator('.cm-content').click();
@@ -220,6 +267,28 @@ test.describe('fenced code editing', () => {
 		await page.locator('.cm-line', { hasText: 'const value = 1;' }).click();
 
 		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
+	});
+
+	test('deleting all mouse-selected visible code removes the complete fenced block', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```text\none\ntwo\n```\n\nAfter');
+		const first = page.locator('.cm-line', { hasText: 'one' });
+		const last = page.locator('.cm-line', { hasText: 'two' });
+		const firstBox = await first.boundingBox();
+		const lastBox = await last.boundingBox();
+		expect(firstBox).not.toBeNull();
+		expect(lastBox).not.toBeNull();
+		await page.mouse.move(firstBox!.x + 18, firstBox!.y + firstBox!.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(lastBox!.x + lastBox!.width - 8, lastBox!.y + lastBox!.height / 2, { steps: 10 });
+		await page.mouse.up();
+		expect(await page.evaluate(() => window.getSelection()?.toString())).toContain('one');
+		expect(await page.evaluate(() => window.getSelection()?.toString())).toContain('two');
+
+		await page.keyboard.press('Backspace');
+		await expect(page.locator('.mlp-line-code')).toHaveCount(0);
+		await expect(page.locator('.cm-content')).not.toContainText('```');
+		await expect(page.locator('.cm-content')).toContainText('Before');
+		await expect(page.locator('.cm-content')).toContainText('After');
 	});
 
 	test('shows a copy button for an empty fenced block', async ({ page }) => {
