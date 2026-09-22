@@ -156,6 +156,14 @@ code --uninstall-extension arronjablonowski.local-markdown-vault
 
 ### Advanced Markdown how-to
 
+**Built-in Markdown Editor limitation:** If Enter or Command/Ctrl+Enter leaves
+the cursor inside the final nested list, switch to **Text Editor**, leave one
+blank line after the list, and type the start of your next paragraph at column
+1 (no indentation or bullet). Then switch back to **Markdown Editor**. Creating
+blank lines alone may not resolve it. This workaround was tested in VS Code
+1.138.0; the extension's Live Preview section-exit fixes do not change the
+built-in editor.
+
 These examples remain ordinary Markdown files and are compatible with the supported Obsidian-style syntax. In Live Preview, move the cursor away from a formatted line to see its rendered appearance; move the cursor back to reveal and edit its source.
 
 #### Highlight text

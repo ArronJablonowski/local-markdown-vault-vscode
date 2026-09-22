@@ -22,6 +22,25 @@ this review. Automated mutation tests use fixture notes and isolated profiles.
 
 ## Request traceability
 
+### Follow-up: built-in Markdown Editor end-of-list cursor bug
+
+Reproduced on September 22 in a clean VS Code 1.138.0 desktop profile using
+`## Native exit\n\n- Parent\n  - Child`. After enabling editing and placing the
+caret at the end, Command+Enter inserted two newlines, but typing `OUTSIDE`
+produced `ChildOUTSIDE\n\n`, not an independent paragraph. This explains why
+the advertised Insert Paragraph Without Continuing Markup command was not an
+effective workaround for the reported case. This is a reproduced native-editor
+behavior, not a claim about its internal root cause or a fix in our renderer.
+
+Verified workaround: open the note in Text Editor, leave a blank separator,
+type a non-indented paragraph, and reopen Markdown Editor. Further typing
+stays in the independent paragraph. The focused desktop suite now checks that
+workflow and preservation of the preceding list. All 15 focused desktop tests
+passed. No user notes, default-editor preferences, or VS Code installation files
+were modified; no runtime fix for the native editor is claimed.
+
+### Requirements
+
 “Implemented” below means code and relevant automated coverage exist; it does
 not mean pixel-identical Obsidian behavior or independent security certification.
 

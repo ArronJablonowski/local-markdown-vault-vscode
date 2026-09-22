@@ -63,6 +63,41 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('a plain paragraph created in Text Editor stays outside the native Markdown Editor list', async () => {
+		const fixture = await makeFixture('native-exit');
+		const note = await service.createNote(fixture, 'Native exit');
+		const original = '## Native exit\n\n- Parent\n  - Child\n\n';
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'default');
+		const sourceEditor = vscode.window.activeTextEditor;
+		assert.ok(sourceEditor && sourceEditor.document.uri.toString() === note.toString());
+		const end = sourceEditor.document.positionAt(original.length);
+		sourceEditor.selection = new vscode.Selection(end, end);
+		await vscode.commands.executeCommand('type', { text: 'Independent paragraph' });
+		await sourceEditor.document.save();
+		await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor');
+		const browser = await connectToDebugBrowser();
+		let nativeFrame: Frame | undefined;
+		await waitFor(async () => {
+		for (const page of browser.contexts().flatMap(c => c.pages())) {
+			for (const frame of page.frames()) {
+				if (await frame.locator('.md-editor').count() === 0) continue;
+				nativeFrame = frame;
+				return true;
+			}
+		}
+		return false;
+		}, 'native Markdown Editor did not open');
+		assert.ok(nativeFrame);
+		const paragraph = nativeFrame.locator('.md-document > p').filter({ hasText: 'Independent paragraph' });
+		await paragraph.waitFor({ state: 'visible' });
+		if (await nativeFrame.locator('.md-readonly-toggle').getAttribute('aria-pressed') === 'true') await nativeFrame.locator('.md-readonly-toggle').click();
+		await paragraph.click();
+		await nativeFrame.page().keyboard.press('End');
+		await nativeFrame.page().keyboard.type(' continued');
+		await waitFor(async () => (await vscode.workspace.openTextDocument(note)).getText() === original + 'Independent paragraph continued', 'typing did not stay in the independent paragraph');
+	});
+
 	test('updates whitespace display live without modifying the note', async () => {
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
 		const previous = config.inspect<string>('showWhitespace')?.workspaceValue;
