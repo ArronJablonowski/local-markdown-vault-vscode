@@ -355,15 +355,29 @@ class CopyCodeWidget extends WidgetType {
 		private readonly from: number,
 		private readonly to: number,
 		private readonly revealPos: number,
+		private readonly lineCount: number,
 	) {
 		super();
 	}
 	eq(other: CopyCodeWidget): boolean {
-		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos;
+		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos && other.lineCount === this.lineCount;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const host = document.createElement('span');
 		host.className = 'mlp-copy-code-host';
+		let collapsed = false;
+		const setCollapsed = (next: boolean) => {
+			collapsed = next;
+			const firstLine = host.closest('.cm-line') as HTMLElement | null;
+			firstLine?.classList.toggle('mlp-line-code-collapsed', collapsed);
+			let line = firstLine?.nextElementSibling as HTMLElement | null;
+			while (line?.classList.contains('mlp-line-code')) {
+				line.classList.toggle('mlp-line-code-collapsed-hidden', collapsed);
+				if (line.classList.contains('mlp-line-code-last')) break;
+				line = line.nextElementSibling as HTMLElement | null;
+			}
+			view.requestMeasure();
+		};
 		// Code-mode first, so the button order matches every other block: the
 		// `</>` control sits leftmost in the group.
 		//
@@ -375,6 +389,10 @@ class CopyCodeWidget extends WidgetType {
 		host.appendChild(
 			createCodeModeButton(view, {
 				anchor: host,
+				beforeShow: () => {
+					if (collapsed) setCollapsed(false);
+					return null;
+				},
 				// The opening ``` line, not the first line of code. Each fence hides
 				// itself based on whether the caret is on *that* line (see the
 				// `FencedCode` case in buildDecorations), so parking inside the body
@@ -384,6 +402,29 @@ class CopyCodeWidget extends WidgetType {
 				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
+		if (this.lineCount > 8) {
+			const collapseButton = document.createElement('button');
+			collapseButton.type = 'button';
+			collapseButton.className = 'mlp-collapse-code-btn';
+			const updateButton = () => {
+				collapseButton.textContent = collapsed ? '›' : '⌄';
+				collapseButton.setAttribute('aria-expanded', String(!collapsed));
+				collapseButton.title = t(collapsed ? 'code.expand.title' : 'code.collapse.title', String(this.lineCount));
+				collapseButton.setAttribute('aria-label', t(collapsed ? 'code.expand.aria' : 'code.collapse.aria'));
+			};
+			collapseButton.addEventListener('mousedown', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+			});
+			collapseButton.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				setCollapsed(!collapsed);
+				updateButton();
+			});
+			updateButton();
+			host.appendChild(collapseButton);
+		}
 		// Read the text at click time: the block's content can change after the
 		// widget is built, and the offsets are re-derived on every rebuild.
 		host.appendChild(
@@ -412,10 +453,13 @@ export type ColumnAlign = 'left' | 'center' | 'right' | null;
 export function renderTableElement(model: TableModel, hooks: CellInlineHooks): HTMLElement {
 	const table = document.createElement('table');
 	table.className = 'mlp-table';
+	const thead = document.createElement('thead');
+	const tbody = document.createElement('tbody');
 	model.rows.forEach((cells, rowIndex) => {
 		const tr = document.createElement('tr');
 		cells.forEach((cellText, columnIndex) => {
 			const cell = document.createElement(rowIndex < model.headerRowCount ? 'th' : 'td');
+			if (rowIndex < model.headerRowCount) cell.setAttribute('scope', 'col');
 			const align = model.align[columnIndex];
 			if (align) cell.style.textAlign = align;
 			cell.className = 'mlp-table-cell';
@@ -437,8 +481,10 @@ export function renderTableElement(model: TableModel, hooks: CellInlineHooks): H
 			renderInlineInto(cell, cellText, hooks);
 			tr.appendChild(cell);
 		});
-		table.appendChild(tr);
+		(rowIndex < model.headerRowCount ? thead : tbody).appendChild(tr);
 	});
+	table.appendChild(thead);
+	table.appendChild(tbody);
 	return table;
 }
 
@@ -1764,9 +1810,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 						if (lastLineNum > firstLineNum) {
 							const codeFrom = hasContentLines ? doc.line(firstLineNum + 1).from : doc.line(firstLineNum).to;
 							const codeTo = hasContentLines ? doc.line(lastLineNum - 1).to : codeFrom;
+							const contentLineCount = hasContentLines ? lastLineNum - firstLineNum - 1 : 0;
 							decorations.push(
 								Decoration.widget({
-									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to),
+									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount),
 									side: -1,
 								}).range(codeFrom),
 							);

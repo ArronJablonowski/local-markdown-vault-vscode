@@ -30,7 +30,30 @@ test.describe('block rendering', () => {
 	test('a table renders as a real table', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter\n');
 		await expect(page.locator('.mlp-table')).toHaveCount(1);
+		await expect(page.locator('.mlp-table thead th')).toHaveCount(2);
+		await expect(page.locator('.mlp-table thead th').first()).toHaveAttribute('scope', 'col');
+		await expect(page.locator('.mlp-table thead th').first()).toHaveCSS('position', 'sticky');
 		await expect(page.locator('.mlp-table td')).toHaveCount(2);
+	});
+
+	test('a long table keeps its header at the top while its rows scroll', async ({ page }) => {
+		const rows = Array.from({ length: 45 }, (_, index) => `| Row ${index + 1} | Value ${index + 1} |`).join('\n');
+		await mountEditor(page, `${'Before\n\n'.repeat(18)}| Name | Value |\n| --- | --- |\n${rows}\n\nAfter\n`);
+		await page.evaluate(() => {
+			const scroller = document.querySelector('.cm-scroller') as HTMLElement;
+			const table = document.querySelector('.mlp-table') as HTMLElement;
+			const scrollerTop = scroller.getBoundingClientRect().top;
+			scroller.scrollTop += table.getBoundingClientRect().top - scrollerTop + 80;
+		});
+		await page.waitForTimeout(50);
+		const bounds = await page.evaluate(() => {
+			const scroller = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+			const header = document.querySelector('.mlp-table thead th')!.getBoundingClientRect();
+			const table = document.querySelector('.mlp-table')!.getBoundingClientRect();
+			return { scrollerTop: scroller.top, headerTop: header.top, headerBottom: header.bottom, tableBottom: table.bottom };
+		});
+		expect(Math.abs(bounds.headerTop - bounds.scrollerTop)).toBeLessThanOrEqual(2);
+		expect(bounds.headerBottom).toBeLessThan(bounds.tableBottom);
 	});
 
 	test('a rendered table link is keyboard-operable', async ({ page }) => {
@@ -338,6 +361,23 @@ test.describe('block rendering', () => {
 		});
 		const colored = page.locator('.cm-content [style*="569cd6"], .cm-content [style*="86, 156, 214"]');
 		await expect(colored.first()).toBeVisible({ timeout: 5000 });
+	});
+
+	test('only code blocks over eight lines can be collapsed and expanded', async ({ page }) => {
+		const eightLines = Array.from({ length: 8 }, (_, index) => `short ${index + 1}`).join('\n');
+		const nineLines = Array.from({ length: 9 }, (_, index) => `long ${index + 1}`).join('\n');
+		await mountEditor(page, `\`\`\`text\n${eightLines}\n\`\`\`\n\n\`\`\`text\n${nineLines}\n\`\`\`\n`);
+
+		const collapse = page.getByRole('button', { name: 'Collapse code block' });
+		await expect(collapse).toHaveCount(1);
+		await expect(collapse).toHaveAttribute('aria-expanded', 'true');
+		await collapse.click();
+		await expect(page.getByRole('button', { name: 'Expand code block' })).toHaveAttribute('aria-expanded', 'false');
+		await expect(page.locator('.mlp-line-code-collapsed-hidden')).toHaveCount(8);
+
+		await page.getByRole('button', { name: 'Expand code block' }).press('Enter');
+		await expect(page.getByRole('button', { name: 'Collapse code block' })).toHaveAttribute('aria-expanded', 'true');
+		await expect(page.locator('.mlp-line-code-collapsed-hidden')).toHaveCount(0);
 	});
 
 	test('a CSS theme sent by the host reaches the document', async ({ page }) => {

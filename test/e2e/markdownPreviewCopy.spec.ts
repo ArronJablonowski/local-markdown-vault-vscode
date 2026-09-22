@@ -39,4 +39,21 @@ test.describe('Markdown Preview code copy controls', () => {
 		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
 		expect(await page.evaluate(() => (window as unknown as { __executed?: boolean }).__executed)).toBeUndefined();
 	});
+
+	test('collapses only blocks over eight lines and expands them with the keyboard', async ({ page }) => {
+		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
+		const style = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.css'), 'utf8');
+		const eight = Array.from({ length: 8 }, (_, index) => `short ${index + 1}`).join('\n');
+		const nine = Array.from({ length: 9 }, (_, index) => `long ${index + 1}`).join('\n');
+		await page.setContent(`<!doctype html><html><head><style>${style}</style></head><body class="vscode-body">
+			<pre><code>${eight}</code></pre><pre><code>${nine}</code></pre>
+			<script>${script.replace(/<\/script>/gi, '<\\/script>')}</script>
+		</body></html>`);
+
+		await expect(page.getByRole('button', { name: 'Collapse code block' })).toHaveCount(1);
+		await page.getByRole('button', { name: 'Collapse code block' }).press('Enter');
+		await expect(page.locator('pre').nth(1).locator('code')).toBeHidden();
+		await page.getByRole('button', { name: 'Expand code block' }).press('Space');
+		await expect(page.locator('pre').nth(1).locator('code')).toBeVisible();
+	});
 });

@@ -11,6 +11,10 @@ const en = {
 	'code.toggle.aria': 'Switch to code mode',
 	'code.copy.title': 'Copy this code block',
 	'code.copy.aria': 'Copy code block',
+	'code.collapse.title': 'Collapse this code block ({0} lines)',
+	'code.collapse.aria': 'Collapse code block',
+	'code.expand.title': 'Expand this code block ({0} lines)',
+	'code.expand.aria': 'Expand code block',
 
 	'zoom.in': 'Zoom in (Ctrl+wheel also works)',
 	'zoom.out': 'Zoom out',

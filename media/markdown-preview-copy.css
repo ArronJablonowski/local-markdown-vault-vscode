@@ -17,6 +17,42 @@
 	cursor: pointer;
 }
 
+.lmv-code-collapse-button {
+	position: absolute;
+	top: 0.45rem;
+	right: 4rem;
+	z-index: 1;
+	min-width: 1.75rem;
+	padding: 0.2rem 0.45rem;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.lmv-code-collapse-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.lmv-code-collapse-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.lmv-code-collapsed {
+	min-height: 2.4rem;
+}
+
+.markdown-body table thead th,
+body.vscode-body table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background: var(--vscode-editor-background);
+}
+
 .lmv-code-copy-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }

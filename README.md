@@ -12,7 +12,7 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 
 - CodeMirror-based Markdown editing with formatting rendered in place
 - Source reveal around the cursor and normal text selection behavior
-- Syntax highlighting, document outline, search, and editable tables
+- Syntax highlighting, document outline, search, and editable tables with sticky headers
 - Local images and attachments, Mermaid diagrams, draw.io diagrams, and themes
 - Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
 - YAML properties, highlighted text, color-coded callouts, math, footnotes, tags, and interactive task lists
@@ -242,6 +242,8 @@ Use colons in the separator row to control alignment:
 ```
 
 Select a rendered table cell to edit it or use the table controls to insert, move, sort, align, or delete rows and columns.
+The header row remains visible while a long table scrolls, then stops at the
+bottom of that table.
 
 #### Add math and footnotes
 
@@ -274,6 +276,10 @@ Ctrl+Return on Windows and Linux.
 Every fenced code block, including a block containing only one line, has a
 **Copy** button in Markdown Live Preview and Markdown Preview. The button copies
 only the code, without the opening or closing fence.
+
+Code blocks containing more than eight lines also have a chevron control in
+Markdown Live Preview and Markdown Preview. Select it, or focus it and press
+Return or Space, to collapse or expand the block.
 
 #### Add tags and aliases
 

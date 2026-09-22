@@ -232,7 +232,8 @@ html, body {
 	align-items: center;
 	gap: 4px;
 }
-.mlp-copy-code-btn {
+.mlp-copy-code-btn,
+.mlp-collapse-code-btn {
 	/* Positioning belongs to `.mlp-copy-code-host`, which places the whole group.
 	   Matches `.mlp-code-mode-btn` exactly — same height, padding, face and size —
 	   so the two controls read as one family rather than two unrelated widgets. */
@@ -263,17 +264,30 @@ html, body {
 	-webkit-user-select: none;
 }
 .cm-line.mlp-line-code:hover .mlp-copy-code-btn,
+.cm-line.mlp-line-code:hover .mlp-collapse-code-btn,
 .mlp-copy-code-btn:hover,
-.mlp-copy-code-btn:focus-visible {
+.mlp-copy-code-btn:focus-visible,
+.mlp-collapse-code-btn:hover,
+.mlp-collapse-code-btn:focus-visible {
 	opacity: 1;
 }
-.mlp-copy-code-btn:hover {
+.mlp-copy-code-btn:hover,
+.mlp-collapse-code-btn:hover {
 	color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground, #ccc));
 	background: var(--vscode-button-secondaryBackground, rgba(110, 110, 110, 0.4));
 }
-.mlp-copy-code-btn:focus-visible {
+.mlp-copy-code-btn:focus-visible,
+.mlp-collapse-code-btn:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder, #0078d4);
 	outline-offset: 1px;
+}
+.cm-line.mlp-line-code-collapsed {
+	border-bottom-left-radius: 6px;
+	border-bottom-right-radius: 6px;
+	padding-bottom: 0.5em;
+}
+.cm-line.mlp-line-code-collapsed-hidden {
+	display: none !important;
 }
 /* Confirmation states, held briefly after a click. */
 .mlp-copy-code-btn.mlp-copy-code-btn-done {
@@ -847,6 +861,13 @@ table.mlp-table {
 	   can't carry it itself (CSS ignores `padding` on one), and a margin here
 	   would fall outside the box CodeMirror measures. */
 	margin: 0;
+}
+table.mlp-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background, #1e1e1e));
+	box-shadow: inset 0 -1px 0 var(--vscode-panel-border, rgba(127, 127, 127, 0.35));
 }
 /* Cells behave like spreadsheet cells (see TableWidget in livePreviewPlugin.ts):
    dragging across them selects and copies their text, and a plain click edits

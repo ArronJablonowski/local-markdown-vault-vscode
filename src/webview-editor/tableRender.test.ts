@@ -40,7 +40,10 @@ function rowsOf(html: string): string {
 	return html
 		.replace(/^<table class="mlp-table">/, '')
 		.replace(/<\/table>$/, '')
+		.replace(/<\/?thead>/g, '')
+		.replace(/<\/?tbody>/g, '')
 		.replace(/ class="mlp-table-cell"/g, '')
+		.replace(/ scope="col"/g, '')
 		.replace(/ tabindex="0"/g, '');
 }
 
@@ -52,7 +55,10 @@ describe('renderTableElement', () => {
 	});
 
 	it('renders a plain table as header and data rows', () => {
-		expect(rowsOf(renderTable('| a | b |\n|---|---|\n| 1 | 2 |\n'))).toBe(
+		const html = renderTable('| a | b |\n|---|---|\n| 1 | 2 |\n');
+		expect(html).toContain('<thead><tr><th scope="col"');
+		expect(html).toContain('</thead><tbody>');
+		expect(rowsOf(html)).toBe(
 			'<tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr>',
 		);
 	});

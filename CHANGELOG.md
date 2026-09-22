@@ -57,6 +57,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Keep table header rows visible while long tables scroll, and add accessible
+  collapse/expand controls to fenced code blocks longer than eight lines in
+  Markdown Live Preview and Markdown Preview.
 - Add a deterministic 100-note Obsidian comparison vault spanning ten syntax,
   interaction, stress, and security categories; verify every note with the
   shipped Live Preview bundle and record a native Obsidian 1.13.7 comparison.
