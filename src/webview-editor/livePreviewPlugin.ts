@@ -1416,6 +1416,20 @@ function listItemIsTask(state: EditorState, listMark: SyntaxNodeRef): boolean {
 	return /^\s*\[[^\]\r\n]\]/.test(after);
 }
 
+/**
+ * Return the completion state of a task list item's first line, or `null` when
+ * the item is not a task. Obsidian treats every non-space status character as
+ * completed, including custom statuses such as `[?]` and `[-]`.
+ */
+function taskItemCompletion(state: EditorState, itemFrom: number): boolean | null {
+	const line = state.doc.lineAt(itemFrom);
+	const marker = /^\s*(?:[-+*]|\d+[.)])\s+\[([^\]\r\n])\]/.exec(
+		state.sliceDoc(line.from, line.to),
+	);
+	if (!marker) return null;
+	return marker[1] !== ' ';
+}
+
 function isInsideCode(node: SyntaxNode): boolean {
 	for (let current: SyntaxNode | null = node; current; current = current.parent) {
 		if (current.name === 'InlineCode' || current.name === 'FencedCode' || current.name === 'CodeBlock') return true;
@@ -1625,12 +1639,15 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const parent = node.node.parent;
 						const isFirstItem = !parent || parent.firstChild?.from === node.from;
 						const isLastItem = !parent || parent.lastChild?.to === node.to;
+						const taskComplete = taskItemCompletion(state, node.from);
+						const taskLineNumber = doc.lineAt(node.from).number;
 						// Lines a nested table widget will replace get no line decoration,
 						// or CodeMirror discards the widget and shows raw pipes instead.
 						const replaced = blockReplacedLines(state, node.node);
 						addLineRange(node.from, node.to, (n, first, last) => {
 							if (replaced.has(n)) return '';
 							let cls = 'mlp-line-list';
+							if (taskComplete === true && n === taskLineNumber) cls += ' mlp-line-task-complete';
 							if (first && isFirstItem) cls += ' mlp-line-list-first';
 							if (last && isLastItem) cls += ' mlp-line-list-last';
 							return cls;

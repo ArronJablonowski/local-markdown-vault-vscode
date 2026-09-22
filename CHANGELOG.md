@@ -1,5 +1,7 @@
 # Changelog
 
+- Match Obsidian's completed-task appearance by striking through checked task text immediately; unchecking removes the strikethrough, and checkbox edits continue to use the automatic-save path.
+
 - Reject a pre-positioned symlink at the default `~/Documents/Markdown Vault` leaf, verify directory identity across canonicalization, and open only the verified canonical path; reject literal and percent-encoded Unicode bidi controls in authored links to prevent destination spoofing.
 
 - Harden custom CSS and draw.io parsing: reject modern nested CSS rules that could escape preview-content scoping and obscure trusted controls, and reject XML DTD/entity declarations before `DOMParser` can perform external or expansion work.

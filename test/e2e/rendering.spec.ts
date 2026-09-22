@@ -238,14 +238,30 @@ test.describe('block rendering', () => {
 		await mountEditor(page, 'Intro\n\n- [ ] todo\n- [x] done\n');
 		await expect(page.locator('.mlp-checkbox')).toHaveCount(2);
 		await expect(page.locator('.mlp-checkbox-checked')).toHaveCount(1);
+		await expect(page.locator('.cm-line', { hasText: 'todo' })).toHaveCSS('text-decoration-line', 'none');
+		await expect(page.locator('.cm-line', { hasText: 'done' })).toHaveCSS('text-decoration-line', 'line-through');
+	});
+
+	test('checking and unchecking a task updates its Obsidian-style strikethrough', async ({ page }) => {
+		await mountEditor(page, 'Intro\n\n- [ ] Toggle me\n');
+		const taskLine = page.locator('.cm-line', { hasText: 'Toggle me' });
+		const checkbox = page.getByRole('checkbox');
+
+		await expect(taskLine).toHaveCSS('text-decoration-line', 'none');
+		await checkbox.click();
+		await expect(taskLine).toHaveCSS('text-decoration-line', 'line-through');
+		await page.getByRole('checkbox').click();
+		await expect(taskLine).toHaveCSS('text-decoration-line', 'none');
 	});
 
 	test('treats every non-empty Obsidian task status as completed', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n- [ ] Open\n- [x] Done\n- [?] Question\n- [-] Canceled\n');
 		await expect(page.locator('.mlp-checkbox')).toHaveCount(4);
 		await expect(page.locator('.mlp-checkbox-checked')).toHaveCount(3);
+		await expect(page.locator('.mlp-line-task-complete')).toHaveCount(3);
 		await page.locator('.mlp-checkbox').nth(2).click();
 		await expect(page.locator('.mlp-checkbox').nth(2)).toHaveAttribute('aria-checked', 'false');
+		await expect(page.locator('.mlp-line-task-complete')).toHaveCount(2);
 	});
 
 	test('renders Obsidian highlight syntax and reveals its markers at the caret', async ({ page }) => {

@@ -315,6 +315,13 @@ html, body {
 	color: var(--vscode-descriptionForeground, #888);
 }
 
+/* Match Obsidian's completed-task treatment while keeping Markdown as the
+   source of truth. The line class follows every checkbox edit immediately. */
+.mlp-line-task-complete {
+	text-decoration-line: line-through;
+	text-decoration-thickness: from-font;
+}
+
 .mlp-checkbox {
 	display: inline-block;
 	width: 1.2em;
