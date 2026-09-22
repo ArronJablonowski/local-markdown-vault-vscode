@@ -149,6 +149,10 @@ Wrap text in double equals signs:
 This decision is ==important and time-sensitive==.
 ```
 
+At the end of highlighted text, press Return to start a normal line outside the
+highlight. From anywhere inside highlighted text, press Command+Return on macOS
+or Ctrl+Return on Windows and Linux to move the cursor after it.
+
 #### Create tasks and nested lists
 
 Use `[ ]` for an open task and any non-space status character for a completed task. Press Return at the end of a task to create the next unchecked task. Press Tab and Shift+Tab to change list depth.
@@ -263,7 +267,13 @@ console.log('Stored locally');
 
 After the last line of code, press Return once to create an empty code line and
 press Return again to continue writing below the code block. You can also press
-Down Arrow to move to the closing fence and then press Return.
+Down Arrow to move to the closing fence and then press Return. To leave the code
+block immediately from any code line, press Command+Return on macOS or
+Ctrl+Return on Windows and Linux.
+
+Every fenced code block, including a block containing only one line, has a
+**Copy** button in Markdown Live Preview and Markdown Preview. The button copies
+only the code, without the opening or closing fence.
 
 #### Add tags and aliases
 

@@ -42,7 +42,11 @@ import { clearWikiEmbedCache, handleWikiEmbedMessage, setWikiEmbedPoster } from 
 import { clearLocalImageCache, handleLocalImageMessage, setLocalImageContext, setLocalImagePoster } from './localImageClient';
 import { tagDecorations } from './tags';
 import { makePersistedEditorState, parsePersistedEditorState } from './persistedState';
-import { exitFencedCodeOnBlankLine } from './codeFenceEditing';
+import {
+	escapeFencedCode,
+	exitFencedCodeOnBlankLine,
+} from './codeFenceEditing';
+import { escapeInlineHighlight, exitInlineHighlightOnEnter } from './inlineHighlightEditing';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -200,7 +204,16 @@ function createExtensions(): Extension[] {
 		search({ top: true }),
 		searchRevealExtension,
 		Prec.highest(keymap.of([
-			{ key: 'Enter', run: (editor) => exitFencedCodeOnBlankLine(editor) || continueMarkdownMarkup(editor) },
+			{
+				key: 'Enter',
+				run: (editor) => exitFencedCodeOnBlankLine(editor)
+					|| exitInlineHighlightOnEnter(editor)
+					|| continueMarkdownMarkup(editor),
+			},
+			{
+				key: 'Mod-Enter',
+				run: (editor) => escapeFencedCode(editor) || escapeInlineHighlight(editor),
+			},
 		])),
 		// The panel builds its own labels, so they are localized through
 		// CodeMirror's phrases facet rather than by rendering them ourselves.

@@ -57,6 +57,14 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Keep an accessible copy button on every fenced code block in Markdown Live
+  Preview and Markdown Preview, including single-line blocks; bound preview
+  scanning and clipboard payloads and never use network access.
+- Respect an explicit **Reopen Editor With: Text Editor** choice instead of
+  immediately forcing the configured default editor again.
+- Add immediate Command+Return (macOS) and Ctrl+Return (Windows/Linux) escape
+  behavior for fenced code and highlighted text, and prevent a normal line
+  inserted after a closing fence from retaining code-block styling.
 - Promote the universal VSIX to a Windows, macOS, and Linux release candidate;
   run the focused desktop keyboard, undo/redo, autosave, navigation, local-media,
   and hostile-Markdown journeys on all three operating systems, and exercise

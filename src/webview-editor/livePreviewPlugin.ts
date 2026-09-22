@@ -354,11 +354,12 @@ class CopyCodeWidget extends WidgetType {
 	constructor(
 		private readonly from: number,
 		private readonly to: number,
+		private readonly revealPos: number,
 	) {
 		super();
 	}
 	eq(other: CopyCodeWidget): boolean {
-		return other.from === this.from && other.to === this.to;
+		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const host = document.createElement('span');
@@ -380,13 +381,7 @@ class CopyCodeWidget extends WidgetType {
 				// leaves both fences blank and nothing appears to happen. Landing on
 				// the opening fence puts the caret on the language tag, which is the
 				// thing this button exists to let you edit.
-				caretPos: () => {
-					const doc = view.state.doc;
-					const bodyLine = doc.lineAt(Math.min(this.from, doc.length));
-					if (bodyLine.number <= 1) return bodyLine.from;
-					const fence = doc.line(bodyLine.number - 1);
-					return fence.to;
-				},
+				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
 		// Read the text at click time: the block's content can change after the
@@ -1732,9 +1727,11 @@ function buildDecorations(view: EditorView): DecorationSet {
 							// Rendered as a diagram by blockDecorationsField; skip entirely.
 							return false;
 						}
-						const cursorAway = !cursorTouchesRange(state, node.from, node.to);
 						const firstLineNum = doc.lineAt(node.from).number;
-						const lastLineNum = doc.lineAt(node.to).number;
+						// Lezer commonly ends a fenced block at the start of the next
+						// line. Resolve the final character inside the node so a newly
+						// inserted line after the closing fence is never styled as code.
+						const lastLineNum = doc.lineAt(Math.max(node.from, node.to - 1)).number;
 						// The opening/closing ``` fence lines have no visible text once their
 						// marker is hidden (cursor away): leave them as plain, unstyled lines
 						// (same as any blank line elsewhere) instead of styling them as part of
@@ -1764,11 +1761,14 @@ function buildDecorations(view: EditorView): DecorationSet {
 						// indentation the block is nested under, so a hand-made selection
 						// needs tidying before it can be pasted. The button copies the
 						// content lines exactly, with neither fence nor indentation.
-						if (hasContentLines && cursorAway) {
-							const codeFrom = doc.line(firstLineNum + 1).from;
-							const codeTo = doc.line(lastLineNum - 1).to;
+						if (lastLineNum > firstLineNum) {
+							const codeFrom = hasContentLines ? doc.line(firstLineNum + 1).from : doc.line(firstLineNum).to;
+							const codeTo = hasContentLines ? doc.line(lastLineNum - 1).to : codeFrom;
 							decorations.push(
-								Decoration.widget({ widget: new CopyCodeWidget(codeFrom, codeTo), side: -1 }).range(codeFrom),
+								Decoration.widget({
+									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to),
+									side: -1,
+								}).range(codeFrom),
 							);
 						}
 						return; // descend to hide the ``` fence marks

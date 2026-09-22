@@ -80,6 +80,19 @@ suite('custom editor', () => {
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), file.toString());
 	});
 
+	test('respects an explicit Reopen Editor With Text Editor choice', async () => {
+		const editorConfig = vscode.workspace.getConfiguration('mdLivePreview');
+		await editorConfig.update('defaultEditor', 'markdownEditor', vscode.ConfigurationTarget.Global);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', file, 'mdLivePreview.editor');
+			await vscode.commands.executeCommand('vscode.openWith', file, 'default');
+			await delay(1_750);
+			assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), file.toString());
+		} finally {
+			await editorConfig.update('defaultEditor', 'textEditor', vscode.ConfigurationTarget.Global);
+		}
+	});
+
 	test('defers syntax tokenization while a Live Preview tab is hidden', async () => {
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		assert.ok(folder);

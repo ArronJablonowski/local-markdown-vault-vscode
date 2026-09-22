@@ -201,6 +201,56 @@ test.describe('Markdown list editing', () => {
 });
 
 test.describe('fenced code editing', () => {
+	test('shows a copy button for a single-line fenced block', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```\n\nAfter');
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+
+		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
+	});
+
+	test('shows one copy button for every fenced block', async ({ page }) => {
+		await mountEditor(page, '```js\none();\ntwo();\n```\n\n```text\nsingle line\n```\n\nAfter');
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+
+		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(2);
+	});
+
+	test('keeps the copy button available while editing code', async ({ page }) => {
+		await mountEditor(page, '```js\nconst value = 1;\n```');
+		await page.locator('.cm-line', { hasText: 'const value = 1;' }).click();
+
+		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
+	});
+
+	test('shows a copy button for an empty fenced block', async ({ page }) => {
+		await mountEditor(page, '```text\n```\n\nAfter');
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+
+		await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(1);
+	});
+
+	test('Mod-Enter moves the caret out of a fenced block', async ({ page }) => {
+		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```');
+		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
+		await codeLine.click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+		await page.keyboard.type('After');
+
+		const inserted = page.locator('.cm-line', { hasText: 'After' });
+		await expect(inserted).toHaveText('After');
+		await expect(inserted).not.toHaveClass(/mlp-line-code/);
+	});
+
+	test('leaves a fence whose closing marker has surrounding whitespace', async ({ page }) => {
+		await mountEditor(page, '```js\nconst value = 1;\n   ```   ');
+		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
+		await codeLine.click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+		await page.keyboard.type('After');
+
+		await expect(page.locator('.cm-line', { hasText: 'After' })).not.toHaveClass(/mlp-line-code/);
+	});
+
 	test('pressing Enter on a blank final code line leaves the fenced block', async ({ page }) => {
 		await mountEditor(page, 'Before\n\n```js\nconst value = 1;\n```');
 		const codeLine = page.locator('.cm-line', { hasText: 'const value = 1;' });
@@ -249,5 +299,29 @@ test.describe('fenced code editing', () => {
 		await page.keyboard.type('After');
 
 		await expect(page.locator('.cm-line').last()).toHaveText('After');
+	});
+});
+
+test.describe('highlight editing', () => {
+	test('Mod-Enter moves the caret after highlighted text', async ({ page }) => {
+		await mountEditor(page, 'Before ==highlighted text==');
+		await page.locator('.mlp-highlight').click();
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+		await page.keyboard.type(' after');
+
+		await expect(page.locator('.mlp-highlight')).toHaveText('highlighted text');
+		await expect(page.locator('.cm-line', { hasText: 'after' })).toContainText('after');
+	});
+
+	test('Enter at the end of a highlight starts a normal line', async ({ page }) => {
+		await mountEditor(page, '==highlighted text==');
+		const highlight = page.locator('.mlp-highlight');
+		await highlight.click();
+		await page.keyboard.press('End');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('After');
+
+		await expect(page.locator('.cm-line').last()).toHaveText('After');
+		await expect(page.locator('.cm-line').last().locator('.mlp-highlight')).toHaveCount(0);
 	});
 });

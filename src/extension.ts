@@ -253,7 +253,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 			sourceOverrideUris.delete(doc.uri.toString());
 		}),
 		vscode.window.tabGroups.onDidChangeTabs((e) => {
-			for (const tab of [...e.opened, ...e.changed]) {
+			// Only enforce the configured default for newly opened tabs. A `changed`
+			// event is also how VS Code reports an explicit "Reopen Editor With…"
+			// choice. Reprocessing those events immediately replaced a user-selected
+			// Text Editor with the configured Markdown Editor.
+			for (const tab of e.opened) {
 				void maybeReopenAsConfiguredEditor(tab);
 			}
 		}),

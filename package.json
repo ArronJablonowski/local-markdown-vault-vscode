@@ -75,6 +75,14 @@
   "main": "./dist/extension.js",
   "l10n": "./l10n",
   "contributes": {
+    "markdown.previewScripts": [
+      {
+        "path": "./media/markdown-preview-copy.js"
+      }
+    ],
+    "markdown.previewStyles": [
+      "./media/markdown-preview-copy.css"
+    ],
     "customEditors": [
       {
         "viewType": "mdLivePreview.editor",

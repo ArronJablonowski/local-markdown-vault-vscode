@@ -1,0 +1,35 @@
+.lmv-code-copy-host {
+	position: relative;
+}
+
+.lmv-code-copy-button {
+	position: absolute;
+	top: 0.45rem;
+	right: 0.45rem;
+	z-index: 1;
+	min-width: 3rem;
+	padding: 0.2rem 0.45rem;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.lmv-code-copy-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.lmv-code-copy-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.lmv-code-copy-button--done {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.lmv-code-copy-button--failed {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
