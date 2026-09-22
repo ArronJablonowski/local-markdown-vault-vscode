@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { join, parse } from 'node:path';
 import { defaultVaultPath, shouldOpenDefaultVault } from './defaultVaultLocation';
 
 const folder = (scheme: string) => ({ uri: { scheme } });
 
 describe('defaultVaultPath', () => {
 	it('places the default vault in the user Documents folder', () => {
-		expect(defaultVaultPath('/Users/example')).toBe('/Users/example/Documents/Markdown Vault');
+		const homeDirectory = join(parse(process.cwd()).root, 'Users', 'example');
+		expect(defaultVaultPath(homeDirectory)).toBe(join(homeDirectory, 'Documents', 'Markdown Vault'));
 	});
 });
 
