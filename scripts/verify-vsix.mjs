@@ -22,7 +22,7 @@ const requiredFiles = new Set([
 ]);
 
 const forbiddenPaths = [
-	/^extension\/(?:src|test|tests|coverage|test-results|playwright-report|node_modules|scripts|\.github|\.vscode|\.vscode-test|doc|specs|sample|plans)(?:\/|$)/i,
+	/^extension\/(?:src|test|tests|coverage|test-results|playwright-report|node_modules|scripts|releases|\.github|\.vscode|\.vscode-test|doc|specs|sample|plans)(?:\/|$)/i,
 	/^extension\/(?:package-lock\.json|(?:markdown-live-preview-editor|local-markdown-vault)\.cdx\.json)$/i,
 	/^extension\/(?:esbuild\.js|playwright\.config\.[^/]+|tsconfig(?:\.[^/]+)?\.json|vitest\.config\.[^/]+|\.vscode-test\.mjs)$/i,
 	/(?:^|\/)\.env(?:\.|$)/i,

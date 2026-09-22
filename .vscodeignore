@@ -5,6 +5,7 @@
 .claude/**
 .aidlc-rule-details/**
 node_modules/**
+releases/**
 src/**
 specs/**
 sample/**
