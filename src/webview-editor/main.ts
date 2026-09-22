@@ -164,11 +164,11 @@ function createExtensions(): Extension[] {
 		// Locked mode is enforced at the transaction boundary, not just by hiding
 		// the caret. This also blocks edits dispatched by rendered task, property,
 		// and table controls while still allowing authoritative host updates.
-		EditorState.transactionFilter.of((transaction) =>
-			editingAllowed || !transaction.docChanged || transaction.annotation(remoteChange)
-				? transaction
-				: [],
-		),
+		EditorState.transactionFilter.of((transaction) => {
+			if (editingAllowed || !transaction.docChanged || transaction.annotation(remoteChange)) return transaction;
+			shineLockedToggle();
+			return [];
+		}),
 		editingCompartment.of(EditorView.editable.of(editingAllowed)),
 		whitespaceCompartment.of([]),
 		markdownSupport,
@@ -300,12 +300,28 @@ function createExtensions(): Extension[] {
 			}
 			if (update.docChanged || update.selectionSet || update.viewportChanged) persistEditorUiState();
 		}),
-		EditorView.domEventHandlers({
+		Prec.highest(EditorView.domEventHandlers({
+			keydown: event => {
+				if (!editingAllowed && (event.key.length === 1 && !event.metaKey && !event.ctrlKey
+					|| ['Enter', 'Backspace', 'Delete'].includes(event.key)
+					|| (event.metaKey || event.ctrlKey) && ['v', 'x'].includes(event.key.toLowerCase()))) shineLockedToggle();
+				return false;
+			},
+			paste: () => { shineLockedToggle(); return false; },
+			mouseup: event => {
+				if (event.button === 0 && window.getSelection()?.isCollapsed) shineLockedToggle();
+				return false;
+			},
 			blur: () => { flushNow(); persistEditorUiState(); },
-		}),
+		})),
 		renderedSelection,
 		EditorView.lineWrapping,
 	];
+}
+
+function shineLockedToggle(): void {
+	if (editingAllowed || window.matchMedia('(prefers-reduced-motion: reduce), (forced-colors: active)').matches) return;
+	modeButton?.classList.add('mlp-lock-shine');
 }
 
 function updateEditingModeUi(): void {
@@ -319,6 +335,7 @@ function updateEditingModeUi(): void {
 	modeButton.title = label;
 	modeButton.setAttribute('aria-label', label);
 	modeButton.setAttribute('aria-pressed', String(!editingAllowed));
+	if (editingAllowed) modeButton.classList.remove('mlp-lock-shine');
 }
 
 function setEditingAllowed(next: boolean): void {
@@ -337,6 +354,9 @@ function ensureEditingModeButton(): void {
 	modeButton = document.createElement('button');
 	modeButton.type = 'button';
 	modeButton.className = 'mlp-editing-mode-toggle';
+	modeButton.addEventListener('animationend', event => {
+		if (event.animationName === 'mlp-lock-shine') modeButton?.classList.remove('mlp-lock-shine');
+	});
 	// Fixed local vector icons, never document-derived markup. Keep one native
 	// toggle button so Space/Enter and its existing accessible state still work.
 	for (const [mode, paths] of [

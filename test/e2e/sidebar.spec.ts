@@ -25,7 +25,7 @@ test.describe('CSS theme sidebar accessibility', () => {
 			'Markdown Editor',
 			'Markdown Live Preview',
 		]);
-		await expect(defaultEditor).toHaveValue('markdownEditor');
+		await expect(defaultEditor).toHaveValue('livePreview');
 		const vaultTabs = page.getByLabel('Vault file tabs');
 		await expect(vaultTabs.locator('option')).toHaveText([
 			'Reuse one preview tab',

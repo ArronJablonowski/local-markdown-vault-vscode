@@ -17,7 +17,7 @@ describe('configured Markdown editor selection', () => {
 		expect(shouldOpenInLivePreview('/Vault/Attachment.pdf', 'livePreview')).toBe(false);
 		expect(shouldOpenInLivePreview('/Vault/Note.md', 'vscodeMarkdownEditor')).toBe(false);
 		expect(shouldOpenInLivePreview('/Vault/Note.md', 'prompt')).toBe(false);
-		expect(shouldOpenInLivePreview('/Vault/Note.md', undefined)).toBe(false);
+		expect(shouldOpenInLivePreview('/Vault/Note.md', undefined)).toBe(true);
 	});
 
 	it('maps every explicit viewing mode to its actual VS Code editor', () => {
@@ -34,10 +34,10 @@ describe('configured Markdown editor selection', () => {
 		expect(editorViewType('default')).toBe('vscode.markdown.editor');
 	});
 
-	it('uses Markdown Editor when no valid setting has been stored', () => {
-		expect(normalizeDefaultEditorSetting(undefined)).toBe('markdownEditor');
-		expect(normalizeDefaultEditorSetting('invalid')).toBe('markdownEditor');
-		expect(editorViewType(undefined)).toBe('vscode.markdown.editor');
+	it('uses Markdown Live Preview when no valid setting has been stored', () => {
+		expect(normalizeDefaultEditorSetting(undefined)).toBe('livePreview');
+		expect(normalizeDefaultEditorSetting('invalid')).toBe('livePreview');
+		expect(editorViewType(undefined)).toBe('mdLivePreview.editor');
 	});
 
 	it('only applies viewing modes to Markdown files', () => {

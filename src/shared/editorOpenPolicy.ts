@@ -1,6 +1,6 @@
 import type { DefaultEditorSetting } from './messages';
 
-export const DEFAULT_EDITOR_SETTING: DefaultEditorSetting = 'markdownEditor';
+export const DEFAULT_EDITOR_SETTING: DefaultEditorSetting = 'livePreview';
 
 export const DEFAULT_EDITOR_SETTINGS: readonly DefaultEditorSetting[] = [
 	'prompt',

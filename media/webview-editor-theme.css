@@ -27,6 +27,7 @@ html, body {
 }
 
 .mlp-editing-mode-toggle {
+	overflow: hidden;
 	position: absolute;
 	top: 8px;
 	right: 18px;
@@ -40,6 +41,30 @@ html, body {
 	color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
 	background: var(--vscode-editor-background);
 	cursor: pointer;
+}
+
+.mlp-editing-mode-toggle::after {
+	content: '';
+	position: absolute;
+	top: -12px;
+	bottom: -12px;
+	left: -32px;
+	width: 22px;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+	opacity: 0;
+	pointer-events: none;
+	transform: skew(-20deg);
+}
+.mlp-editing-mode-toggle[aria-pressed="true"].mlp-lock-shine::after {
+	animation: mlp-lock-shine 2s linear;
+}
+@keyframes mlp-lock-shine {
+	0% { opacity: 0; transform: translateX(0) skew(-20deg); }
+	12%, 88% { opacity: 1; }
+	100% { opacity: 0; transform: translateX(122px) skew(-20deg); }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+	.mlp-editing-mode-toggle.mlp-lock-shine::after { animation: none; display: none; }
 }
 
 .mlp-editing-mode-icon {

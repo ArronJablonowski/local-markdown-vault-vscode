@@ -13,12 +13,12 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 
 ### Live Preview editor
 
-These rendering and interaction features belong to **Markdown Live Preview**.
-The default **Markdown Editor** is VS Code's separate built-in editor: our CSS
+These rendering and interaction features belong to **Markdown Live Preview**,
+the default viewing mode. **Markdown Editor** is VS Code's separate built-in editor: our CSS
 themes, lock default, code-block controls, and editing fixes do not customize
 that editor. Select **Markdown Live Preview** in **CSS Themes > Settings >
 Default viewing mode** to use the extension's Obsidian-style implementation.
-The default remains **Markdown Editor**, as requested.
+Existing explicitly saved viewing preferences are preserved when updating.
 
 - CodeMirror-based Markdown editing with formatting rendered in place
 - Source reveal around the cursor and normal text selection behavior
@@ -289,6 +289,10 @@ scrolling. Selections spanning blocks copy the underlying Markdown; selections
 inside a rendered table copy its displayed text. Locked mode permits copying
 without modifying the document.
 
+Clicking or attempting to type in a locked Live Preview briefly glimmers the
+Lock/Edit switch as a reminder to unlock. The effect stops when unlocked and
+is disabled for reduced-motion and forced-color accessibility settings.
+
 To display spaces and return characters, open **CSS Themes → Settings → Show
 spaces and line breaks (Live Preview)** and select **On**. The default is **Off**.
 The same setting is available as `mdLivePreview.showWhitespace` in VS Code
@@ -393,7 +397,7 @@ off if you prefer to save manually.
 
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
-| Default viewing mode | **Markdown Editor** opens VS Code's built-in Markdown Editor; **VS Code Markdown Editor** is a compatible alias for that same view. **Markdown Live Preview** opens Local Markdown Vault's custom editor. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Editor |
+| Default viewing mode | **Markdown Editor** opens VS Code's built-in Markdown Editor; **VS Code Markdown Editor** is a compatible alias for that same view. **Markdown Live Preview** opens Local Markdown Vault's custom editor. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Live Preview |
 | Vault file tabs | Reuse one preview tab while browsing, or keep every opened vault file in a separate tab | Reuse one preview tab |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
 | Automatic save | Save every coalesced change to an open vault Markdown file in any viewing mode | Enabled |

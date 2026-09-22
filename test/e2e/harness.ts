@@ -152,7 +152,7 @@ export async function mountStyleSidebar(
 				type: 'init',
 				styles: entries,
 				settings: {
-					defaultEditor: 'markdownEditor',
+					defaultEditor: 'livePreview',
 					defaultEditingMode: 'editing',
 					codeTheme: 'auto',
 					vaultOpenBehavior: 'reuseTab',

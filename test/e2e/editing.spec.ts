@@ -136,6 +136,30 @@ test.describe('live preview editing', () => {
 });
 
 test.describe('locked Live Preview mode', () => {
+	test('glimmers on a locked edit attempt and stops when unlocked', async ({ page }) => {
+		await mountEditor(page, 'Locked text', { editingMode: 'locked' });
+		const toggle = page.locator('.mlp-editing-mode-toggle');
+		await page.locator('.cm-line').click();
+		await page.keyboard.press('Enter');
+		await expect(toggle).toHaveClass(/mlp-lock-shine/);
+		expect(await toggle.evaluate(e => getComputedStyle(e, '::after').animationName)).toBe('mlp-lock-shine');
+		await expect(page.locator('.cm-content')).toHaveText('Locked text');
+		await expect(toggle).not.toHaveClass(/mlp-lock-shine/, { timeout: 3500 });
+		await page.locator('.cm-line').click();
+		await expect(toggle).toHaveClass(/mlp-lock-shine/);
+		await toggle.click();
+		await expect(toggle).not.toHaveClass(/mlp-lock-shine/);
+	});
+	test('does not animate the locked toggle with reduced motion', async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await mountEditor(page, 'Locked text', { editingMode: 'locked' });
+		await page.locator('.cm-line').click();
+		await page.keyboard.press('Enter');
+		const toggle = page.locator('.mlp-editing-mode-toggle');
+		await expect(toggle).not.toHaveClass(/mlp-lock-shine/);
+		expect(await toggle.evaluate(e => getComputedStyle(e, '::after').animationName)).toBe('none');
+		await expect(page.locator('.cm-content')).toHaveText('Locked text');
+	});
 	test('starts locked, blocks document mutations, and unlocks from the upper-right toggle', async ({ page }) => {
 		await mountEditor(page, '# Locked note\n', { editingMode: 'locked' });
 		const editor = page.locator('.cm-content');

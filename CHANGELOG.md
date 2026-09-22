@@ -1,5 +1,9 @@
 # Changelog
 
+- Add a brief glimmer to the Live Preview Lock/Edit switch on locked clicks and edit attempts, matching the native editor's reminder. Unlocking stops it; reduced-motion and forced-color modes suppress the animation.
+
+- Make Markdown Live Preview the default for new installations and missing or invalid viewing preferences. Preserve explicitly saved viewing choices and manual Text Editor switches.
+
 - Stop racing explicit Text Editor selections with automatic tab reopening. Keep defaults in VS Code editor associations and vault-open actions; preserve explicit source opens and splits without delayed retries that switch them back.
 
 - Add an off-by-default Show spaces and line breaks setting to CSS Themes and VS Code Settings. Update open Markdown Live Preview tabs immediately with display-only space, tab, and return markers, without modifying files or clipboard text.

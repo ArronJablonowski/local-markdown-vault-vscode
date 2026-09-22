@@ -454,7 +454,7 @@
             "%config.defaultEditor.markdownEditor%",
             "%config.defaultEditor.livePreview%"
           ],
-          "default": "markdownEditor",
+          "default": "livePreview",
           "description": "%config.defaultEditor%"
         },
         "mdLivePreview.showWhitespace": {
