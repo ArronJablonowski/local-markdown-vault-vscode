@@ -9,6 +9,10 @@ import {
 } from './auxMessageValidation';
 
 describe('auxiliary webview message validation', () => {
+	it('accepts only the on/off whitespace setting', () => {
+		for (const value of ['on', 'off']) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(true);
+		for (const value of [true, 'all', {}, null]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(false);
+	});
 	it('accepts exact benign messages', () => {
 		expect(validateOutlineToHostMessage({ type: 'jumpToHeading', line: 3 }).ok).toBe(true);
 		expect(validatePreviewToHostMessage({ type: 'ready' }).ok).toBe(true);
@@ -51,6 +55,7 @@ describe('auxiliary webview message validation', () => {
 				defaultEditingMode: 'editing',
 				codeTheme: 'auto',
 				vaultOpenBehavior: 'reuseTab',
+				showWhitespace: 'off',
 			},
 			themeKind: 'vscode-dark',
 			workspaceTrusted: false,

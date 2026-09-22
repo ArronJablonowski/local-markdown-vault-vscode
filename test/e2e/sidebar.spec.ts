@@ -10,6 +10,12 @@ const STYLES = [
 test.describe('CSS theme sidebar accessibility', () => {
 	test('offers every Markdown viewing mode and a default Locked or Editing mode', async ({ page }) => {
 		await mountStyleSidebar(page, STYLES);
+		const whitespace = page.getByLabel('Show spaces and line breaks (Live Preview)');
+		await expect(whitespace).toHaveValue('off');
+		await whitespace.selectOption('on');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: unknown[] }).__posted.at(-1),
+		)).toEqual({ type: 'setSetting', key: 'showWhitespace', value: 'on' });
 		const defaultEditor = page.getByLabel('Default viewing mode');
 		await expect(defaultEditor.locator('option')).toHaveText([
 			'VS Code default',

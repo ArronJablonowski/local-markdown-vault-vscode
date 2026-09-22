@@ -184,6 +184,11 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 	title.className = 'mlp-section-title';
 	title.textContent = t('sidebar.settings');
 	section.appendChild(title);
+	section.appendChild(buildSelect(
+		t('sidebar.showWhitespace'), settings.showWhitespace,
+		[['off', t('sidebar.showWhitespace.off')], ['on', t('sidebar.showWhitespace.on')]],
+		(value) => post({ type: 'setSetting', key: 'showWhitespace', value }),
+	));
 
 	section.appendChild(
 		buildSelect(

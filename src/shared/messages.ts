@@ -35,6 +35,7 @@ export interface PastedImagePayload {
 }
 
 export type HostToEditorMessage =
+	| { type: 'setWhitespace'; enabled: boolean }
 	| { type: 'copyCodeResult'; requestId: number; ok: boolean }
 	| {
 			type: 'init';
@@ -103,6 +104,7 @@ export type EditingModeSetting = 'editing' | 'locked';
 export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dark' | 'github-light';
 export type VaultOpenBehaviorSetting = 'reuseTab' | 'newTab';
 export interface SidebarSettings {
+	showWhitespace: 'off' | 'on';
 	defaultEditor: DefaultEditorSetting;
 	defaultEditingMode: EditingModeSetting;
 	codeTheme: CodeThemeSetting;

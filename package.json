@@ -457,6 +457,12 @@
           "default": "markdownEditor",
           "description": "%config.defaultEditor%"
         },
+        "mdLivePreview.showWhitespace": {
+          "type": "string",
+          "enum": ["off", "on"],
+          "default": "off",
+          "description": "%config.showWhitespace%"
+        },
         "mdLivePreview.autoSave": {
           "type": "boolean",
           "default": true,

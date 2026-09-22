@@ -11,6 +11,11 @@ import {
 } from './messageValidation';
 
 describe('validateEditorToHostMessage', () => {
+	it('accepts only boolean, exact whitespace display updates', () => {
+		for (const enabled of [true, false]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(true);
+		for (const enabled of ['true', 1, null, {}]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled: true, command: 'unsafe' }, 0).ok).toBe(false);
+	});
 	it('bounds clipboard requests and validates their acknowledgements', () => {
 		const request = { type: 'copyCode', requestId: 1, text: 'print("hello")' };
 		expect(validateEditorToHostMessage(request, 0).ok).toBe(true);

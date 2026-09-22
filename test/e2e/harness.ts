@@ -156,6 +156,7 @@ export async function mountStyleSidebar(
 					defaultEditingMode: 'editing',
 					codeTheme: 'auto',
 					vaultOpenBehavior: 'reuseTab',
+					showWhitespace: 'off',
 				},
 				themeKind: 'vscode-dark',
 				workspaceTrusted: trusted,

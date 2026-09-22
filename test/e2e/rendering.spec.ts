@@ -481,6 +481,9 @@ test.describe('block rendering', () => {
 		await page.locator('.cm-line', { hasText: /^After$/ }).click();
 		await page.keyboard.press('End');
 		await page.keyboard.type(' edited');
+		// Finish the caret's scheduled scroll-to-view before testing a separate
+		// user scroll; otherwise the pending layout can undo this scroll.
+		await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 		await page.locator('.cm-scroller').evaluate((element) => { element.scrollTop = element.scrollHeight; });
 		await expect.poll(() => page.locator('.cm-scroller').evaluate((element) => element.scrollTop)).toBeGreaterThan(500);
 		await page.setViewportSize({ width: 800, height: 500 });

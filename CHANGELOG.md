@@ -1,5 +1,7 @@
 # Changelog
 
+- Add an off-by-default Show spaces and line breaks setting to CSS Themes and VS Code Settings. Update open Markdown Live Preview tabs immediately with display-only space, tab, and return markers, without modifying files or clipboard text.
+
 - Restore visible mouse-selection highlighting in Markdown Live Preview. Copy partial rendered-table text correctly, bridge table-to-paragraph drags into editor selections, and test mixed code/table content and long scrolling selections in both Edit and Locked modes.
 
 - Replace the always-visible table toolbar with a compact Table options control. Show descriptive action labels on demand, explain when a cell must be selected, and support keyboard navigation, Escape dismissal, and automatic closing when focus leaves the table.

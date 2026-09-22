@@ -55,6 +55,7 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 	if (
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
 		((value.key === 'defaultEditor' && ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'].includes(String(value.value))) ||
+			(value.key === 'showWhitespace' && (value.value === 'off' || value.value === 'on')) ||
 			(value.key === 'defaultEditingMode' && ['editing', 'locked'].includes(String(value.value))) ||
 			(value.key === 'codeTheme' && ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.value))) ||
 			(value.key === 'vaultOpenBehavior' && ['reuseTab', 'newTab'].includes(String(value.value))))
@@ -92,7 +93,8 @@ export function validateHostToSidebarMessage(value: unknown): ValidationResult<H
 		cssLength += bytes;
 	}
 	if (
-		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior']) ||
+		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior', 'showWhitespace']) ||
+		(value.settings.showWhitespace !== 'off' && value.settings.showWhitespace !== 'on') ||
 		!['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'].includes(String(value.settings.defaultEditor)) ||
 		!['editing', 'locked'].includes(String(value.settings.defaultEditingMode)) ||
 		!['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.settings.codeTheme)) ||

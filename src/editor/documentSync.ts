@@ -119,6 +119,11 @@ export class DocumentSyncSession {
 		this.lastAppliedVersion = document.version;
 		this.documentText = document.getText();
 		this.visible = webviewPanel.visible;
+		this.disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('mdLivePreview.showWhitespace', this.document.uri) && this.readyReceived) {
+				this.sendWhitespaceSetting();
+			}
+		}));
 
 		this.disposables.push(
 			webviewPanel.webview.onDidReceiveMessage((raw: unknown) => {
@@ -807,6 +812,10 @@ export class DocumentSyncSession {
 		this.post({ type: 'setCursor', pos: atPos + normalizedInsertText.length });
 	}
 
+	private sendWhitespaceSetting(): void {
+		this.post({ type: 'setWhitespace', enabled: vscode.workspace.getConfiguration('mdLivePreview', this.document.uri).get<string>('showWhitespace', 'off') === 'on' });
+	}
+
 	private sendInit() {
 		const configuration = vscode.workspace.getConfiguration('mdLivePreview', this.document.uri);
 		const remoteMedia = resolveWorkspaceRemoteMediaPolicy(
@@ -840,6 +849,7 @@ export class DocumentSyncSession {
 		});
 		this.scheduleVaultNotesSync();
 		this.lastAppliedVersion = this.document.version;
+		this.sendWhitespaceSetting();
 	}
 
 	private async applyEdit(changes: TextChange[], baseVersion: number) {

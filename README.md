@@ -276,6 +276,15 @@ scrolling. Selections spanning blocks copy the underlying Markdown; selections
 inside a rendered table copy its displayed text. Locked mode permits copying
 without modifying the document.
 
+To display spaces and return characters, open **CSS Themes → Settings → Show
+spaces and line breaks (Live Preview)** and select **On**. The default is **Off**.
+The same setting is available as `mdLivePreview.showWhitespace` in VS Code
+Settings. It updates open Live Preview tabs immediately: spaces appear as dots,
+tabs as arrows, and actual line breaks as `↵`. These are display-only markers on
+editor text/source lines; they do not change files or copied text. Rendered
+tables and diagrams remain uncluttered. This does not change VS Code's separate
+built-in Markdown Editor or Text Editor settings.
+
 #### Add math and footnotes
 
 ```markdown

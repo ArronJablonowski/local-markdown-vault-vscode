@@ -53,6 +53,7 @@ import { deleteFullySelectedFencedCode } from './blockSelection';
 import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 import { renderedSelection } from './renderedSelection';
+import { whitespaceMarkers } from './whitespaceMarkers';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -72,6 +73,7 @@ let editingAllowed = true;
 let initialEditingModeReceived = false;
 let modeButton: HTMLButtonElement | undefined;
 const editingCompartment = new Compartment();
+const whitespaceCompartment = new Compartment();
 
 function flush() {
 	flushTimer = undefined;
@@ -168,6 +170,7 @@ function createExtensions(): Extension[] {
 				: [],
 		),
 		editingCompartment.of(EditorView.editable.of(editingAllowed)),
+		whitespaceCompartment.of([]),
 		markdownSupport,
 		codeFolding(),
 		// Extend closeBrackets' default pair set (`( [ { ' "`) with the emphasis
@@ -479,6 +482,9 @@ onHostMessage((message) => {
 		}
 		case 'codeTokens':
 			view?.dispatch({ effects: setCodeTokens.of(message.blocks), annotations: remoteChange.of(true) });
+			break;
+		case 'setWhitespace':
+			view?.dispatch({ effects: whitespaceCompartment.reconfigure(message.enabled ? whitespaceMarkers : []) });
 			break;
 		case 'applyCss':
 			if (workspaceTrusted) applyUserCss(message.css);

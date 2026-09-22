@@ -63,6 +63,29 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('updates whitespace display live without modifying the note', async () => {
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const previous = config.inspect<string>('showWhitespace')?.workspaceValue;
+		try {
+			await config.update('showWhitespace', 'off', vscode.ConfigurationTarget.Workspace);
+			const fixture = await makeFixture('whitespace');
+			const note = await service.createNote(fixture, 'Whitespace');
+			const original = 'Whitespace test\n\nTwo spaces here\n';
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Whitespace test');
+			assert.strictEqual(await frame.locator('.mlp-show-whitespace').count(), 0);
+			for (const setting of ['on', 'off', 'on']) {
+				await config.update('showWhitespace', setting, vscode.ConfigurationTarget.Workspace);
+				await waitFor(async () => await frame.locator('.mlp-show-whitespace').count() === (setting === 'on' ? 1 : 0), 'the display did not follow the whitespace setting');
+			}
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original);
+		} finally {
+			await config.update('showWhitespace', previous, vscode.ConfigurationTarget.Workspace);
+		}
+	});
+
 	test('copies mouse-highlighted table and paragraph text to the system clipboard in both modes', async () => {
 		const previousClipboard = await vscode.env.clipboard.readText();
 		try {

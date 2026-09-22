@@ -182,6 +182,10 @@ export function validateHostToEditorMessage(
 		case 'codeTokens':
 			if (!hasExactKeys(value, ['type', 'blocks']) || !validCodeBlocks(value.blocks, documentLength)) return { ok: false, reason: 'Invalid code tokens.' };
 			return { ok: true, value: value as unknown as HostToEditorMessage };
+		case 'setWhitespace':
+			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid whitespace setting.' };
 		case 'applyCss':
 			if (!hasExactKeys(value, ['type', 'css']) || typeof value.css !== 'string' || !withinByteLimit(value.css, MAX_CSS_BYTES)) return { ok: false, reason: 'Invalid CSS message.' };
 			return { ok: true, value: value as unknown as HostToEditorMessage };

@@ -148,6 +148,27 @@ html, body {
 	background: var(--vscode-editor-selectionBackground, rgba(120, 160, 255, 0.35)) !important;
 }
 
+/* Whitespace markers are display-only pseudo-elements, never document text. */
+.mlp-show-whitespace .cm-highlightTab {
+	position: relative;
+	background-image: none;
+}
+.mlp-show-whitespace .cm-highlightTab::before {
+	content: '→';
+	position: absolute;
+	color: var(--vscode-editorWhitespace-foreground, #808080);
+	user-select: none;
+	pointer-events: none;
+}
+.mlp-show-whitespace .mlp-has-line-break::after {
+	content: '↵';
+	color: var(--vscode-editorWhitespace-foreground, #808080);
+	font-weight: normal;
+	font-style: normal;
+	user-select: none;
+	pointer-events: none;
+}
+
 /* ── Headings ──────────────────────────────────────────────────────────────
    Applied as line decorations so the size, weight and (for h1/h2) the rule
    span the full column width rather than just the text. */
