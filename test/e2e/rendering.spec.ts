@@ -95,23 +95,53 @@ test.describe('block rendering', () => {
 		await expect(cells.nth(2)).toHaveText('3');
 	});
 
+	test('table options start closed and support keyboard dismissal and contextual actions', async ({ page }) => {
+		await mountEditor(page, 'Intro\n\n| a | b |\n| --- | --- |\n| one | 1 |\n\nAfter\n');
+		const options = page.getByRole('button', { name: 'Table options', exact: true });
+		const toolbar = page.getByRole('toolbar', { name: 'Table editing controls' });
+		await expect(options).toHaveAttribute('aria-expanded', 'false');
+		await expect(toolbar).toBeHidden();
+		await options.press('Enter');
+		await expect(toolbar).toBeVisible();
+		await expect(toolbar.getByText('Select a table cell to enable row and column actions.')).toBeVisible();
+		await expect(toolbar.getByRole('button', { name: 'Delete selected row' })).toBeDisabled();
+		await options.press('Tab');
+		await expect(toolbar.locator('button').first()).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(toolbar.getByRole('button', { name: 'Select entire table' })).toBeFocused();
+		await page.keyboard.press('Escape');
+		await expect(toolbar).toBeHidden();
+		await expect(options).toBeFocused();
+		await page.locator('.mlp-table td').first().focus();
+		await options.press('Space');
+		await expect(toolbar.getByRole('button', { name: 'Delete selected row' })).toBeEnabled();
+		await expect(toolbar.getByText('Select a table cell to enable row and column actions.')).toBeHidden();
+		await page.locator('.mlp-table-wrap').screenshot({ path: test.info().outputPath('table-options.png') });
+		await page.locator('.cm-line', { hasText: /^After$/ }).click();
+		await expect(toolbar).toBeHidden();
+	});
+
 	test('table structural controls target the selected row and column', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n| name | score |\n| --- | --- |\n| ten | 10 |\n| two | 2 |\n\nAfter\n');
 		await page.locator('.mlp-table td').first().click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Sort rows ascending by selected column' }).click();
 		await expect(page.locator('.mlp-table td').nth(0)).toHaveText('ten');
 		await expect(page.locator('.mlp-table td').nth(2)).toHaveText('two');
 
 		await page.locator('.mlp-table td').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Sort rows ascending by selected column' }).click();
 		await expect(page.locator('.mlp-table td').nth(0)).toHaveText('two');
 		await expect(page.locator('.mlp-table td').nth(2)).toHaveText('ten');
 		await page.locator('.mlp-table td').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Sort rows descending by selected column' }).click();
 		await expect(page.locator('.mlp-table td').nth(0)).toHaveText('ten');
 		await expect(page.locator('.mlp-table td').nth(2)).toHaveText('two');
 
 		await page.locator('.mlp-table th').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Cycle selected column alignment' }).click();
 		await expect(page.locator('.mlp-table th').nth(1)).toHaveCSS('text-align', 'left');
 	});
@@ -119,9 +149,10 @@ test.describe('block rendering', () => {
 	test('table controls insert relative to the selected row and column', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n| a | b |\n| --- | --- |\n| one | 1 |\n| two | 2 |\n\nAfter\n');
 		const toolbar = page.getByRole('toolbar', { name: 'Table editing controls' });
-		await expect(toolbar).toBeVisible();
+		await expect(toolbar).toBeHidden();
 
 		await page.locator('.mlp-table td').nth(2).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await toolbar.getByRole('button', { name: 'Insert row above selected row' }).click();
 		await expect(page.locator('.mlp-table td')).toHaveCount(6);
 		await expect(page.locator('.mlp-table td').nth(0)).toHaveText('one');
@@ -129,12 +160,14 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table td').nth(4)).toHaveText('two');
 
 		await page.locator('.mlp-table td').nth(0).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Insert row below selected row' }).click();
 		await expect(page.locator('.mlp-table td')).toHaveCount(8);
 		await expect(page.locator('.mlp-table td').nth(0)).toHaveText('one');
 		await expect(page.locator('.mlp-table td').nth(2)).toHaveText('');
 
 		await page.locator('.mlp-table th').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Insert column left of selected column' }).click();
 		await expect(page.locator('.mlp-table th')).toHaveCount(3);
 		await expect(page.locator('.mlp-table th').nth(0)).toHaveText('a');
@@ -142,6 +175,7 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table th').nth(2)).toHaveText('b');
 
 		await page.locator('.mlp-table th').first().click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Insert column right of selected column' }).click();
 		await expect(page.locator('.mlp-table th')).toHaveCount(4);
 		await expect(page.locator('.mlp-table th').nth(0)).toHaveText('a');
@@ -171,6 +205,7 @@ test.describe('block rendering', () => {
 		const tableSource = '| Name | Value |\n| --- | --- |\n| Alpha | Bravo |';
 		await mountEditor(page, `Before\n\n${tableSource}\n\nAfter\n`);
 		const selectTable = page.getByRole('button', { name: 'Select entire table' });
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await selectTable.click();
 		await expect(page.locator('.mlp-table-wrap')).toHaveClass(/mlp-table-block-selected/);
 
@@ -196,23 +231,29 @@ test.describe('block rendering', () => {
 		await mountEditor(page, 'Intro\n\n| a | b | c |\n| --- | --- | --- |\n| one | 1 | x |\n| two | 2 | y |\n| three | 3 | z |\n\nAfter\n');
 
 		await page.locator('.mlp-table td').nth(6).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Move selected row up' }).click();
 		await expect(page.locator('.mlp-table td').nth(3)).toHaveText('three');
 		await page.locator('.mlp-table td').nth(3).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Move selected row down' }).click();
 		await expect(page.locator('.mlp-table td').nth(6)).toHaveText('three');
 
 		await page.locator('.mlp-table th').nth(2).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Move selected column left' }).click();
 		await expect(page.locator('.mlp-table th').nth(1)).toHaveText('c');
 		await page.locator('.mlp-table th').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Move selected column right' }).click();
 		await expect(page.locator('.mlp-table th').nth(2)).toHaveText('c');
 
 		await page.locator('.mlp-table td').nth(3).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Delete selected row' }).click();
 		await expect(page.locator('.mlp-table td')).toHaveCount(6);
 		await page.locator('.mlp-table th').nth(1).click();
+		await page.getByRole('button', { name: 'Table options', exact: true }).click();
 		await page.getByRole('button', { name: 'Delete selected column' }).click();
 		await expect(page.locator('.mlp-table th')).toHaveCount(2);
 	});
@@ -241,6 +282,7 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table td').first()).toHaveText('one');
 
 		await page.locator('.mlp-table td').nth(2).focus();
+		await page.getByRole('button', { name: 'Table options', exact: true }).press('Enter');
 		const insertAbove = page.getByRole('button', { name: 'Insert row above selected row' });
 		await expect(insertAbove).toBeEnabled();
 		await insertAbove.focus();

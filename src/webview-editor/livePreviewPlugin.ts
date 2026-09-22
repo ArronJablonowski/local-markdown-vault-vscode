@@ -587,6 +587,81 @@ class TableWidget extends WidgetType {
 		toolbar.className = 'mlp-table-toolbar';
 		toolbar.setAttribute('role', 'toolbar');
 		toolbar.setAttribute('aria-label', t('table.toolbar'));
+		toolbar.hidden = true;
+		const optionsButton = document.createElement('button');
+		optionsButton.type = 'button';
+		optionsButton.className = 'mlp-table-options-btn';
+		optionsButton.textContent = t('table.options');
+		optionsButton.setAttribute('aria-label', t('table.options'));
+		optionsButton.setAttribute('aria-expanded', 'false');
+		const setOptionsOpen = (open: boolean) => {
+			toolbar.hidden = !open;
+			optionsButton.setAttribute('aria-expanded', String(open));
+			view.requestMeasure();
+		};
+		optionsButton.addEventListener('mousedown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			protectRenderedBlockFromCaret();
+		});
+		optionsButton.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			protectRenderedBlockFromCaret();
+			setOptionsOpen(toolbar.hidden);
+			if (!editing) optionsButton.focus();
+		});
+		optionsButton.addEventListener('keydown', (event) => {
+			event.stopPropagation();
+			protectRenderedBlockFromCaret();
+			if (event.key === 'Tab' && !event.shiftKey && !toolbar.hidden) {
+				event.preventDefault();
+				toolbar.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+			}
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				setOptionsOpen(false);
+			}
+		});
+		wrap.addEventListener('keydown', (event) => {
+			if (toolbar.hidden) return;
+			if (toolbar.contains(event.target as Node)) {
+				event.stopPropagation();
+				protectRenderedBlockFromCaret();
+				if (event.key === 'Tab') {
+					event.preventDefault();
+					const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+					const next = buttons.indexOf(document.activeElement as HTMLButtonElement) + (event.shiftKey ? -1 : 1);
+					if (next < 0) optionsButton.focus();
+					else if (next >= buttons.length) table.querySelector<HTMLElement>('.mlp-table-cell')?.focus();
+					else buttons[next].focus();
+				}
+			}
+			if (toolbar.contains(event.target as Node) && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+				event.preventDefault();
+				event.stopPropagation();
+				protectRenderedBlockFromCaret();
+				const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+				const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+				const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+					: (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+				buttons[next]?.focus();
+			}
+			if (event.key === 'Escape' && (toolbar.contains(event.target as Node) || event.target === optionsButton)) {
+				event.preventDefault();
+				event.stopPropagation();
+				setOptionsOpen(false);
+				optionsButton.focus();
+			}
+		});
+		wrap.addEventListener('focusout', () => queueMicrotask(() => {
+			if (!wrap.contains(document.activeElement)) setOptionsOpen(false);
+		}));
+		const hint = document.createElement('span');
+		hint.className = 'mlp-table-options-hint';
+		hint.textContent = t('table.optionsHint');
+		toolbar.appendChild(hint);
+		wrap.appendChild(optionsButton);
 		wrap.appendChild(toolbar);
 		wrap.appendChild(table);
 
@@ -838,8 +913,7 @@ class TableWidget extends WidgetType {
 		};
 
 
-		toolbar.appendChild(
-			createCodeModeButton(view, {
+		const tableSourceButton = createCodeModeButton(view, {
 				anchor: table,
 				// Save any half-finished cell edit first; `commit` reports where that
 				// cell's text ended up, which already accounts for the edit's own change
@@ -851,8 +925,10 @@ class TableWidget extends WidgetType {
 					const target = editing ?? lastCell;
 					return (target ? readCellRef(target)?.to : undefined) ?? view.posAtDOM(table);
 				},
-			}),
-		);
+			});
+		tableSourceButton.textContent = t('table.source');
+		tableSourceButton.classList.add('mlp-table-action-btn');
+		toolbar.appendChild(tableSourceButton);
 
 		// Cell interaction is driven from `mousedown`, not `click`.
 		//
@@ -1130,12 +1206,14 @@ class TableWidget extends WidgetType {
 			selectTableButton.focus();
 		});
 		selectTableButton.className = 'mlp-table-action-btn';
+		selectTableButton.textContent = t('table.select');
 		toolbar.appendChild(selectTableButton);
 
 		const tableActionButtons: HTMLButtonElement[] = [];
 		const makeActionButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
 			const button = makeAddButton(label, title, onClick);
 			button.className = 'mlp-table-action-btn';
+			button.textContent = title;
 			button.disabled = true;
 			tableActionButtons.push(button);
 			toolbar.appendChild(button);
@@ -1193,6 +1271,7 @@ class TableWidget extends WidgetType {
 		);
 		refreshTableActions = (): void => {
 			const ref = selectedRef();
+			hint.hidden = Boolean(ref);
 			for (const button of tableActionButtons) button.disabled = !ref;
 			if (!ref) return;
 			const headerCount = Math.max(1, this.headerRowCount);

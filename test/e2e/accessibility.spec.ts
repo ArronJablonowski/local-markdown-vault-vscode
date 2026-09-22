@@ -54,6 +54,9 @@ Intro
 		const controls = page.locator('button:not([disabled]), input:not([disabled]), [role="checkbox"], [role="button"][tabindex="0"]');
 		expect(await controls.count()).toBeGreaterThan(0);
 		for (let index = 0; index < await controls.count(); index++) {
+			if (!await controls.nth(index).isVisible() && await controls.nth(index).evaluate((element) => Boolean(element.closest('.mlp-table-toolbar')))) {
+				await page.getByRole('button', { name: 'Table options', exact: true }).press('Enter');
+			}
 			await controls.nth(index).scrollIntoViewIfNeeded();
 			await controls.nth(index).focus();
 			await expect(controls.nth(index)).toBeFocused();
@@ -73,6 +76,7 @@ Intro
 		});
 		expect(taskFocus.style).not.toBe('none');
 		expect(taskFocus.width).toBeGreaterThanOrEqual(2);
+		for (const options of await page.getByRole('button', { name: 'Table options', exact: true }).all()) await options.click();
 		for (const sourceButton of await page.locator('.mlp-code-mode-btn').all()) {
 			await sourceButton.scrollIntoViewIfNeeded();
 			await expect(sourceButton).toBeVisible();

@@ -304,9 +304,15 @@ suite('Installed VSIX clean-profile smoke', () => {
 
 			for (const selector of ['.mlp-checkbox', '.mlp-callout-header', '.mlp-table-cell', '.mlp-code-mode-btn']) {
 				const control = frame.locator(selector).first();
+				const inTableMenu = await control.evaluate(element => Boolean(element.closest('.mlp-table-toolbar')));
+				if (inTableMenu) {
+					await focusControlWithKeyboard(frame, '.mlp-table-options-btn');
+					await frame.page().keyboard.press('Enter');
+					await frame.page().keyboard.press('Tab');
+				}
 				await control.waitFor({ state: 'visible', timeout: 5_000 });
 				await control.scrollIntoViewIfNeeded();
-				await focusControlWithKeyboard(frame, selector);
+				if (!inTableMenu) await focusControlWithKeyboard(frame, selector);
 				assert.strictEqual(await control.evaluate((element) => document.activeElement === element), true,
 					`${selector} could not receive keyboard focus at 200 percent zoom`);
 				const focusAndBounds = await control.evaluate((element) => {

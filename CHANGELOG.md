@@ -1,5 +1,9 @@
 # Changelog
 
+- Restore visible mouse-selection highlighting in Markdown Live Preview. Copy partial rendered-table text correctly, bridge table-to-paragraph drags into editor selections, and test mixed code/table content and long scrolling selections in both Edit and Locked modes.
+
+- Replace the always-visible table toolbar with a compact Table options control. Show descriptive action labels on demand, explain when a cell must be selected, and support keyboard navigation, Escape dismissal, and automatic closing when focus leaves the table.
+
 - Fix code-block collapsing at the eight-line boundary. Live Preview now uses CodeMirror folding state instead of hiding transient DOM rows, preserving collapsed blocks through scrolling, resizing, and unrelated edits. Copy retains all hidden code, keyboard expansion remains available, and unfinished fences include their final line. Markdown Preview uses the same eight-line minimum.
 
 - Match Markdown Editor's compact Lock/Edit control in Markdown Live Preview: an outlined pill with lock and pencil icons, a highlighted active mode, keyboard operation, and accessible mode labels. The lock still blocks edits at the transaction boundary.

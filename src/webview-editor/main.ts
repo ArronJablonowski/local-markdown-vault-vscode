@@ -52,6 +52,7 @@ import { insertSoftLineBreak } from './softLineBreak';
 import { deleteFullySelectedFencedCode } from './blockSelection';
 import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
+import { renderedSelection } from './renderedSelection';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 250;
@@ -299,6 +300,7 @@ function createExtensions(): Extension[] {
 		EditorView.domEventHandlers({
 			blur: () => { flushNow(); persistEditorUiState(); },
 		}),
+		renderedSelection,
 		EditorView.lineWrapping,
 	];
 }

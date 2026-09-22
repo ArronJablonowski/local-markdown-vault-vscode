@@ -258,13 +258,23 @@ Use colons in the separator row to control alignment:
 | Review | Pending | $25 |
 ```
 
-Select a rendered table cell to edit it or use the table controls to insert, move, sort, align, or delete rows and columns.
+Select a rendered table cell to edit it. Open **Table options** above the table
+to insert, move, sort, align, or delete rows and columns. The menu starts closed
+to keep notes uncluttered; actions that need a cell stay disabled until one is
+selected. Use Tab or arrow keys within the controls, and Escape to close them.
 The header row remains visible while a long table scrolls, then stops at the
 bottom of that table.
 
 Drag across rendered text to highlight and copy it. Use **Select entire table**
-in the table toolbar to highlight the complete table; Copy places its Markdown
+in **Table options** to highlight the complete table; Copy places its Markdown
 source on the clipboard, and Backspace or Delete removes the selected table.
+
+In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
+(Windows/Linux) work in both Edit and Locked modes. You can select part of a
+table cell, drag across paragraphs and rendered blocks, or keep selecting while
+scrolling. Selections spanning blocks copy the underlying Markdown; selections
+inside a rendered table copy its displayed text. Locked mode permits copying
+without modifying the document.
 
 #### Add math and footnotes
 

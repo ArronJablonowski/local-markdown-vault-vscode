@@ -63,6 +63,40 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('copies mouse-highlighted table and paragraph text to the system clipboard in both modes', async () => {
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			const fixture = await makeFixture('mouse-copy');
+			const note = await service.createNote(fixture, 'Mouse Copy');
+			const original = 'Before mouse copy\n\n| Name | Value |\n| --- | --- |\n| Alpha bravo | Charlie delta |\n\nFollowing paragraph\n';
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			const frame = await connectToLivePreviewFrame('Before mouse copy');
+			for (const mode of ['editing', 'locked']) {
+				const toggle = frame.locator('.mlp-editing-mode-toggle');
+				if (await toggle.getAttribute('aria-pressed') !== String(mode === 'locked')) await toggle.click();
+				const first = await frame.locator('.mlp-table td').first().boundingBox();
+				const last = await frame.locator('.cm-line', { hasText: /^Following paragraph$/ }).boundingBox();
+				assert.ok(first && last);
+				await frame.page().mouse.move(first.x + 12, first.y + first.height / 2);
+				await frame.page().mouse.down();
+				await frame.page().mouse.move(last.x + 180, last.y + last.height / 2, { steps: 20 });
+				await frame.page().mouse.up();
+				await vscode.env.clipboard.writeText('clipboard sentinel');
+				await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+c' : 'Control+c');
+				await waitFor(async () => {
+					const copied = await vscode.env.clipboard.readText();
+					return copied.includes('bravo') && copied.includes('Following');
+				}, `mouse selection was not copied in ${mode} mode`);
+			}
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original);
+		} finally {
+			await vscode.env.clipboard.writeText(previousClipboard);
+		}
+	});
+
 	test('folds eight-line code in the actual editor without changing the file', async () => {
 		const fixture = await makeFixture('fold-code');
 		const note = await service.createNote(fixture, 'Fold code');
