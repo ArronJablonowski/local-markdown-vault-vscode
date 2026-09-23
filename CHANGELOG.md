@@ -1,5 +1,7 @@
 # Changelog
 
+- Let wide rendered tables scroll horizontally without squeezing columns or widening the editor, while preserving sticky headers during vertical scrolling. Render bare `<br>` line breaks inside table cells without enabling arbitrary HTML or attributes.
+
 - Keep currency ranges such as `$75–$85` and `$177-$187` as literal text instead of invalid math. Preserve numeric formulas and correctly detect real math later on a line containing prices.
 
 - Fix black/unreadable Mermaid diagrams by retaining safe SVG paint and typography while discarding animation, external-resource, and shadow-host rules. Keep invalid Mermaid error graphics out of the surrounding editor.

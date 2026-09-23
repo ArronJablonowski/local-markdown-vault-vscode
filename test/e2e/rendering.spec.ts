@@ -36,6 +36,32 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table td')).toHaveCount(2);
 	});
 
+	test('wide tables scroll horizontally without squeezing columns or the editor', async ({ page }) => {
+		await page.setViewportSize({ width: 640, height: 720 });
+		await mountEditor(page, 'Intro\n\n| First column with a long heading | Second column with a long heading | Third column with a long heading | Fourth column with a long heading |\n| --- | --- | --- | --- |\n| first readable value | second readable value | third readable value | fourth readable value |\n\nAfter\n');
+		const viewport = page.locator('.mlp-table-viewport');
+		await expect(viewport).toHaveClass(/mlp-table-scrollable/);
+		const before = await viewport.evaluate((element) => ({
+			clientWidth: element.clientWidth,
+			scrollWidth: element.scrollWidth,
+			columnWidth: element.querySelector('th')!.getBoundingClientRect().width,
+		}));
+		expect(before.scrollWidth).toBeGreaterThan(before.clientWidth);
+		expect(before.columnWidth).toBeGreaterThan(180);
+		await viewport.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+		await expect.poll(() => viewport.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+		const editor = await page.locator('.cm-scroller').evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+		expect(editor.scrollWidth).toBeLessThanOrEqual(editor.clientWidth + 2);
+	});
+
+	test('bare HTML line breaks in table cells render as lines, but active HTML stays inert', async ({ page }) => {
+		await mountEditor(page, 'Intro\n\n| Details |\n| --- |\n| First<br>Second |\n| <img src=x onerror=alert(1)> |\n\nAfter\n');
+		await expect(page.locator('.mlp-table tbody tr').first().locator('br')).toHaveCount(1);
+		await expect(page.locator('.mlp-table tbody tr').first()).toHaveText('FirstSecond');
+		await expect(page.locator('.mlp-table tbody tr').nth(1)).toContainText('<img src=x onerror=alert(1)>');
+		await expect(page.locator('.mlp-table tbody img')).toHaveCount(0);
+	});
+
 	test('a long table keeps its header at the top while its rows scroll', async ({ page }) => {
 		const rows = Array.from({ length: 45 }, (_, index) => `| Row ${index + 1} | Value ${index + 1} |`).join('\n');
 		await mountEditor(page, `${'Before\n\n'.repeat(18)}| Name | Value |\n| --- | --- |\n${rows}\n\nAfter\n`);
@@ -54,6 +80,24 @@ test.describe('block rendering', () => {
 		});
 		expect(Math.abs(bounds.headerTop - bounds.scrollerTop)).toBeLessThanOrEqual(2);
 		expect(bounds.headerBottom).toBeLessThan(bounds.tableBottom);
+	});
+
+	test('a wide long table keeps its header sticky while scrolling vertically', async ({ page }) => {
+		await page.setViewportSize({ width: 640, height: 720 });
+		const rows = Array.from({ length: 45 }, (_, index) => `| Row ${index + 1} with detail | Value ${index + 1} with long detail | Another ${index + 1} value with detail |`).join('\n');
+		await mountEditor(page, `${'Before\n\n'.repeat(18)}| First long heading | Second long heading | Third long heading |\n| --- | --- | --- |\n${rows}\n\nAfter\n`);
+		await expect(page.locator('.mlp-table-viewport')).toHaveClass(/mlp-table-scrollable/);
+		await page.evaluate(() => {
+			const scroller = document.querySelector('.cm-scroller') as HTMLElement;
+			const table = document.querySelector('.mlp-table') as HTMLElement;
+			scroller.scrollTop += table.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 80;
+		});
+		await expect(page.locator('.mlp-table-sticky-header')).not.toHaveAttribute('hidden');
+		const bounds = await page.evaluate(() => ({
+			scrollerTop: document.querySelector('.cm-scroller')!.getBoundingClientRect().top,
+			headerTop: document.querySelector('.mlp-sticky-table thead th')!.getBoundingClientRect().top,
+		}));
+		expect(Math.abs(bounds.headerTop - bounds.scrollerTop)).toBeLessThanOrEqual(2);
 	});
 
 	test('a rendered table link is keyboard-operable', async ({ page }) => {

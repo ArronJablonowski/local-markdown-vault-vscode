@@ -168,10 +168,12 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			return;
 		}
 		case 'HTMLTag': {
-			// Raw HTML is intentionally unsupported. Even seemingly harmless tags
-			// remain literal so there is one simple, auditable rule for attacker-
-			// controlled Markdown in both normal content and rendered table cells.
-			appendText(parent, src.slice(node.from, node.to));
+			const tag = src.slice(node.from, node.to);
+			// A bare <br> is a common, Obsidian-compatible way to put multiple
+			// lines in a GFM table cell. Construct the element ourselves; never
+			// parse source as HTML. Attributes and every other tag stay inert text.
+			if (/^<br\s*\/?\s*>$/i.test(tag)) parent.appendChild(document.createElement('br'));
+			else appendText(parent, tag);
 			return;
 		}
 		case 'Escape': {

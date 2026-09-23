@@ -104,6 +104,7 @@ const en = {
 	'table.addRow': 'Add a row',
 	'table.addColumn': 'Add a column',
 	'table.toolbar': 'Table editing controls',
+	'table.scrollRegion': 'Markdown table; scroll horizontally for more columns',
 	'table.options': 'Table options',
 	'table.source': 'Show Markdown source',
 	'table.optionsHint': 'Select a table cell to enable row and column actions.',

@@ -455,7 +455,7 @@ export type ColumnAlign = 'left' | 'center' | 'right' | null;
  * range — as data attributes. `TableWidget` reads them back on edit to know
  * which span of the document a cell's new text replaces.
  */
-export function renderTableElement(model: TableModel, hooks: CellInlineHooks): HTMLElement {
+export function renderTableElement(model: TableModel, hooks: CellInlineHooks): HTMLTableElement {
 	const table = document.createElement('table');
 	table.className = 'mlp-table';
 	const thead = document.createElement('thead');
@@ -665,7 +665,70 @@ class TableWidget extends WidgetType {
 		toolbar.appendChild(hint);
 		wrap.appendChild(optionsButton);
 		wrap.appendChild(toolbar);
-		wrap.appendChild(table);
+		const tableViewport = document.createElement('div');
+		tableViewport.className = 'mlp-table-viewport';
+		tableViewport.tabIndex = 0;
+		tableViewport.setAttribute('role', 'region');
+		tableViewport.setAttribute('aria-label', t('table.scrollRegion'));
+		tableViewport.appendChild(table);
+		wrap.appendChild(tableViewport);
+		// Horizontal overflow creates a new scroll container, which prevents the
+		// real <thead> from sticking to CodeMirror's vertical scroller. Mirror only
+		// the header in a non-interactive, clipped overlay for wide tables.
+		const stickyHeader = document.createElement('div');
+		stickyHeader.className = 'mlp-table-sticky-header';
+		stickyHeader.setAttribute('aria-hidden', 'true');
+		stickyHeader.hidden = true;
+		const stickyClip = document.createElement('div');
+		stickyClip.className = 'mlp-table-sticky-clip';
+		const stickyTable = document.createElement('table');
+		stickyTable.className = 'mlp-sticky-table';
+		stickyClip.appendChild(stickyTable);
+		stickyHeader.appendChild(stickyClip);
+		wrap.insertBefore(stickyHeader, tableViewport);
+		const syncStickyHeader = (): void => {
+			const header = table.tHead;
+			if (!header) return;
+			const clone = header.cloneNode(true) as HTMLTableSectionElement;
+			clone.querySelectorAll<HTMLElement>('[tabindex], [contenteditable]').forEach((cell) => {
+				cell.removeAttribute('tabindex');
+				cell.removeAttribute('contenteditable');
+			});
+			stickyTable.replaceChildren(clone);
+			stickyTable.style.width = `${table.getBoundingClientRect().width}px`;
+			const originalCells = Array.from(header.rows[0]?.cells ?? []);
+			const clonedCells = Array.from(clone.rows[0]?.cells ?? []);
+			originalCells.forEach((cell, index) => {
+				if (clonedCells[index]) clonedCells[index].style.width = `${cell.getBoundingClientRect().width}px`;
+			});
+			stickyTable.style.marginLeft = `${-tableViewport.scrollLeft}px`;
+		};
+		const updateStickyHeader = (): void => {
+			const scrollerTop = view.scrollDOM.getBoundingClientRect().top;
+			const bounds = table.getBoundingClientRect();
+			const headerHeight = table.tHead?.getBoundingClientRect().height ?? 0;
+			const show = tableViewport.classList.contains('mlp-table-scrollable')
+				&& bounds.top < scrollerTop && bounds.bottom > scrollerTop + headerHeight;
+			if (stickyHeader.hidden === show) stickyHeader.hidden = !show;
+			if (show) stickyTable.style.marginLeft = `${-tableViewport.scrollLeft}px`;
+		};
+		const widthObserver = new ResizeObserver(() => {
+			const overflowing = table.scrollWidth > tableViewport.clientWidth + 1;
+			if (tableViewport.classList.contains('mlp-table-scrollable') !== overflowing) {
+				tableViewport.classList.toggle('mlp-table-scrollable', overflowing);
+				view.requestMeasure();
+			}
+			if (overflowing) syncStickyHeader();
+			updateStickyHeader();
+		});
+		widthObserver.observe(tableViewport);
+		widthObserver.observe(table);
+		const headerObserver = new MutationObserver(() => {
+			if (tableViewport.classList.contains('mlp-table-scrollable')) syncStickyHeader();
+		});
+		if (table.tHead) headerObserver.observe(table.tHead, { childList: true, subtree: true, characterData: true });
+		view.scrollDOM.addEventListener('scroll', updateStickyHeader, { passive: true });
+		tableViewport.addEventListener('scroll', updateStickyHeader, { passive: true });
 
 		// The cell currently being edited, if any. Editing is entered lazily on
 		// click rather than by making every cell permanently `contenteditable`,
@@ -795,6 +858,7 @@ class TableWidget extends WidgetType {
 			// A table that has not been laid out yet (zero-width) has nothing
 			// meaningful to pin, and writing zeros would collapse it.
 			if (!widths.every((w) => w > 0)) return;
+			const tableWidth = table.getBoundingClientRect().width;
 			// Widths are pinned as *percentages*, not pixels. A pixel width is a
 			// snapshot of one moment: if the editor gets narrower mid-edit — a
 			// sidebar opens, the window is resized, the view is split — a pinned
@@ -814,6 +878,7 @@ class TableWidget extends WidgetType {
 				c.style.width = (widths[i] / total) * 100 + '%';
 			});
 			table.style.boxSizing = 'border-box';
+			table.style.width = `${tableWidth}px`;
 			table.style.tableLayout = 'fixed';
 		};
 
@@ -822,6 +887,7 @@ class TableWidget extends WidgetType {
 			if (table.style.tableLayout !== 'fixed') return;
 			table.style.tableLayout = '';
 			table.style.boxSizing = '';
+			table.style.width = '';
 			const firstRow = (table as HTMLTableElement).rows?.[0];
 			if (!firstRow) return;
 			for (const cell of Array.from(firstRow.cells) as HTMLElement[]) {
@@ -1153,6 +1219,9 @@ class TableWidget extends WidgetType {
 		view.dom.addEventListener('keydown', deleteSelectedTable, true);
 		view.dom.addEventListener('pointerdown', clearTableSelectionOutside, true);
 		tableWidgetCleanup.set(wrap, () => {
+			widthObserver.disconnect();
+			headerObserver.disconnect();
+			view.scrollDOM.removeEventListener('scroll', updateStickyHeader);
 			view.dom.removeEventListener('copy', copySelectedTable, true);
 			view.dom.removeEventListener('cut', cutSelectedTable, true);
 			view.dom.removeEventListener('keydown', deleteSelectedTable, true);

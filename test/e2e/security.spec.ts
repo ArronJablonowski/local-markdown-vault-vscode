@@ -196,12 +196,13 @@ test.describe('hostile Markdown boundaries', () => {
 		expect(await page.evaluate(() => (window as unknown as { __rawHtmlRan?: number }).__rawHtmlRan)).toBeUndefined();
 	});
 
-	test('raw HTML inside rendered table cells is also inert text', async ({ page }) => {
+	test('only bare line breaks render inside table cells; other HTML stays inert', async ({ page }) => {
 		await mountEditor(page, 'Intro\n\n| Value |\n| --- |\n| x<br>y <img src=x onerror="window.__tableHtmlRan=1"> |\n');
 		const cell = page.locator('.mlp-table td');
-		await expect(cell).toContainText('x<br>y');
+		await expect(cell).toContainText('xy');
 		await expect(cell).toContainText('<img src=x');
-		await expect(cell.locator('br, img')).toHaveCount(0);
+		await expect(cell.locator('br')).toHaveCount(1);
+		await expect(cell.locator('img')).toHaveCount(0);
 		expect(await page.evaluate(() => (window as unknown as { __tableHtmlRan?: number }).__tableHtmlRan)).toBeUndefined();
 	});
 

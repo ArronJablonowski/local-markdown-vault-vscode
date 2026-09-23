@@ -49,7 +49,7 @@ policies; the extension cannot guarantee its remote-image or inert-HTML policy
 in those views. Vault filesystem protections apply to extension vault actions.
 
 - Remote images are blocked by default
-- Raw HTML is rendered as inert text
+- Raw HTML is rendered as inert text, except bare `<br>` line breaks in table cells
 - Dangerous protocols and paths outside the vault are rejected
 - Filesystem paths are canonicalized and checked after symlink resolution
 - Webview messages, pasted images, YAML, diagrams, SVG, XML, and queued work are bounded and validated
@@ -287,7 +287,11 @@ to insert, move, sort, align, or delete rows and columns. The menu starts closed
 to keep notes uncluttered; actions that need a cell stay disabled until one is
 selected. Use Tab or arrow keys within the controls, and Escape to close them.
 The header row remains visible while a long table scrolls, then stops at the
-bottom of that table.
+bottom of that table. Wide tables scroll horizontally within the note instead
+of squeezing their columns; use Shift+mouse wheel, a trackpad gesture, or focus
+the table scroll region and use the horizontal scrollbar. To put multiple lines
+inside one cell, use a bare `<br>` (or `<br/>`); tags with attributes and other
+raw HTML remain inert text.
 
 Drag across rendered text to highlight and copy it. Use **Select entire table**
 in **Table options** to highlight the complete table; Copy places its Markdown

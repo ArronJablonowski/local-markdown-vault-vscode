@@ -680,6 +680,33 @@ html, body {
 	outline-offset: 2px;
 	background: var(--vscode-editor-selectionBackground, rgba(0, 122, 204, 0.28));
 }
+.mlp-table-viewport {
+	max-width: 100%;
+}
+.mlp-table-viewport.mlp-table-scrollable {
+	overflow-x: auto;
+	overscroll-behavior-inline: contain;
+}
+.mlp-table-viewport:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: -2px;
+}
+.mlp-table-sticky-header {
+	position: sticky;
+	top: 0;
+	height: 0;
+	z-index: 3;
+	pointer-events: none;
+}
+.mlp-table-sticky-header[hidden] { display: none; }
+.mlp-table-sticky-clip {
+	width: 100%;
+	overflow: hidden;
+}
+.mlp-table-sticky-header .mlp-sticky-table {
+	table-layout: fixed;
+	min-width: 0;
+}
 /* Strip above the table holding its controls. Right-aligned so the button lines
    up with the table's own right edge rather than floating loose. */
 .mlp-table-toolbar {
@@ -962,20 +989,16 @@ html, body {
 	word-break: break-word;
 }
 
-table.mlp-table {
+table.mlp-table, table.mlp-sticky-table {
 	border-collapse: collapse;
-	width: 100%;
-	/* A belt-and-braces cap. The real guard against a frozen table overflowing is
-	   that `freezeColumnWidths` pins columns as percentages rather than pixels
-	   (livePreviewPlugin.ts) — under `table-layout: fixed`, per-column pixel
-	   widths beat this `max-width` and the table overflows regardless. */
-	max-width: 100%;
+	width: max-content;
+	min-width: 100%;
 	/* Spacing belongs to the `.mlp-block` wrapper — a `border-collapse` table
 	   can't carry it itself (CSS ignores `padding` on one), and a margin here
 	   would fall outside the box CodeMirror measures. */
 	margin: 0;
 }
-table.mlp-table thead th {
+table.mlp-table thead th, table.mlp-sticky-table thead th {
 	position: sticky;
 	top: 0;
 	z-index: 2;
@@ -987,13 +1010,16 @@ table.mlp-table thead th {
    just that cell in place — the table stays rendered either way. `cursor: text`
    advertises that, and `user-select: text` overrides any inherited suppression
    so the drag actually highlights. */
-table.mlp-table th, table.mlp-table td {
+table.mlp-table th, table.mlp-table td, table.mlp-sticky-table th {
 	border: 1px solid rgba(127, 127, 127, 0.35);
 	padding: 5px 11px;
 	text-align: left;
 	cursor: text;
 	user-select: text;
 	-webkit-user-select: text;
+	/* Keep each rendered column readable. Wide tables scroll in their own
+	   viewport instead of squeezing labels to the editor width. */
+	white-space: nowrap;
 	/* Reserve the height one line of the *editing* font occupies, so a cell does
 	   not grow the moment it is clicked. A rendered cell is set in the body font
 	   and an edited one in the editor's monospace face; where those differ in

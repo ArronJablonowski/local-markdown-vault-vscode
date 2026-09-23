@@ -103,12 +103,17 @@ describe('renderInlineInto', () => {
 	});
 
 	describe('inline HTML', () => {
-		it('shows <br> literally instead of treating it as active HTML', () => {
-			expect(render('x<br>y')).toBe('x&lt;br&gt;y');
+		it('renders a bare <br> as a line break in a table cell', () => {
+			expect(render('x<br>y')).toBe('x<br>y');
 		});
 
-		it('shows a self-closing <br/> literally', () => {
-			expect(render('x<br/>y')).toBe('x&lt;br/&gt;y');
+		it('supports self-closing and case-insensitive line breaks', () => {
+			expect(render('x<br/>y')).toBe('x<br>y');
+			expect(render('x<BR />y')).toBe('x<br>y');
+		});
+
+		it('does not accept HTML attributes on line breaks', () => {
+			expect(render('x<br onclick="alert(1)">y')).toBe('x&lt;br onclick="alert(1)"&gt;y');
 		});
 
 		it('shows any other tag literally rather than injecting it into the webview', () => {
