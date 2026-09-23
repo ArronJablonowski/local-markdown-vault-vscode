@@ -14,6 +14,7 @@ import { isBacklinkFilter, isBacklinkSort, migrateVaultScopedState } from './vau
 import { classifyVaultWorkspace } from './vaultWorkspace';
 import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './knowledgeCommandValidation';
 import { openConfiguredVaultResource } from '../editor/configuredDocumentOpen';
+import { topLevelSelection } from './topLevelSelection';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -943,12 +944,15 @@ async function moveVaultEntries(
 	provider: VaultTreeProvider,
 	sources: readonly VaultEntry[],
 	parent: vscode.Uri,
+	isCurrent: () => boolean = () => true,
 ): Promise<number> {
 	const service = provider.service;
-	if (!service) return 0;
+	if (!service || !isCurrent()) return 0;
 	const unique = [...new Map(sources.map((source) => [source.uri.toString(), source])).values()];
 	if (unique.length > 256) throw new Error('At most 256 vault items can be moved at once.');
-	const moving = unique.filter((source) => source.parentUri.toString() !== parent.toString());
+	const moving = topLevelSelection(unique, entry => entry.uri.toString(),
+		entry => Boolean(entry.fileType & vscode.FileType.Directory))
+		.filter((source) => source.parentUri.toString() !== parent.toString());
 	if (moving.length === 0) return 0;
 	const parentPath = service.relativePath(parent);
 	if (parentPath === undefined || moving.some((source) => {
@@ -966,7 +970,7 @@ async function moveVaultEntries(
 		isFolder: Boolean(source.fileType & vscode.FileType.Directory),
 	})));
 	const applied = await new LinkRewriteService(service, {
-		isCurrent: () => provider.service === service && vscode.workspace.isTrusted,
+		isCurrent: () => provider.service === service && vscode.workspace.isTrusted && isCurrent(),
 	}).renameOrMoveMany(requests);
 	if (!applied) throw new Error('The workspace rejected the move.');
 	if (provider.service !== service || !vscode.workspace.isTrusted) return 0;
@@ -974,27 +978,47 @@ async function moveVaultEntries(
 	return moving.length;
 }
 
-class VaultDragAndDropController implements vscode.TreeDragAndDropController<VaultEntry>, vscode.Disposable {
+export class VaultDragAndDropController implements vscode.TreeDragAndDropController<VaultEntry>, vscode.Disposable {
 	readonly dragMimeTypes = [VAULT_TREE_MIME];
 	readonly dropMimeTypes = [VAULT_TREE_MIME];
 
 	constructor(private readonly provider: VaultTreeProvider) {}
 
 	handleDrag(source: readonly VaultEntry[], dataTransfer: vscode.DataTransfer): void {
-		dataTransfer.set(VAULT_TREE_MIME, new vscode.DataTransferItem(source));
+		// TreeItems contain a command argument pointing back to themselves. The
+		// workbench serializes drag data, so sending those objects aborts the drag.
+		dataTransfer.set(VAULT_TREE_MIME, new vscode.DataTransferItem(JSON.stringify(source.map(entry => entry.uri.toString()))));
 	}
 
-	async handleDrop(target: VaultEntry | undefined, dataTransfer: vscode.DataTransfer): Promise<void> {
+	async handleDrop(target: VaultEntry | undefined, dataTransfer: vscode.DataTransfer, token?: vscode.CancellationToken): Promise<void> {
+		if (token?.isCancellationRequested) return;
 		if (!vscode.workspace.isTrusted) {
 			void vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to move Document Vault files.'));
 			return;
 		}
 		const resolvedTarget = target === undefined ? undefined : await resolveCommandEntry(this.provider, target);
 		if (target !== undefined && !resolvedTarget) return;
+		if (resolvedTarget && (resolvedTarget.fileType & vscode.FileType.SymbolicLink)) {
+			void vscode.window.showWarningMessage(vscode.l10n.t('A symbolic link cannot be a drop destination. Choose a vault folder.'));
+			return;
+		}
+		const item = dataTransfer.get(VAULT_TREE_MIME);
+		if (!item) return;
+		let values: unknown;
+		try {
+			const serialized = await item.asString();
+			if (serialized.length > 1_048_576) return;
+			values = JSON.parse(serialized);
+		} catch { return; }
+		if (!Array.isArray(values) || values.length > 256
+			|| values.some(value => typeof value !== 'string' || value.length > 4096)) return;
+		let entries: { uri: vscode.Uri }[];
+		try { entries = values.map(value => ({ uri: vscode.Uri.parse(value, true) })); }
+		catch { return; }
 		const transferred = await resolveCommandEntries(
 			this.provider,
 			undefined,
-			dataTransfer.get(VAULT_TREE_MIME)?.value,
+			entries,
 			[],
 		);
 		if (transferred.length === 0) return;
@@ -1004,7 +1028,7 @@ class VaultDragAndDropController implements vscode.TreeDragAndDropController<Vau
 			? resolvedTarget.uri
 			: resolvedTarget?.parentUri ?? service.rootUri;
 		try {
-			const moved = await moveVaultEntries(this.provider, transferred, parent);
+			const moved = await moveVaultEntries(this.provider, transferred, parent, () => !token?.isCancellationRequested);
 			if (moved > 0) announceVaultCompletion(vscode.l10n.t('{0} vault item(s) moved.', moved));
 		} catch (error) {
 			void vscode.window.showErrorMessage(safeError(error, vscode.l10n.t('Could not move the vault item.')));

@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix native vault file drags failing because TreeItem command arguments form a circular object graph. Transfer bounded URI-only JSON and revalidate every source/destination. Preserve selected folder hierarchies, honor canceled drops, and reject symbolic-link destinations. Add mouse-driven VS Code drag/undo QA and 11 host drop scenarios.
+
 - Remove typing-idle delays from Live Preview synchronization and Markdown autosave. Serialize edits behind host acknowledgments and disk saves behind path authorization; retain edits arriving during a slow save. Warn on save failure and commit valid property edits when leaving the field instead of discarding them.
 - Observe delayed dirty-state notifications so task changes cannot remain unsaved after a preceding save. Prevent background vault-index refreshes from interrupting table/property editing and committing only a partial cell value.
 

@@ -4,7 +4,8 @@ import { StyleManagerViewProvider } from './sidebar/StyleManagerViewProvider';
 import { StyleStore } from './sidebar/styleStore';
 import { OutlineViewProvider } from './sidebar/OutlineViewProvider';
 import { getCodeTokenizationRunCount, setGrammarRoot } from './editor/shikiHost';
-import { registerVault } from './vault/registerVault';
+import { registerVault, VaultDragAndDropController } from './vault/registerVault';
+import { VaultEntry, VaultTreeProvider } from './vault/VaultTreeProvider';
 import { LinkRewriteService } from './vault/LinkRewriteService';
 import type { VaultIndexRecord } from './vault/VaultIndex';
 import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSearchService';
@@ -15,6 +16,7 @@ import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
 import { DEFAULT_EDITOR_SETTING, editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
 
 interface DevelopmentApi {
+	getDragDropTestTypes(): { VaultEntry: typeof VaultEntry; VaultTreeProvider: typeof VaultTreeProvider; VaultDragAndDropController: typeof VaultDragAndDropController };
 	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
 	getVaultRecentPaths(): readonly string[];
 	getVaultIndexRecords(): readonly VaultIndexRecord[];
@@ -176,6 +178,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 	// no public API and cannot use it to bypass command trust checks.
 	if (context.extensionMode !== vscode.ExtensionMode.Production) {
 		return {
+			getDragDropTestTypes: () => ({ VaultEntry, VaultTreeProvider, VaultDragAndDropController }),
 			getVaultService: () => vaultRegistration.getService(),
 			getVaultRecentPaths: () => vaultRegistration.getRecentPaths(),
 			getVaultIndexRecords: () => vaultRegistration.getIndex()?.all() ?? [],

@@ -64,6 +64,52 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('native vault tree mouse drag moves a file and folder and supports undo', async () => {
+		const fixture = await makeFixture('drag-ui');
+		const target = await service.createFolder(fixture, 'Destination');
+		const folder = await service.createFolder(fixture, 'Source folder');
+		await service.createNote(folder, 'Child');
+		const source = await service.createNote(fixture, 'Drag note');
+		const index = await service.createNote(fixture, 'Move links');
+		await vscode.workspace.fs.writeFile(index, bytes('[Child](Source%20folder/Child.md)\n'));
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		const page = await getWorkbenchPage();
+		const rootPath = fixture.path.slice(service.rootUri.path.length + 1);
+		const row = (label: string) => page.getByRole('treeitem', { name: label, exact: true });
+		await row(`Folder: ${rootPath}`).click();
+		await page.keyboard.press('ArrowRight');
+		const drag = async (from: string, to: string) => {
+			const source = row(from).locator('.monaco-icon-label');
+			const destination = row(to).locator('.monaco-icon-label');
+			const start = await source.boundingBox(), end = await destination.boundingBox();
+			assert.ok(start && end);
+			await page.mouse.move(start.x + 30, start.y + 10);
+			await page.mouse.down();
+			await page.mouse.move(start.x + 50, start.y + 10, { steps: 8 });
+			await delay(300);
+			await page.mouse.move(end.x + 30, end.y + 10, { steps: 20 });
+			await delay(300);
+			await page.mouse.up();
+		};
+		await drag(`File: ${rootPath}/Drag note.md`, `Folder: ${rootPath}/Destination`);
+		await waitFor(async () => {
+			try { await vscode.workspace.fs.stat(vscode.Uri.joinPath(target, 'Drag note.md')); return true; } catch { return false; }
+		}, 'native file drag did not move the file').catch(async error => {
+			throw new Error(`${error.message}; notifications=${await page.locator('.notifications-toasts').innerText()}; source=${await row(`File: ${rootPath}/Drag note.md`).evaluate(el => el.outerHTML)}`);
+		});
+		await assert.rejects(Promise.resolve(vscode.workspace.fs.stat(source)));
+		await drag(`Folder: ${rootPath}/Source folder`, `Folder: ${rootPath}/Destination`);
+		await waitFor(async () => {
+			try { await vscode.workspace.fs.stat(vscode.Uri.joinPath(target, 'Source folder/Child.md')); return true; } catch { return false; }
+		}, 'native folder drag did not preserve its child');
+		await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(index));
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await vscode.commands.executeCommand('undo');
+		await waitFor(async () => {
+			try { await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, 'Child.md')); return true; } catch { return false; }
+		}, 'undo did not restore the dragged folder');
+	});
+
 	test('continuous typing reaches disk before typing stops and survives switching files', async () => {
 		const fixture = await makeFixture('immediate-save');
 		const note = await service.createNote(fixture, 'Immediate Save');

@@ -38,6 +38,14 @@ Existing explicitly saved viewing preferences are preserved when updating.
 - Right-click any vault file or folder and choose **Copy Absolute Path** to copy its full operating-system path, or **Copy Vault-Relative Path** for a path relative to the vault
 - Immediate external-file updates with a coalesced reconciliation pass for folder renames and bulk changes
 - Automatic Markdown and wikilink updates after file or folder moves
+- Drag onto a folder to move into it, onto a file to move into that file's parent,
+  or onto empty tree space to move to the vault root. Multiple selections are
+  supported; selecting a folder and its children moves the folder once, intact.
+  Existing destinations are never overwritten. Symbolic-link destinations and
+  moves into the source folder itself are rejected. Workspace Trust is required.
+- Dragging moves files; it does not create a manual sibling order. Name/date
+  sorting still determines where items appear. To undo a move with link updates,
+  focus an affected note and use VS Code's Undo command.
 - Local vault search, Quick Switcher, backlinks, unlinked mentions, recent notes, tags, aliases, and hover previews
 - Incremental metadata index that can be rebuilt from the files in the workspace
 
