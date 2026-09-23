@@ -683,12 +683,21 @@ async function focusFrameControlWithKeyboard(
 ): Promise<void> {
 	await control.waitFor({ state: 'visible', timeout: 5_000 });
 	const body = frame.locator('body');
+	const visited: string[] = [];
 	for (let index = 0; index < 100; index++) {
 		if (await control.evaluate((element) => document.activeElement === element)) return;
+		visited.push(await frame.evaluate(() => `${document.activeElement?.tagName}: ${document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.className}`));
 		if (index === 0 && await frame.evaluate(() => document.activeElement === document.body)) await body.press('Tab');
-		else await page.keyboard.press('Tab');
+		else {
+			// Use the direction toward the target within this webview. Always
+			// tabbing forward could leave the sidebar and traverse the entire
+			// workbench before reaching an earlier theme's action buttons.
+			const backwards = await control.evaluate(element => Boolean(document.activeElement
+				&& element.compareDocumentPosition(document.activeElement) & Node.DOCUMENT_POSITION_FOLLOWING));
+			await page.keyboard.press(backwards ? 'Shift+Tab' : 'Tab');
+		}
 	}
-	assert.fail(`the packaged sidebar control could not be reached through keyboard Tab navigation: ${await control.getAttribute('aria-label')}`);
+	assert.fail(`the packaged sidebar control could not be reached through keyboard Tab navigation: ${await control.getAttribute('aria-label')}; visited: ${JSON.stringify(visited)}`);
 }
 
 function findHighContrastTheme(): string {

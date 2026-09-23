@@ -282,7 +282,9 @@ Use colons in the separator row to control alignment:
 | Review | Pending | $25 |
 ```
 
-Select a rendered table cell to edit it. Open **Table options** above the table
+Select a rendered table cell to edit it. Click the small **</>** button above
+any table to show its Markdown source. This also works in Locked mode, where
+the source remains read-only. Open **Table options** above the table
 to insert, move, sort, align, or delete rows and columns. The menu starts closed
 to keep notes uncluttered; actions that need a cell stay disabled until one is
 selected. Use Tab or arrow keys within the controls, and Escape to close them.

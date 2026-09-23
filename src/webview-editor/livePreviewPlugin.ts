@@ -580,6 +580,7 @@ class TableWidget extends WidgetType {
 		// spacing wrapper) because that box is what CodeMirror measures.
 		const wrap = document.createElement('div');
 		wrap.className = 'mlp-table-wrap';
+		wrap.dataset.mlpTableFrom = String(this.tableFrom);
 		// The button is a normal element *before* the table, not an overlay on top
 		// of it: floated over the corner it was easy to miss, and it had to be kept
 		// clear of the header cell's own text. In the flow it sits in its own strip
@@ -663,7 +664,10 @@ class TableWidget extends WidgetType {
 		hint.className = 'mlp-table-options-hint';
 		hint.textContent = t('table.optionsHint');
 		toolbar.appendChild(hint);
-		wrap.appendChild(optionsButton);
+		const tableButtons = document.createElement('div');
+		tableButtons.className = 'mlp-table-buttons';
+		tableButtons.appendChild(optionsButton);
+		wrap.appendChild(tableButtons);
 		wrap.appendChild(toolbar);
 		const tableViewport = document.createElement('div');
 		tableViewport.className = 'mlp-table-viewport';
@@ -693,6 +697,12 @@ class TableWidget extends WidgetType {
 			clone.querySelectorAll<HTMLElement>('[tabindex], [contenteditable]').forEach((cell) => {
 				cell.removeAttribute('tabindex');
 				cell.removeAttribute('contenteditable');
+			});
+			clone.querySelectorAll<HTMLElement>('.mlp-table-cell').forEach((cell) => {
+				cell.classList.remove('mlp-table-cell', 'mlp-table-cell-editing');
+				for (const attribute of Array.from(cell.attributes)) {
+					if (attribute.name.startsWith('data-mlp-')) cell.removeAttribute(attribute.name);
+				}
 			});
 			stickyTable.replaceChildren(clone);
 			stickyTable.style.width = `${table.getBoundingClientRect().width}px`;
@@ -736,6 +746,23 @@ class TableWidget extends WidgetType {
 		if (table.tHead) headerObserver.observe(table.tHead, { childList: true, subtree: true, characterData: true });
 		view.scrollDOM.addEventListener('scroll', updateStickyHeader, { passive: true });
 		tableViewport.addEventListener('scroll', updateStickyHeader, { passive: true });
+		const preserveHorizontalScroll = (change: () => void): void => {
+			const left = tableViewport.scrollLeft;
+			change();
+			const doc = view.state.doc;
+			requestAnimationFrame(() => {
+				if (view.state.doc !== doc) return;
+				const replacement = view.dom.querySelector<HTMLElement>(
+					`.mlp-table-wrap[data-mlp-table-from="${this.tableFrom}"] .mlp-table-viewport`,
+				);
+				if (replacement) {
+					// The new widget's ResizeObserver may not have run yet. Establish
+					// its scroll container before restoring the saved horizontal offset.
+					replacement.classList.toggle('mlp-table-scrollable', replacement.scrollWidth > replacement.clientWidth + 1);
+					replacement.scrollLeft = left;
+				}
+			});
+		};
 
 		// The cell currently being edited, if any. Editing is entered lazily on
 		// click rather than by making every cell permanently `contenteditable`,
@@ -835,7 +862,7 @@ class TableWidget extends WidgetType {
 			// avoid, and it would fire the instant the edit was saved.
 			const changes = { from: ref.from, to: ref.to, insert: next };
 			const anchor = caretPastTable(view.state, ref.from, next.length - (ref.to - ref.from));
-			view.dispatch(anchor === null ? { changes } : { changes, selection: { anchor } });
+			preserveHorizontalScroll(() => view.dispatch(anchor === null ? { changes } : { changes, selection: { anchor } }));
 			// The replacement's own length is what the cell now ends at.
 			return ref.from + next.length;
 		};
@@ -866,14 +893,8 @@ class TableWidget extends WidgetType {
 			// meaningful to pin, and writing zeros would collapse it.
 			if (!widths.every((w) => w > 0)) return;
 			const tableWidth = table.getBoundingClientRect().width;
-			// Widths are pinned as *percentages*, not pixels. A pixel width is a
-			// snapshot of one moment: if the editor gets narrower mid-edit — a
-			// sidebar opens, the window is resized, the view is split — a pinned
-			// pixel width keeps the table at its old size and it hangs past the text
-			// column. (`max-width: 100%` does not save it either: under
-			// `table-layout: fixed` the per-column pixel widths win, and the table
-			// overflows anyway.) Percentages hold the *proportions* that stop the
-			// lurch while still letting the table track its container's width.
+			// Keep column proportions and the current table width stable during
+			// editing. A narrower editor is handled by the horizontal viewport.
 			const total = widths.reduce((sum, w) => sum + w, 0);
 			if (total <= 0) return;
 			cells.forEach((c, i) => {
@@ -976,12 +997,11 @@ class TableWidget extends WidgetType {
 			const finish = (): void => {
 				// Scoped to *this* table's replacement, not the first one in the
 				// document: a file with several tables would otherwise start editing
-				// the wrong one. `domAtPos` resolves the widget now occupying this
-				// table's position back to its element.
-				const host = view.domAtPos(Math.min(this.tableFrom, view.state.doc.length)).node as HTMLElement | null;
-				const scope = (host?.nodeType === 1 ? host : host?.parentElement)?.closest('.mlp-table-wrap');
-				const live = (scope ?? document).querySelector<HTMLElement>(
-					`.mlp-table-cell[data-mlp-row="${row}"][data-mlp-col="${col}"]`,
+				// the wrong one. Match the source position and exclude the decorative
+				// sticky-header copy from keyboard editing targets.
+				const scope = view.dom.querySelector<HTMLElement>(`.mlp-table-wrap[data-mlp-table-from="${this.tableFrom}"]`);
+				const live = scope?.querySelector<HTMLElement>(
+					`.mlp-table .mlp-table-cell[data-mlp-row="${row}"][data-mlp-col="${col}"]`,
 				);
 				// Tab selects the whole cell it lands on, the way a spreadsheet does,
 				// so typing straight away replaces the old value.
@@ -1008,9 +1028,11 @@ class TableWidget extends WidgetType {
 					return (target ? readCellRef(target)?.to : undefined) ?? view.posAtDOM(table);
 				},
 			});
-		tableSourceButton.textContent = t('table.source');
 		tableSourceButton.classList.add('mlp-table-action-btn');
-		toolbar.appendChild(tableSourceButton);
+		tableSourceButton.textContent = '</>';
+		tableSourceButton.title = t('table.source');
+		tableSourceButton.setAttribute('aria-label', t('table.source'));
+		tableButtons.prepend(tableSourceButton);
 
 		// Cell interaction is driven from `mousedown`, not `click`.
 		//
@@ -1272,7 +1294,7 @@ class TableWidget extends WidgetType {
 			const nextLength = doc.length - (to - from) + insert.length;
 			const endOfTable = from + insert.length;
 			const anchor = Math.min(endOfTable + 1, nextLength);
-			view.dispatch({ changes: { from, to, insert }, selection: { anchor } });
+			preserveHorizontalScroll(() => view.dispatch({ changes: { from, to, insert }, selection: { anchor } }));
 		};
 
 		const makeAddButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {

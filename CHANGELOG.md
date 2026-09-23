@@ -1,5 +1,7 @@
 # Changelog
 
+- Add an always-visible compact table source button. Preserve horizontal scrolling when saving cells or changing table structure, and prevent Tab from targeting the decorative sticky header. Expand table QA across 1–30 columns, up to 100 rows, narrow/wide layouts, multiple tables, themes, resizing, and source-mode transitions.
+
 - Keep sticky table headers and table bodies synchronized horizontally, including scrolling directly over a pinned header.
 
 - Let wide rendered tables scroll horizontally without squeezing columns or widening the editor, while preserving sticky headers during vertical scrolling. Render bare `<br>` line breaks inside table cells without enabling arbitrary HTML or attributes.

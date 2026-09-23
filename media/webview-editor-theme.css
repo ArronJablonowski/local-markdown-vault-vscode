@@ -727,9 +727,17 @@ html, body {
 }
 .mlp-table-toolbar[hidden], .mlp-table-options-hint[hidden] { display: none; }
 .mlp-table-options-hint { grid-column: 1 / -1; font-size: 12px; }
+.mlp-table-buttons {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 4px;
+}
+.mlp-table-buttons .mlp-code-mode-btn { opacity: 1; }
 .mlp-table-options-btn {
 	display: block;
-	margin: 0 0 4px auto;
+	margin: 0;
 	padding: 4px 8px;
 	font: inherit;
 	font-size: 12px;
