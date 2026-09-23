@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, type Browser, type Frame, type Page } from 'playwright';
+import { largeMixedDocument } from '../fixtures/largeMixedDocument';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
 let debugBrowser: Browser | undefined;
@@ -61,6 +62,47 @@ suite('focused cross-platform desktop transactions', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		for (const fixture of fixtures.splice(0)) {
 			try { await vscode.workspace.fs.delete(fixture, { recursive: true }); } catch { /* already removed */ }
+		}
+	});
+
+	test('large mixed documents preserve exact disk content through native UI edits and file switches', async function () {
+		this.timeout(180_000);
+		const fixture = await makeFixture('large-mixed');
+		for (const sections of [80, 240, 600]) {
+			const note = await service.createNote(fixture, `Large ${sections}`);
+			const original = largeMixedDocument(sections);
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Large mixed QA');
+			const keyboard = frame.page().keyboard;
+			await frame.locator('.cm-content').click();
+			await keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+			await frame.locator('.cm-search input[name="search"]').fill('Final editable paragraph.');
+			await keyboard.press('Enter');
+			await keyboard.press('Escape');
+			await frame.locator('.cm-line', { hasText: 'Final editable paragraph.' }).waitFor({ state: 'visible' });
+			const previousClipboard = await vscode.env.clipboard.readText();
+			try {
+				await keyboard.press(process.platform === 'darwin' ? 'Meta+c' : 'Control+c');
+				await waitFor(async () => await vscode.env.clipboard.readText() === 'Final editable paragraph.', 'large-document selected text did not copy');
+			} finally {
+				await vscode.env.clipboard.writeText(previousClipboard);
+			}
+			await keyboard.press('ArrowRight');
+			await keyboard.type(' Native saved edit.', { delay: 20 });
+			const expected = original.replace('Final editable paragraph.', 'Final editable paragraph. Native saved edit.');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'large-document edit did not save exactly');
+			// Host undo may group rapid typing into multiple transactions.
+			for (let attempt = 0; attempt < 20; attempt++) {
+				const before = Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+				if (before === original) break;
+				await keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+				await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') !== before, 'large-document undo made no progress').catch(async error => {
+					throw new Error(`${String(error)}; sections=${sections}; attempt=${attempt}; tail=${JSON.stringify(before.slice(-120))}; documentTail=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText().slice(-120))}; focus=${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 200))}`);
+				});
+			}
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original, 'undo must restore the entire file');
+			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 		}
 	});
 

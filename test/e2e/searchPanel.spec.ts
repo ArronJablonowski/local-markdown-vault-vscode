@@ -92,4 +92,15 @@ test.describe('find panel', () => {
 		await page.keyboard.press('Escape');
 		await expect(page.locator('.cm-search')).toHaveCount(0);
 	});
+
+	test('pasted find and replacement text are committed before the first Enter', async ({ page }) => {
+		await openSearch(page);
+		await page.locator('.cm-search input[name="search"]').fill('needle');
+		await page.keyboard.press('Enter');
+		expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('needle');
+		await page.locator('.mlp-search-toggle').click();
+		await page.locator('.cm-search input[name="replace"]').fill('replacement');
+		await page.keyboard.press('Enter');
+		await expect(page.locator('.cm-content')).toContainText('replacement');
+	});
 });

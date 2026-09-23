@@ -1,6 +1,6 @@
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { getSearchQuery, openSearchPanel, searchPanelOpen } from '@codemirror/search';
+import { getSearchQuery, openSearchPanel, searchPanelOpen, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { t } from '../shared/i18n';
 
 /**
@@ -265,6 +265,15 @@ function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 	iconifyToggles(panel);
 	groupSearchRows(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;
+	// Mouse paste, drag/drop, and assistive input do not necessarily emit keyup.
+	// Commit on input so the first Enter searches the newly entered query.
+	panel.addEventListener('input', event => {
+		const field = event.target;
+		if (!(field instanceof HTMLInputElement) || !['search', 'replace'].includes(field.name)) return;
+		const current = getSearchQuery(view.state);
+		const next = new SearchQuery({ ...current, [field.name]: field.value });
+		if (!next.eq(current)) view.dispatch({ effects: setSearchQuery.of(next) });
+	});
 	const toggle = document.createElement('button');
 	toggle.type = 'button';
 	toggle.className = 'mlp-search-toggle';
