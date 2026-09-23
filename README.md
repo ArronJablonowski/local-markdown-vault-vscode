@@ -287,7 +287,9 @@ to insert, move, sort, align, or delete rows and columns. The menu starts closed
 to keep notes uncluttered; actions that need a cell stay disabled until one is
 selected. Use Tab or arrow keys within the controls, and Escape to close them.
 The header row remains visible while a long table scrolls, then stops at the
-bottom of that table. Wide tables scroll horizontally within the note instead
+bottom of that table. The pinned header follows horizontal scrolling, and you
+can scroll sideways over either the header or the table body.
+Wide tables scroll horizontally within the note instead
 of squeezing their columns; use Shift+mouse wheel, a trackpad gesture, or focus
 the table scroll region and use the horizontal scrollbar. To put multiple lines
 inside one cell, use a bare `<br>` (or `<br/>`); tags with attributes and other

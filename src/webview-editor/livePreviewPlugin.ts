@@ -701,7 +701,7 @@ class TableWidget extends WidgetType {
 			originalCells.forEach((cell, index) => {
 				if (clonedCells[index]) clonedCells[index].style.width = `${cell.getBoundingClientRect().width}px`;
 			});
-			stickyTable.style.marginLeft = `${-tableViewport.scrollLeft}px`;
+			stickyClip.scrollLeft = tableViewport.scrollLeft;
 		};
 		const updateStickyHeader = (): void => {
 			const scrollerTop = view.scrollDOM.getBoundingClientRect().top;
@@ -710,8 +710,15 @@ class TableWidget extends WidgetType {
 			const show = tableViewport.classList.contains('mlp-table-scrollable')
 				&& bounds.top < scrollerTop && bounds.bottom > scrollerTop + headerHeight;
 			if (stickyHeader.hidden === show) stickyHeader.hidden = !show;
-			if (show) stickyTable.style.marginLeft = `${-tableViewport.scrollLeft}px`;
+			if (show) stickyClip.scrollLeft = tableViewport.scrollLeft;
 		};
+		// Keep native horizontal scrolling synchronized in either direction,
+		// including trackpad/wheel gestures made directly over the pinned header.
+		stickyClip.addEventListener('scroll', () => {
+			if (!stickyHeader.hidden && tableViewport.scrollLeft !== stickyClip.scrollLeft) {
+				tableViewport.scrollLeft = stickyClip.scrollLeft;
+			}
+		}, { passive: true });
 		const widthObserver = new ResizeObserver(() => {
 			const overflowing = table.scrollWidth > tableViewport.clientWidth + 1;
 			if (tableViewport.classList.contains('mlp-table-scrollable') !== overflowing) {

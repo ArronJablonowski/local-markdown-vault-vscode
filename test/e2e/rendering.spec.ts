@@ -98,6 +98,25 @@ test.describe('block rendering', () => {
 			headerTop: document.querySelector('.mlp-sticky-table thead th')!.getBoundingClientRect().top,
 		}));
 		expect(Math.abs(bounds.headerTop - bounds.scrollerTop)).toBeLessThanOrEqual(2);
+		const viewport = page.locator('.mlp-table-viewport');
+		for (const offset of [120, 10000, 0]) {
+			await viewport.evaluate((element, left) => { element.scrollLeft = left; }, offset);
+			await expect.poll(() => page.evaluate(() => {
+				const original = Array.from(document.querySelectorAll('.mlp-table thead th'));
+				const sticky = Array.from(document.querySelectorAll('.mlp-sticky-table thead th'));
+				return Math.max(...original.map((cell, index) => Math.abs(cell.getBoundingClientRect().left - sticky[index].getBoundingClientRect().left)));
+			})).toBeLessThanOrEqual(2);
+		}
+		const header = await page.locator('.mlp-table-sticky-clip').boundingBox();
+		expect(header).not.toBeNull();
+		await page.mouse.move(header!.x + 80, header!.y + 10);
+		await page.mouse.wheel(100, 0);
+		await expect.poll(() => viewport.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+		await expect.poll(() => page.evaluate(() => {
+			const body = document.querySelector('.mlp-table-viewport')!;
+			const header = document.querySelector('.mlp-table-sticky-clip')!;
+			return Math.abs(body.scrollLeft - header.scrollLeft);
+		})).toBeLessThanOrEqual(1);
 	});
 
 	test('a rendered table link is keyboard-operable', async ({ page }) => {

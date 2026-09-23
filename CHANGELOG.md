@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep sticky table headers and table bodies synchronized horizontally, including scrolling directly over a pinned header.
+
 - Let wide rendered tables scroll horizontally without squeezing columns or widening the editor, while preserving sticky headers during vertical scrolling. Render bare `<br>` line breaks inside table cells without enabling arbitrary HTML or attributes.
 
 - Keep currency ranges such as `$75–$85` and `$177-$187` as literal text instead of invalid math. Preserve numeric formulas and correctly detect real math later on a line containing prices.
