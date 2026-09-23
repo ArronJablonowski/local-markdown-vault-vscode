@@ -372,6 +372,11 @@ This statement has a source.[^source]
 
 #### Add and leave a code block
 
+Put the language after the opening three **backticks** (not hash marks), such as
+` ```python ` or ` ```javascript `. The rendered block displays that language
+in its header, including when collapsed. An unlabeled fence has no language
+badge. The label is not included when you copy the code with its Copy button.
+
 ````markdown
 ```javascript
 console.log('Stored locally');

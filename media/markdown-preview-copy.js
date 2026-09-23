@@ -29,6 +29,19 @@
 			pre.classList.remove('lmv-code-collapsed');
 		}
 		renderedCode.set(pre, code);
+		const languageClass = Array.from(code.classList).find(value => value.startsWith('language-'));
+		const language = languageClass ? languageClass.slice(9, 89) : '';
+		let label = pre.querySelector(':scope > .lmv-code-language');
+		if (language) {
+			if (!label) {
+				label = document.createElement('span');
+				label.className = 'lmv-code-language';
+				pre.appendChild(label);
+			}
+			if (label.textContent !== language) label.textContent = language;
+		} else {
+			label?.remove();
+		}
 
 		pre.classList.add('lmv-code-copy-host');
 		if (!pre.querySelector(`:scope > .${BUTTON_CLASS}`)) {
@@ -97,7 +110,11 @@
 		window.requestAnimationFrame(refresh);
 	}
 
-	new MutationObserver(scheduleRefresh).observe(document.documentElement, {
+	new MutationObserver(records => {
+		if (records.some(record => record.type !== 'attributes' || record.target instanceof HTMLElement && record.target.matches('pre > code'))) scheduleRefresh();
+	}).observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ['class'],
 		childList: true,
 		characterData: true,
 		subtree: true,

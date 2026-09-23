@@ -2,6 +2,23 @@
 	position: relative;
 }
 
+.lmv-code-copy-host:has(> .lmv-code-language) {
+	padding-top: 2.6rem;
+}
+
+.lmv-code-language {
+	position: absolute;
+	top: 0.45rem;
+	left: 0.75rem;
+	max-width: calc(100% - 7rem);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground, inherit);
+	user-select: none;
+}
+
 .lmv-code-copy-button {
 	position: absolute;
 	top: 0.45rem;

@@ -311,6 +311,18 @@ html, body {
 	align-items: center;
 	gap: 4px;
 }
+.mlp-code-language {
+	max-width: 12ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font: 11px/20px var(--vscode-editor-font-family, monospace);
+	color: var(--vscode-descriptionForeground, inherit);
+	user-select: none;
+}
+.cm-line.mlp-line-code:has(.mlp-code-language) {
+	padding-top: 26px;
+}
 .mlp-copy-code-btn,
 .mlp-collapse-code-btn {
 	/* Positioning belongs to `.mlp-copy-code-host`, which places the whole group.

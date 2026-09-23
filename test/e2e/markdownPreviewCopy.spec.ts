@@ -5,6 +5,17 @@ import { test, expect } from '@playwright/test';
 const ROOT = join(__dirname, '..', '..');
 
 test.describe('Markdown Preview code copy controls', () => {
+	test('labels code languages and updates labels without changing copied content', async ({ page }) => {
+		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
+		await page.setContent('<pre><code class="language-python">print(1)</code></pre><pre><code>plain</code></pre>');
+		await page.addScriptTag({ content: script });
+		await expect(page.locator('.lmv-code-language')).toHaveText(['python']);
+		await page.locator('code').first().evaluate(code => code.setAttribute('class', 'language-javascript'));
+		await expect(page.locator('.lmv-code-language')).toHaveText(['javascript']);
+		await expect(page.locator('code').first()).toHaveText('print(1)');
+		await page.locator('code').first().evaluate(code => code.setAttribute('class', ''));
+		await expect(page.locator('.lmv-code-language')).toHaveCount(0);
+	});
 	test('adds a copy button to single-line and multiline fenced output', async ({ page }) => {
 		const script = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.js'), 'utf8');
 		const style = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.css'), 'utf8');

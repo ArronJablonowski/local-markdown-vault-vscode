@@ -362,16 +362,24 @@ class CopyCodeWidget extends WidgetType {
 		private readonly revealPos: number,
 		private readonly lineCount: number,
 		private readonly collapsed: boolean,
+		private readonly language: string,
 	) {
 		super();
 	}
 	eq(other: CopyCodeWidget): boolean {
-		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos && other.lineCount === this.lineCount && other.collapsed === this.collapsed;
+		return other.from === this.from && other.to === this.to && other.revealPos === this.revealPos && other.lineCount === this.lineCount && other.collapsed === this.collapsed && other.language === this.language;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const host = document.createElement('span');
 		host.className = 'mlp-copy-code-host';
 		host.dataset.codeFrom = String(this.from);
+		if (this.language) {
+			const label = document.createElement('span');
+			label.className = 'mlp-code-language';
+			label.textContent = this.language;
+			label.title = this.language;
+			host.appendChild(label);
+		}
 		const collapsed = this.collapsed;
 		const setCollapsed = (next: boolean) => {
 			const firstLine = view.state.doc.lineAt(this.from);
@@ -2153,7 +2161,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 							});
 							decorations.push(
 								Decoration.widget({
-									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount, collapsed),
+									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount, collapsed,
+										infoNode ? state.sliceDoc(infoNode.from, Math.min(infoNode.to, infoNode.from + 80)).trim().split(/\s+/)[0] : ''),
 									side: -1,
 								}).range(codeFrom),
 							);
