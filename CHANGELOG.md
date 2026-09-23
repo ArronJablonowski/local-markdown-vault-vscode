@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep currency ranges such as `$75–$85` and `$177-$187` as literal text instead of invalid math. Preserve numeric formulas and correctly detect real math later on a line containing prices.
+
 - Fix black/unreadable Mermaid diagrams by retaining safe SVG paint and typography while discarding animation, external-resource, and shadow-host rules. Keep invalid Mermaid error graphics out of the surrounding editor.
 - Refresh referenced draw.io diagrams after external changes, deletion, or recreation without modifying the Markdown note; ignore stale read replies and revalidate every file read.
 - Expand diagram QA across ten Mermaid families, mixed diagrams, draw.io pages, pan/zoom/reset/source controls, malformed inputs, SVG isolation, and real VS Code file watching.

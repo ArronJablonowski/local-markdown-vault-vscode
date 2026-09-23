@@ -68,15 +68,22 @@ function findInlineMathRanges(text: string): MathRange[] {
 
 		if (text[cursor] === '$') {
 			const source = text.slice(from + 1, cursor);
-			if (
+			// A dollar immediately before a digit starts a price, not a math
+			// closer: "$75–$85" must remain literal. Numeric math like "$2$"
+			// remains valid because its closing dollar is not followed by a digit.
+			const validCloser = (
 				text[cursor + 1] !== '$' &&
+				!/[0-9]/.test(text[cursor + 1] ?? '') &&
 				source.length <= MAX_INLINE_MATH_CHARS &&
 				source.length > 0 &&
 				!/^\s|\s$/.test(source)
-			) {
+			);
+			if (validCloser) {
 				ranges.push({ from, to: cursor + 1, source, display: false });
 			}
-			i = cursor + 1;
+			// An invalid closer may be the opener of real math later on the
+			// same line. Reconsider it without rescanning the rejected span.
+			i = validCloser ? cursor + 1 : cursor;
 		} else {
 			i = from + 1;
 		}
