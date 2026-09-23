@@ -6,6 +6,7 @@ export interface ParsedCallout {
 }
 
 const TYPE_ALIASES: Record<string, string> = {
+	notes: 'note',
 	summary: 'abstract',
 	tldr: 'abstract',
 	hint: 'tip',

@@ -9,6 +9,22 @@ import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { blockCursorTouchesRange, noteRevealed, onPointerRelease } from './cmUtils';
 import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, FrontmatterErrorWidget } from './frontmatterWidget';
 import { parseFrontmatterYaml } from './frontmatterSecurity';
+import { calloutForNode, containingCallouts, toggleCallout } from './calloutState';
+
+/** Keep a block object's measured box inside its surrounding callout panel. */
+class CalloutBlockWidget extends WidgetType {
+	constructor(private readonly inner: WidgetType, private readonly type: string, private readonly last: boolean) { super(); }
+	eq(other: CalloutBlockWidget): boolean { return this.type === other.type && this.last === other.last && this.inner.eq(other.inner); }
+	toDOM(view: EditorView): HTMLElement {
+		const dom = this.inner.toDOM(view);
+		dom.classList.add('mlp-callout-block', 'mlp-line-callout', `mlp-callout-${this.type}`);
+		if (this.last) dom.classList.add('mlp-line-callout-last');
+		return dom;
+	}
+	ignoreEvent(event: Event): boolean { return this.inner.ignoreEvent(event); }
+	destroy(dom: HTMLElement): void { this.inner.destroy(dom); }
+	get estimatedHeight(): number { return this.inner.estimatedHeight; }
+}
 
 /**
  * CodeMirror 6 forbids block decorations (block widgets / block-replacing
@@ -53,6 +69,16 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 	tree.iterate({
 		enter: (node) => {
 			if (fm && node.from >= fm.from && node.to <= fm.to) return false;
+			const ownCallout = calloutForNode(state, node.node);
+			if (ownCallout?.collapsed) {
+				const bodyFrom = state.doc.lineAt(node.from).to + 1;
+				if (bodyFrom < node.to) decorations.push(Decoration.replace({ block: true }).range(bodyFrom, node.to));
+				return false;
+			}
+			const callouts = containingCallouts(state, node.node);
+			if (callouts.some(callout => callout.collapsed)) return false;
+			const contextual = (widget: WidgetType): WidgetType => callouts.length
+				? new CalloutBlockWidget(widget, callouts[0].type, node.to === callouts[0].to) : widget;
 			if (node.name === 'FencedCode') {
 				const infoNode = node.node.getChild('CodeInfo');
 				const lang = infoNode ? state.sliceDoc(infoNode.from, infoNode.to).trim().toLowerCase() : '';
@@ -67,7 +93,7 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 				if (!code.trim()) return;
 				const offset = node.from - range.from;
 				const widget = diagram === 'mermaid' ? new MermaidWidget(code, offset) : new DrawioWidget(code, offset);
-				decorations.push(Decoration.replace({ widget, block: true }).range(range.from, range.to));
+				decorations.push(Decoration.replace({ widget: contextual(widget), block: true }).range(range.from, range.to));
 				return false;
 			}
 			if (node.name === 'Table') {
@@ -77,7 +103,7 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 				const range = alignedBlockRange(state, node.from, node.to);
 				if (!range) return;
 				decorations.push(
-					Decoration.replace({ widget: buildTableWidget(state, node), block: true }).range(range.from, range.to),
+					Decoration.replace({ widget: contextual(buildTableWidget(state, node)), block: true }).range(range.from, range.to),
 				);
 				return false;
 			}
@@ -149,7 +175,7 @@ export const blockDecorationsField = StateField.define<DecorationSet>({
 		if (
 			tr.docChanged ||
 			tr.selection ||
-			tr.effects.some((e) => e.is(refreshBlocks)) ||
+			tr.effects.some((e) => e.is(refreshBlocks) || e.is(toggleCallout)) ||
 			syntaxTree(tr.startState) !== syntaxTree(tr.state)
 		) {
 			return buildBlockDecorations(tr.state);

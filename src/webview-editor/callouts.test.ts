@@ -9,6 +9,7 @@ describe('Obsidian callout headers', () => {
 	});
 
 	it('normalizes documented aliases', () => {
+		expect(parseCalloutHeader('> [!notes]', 1)).toMatchObject({ type: 'note', title: 'Note' });
 		expect(parseCalloutHeader('> [!faq]', 1)).toMatchObject({ type: 'question', title: 'Question' });
 		expect(parseCalloutHeader('> [!caution]+ Watch', 1)).toMatchObject({ type: 'warning', title: 'Watch' });
 		expect(parseCalloutHeader('> [!cite]', 1)).toMatchObject({ type: 'quote', title: 'Quote' });

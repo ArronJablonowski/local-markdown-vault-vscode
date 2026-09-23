@@ -20,6 +20,8 @@ import {
 } from './livePreviewPlugin';
 import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
+import { calloutState } from './calloutState';
+import { indentQuotedList } from './quotedListIndent';
 import { detectFrontmatter } from './frontmatterWidget';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
@@ -185,6 +187,7 @@ function createExtensions(): Extension[] {
 		closeBrackets(),
 		headingSpaceInputHandler,
 		backtickInputHandler,
+		calloutState,
 		livePreviewPlugin,
 		wikilinkDecorations,
 		wikilinkCompletionExtension,
@@ -287,6 +290,7 @@ function createExtensions(): Extension[] {
 			{ key: 'Mod-Shift-z', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
 			{ key: 'Mod-b', stopPropagation: true, run: toggleEmphasisCommand('**') },
 			{ key: 'Mod-i', stopPropagation: true, run: toggleEmphasisCommand('*') },
+			{ key: 'Tab', run: indentQuotedList, shift: view => indentQuotedList(view, true), stopPropagation: true },
 			indentWithTab,
 			...defaultKeymap,
 			// Tab indents Markdown, matching the requested Obsidian-style editing

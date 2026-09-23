@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { findMathRanges } from './math';
 
 describe('math range detection', () => {
+	it('extracts quoted display math without quote prefixes', () => {
+		const source = '> $$\n> x^2\n> $$';
+		expect(findMathRanges(source)).toEqual([{ from: 0, to: source.length, source: 'x^2', display: true }]);
+	});
+	it('leaves dollar spans inside quoted fences literal', () => {
+		expect(findMathRanges('> ```text\n> $literal$\n> ```')).toEqual([]);
+	});
 	it.each(['$75–$85', '$75-$85', '$75—$85', '$1,250.50–$1,500.00', '$5/$10/$15', '$34 each', '$102 total'])('keeps currency text literal: %s', (text) => {
 		expect(findMathRanges(text)).toEqual([]);
 	});

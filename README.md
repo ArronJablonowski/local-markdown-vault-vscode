@@ -221,6 +221,7 @@ Start a blockquote with `[!type]`. Add `-` to start collapsed or `+` to start ex
 ```
 
 Supported standard families include `note`, `abstract`, `info`, `todo`, `tip`, `success`, `question`, `warning`, `failure`, `danger`, `bug`, `example`, and `quote`. Common Obsidian aliases such as `faq`, `important`, `caution`, and `cite` are also recognized.
+`notes` is accepted as a convenience alias for `note`.
 
 In Markdown Live Preview, Abstract uses a teal panel with a document icon;
 Warning uses an amber panel with a warning-triangle icon. Both support title-only
@@ -228,6 +229,16 @@ callouts (just `> [!abstract]` or `> [!warning]`), custom titles, and body text.
 To keep an entire section inside the tinted panel, prefix each of its lines
 with `>`, including blank lines. A heading or paragraph outside the blockquote
 is not part of the callout.
+
+Callouts can also contain task lists, tables, fenced code, Mermaid/draw.io
+diagrams, and display math. Keep the `>` prefix on every line of those objects.
+Tab and Shift+Tab change bullet nesting inside the callout. Click the header
+(or focus it and press Enter/Space) to fold the whole section without editing
+the file. Folding survives unrelated edits during the current editor session;
+the authored `+`/`-` marker controls its initial state when reopened.
+
+See [callout QA coverage](docs/CALLOUT_QA_2026-09-23.md) for tested interactions
+and remaining limitations.
 
 #### Add YAML properties
 

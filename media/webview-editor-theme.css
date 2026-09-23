@@ -516,7 +516,9 @@ html, body {
 	--mlp-callout-color: var(--vscode-textLink-foreground, #3794ff);
 }
 
-.cm-line.mlp-line-callout {
+.cm-line.mlp-line-callout,
+.mlp-block.mlp-callout-block,
+.mlp-math-block.mlp-callout-block {
 	background: color-mix(in srgb, var(--mlp-callout-color) 10%, transparent);
 	border-left: 0;
 	padding-left: 1em;

@@ -64,6 +64,29 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('callout table edits and nested tasks autosave while folding preserves source', async () => {
+		const fixture = await makeFixture('callout-qa');
+		const note = await service.createNote(fixture, 'Callout QA');
+		const initial = 'Intro\n\n> [!warning]+ Review\n> - [ ] Task\n>\n> | Name | Value |\n> | --- | --- |\n> | Alpha | Bold |\n\nAfter';
+		await vscode.workspace.fs.writeFile(note, Buffer.from(initial));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Review');
+		const cell = frame.locator('.mlp-table td').first();
+		await cell.focus();
+		await frame.page().keyboard.press('F2');
+		await frame.page().keyboard.type('Updated', { delay: 20 });
+		await frame.page().keyboard.press('Enter');
+		await frame.locator('.mlp-checkbox').click();
+		const expected = initial.replace('Alpha', 'Updated').replace('[ ]', '[x]');
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'callout table/task edits did not save correctly');
+		await frame.locator('.cm-line', { hasText: 'After' }).click();
+		await frame.locator('.mlp-callout-header').click();
+		assert.strictEqual(await frame.locator('.mlp-table').count(), 0);
+		await frame.locator('.mlp-callout-header').click();
+		await frame.locator('.mlp-table').waitFor({ state: 'visible' });
+		assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), expected);
+	});
+
 	test('list Tab and Shift+Tab update nesting and autosave without extra blank lines', async () => {
 		const fixture = await makeFixture('list-qa');
 		const note = await service.createNote(fixture, 'List QA');

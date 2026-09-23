@@ -5,6 +5,8 @@ import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
 import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
 import { diagramFenceRange, diagramFenceText } from './diagramFence';
+import { calloutForNode, calloutState, containingCallouts, toggleCallout } from './calloutState';
+import { renderableMathRanges } from './math';
 import { isDrawioPath } from './drawioFileClient';
 import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
@@ -49,10 +51,10 @@ export function isLineAligned(state: EditorState, from: number, to: number): boo
 
 // A block-level decoration (rich table widget) requires `to` to land exactly
 // at the end of its line, but `from` doesn't strictly have to be a line
-// start — it may sit after pure indentation, as for a table nested under a
-// list item ("  | a | b |"). Widening `from` back to the start of its own
-// line (which is safe precisely because nothing but whitespace precedes it)
-// satisfies CodeMirror's line-alignment requirement for block decorations
+// start — it may sit after indentation or quote markers in a list/callout.
+// Widening `from` back to the start of its own line is safe when only these
+// container prefixes precede it. The table model retains them when rewriting.
+// This satisfies CodeMirror's line-alignment requirement for block decorations
 // without swallowing unrelated content sharing that line (e.g. a list
 // marker, which always lives on a different line from an indented table).
 export function alignedBlockRange(state: EditorState, from: number, to: number): { from: number; to: number } | null {
@@ -60,7 +62,7 @@ export function alignedBlockRange(state: EditorState, from: number, to: number):
 	if (to !== toLine.to) return null;
 	const fromLine = state.doc.lineAt(from);
 	if (fromLine.from === from) return { from, to };
-	return /^[ \t]*$/.test(state.sliceDoc(fromLine.from, from)) ? { from: fromLine.from, to } : null;
+	return /^[ \t>]*$/.test(state.sliceDoc(fromLine.from, from)) ? { from: fromLine.from, to } : null;
 }
 
 /**
@@ -296,14 +298,16 @@ class CalloutHeaderWidget extends WidgetType {
 		private readonly type: string,
 		private readonly title: string,
 		private readonly initiallyCollapsed: boolean,
+		private readonly from: number,
 	) { super(); }
 	eq(other: CalloutHeaderWidget): boolean {
-		return this.type === other.type && this.title === other.title && this.initiallyCollapsed === other.initiallyCollapsed;
+		return this.type === other.type && this.title === other.title && this.initiallyCollapsed === other.initiallyCollapsed && this.from === other.from;
 	}
-	toDOM(): HTMLElement {
+	toDOM(view: EditorView): HTMLElement {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'mlp-callout-header';
+		button.dataset.calloutFrom = String(this.from);
 		button.setAttribute('aria-expanded', String(!this.initiallyCollapsed));
 		button.setAttribute('aria-label', t('callout.label', this.title));
 		const icon = document.createElement('span');
@@ -319,19 +323,16 @@ class CalloutHeaderWidget extends WidgetType {
 		chevron.className = 'mlp-callout-chevron';
 		chevron.textContent = this.initiallyCollapsed ? '›' : '⌄';
 		button.append(icon, label, chevron);
-		const setCollapsed = (collapsed: boolean) => {
-			button.setAttribute('aria-expanded', String(!collapsed));
-			chevron.textContent = collapsed ? '›' : '⌄';
-			let line = button.closest('.cm-line')?.nextElementSibling as HTMLElement | null;
-			while (line?.classList.contains('mlp-line-callout')) {
-				line.style.display = collapsed ? 'none' : '';
-				line.classList.toggle('mlp-callout-content-collapsed', collapsed);
-				line = line.nextElementSibling as HTMLElement | null;
-			}
+		const toggle = () => {
+			const focused = document.activeElement === button;
+			view.dispatch({ effects: toggleCallout.of({ from: this.from, collapsed: !this.initiallyCollapsed }) });
+			view.requestMeasure();
+			if (focused) view.dom.querySelector<HTMLElement>(`[data-callout-from="${this.from}"]`)?.focus();
 		};
-		const toggle = () => setCollapsed(button.getAttribute('aria-expanded') === 'true');
+		button.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
+			event.stopPropagation();
 			toggle();
 		});
 		button.addEventListener('keydown', (event) => {
@@ -340,10 +341,9 @@ class CalloutHeaderWidget extends WidgetType {
 			event.stopPropagation();
 			toggle();
 		});
-		setTimeout(() => setCollapsed(this.initiallyCollapsed), 0);
 		return button;
 	}
-	ignoreEvent(): boolean { return false; }
+	ignoreEvent(): boolean { return true; }
 }
 
 /**
@@ -434,7 +434,12 @@ class CopyCodeWidget extends WidgetType {
 		// Read the text at click time: the block's content can change after the
 		// widget is built, and the offsets are re-derived on every rebuild.
 		host.appendChild(
-			createCopyCodeButton(() => view.state.sliceDoc(Math.min(this.from, view.state.doc.length), Math.min(this.to, view.state.doc.length))),
+			createCopyCodeButton(() => {
+				let node: SyntaxNode | null = syntaxTree(view.state).resolveInner(Math.min(this.revealPos, view.state.doc.length), -1);
+				while (node && node.name !== 'FencedCode') node = node.parent;
+				return node ? diagramFenceText(view.state, node)
+					: view.state.sliceDoc(Math.min(this.from, view.state.doc.length), Math.min(this.to, view.state.doc.length));
+			}),
 		);
 		return host;
 	}
@@ -800,6 +805,7 @@ class TableWidget extends WidgetType {
 				// A newline cannot live inside a cell, so Enter means "done".
 				event.preventDefault();
 				commit(editing);
+				protectRenderedBlockFromCaret();
 				view.focus();
 				return;
 			}
@@ -809,6 +815,7 @@ class TableWidget extends WidgetType {
 				// edit is discarded rather than written back.
 				editing.textContent = ref.source;
 				commit(editing);
+				protectRenderedBlockFromCaret();
 				view.focus();
 			}
 		}
@@ -1026,7 +1033,7 @@ class TableWidget extends WidgetType {
 				// lands where they were looking rather than at the table's start.
 				caretPos: () => {
 					const target = editing ?? lastCell;
-					return (target ? readCellRef(target)?.to : undefined) ?? view.posAtDOM(table);
+					return (target ? readCellRef(target)?.to : undefined) ?? (view.posAtDOM(table) + this.indent.length);
 				},
 			});
 		tableSourceButton.classList.add('mlp-table-action-btn');
@@ -1664,7 +1671,7 @@ export function readTableModel(state: EditorState, tableNode: SyntaxNode): Table
 	// The delimiter row is authoritative for the column count; fall back to the
 	// header's own width if it somehow yielded nothing.
 	const width = align.length || (spanRows.length ? spanRows[0].length : 0);
-	// Whatever precedes the table on its first line is pure indentation — the
+	// Whatever precedes the table is indentation and/or quote markers — the
 	// block decoration is only applied when that holds (see `alignedBlockRange`).
 	const firstLine = state.doc.lineAt(tableNode.from);
 	return {
@@ -1701,15 +1708,28 @@ export function buildTableWidget(state: EditorState, node: SyntaxNodeRef): Table
  * The conditions mirror `buildBlockDecorations` in blockDecorations.ts: if the
  * two disagree, either the widget is dropped again (line decorated, block
  * replaced) or list styling is lost for nothing (line skipped, no widget).
- * Diagram fences (Mermaid, draw.io) are not checked — one nested in a list item
- * never satisfies `isLineAligned`, so it is never block-replaced there.
+ * Nested diagram widgets and collapsed callout bodies also own their lines.
  */
 export function blockReplacedLines(state: EditorState, item: SyntaxNode): Set<number> {
 	const lines = new Set<number>();
-	for (let child = item.firstChild; child; child = child.nextSibling) {
-		if (child.name !== 'Table') continue;
+	const pending: SyntaxNode[] = [];
+	for (let child = item.firstChild; child; child = child.nextSibling) pending.push(child);
+	while (pending.length) {
+		const child = pending.pop()!;
+		const folded = calloutForNode(state, child);
+		if (folded?.collapsed) {
+			for (let n = state.doc.lineAt(child.from).number + 1; n <= state.doc.lineAt(child.to).number; n++) lines.add(n);
+			continue;
+		}
+		for (let nested = child.firstChild; nested; nested = nested.nextSibling) pending.push(nested);
+		if (containingCallouts(state, child).some(callout => callout.collapsed)) continue;
 		if (blockCursorTouchesRange(state, child.from, child.to)) continue;
-		const range = alignedBlockRange(state, child.from, child.to);
+		let range: { from: number; to: number } | null = null;
+		if (child.name === 'Table') range = alignedBlockRange(state, child.from, child.to);
+		if (child.name === 'FencedCode') {
+			const info = child.getChild('CodeInfo');
+			if (info && isDiagramLang(state.sliceDoc(info.from, info.to).trim().toLowerCase()) && diagramFenceText(state, child).trim()) range = diagramFenceRange(state, child);
+		}
 		if (!range) continue;
 		const first = state.doc.lineAt(range.from).number;
 		const last = state.doc.lineAt(range.to).number;
@@ -1733,7 +1753,7 @@ function listItemIsTask(state: EditorState, listMark: SyntaxNodeRef): boolean {
 function taskItemCompletion(state: EditorState, itemFrom: number): boolean | null {
 	const line = state.doc.lineAt(itemFrom);
 	const marker = /^\s*(?:[-+*]|\d+[.)])\s+\[([^\]\r\n])\]/.exec(
-		state.sliceDoc(line.from, line.to),
+		state.sliceDoc(itemFrom, line.to),
 	);
 	if (!marker) return null;
 	return marker[1] !== ' ';
@@ -1760,6 +1780,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 	const seenReplace = new Set<string>();
 	const seenCodeControls = new Set<number>();
 	const seenLine = new Map<number, string>();
+	const mathBlockLines = new Set<number>();
+	for (const range of renderableMathRanges(state)) if (range.display) {
+		for (let n = doc.lineAt(range.from).number; n <= doc.lineAt(range.to).number; n++) mathBlockLines.add(doc.line(n).from);
+	}
 	const tree = syntaxTree(state);
 	// blockDecorationsField renders the whole frontmatter block as its own
 	// widget; skip it here too so this pass doesn't waste time computing
@@ -1781,8 +1805,12 @@ function buildDecorations(view: EditorView): DecorationSet {
 	// A line can only carry one line decoration, so merge class names per line and
 	// emit them all at the end (each exactly once, at the line start).
 	const addLineClass = (lineFrom: number, cls: string) => {
+		if (mathBlockLines.has(lineFrom)) return;
 		const existing = seenLine.get(lineFrom);
-		seenLine.set(lineFrom, existing ? `${existing} ${cls}` : cls);
+		// The innermost callout owns its hue, regardless of stylesheet order.
+		const previous = cls.includes('mlp-line-callout')
+			? existing?.split(' ').filter(name => !name.startsWith('mlp-callout-')).join(' ') : existing;
+		seenLine.set(lineFrom, [...new Set(`${previous ?? ''} ${cls}`.trim().split(/\s+/))].join(' '));
 	};
 	// A callback returning '' marks a line as deliberately skipped — used where a
 	// block widget will replace that line and a line decoration on it would make
@@ -1831,6 +1859,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 		}
 	}
 
+	const decoratedQuotes = new Set<number>();
 	for (const { from: rangeFrom, to: rangeTo } of view.visibleRanges) {
 		tree.iterate({
 			from: rangeFrom,
@@ -1982,6 +2011,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 					}
 					case 'Blockquote':
 						{
+							if (decoratedQuotes.has(node.from)) return calloutForNode(state, node.node)?.collapsed ? false : undefined;
+							decoratedQuotes.add(node.from);
 							const firstLine = doc.lineAt(node.from);
 							const raw = state.sliceDoc(firstLine.from, firstLine.to);
 							let blockquoteDepth = 0;
@@ -1992,22 +2023,27 @@ function buildDecorations(view: EditorView): DecorationSet {
 							if (callout) {
 								const type = callout.type;
 								const safeType = type.replace(/[^a-z0-9_-]/g, '');
-								addLineRange(node.from, node.to, (_n, first, last) =>
-									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}${callout.collapsed && !first ? ' mlp-callout-content-collapsed' : ''}`);
+								const collapsed = calloutForNode(state, node.node)!.collapsed;
+								const replaced = blockReplacedLines(state, node.node);
+								addLineRange(node.from, collapsed ? firstLine.to : node.to, (n, first, last) => replaced.has(n) ? '' :
+									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}`);
 								if (!blockCursorTouchesRange(state, node.from, node.to)) {
 									pushReplace(
 										firstLine.from + callout.markerOffset,
 										firstLine.to,
-										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, callout.collapsed) }),
+										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, collapsed, firstLine.from) }),
 									);
 								}
 								// A callout is not an ordinary quote for styling purposes.
 								// User themes adapt blockquote rules to mlp-line-quote;
 								// adding that class here overrides the entire colored panel.
+								if (collapsed) return false;
 								return; // still descend to hide quote markers and render content
 							}
 						}
-						addLineRange(node.from, node.to, (_n, first, last) => {
+						const replacedQuoteLines = blockReplacedLines(state, node.node);
+						addLineRange(node.from, node.to, (n, first, last) => {
+							if (replacedQuoteLines.has(n)) return '';
 							let cls = 'mlp-line-quote';
 							if (first) cls += ' mlp-line-quote-first';
 							if (last) cls += ' mlp-line-quote-last';
@@ -2191,7 +2227,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
 		}
 
 		update(update: ViewUpdate) {
-			if (update.docChanged || update.viewportChanged || update.selectionSet || foldedRanges(update.startState) !== foldedRanges(update.state)) {
+			if (update.docChanged || update.viewportChanged || update.selectionSet || foldedRanges(update.startState) !== foldedRanges(update.state) || update.startState.field(calloutState, false) !== update.state.field(calloutState, false)) {
 				this.decorations = buildDecorations(update.view);
 			}
 		}

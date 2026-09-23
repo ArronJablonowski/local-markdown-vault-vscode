@@ -1,5 +1,10 @@
 # Changelog
 
+- Render tables and quoted display math inside callouts; preserve their tinted panels around diagrams and other block objects, including the Obsidian-style theme. Keep nested callout colors independent.
+- Replace DOM-only callout folding with editor-state folding that hides every contained object, preserves nested fold state, survives unrelated edits, and never edits the note. Accept `notes` as an alias for `note`.
+- Fix callout task strikethrough, quoted code copying, and Tab/Shift+Tab list nesting. Preserve table rendering when finishing or canceling a cell edit.
+- Add mixed-content callout fixtures, callout-family coverage in Editing and Locked modes, repeated edit/delete/recreate checks, and real VS Code autosave tests.
+
 - Keep nested bullets compact by applying theme list-edge spacing only to the outer list. Reduce heading-to-list gaps, give all bullet shapes equal-width marker boxes, and preserve clear indentation in proportional-font themes. Add list spacing, alignment, Tab/Shift+Tab, and real VS Code autosave regression tests.
 
 - Render Mermaid and draw.io fences nested on their own lines inside lists and callouts, preserving their complete content and source-button behavior. Keep embedded wide tables horizontally scrollable, preserve column alignment, and normalize short or extra cells to the header width.
