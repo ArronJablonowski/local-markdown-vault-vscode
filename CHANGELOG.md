@@ -1,5 +1,7 @@
 # Changelog
 
+- Refresh code-block collapse/expand line counts after live Markdown Preview updates. Expand code-block QA across 12 language labels, editing/deletion/copy workflows, folding thresholds, mouse selection, Unicode, and inert HTML.
+
 - Display fenced code languages in Live Preview and Markdown Preview headers, including collapsed blocks. Keep labels separate from copied code and render arbitrary language names as inert text.
 
 - Add offline emoji-name autocomplete in Live Preview, inserting portable Unicode text. Add system emoji font fallbacks and coverage for emoji in headings, tasks, callouts, tables, and code, including multi-character emoji sequences.

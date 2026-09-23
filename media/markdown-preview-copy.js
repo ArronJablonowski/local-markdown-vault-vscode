@@ -82,7 +82,7 @@
 			let collapsed = false;
 			const update = () => {
 				collapse.textContent = collapsed ? '›' : '⌄';
-				collapse.title = `${collapsed ? 'Expand' : 'Collapse'} this code block (${lineCount} lines)`;
+				collapse.title = `${collapsed ? 'Expand' : 'Collapse'} this code block (${collapse.dataset.lineCount} lines)`;
 				collapse.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Collapse'} code block`);
 				collapse.setAttribute('aria-expanded', String(!collapsed));
 				code.hidden = collapsed;
@@ -92,8 +92,12 @@
 				collapsed = !collapsed;
 				update();
 			});
+			collapse.dataset.lineCount = String(lineCount);
 			update();
 			pre.appendChild(collapse);
+		} else {
+			existingCollapse.dataset.lineCount = String(lineCount);
+			existingCollapse.title = `${code.hidden ? 'Expand' : 'Collapse'} this code block (${lineCount} lines)`;
 		}
 	}
 
