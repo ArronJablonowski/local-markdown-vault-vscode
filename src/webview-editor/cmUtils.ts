@@ -138,7 +138,14 @@ if (typeof document !== 'undefined') {
 	// standing, the refresh that follows a mouse release re-rendered the block the
 	// caret was sitting in — the source the user had just opened flashed back to a
 	// rendered table for a frame before the next keystroke cleared the flag.
-	document.addEventListener('keydown', () => { suppressUntilNextPress = false; }, true);
+	document.addEventListener('keydown', (event) => {
+		// Typing in a rendered cell/property is not a request to reveal its source.
+		// Background vault-index refreshes rebuild decorations; dropping this
+		// guard let that refresh remove the field halfway through typing.
+		const target = event.target;
+		suppressUntilNextPress = target instanceof Element
+			&& !!target.closest('.mlp-table-wrap, .mlp-frontmatter');
+	}, true);
 	document.addEventListener('mouseup', release, true);
 	document.addEventListener('dragend', release, true);
 	window.addEventListener('blur', release, true);

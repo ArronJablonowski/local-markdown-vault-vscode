@@ -4,7 +4,8 @@ import { isEditorDocumentWithinLimit, MAX_EDITOR_DOCUMENT_BYTES } from '../share
 import { isCanonicalPathInside } from './canonicalContainment';
 import { localWorkspaceVaultRoot } from './workspaceVault';
 
-export const MARKDOWN_AUTO_SAVE_DELAY_MS = 500;
+// Yield only until VS Code has finished publishing the change and dirty state.
+export const MARKDOWN_AUTO_SAVE_DELAY_MS = 0;
 
 function documentWithinAutoSaveLimit(document: vscode.TextDocument): boolean {
 	const lastLine = document.lineAt(document.lineCount - 1);
@@ -21,10 +22,11 @@ interface TrackedDocument {
 	timer?: ReturnType<typeof setTimeout>;
 	saving: boolean;
 	pending: boolean;
+	failureReported?: boolean;
 }
 
 /**
- * Coalesces Live Preview edits into one native TextDocument save. The
+ * Saves Markdown edits without an idle delay, serializing native saves. The
  * controller deliberately does not accept a path from the webview: its only
  * authority is the already-open TextDocument registered by the host.
  */
@@ -38,7 +40,10 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 		this.disposables = [
 			vscode.workspace.onDidChangeTextDocument((event) => {
 				this.trackAutomatically(event.document);
-				if (event.contentChanges.length > 0) this.schedule(event.document);
+				// VS Code may publish the dirty-state transition separately from the
+				// content event, including after a previous save has just completed.
+				const saving = this.tracked.get(event.document.uri.toString())?.saving;
+				if (event.contentChanges.length > 0 || (event.document.isDirty && !saving)) this.schedule(event.document);
 			}),
 			vscode.workspace.onDidOpenTextDocument((document) => this.trackAutomatically(document)),
 			vscode.workspace.onDidCloseTextDocument((document) => {
@@ -76,6 +81,7 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			saving: false,
 			pending: false,
 		});
+		if (!existing && document.isDirty) this.schedule(document);
 
 		let released = false;
 		return new vscode.Disposable(() => {
@@ -101,7 +107,7 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			state.pending = true;
 			return;
 		}
-		this.cancelTimer(state);
+		if (state.timer !== undefined) return;
 		const generation = ++state.generation;
 		state.timer = setTimeout(() => {
 			state.timer = undefined;
@@ -123,43 +129,63 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			state.generation !== generation ||
 			!document.isDirty ||
 			!this.enabled(document) ||
-			document.languageId !== 'markdown' ||
-			document.uri.scheme !== 'file' ||
-			!documentWithinAutoSaveLimit(document)
+			document.languageId !== 'markdown'
 		) return;
-
-		const vaultRoot = localWorkspaceVaultRoot(document.uri);
-		if (!vaultRoot || !await isCanonicalPathInside(vaultRoot.fsPath, document.uri.fsPath)) {
-			diagnosticEventRateLimited('editor.autoSaveRejected');
+		if (document.uri.scheme !== 'file' || !documentWithinAutoSaveLimit(document)) {
+			this.warnOnce(state, 'Automatic Markdown saving is unavailable for this file. Save it manually before closing it.');
 			return;
 		}
-		// The asynchronous canonical-path check may have outlived this tab, a
-		// configuration change, or another edit. Never let that stale authority
-		// cause a save.
-		if (
-			this.disposed ||
-			this.tracked.get(document.uri.toString()) !== state ||
-			state.generation !== generation ||
-			!document.isDirty ||
-			!this.enabled(document) ||
-			localWorkspaceVaultRoot(document.uri)?.toString() !== vaultRoot.toString()
-		) return;
 
+		// Serialize authorization as well as the save itself. Edits arriving during
+		// either asynchronous operation must trigger a follow-up save, not cancel it.
 		state.saving = true;
 		state.pending = false;
-		let saved = false;
 		try {
-			saved = await document.save();
-		} catch {
-			// A filesystem provider or save participant may fail. Do not retry in a
-			// loop; the dirty document remains available for an explicit user save.
+			const vaultRoot = localWorkspaceVaultRoot(document.uri);
+			if (!vaultRoot || !await isCanonicalPathInside(vaultRoot.fsPath, document.uri.fsPath)) {
+				diagnosticEventRateLimited('editor.autoSaveRejected');
+				this.warnOnce(state, 'Automatic Markdown saving requires a file inside the current local workspace vault. Save this document manually before closing it.');
+				return;
+			}
+			// The asynchronous canonical-path check may have outlived this tab, a
+			// configuration change, or another edit. Never let that stale authority
+			// cause a save.
+			if (
+				this.disposed ||
+				this.tracked.get(document.uri.toString()) !== state ||
+				state.generation !== generation ||
+				!document.isDirty ||
+				!this.enabled(document) ||
+				!documentWithinAutoSaveLimit(document) ||
+				localWorkspaceVaultRoot(document.uri)?.toString() !== vaultRoot.toString()
+			) return;
+
+			let saved = false;
+			try {
+				saved = await document.save();
+			} catch {
+				// A filesystem provider or save participant may fail. Do not retry in a
+				// loop; the dirty document remains available for an explicit user save.
+			}
+			if (!saved) {
+				diagnosticEventRateLimited('editor.autoSaveFailed');
+				this.warnOnce(state, 'Markdown could not be saved automatically. Your changes remain unsaved in VS Code. Save the document before closing it.');
+			} else {
+				state.failureReported = false;
+			}
+		} finally {
+			state.saving = false;
+			if (state.pending) {
+				state.pending = false;
+				this.schedule(document);
+			}
 		}
-		state.saving = false;
-		if (!saved) diagnosticEventRateLimited('editor.autoSaveFailed');
-		if (state.pending && document.isDirty) {
-			state.pending = false;
-			this.schedule(document);
-		}
+	}
+
+	private warnOnce(state: TrackedDocument, message: string): void {
+		if (this.disposed || state.failureReported) return;
+		state.failureReported = true;
+		void vscode.window.showWarningMessage(message);
 	}
 
 	private cancelTimer(state: TrackedDocument): void {

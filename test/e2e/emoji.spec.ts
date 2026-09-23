@@ -16,7 +16,7 @@ test('emoji completion inserts real Unicode and sends edits and undo to the host
 	await page.keyboard.press('ControlOrMeta+z');
 	const messages = await page.evaluate(() => (window as unknown as { __posted: Array<{ type: string; changes?: Array<{ insert: string }> }> }).__posted);
 	expect(messages.some(message => message.type === 'edit' && message.changes?.some(change => change.insert.includes('😄')))).toBe(true);
-	expect(messages.some(message => message.type === 'undo')).toBe(true);
+	await expect.poll(() => page.evaluate(() => (window as unknown as { __posted: Array<{ type: string }> }).__posted.some(message => message.type === 'undo'))).toBe(true);
 });
 
 test('Unicode emoji survive rendering in Markdown objects', async ({ page }) => {

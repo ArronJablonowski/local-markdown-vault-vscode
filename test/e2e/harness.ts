@@ -13,7 +13,7 @@ const HOST_STUB = [
 	'window.__posted = [];',
 	'window.acquireVsCodeApi = function () {',
 	'  return {',
-	'    postMessage: function (m) { window.__posted.push(m); },',
+	'    postMessage: function (m) { window.__posted.push(m); if (m.type === "edit" && !window.__holdEditAck) setTimeout(function () { window.postMessage({ type: "ackEdit", version: m.baseVersion + 1 }, "*"); }, 0); },',
 	'    getState: function () { return undefined; },',
 	'    setState: function () {},',
 	'  };',

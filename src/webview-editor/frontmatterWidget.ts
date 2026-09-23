@@ -359,7 +359,11 @@ function enableValueEditing(
 		});
 		input.addEventListener('input', clearValidation);
 		input.addEventListener('mousedown', (event) => event.stopPropagation());
-		input.addEventListener('blur', () => { if (editing) restore(); });
+		input.addEventListener('blur', () => {
+			// A click elsewhere is not cancellation. Defer past CodeMirror redraws
+			// and retain validation errors rather than silently discarding a draft.
+			queueMicrotask(() => { if (editing && input.isConnected) commit(); });
+		});
 		cell.replaceChildren(input, validation);
 		input.focus();
 		input.select();

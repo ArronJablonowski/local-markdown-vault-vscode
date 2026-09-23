@@ -466,14 +466,19 @@ Common shortcuts:
 
 Search for `Local Markdown Vault` or `mdLivePreview` in VS Code Settings.
 
-Every change to an open Markdown document is saved automatically after a short
-delay in every viewing mode. In Live Preview, this includes typed text, task
+Changes to an open Markdown document are sent for saving without waiting for a
+pause in typing, in every viewing mode. In Live Preview, this includes typed text, task
 checkbox changes, properties, tables, and other controls that modify the
 underlying Markdown. This is enabled by default with `mdLivePreview.autoSave`. Autosave only
 writes the already-open Markdown document when its resolved path remains
 inside the current local workspace vault; it does not save attachments,
 follow links, or write to paths supplied by Markdown content. Turn the setting
-off if you prefer to save manually.
+off if you prefer to save manually. A failed save displays a warning and leaves
+the document dirty. Saving is asynchronous: storage or save participants can delay
+completion, so this does not guarantee survival of an abrupt application or power
+failure. Table cells commit with Enter, Tab, or leaving the cell; property fields
+commit with Enter or leaving a valid field. Escape cancels an uncommitted field
+edit, and invalid property values must be corrected before they can be committed.
 
 | Setting | Purpose | Default posture |
 | --- | --- | --- |

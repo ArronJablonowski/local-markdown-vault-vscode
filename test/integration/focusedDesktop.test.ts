@@ -64,6 +64,25 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('continuous typing reaches disk before typing stops and survives switching files', async () => {
+		const fixture = await makeFixture('immediate-save');
+		const note = await service.createNote(fixture, 'Immediate Save');
+		await vscode.workspace.fs.writeFile(note, Buffer.from('Autosave probe: '));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Autosave probe:');
+		await frame.locator('.cm-content').click();
+		await frame.page().keyboard.press('End');
+		const text = 'abcdefghijklmnopqrstuvwxyz0123456789';
+		let finished = false;
+		const typing = frame.page().keyboard.type(text, { delay: 70 }).then(() => { finished = true; });
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8').includes('abc'), 'typing never reached disk');
+		assert.strictEqual(finished, false, 'autosave waited until typing stopped');
+		await typing;
+		const other = await service.createNote(fixture, 'Other');
+		await vscode.commands.executeCommand('vscode.openWith', other, 'mdLivePreview.editor');
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === `Autosave probe: ${text}`, 'file switch lost trailing edits');
+	});
+
 	test('callout table edits and nested tasks autosave while folding preserves source', async () => {
 		const fixture = await makeFixture('callout-qa');
 		const note = await service.createNote(fixture, 'Callout QA');
@@ -78,7 +97,11 @@ suite('focused cross-platform desktop transactions', () => {
 		await frame.page().keyboard.press('Enter');
 		await frame.locator('.mlp-checkbox').click();
 		const expected = initial.replace('Alpha', 'Updated').replace('[ ]', '[x]');
-		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'callout table/task edits did not save correctly');
+		try {
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'callout table/task edits did not save correctly');
+		} catch (error) {
+			throw new Error(`${String(error)}; disk=${JSON.stringify(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'))}; document=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText())}`);
+		}
 		await frame.locator('.cm-line', { hasText: 'After' }).click();
 		await frame.locator('.mlp-callout-header').click();
 		assert.strictEqual(await frame.locator('.mlp-table').count(), 0);
@@ -119,6 +142,13 @@ suite('focused cross-platform desktop transactions', () => {
 			for (let step = 0; step < 150; step++) {
 				await delay(100);
 				assert.strictEqual(await frame.locator('.mlp-mermaid-error, .mlp-math-error').count(), 0, `${name} has a rendering error`);
+				// Rendering diagrams is asynchronous. Do not scroll a newly mounted
+				// widget out of the virtual viewport before its first SVG can arrive.
+				for (const selector of ['.mlp-mermaid-wrap:not(.mlp-drawio-wrap)', '.mlp-drawio-wrap']) {
+					if (await frame.locator(selector).count()) {
+						await waitFor(async () => await frame.locator(`${selector} svg`).count() > 0, `${name}: diagram did not finish rendering`);
+					}
+				}
 				mermaid ||= await frame.locator('.mlp-mermaid-wrap:not(.mlp-drawio-wrap) svg').count() > 0;
 				drawio ||= await frame.locator('.mlp-drawio-wrap svg').count() > 0;
 				const end = await frame.locator('.cm-scroller').evaluate(el => {
@@ -332,7 +362,9 @@ suite('focused cross-platform desktop transactions', () => {
 				'host undo did not restore and automatically save the original table');
 			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y');
 			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original.replace('Alpha', ''),
-				'one Redo did not replay only the cut');
+				'one Redo did not replay only the cut').catch(async (error) => {
+				throw new Error(`${error.message}; disk=${JSON.stringify(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'))}; document=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText())}; dirty=${(await vscode.workspace.openTextDocument(note)).isDirty}`);
+			});
 			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y');
 			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === original,
 				'second Redo did not replay the paste');

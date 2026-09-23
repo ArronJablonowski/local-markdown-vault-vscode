@@ -49,7 +49,7 @@
   "config.defaultEditor.vscodeMarkdownEditor": "Open Markdown files in Microsoft's VS Code Markdown Editor.",
   "config.defaultEditor.markdownEditor": "Open Markdown files in VS Code's built-in Markdown Editor.",
   "config.defaultEditor.livePreview": "Open Markdown files in Markdown Live Preview.",
-  "config.autoSave": "Automatically save every change to an open Markdown document after a short delay in any viewing mode, including task checkbox and property changes. Only an already-open local Markdown file canonically contained in the current workspace vault can be saved.",
+  "config.autoSave": "Automatically save Markdown changes without waiting for a pause in typing, in any viewing mode, including task checkbox and committed property changes. Only an already-open local Markdown file canonically contained in the current workspace vault can be saved. Failed saves display a warning.",
   "config.defaultEditingMode": "Controls whether Markdown Live Preview starts in Editing or Locked mode. The upper-right toggle can change the mode for the current editor.",
   "config.defaultEditingMode.editing": "Start in Editing mode.",
   "config.defaultEditingMode.locked": "Start in Locked mode, which blocks document-changing transactions until unlocked.",

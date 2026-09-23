@@ -58,7 +58,7 @@ import { renderedSelection } from './renderedSelection';
 import { whitespaceMarkers } from './whitespaceMarkers';
 
 const remoteChange = Annotation.define<boolean>();
-const FLUSH_DEBOUNCE_MS = 250;
+const FLUSH_DEBOUNCE_MS = 0;
 // Match Obsidian's list editing: continue list and task markers on Enter, but
 // leave a list immediately when its current item is empty. CodeMirror's default
 // inserts an extra blank line before leaving a two-item tight list.
@@ -67,6 +67,8 @@ const continueMarkdownMarkup = insertNewlineContinueMarkupCommand({ nonTightList
 let view: EditorView | undefined;
 let baseVersion = 0;
 let pending: ChangeSet | null = null;
+let editInFlight = false;
+const pendingHistory: Array<'undo' | 'redo'> = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let workspaceTrusted = false;
 let vaultNotesChunkGeneration = -1;
@@ -79,8 +81,10 @@ const whitespaceCompartment = new Compartment();
 
 function flush() {
 	flushTimer = undefined;
+	if (editInFlight) return;
 	if (!view || !pending || pending.empty) {
 		pending = null;
+		for (const type of pendingHistory.splice(0)) postToHost({ type });
 		return;
 	}
 	const changes: TextChange[] = [];
@@ -88,11 +92,12 @@ function flush() {
 		changes.push({ from: fromA, to: toA, insert: inserted.toString() });
 	});
 	pending = null;
+	editInFlight = true;
 	postToHost({ type: 'edit', baseVersion, changes });
 }
 
 function scheduleFlush() {
-	if (flushTimer) clearTimeout(flushTimer);
+	if (flushTimer !== undefined || editInFlight) return;
 	flushTimer = setTimeout(flush, FLUSH_DEBOUNCE_MS);
 }
 
@@ -102,6 +107,14 @@ function flushNow() {
 		flushTimer = undefined;
 	}
 	flush();
+}
+
+function requestHistory(type: 'undo' | 'redo'): boolean {
+	if (editingAllowed && pendingHistory.length < 64) {
+		pendingHistory.push(type);
+		flushNow();
+	}
+	return true;
 }
 
 function applyUserCss(css: string) {
@@ -285,9 +298,9 @@ function createExtensions(): Extension[] {
 			// VS Code forwards bubbled webview shortcuts even when defaultPrevented.
 			// Stop these handled keys or one press can undo/redo twice: our ordered
 			// host message plus the workbench's forwarded native command.
-			{ key: 'Mod-z', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'undo' }); } return true; } },
-			{ key: 'Mod-y', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
-			{ key: 'Mod-Shift-z', stopPropagation: true, run: () => { if (editingAllowed) { flushNow(); postToHost({ type: 'redo' }); } return true; } },
+			{ key: 'Mod-z', stopPropagation: true, run: () => requestHistory('undo') },
+			{ key: 'Mod-y', stopPropagation: true, run: () => requestHistory('redo') },
+			{ key: 'Mod-Shift-z', stopPropagation: true, run: () => requestHistory('redo') },
 			{ key: 'Mod-b', stopPropagation: true, run: toggleEmphasisCommand('**') },
 			{ key: 'Mod-i', stopPropagation: true, run: toggleEmphasisCommand('*') },
 			{ key: 'Tab', run: indentQuotedList, shift: view => indentQuotedList(view, true), stopPropagation: true },
@@ -471,6 +484,8 @@ onHostMessage((message) => {
 			handleCodeClipboardResult(message.requestId, message.ok);
 			break;
 		case 'init':
+			editInFlight = false;
+			pendingHistory.length = 0;
 			workspaceTrusted = message.workspaceTrusted;
 			baseVersion = message.version;
 			vaultNotesChunkGeneration = -1;
@@ -498,6 +513,8 @@ onHostMessage((message) => {
 			break;
 		case 'ackEdit':
 			baseVersion = message.version;
+			editInFlight = false;
+			flushNow();
 			break;
 		case 'externalUpdate': {
 			if (!view) return;
