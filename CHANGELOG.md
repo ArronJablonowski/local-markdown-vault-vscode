@@ -1,5 +1,9 @@
 # Changelog
 
+- Preserve keyboard focus and scroll position when sidebar settings or themes refresh. Render underlined (Setext) headings, including multiline headings. Decode escaped pipes in table code spans without altering ordinary code. Add new mixed-document and settings/control UI regression coverage.
+- Resolve full, collapsed, and shortcut reference links/images through existing safe navigation and media boundaries. Hide definition syntax outside editing and render escaped punctuation literally without changing code content.
+- Defer table focus-loss saves until the current editor update finishes, preventing an intermittent reentrant-update crash during mixed diagram/table editing.
+
 - Refresh code-block collapse/expand line counts after live Markdown Preview updates. Expand code-block QA across 12 language labels, editing/deletion/copy workflows, folding thresholds, mouse selection, Unicode, and inert HTML.
 
 - Display fenced code languages in Live Preview and Markdown Preview headers, including collapsed blocks. Keep labels separate from copied code and render arbitrary language names as inert text.

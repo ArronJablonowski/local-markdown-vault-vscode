@@ -18,6 +18,13 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('decodes only escaped pipes in table code, without changing ordinary code', () => {
+		const source = '`x\\|y \\*literal\\*`';
+		const table = createElement('td');
+		renderInlineInto(table, source, { ...hooks, inTableCell: true });
+		expect(serializeChildren(table)).toBe('<code class="mlp-inline-code">x|y \\*literal\\*</code>');
+		expect(render(source)).toBe('<code class="mlp-inline-code">x\\|y \\*literal\\*</code>');
+	});
 	it('leaves plain text alone', () => {
 		expect(render('hello world')).toBe('hello world');
 	});

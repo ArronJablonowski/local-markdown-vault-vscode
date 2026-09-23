@@ -42,6 +42,8 @@ function unescapePunctuation(text: string): string {
 }
 
 export interface CellInlineHooks {
+	/** GFM table cells decode escaped pipes even inside literal code spans. */
+	inTableCell?: boolean;
 	/** Resolves an image's `src` for display (webview base-URI rewriting). */
 	resolveImageSrc: (src: string) => string | undefined;
 	/** Asks the host to authorize a local image after canonical containment checks. */
@@ -107,6 +109,7 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			const code = document.createElement('code');
 			code.className = 'mlp-inline-code';
 			code.textContent = marks.length >= 2 ? src.slice(marks[0].to, marks[1].from) : src.slice(node.from, node.to);
+			if (hooks.inTableCell) code.textContent = code.textContent.replace(/\\\|/g, '|');
 			parent.appendChild(code);
 			return;
 		}

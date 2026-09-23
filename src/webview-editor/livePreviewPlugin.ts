@@ -29,6 +29,7 @@ import { t } from '../shared/i18n';
 import { calloutIcon, createCalloutOutlineIcon, parseCalloutHeader } from './callouts';
 import type { RemoteMediaPolicy } from '../shared/messages';
 import { resolveLocalImage } from './localImageClient';
+import { referenceLinkTarget } from './referenceLinks';
 import { isAbsoluteWebUrl } from '../shared/linkTarget';
 import {
 	findInlineHighlightRanges,
@@ -37,6 +38,8 @@ import {
 } from './inlineHighlight';
 
 const HEADING_LINE_CLASS: Record<string, string> = {
+	SetextHeading1: 'mlp-line-h1',
+	SetextHeading2: 'mlp-line-h2',
 	ATXHeading1: 'mlp-line-h1',
 	ATXHeading2: 'mlp-line-h2',
 	ATXHeading3: 'mlp-line-h3',
@@ -497,7 +500,7 @@ export function renderTableElement(model: TableModel, hooks: CellInlineHooks): H
 				// instead of collapsing to `bold` and losing its markup on save.
 				cell.dataset.mlpSrc = span.text;
 			}
-			renderInlineInto(cell, cellText, hooks);
+			renderInlineInto(cell, cellText, { ...hooks, inTableCell: true });
 			tr.appendChild(cell);
 		});
 		(rowIndex < model.headerRowCount ? thead : tbody).appendChild(tr);
@@ -862,7 +865,7 @@ class TableWidget extends WidgetType {
 				// a no-op onto the undo history, but the DOM currently holds the raw
 				// source text, so it still has to be restored.
 				cell.textContent = '';
-				renderInlineInto(cell, ref.source, cellInlineHooks);
+				renderInlineInto(cell, ref.source, { ...cellInlineHooks, inTableCell: true });
 				return ref.to;
 			}
 			// The span was read from the document as it stood when this widget was
@@ -1189,7 +1192,11 @@ class TableWidget extends WidgetType {
 			if (!cell || cell !== editing) return;
 			const next = (event as FocusEvent).relatedTarget as Node | null;
 			if (next && cell.contains(next)) return;
-			commit(cell);
+			// A diagram/layout redraw can remove this focused DOM node during
+			// EditorView.update. Dispatching synchronously from that blur reenters
+			// CodeMirror and throws. The spent/source guards still ensure a deferred
+			// save cannot duplicate an Enter/Tab commit or overwrite a stale range.
+			queueMicrotask(() => { if (view.dom.isConnected) commit(cell); });
 		});
 
 		/**
@@ -1882,6 +1889,18 @@ function buildDecorations(view: EditorView): DecorationSet {
 				const name = node.name;
 
 				if (name in HEADING_LINE_CLASS) {
+					if (name.startsWith('SetextHeading')) {
+						const underline = node.node.getChild('HeaderMark');
+						const last = Math.min(doc.lineAt(rangeTo).number,
+							underline ? doc.lineAt(underline.from).number - 1 : doc.lineAt(node.to).number);
+						const first = Math.max(doc.lineAt(node.from).number, doc.lineAt(rangeFrom).number);
+						for (let n = first; n <= last; n++) {
+							const line = doc.line(n);
+							addLineClass(line.from, HEADING_LINE_CLASS[name]);
+							decorations.push(Decoration.widget({ widget: hiddenMarker, side: 1 }).range(line.to));
+						}
+						return; // Descend to hide/reveal the underline's HeaderMark.
+					}
 					addLineClass(doc.lineAt(node.from).from, HEADING_LINE_CLASS[name]);
 					const next = node.node.nextSibling;
 					if (next && (next.name === 'BulletList' || next.name === 'OrderedList')) {
@@ -1903,6 +1922,23 @@ function buildDecorations(view: EditorView): DecorationSet {
 				}
 
 				switch (name) {
+					case 'LinkReference': {
+						const label = node.node.getChild('LinkLabel');
+						if (!label || state.sliceDoc(label.from, label.from + 2) === '[^') return false;
+						if (!cursorTouchesRange(state, node.from, node.to)) {
+							const first = Math.max(doc.lineAt(node.from).number, doc.lineAt(rangeFrom).number);
+							const last = Math.min(doc.lineAt(node.to).number, doc.lineAt(rangeTo).number);
+							for (let n = first; n <= last; n++) {
+								const line = doc.line(n);
+								const from = Math.max(line.from, node.from), to = Math.min(line.to, node.to);
+								if (from < to) pushReplace(from, to, hiddenMarkerDeco);
+							}
+						}
+						return false;
+					}
+					case 'Escape':
+						if (!cursorTouchesRange(state, node.from, node.to)) pushReplace(node.from, node.from + 1, hiddenMarkerDeco);
+						return false;
 					case 'HeaderMark': {
 						if (!cursorTouchesRange(state, node.from, node.to)) {
 							const next = state.sliceDoc(node.to, node.to + 1);
@@ -2173,13 +2209,14 @@ function buildDecorations(view: EditorView): DecorationSet {
 						// Bare bracket syntax is also parsed as a potential reference
 						// link. Leave it intact for footnotes/callouts (or as text),
 						// rather than creating an empty-href link over their widgets.
-						if (!node.node.getChild('URL')) return false;
+						const reference = node.node.getChild('URL') ? undefined : referenceLinkTarget(state, node.node);
+						if (!node.node.getChild('URL') && reference === undefined) return false;
 						const marks = node.node.getChildren('LinkMark');
 						if (marks.length < 2) return;
 						const labelFrom = marks[0].to;
 						const labelTo = marks[1].from;
 						const urlNode = node.node.getChild('URL');
-						const href = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : '';
+						const href = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : reference!;
 						if (!cursorTouchesRange(state, node.from, node.to)) {
 							const label = state.sliceDoc(labelFrom, labelTo);
 							if (labelFrom > node.from) pushReplace(node.from, labelFrom, hiddenMarkerDeco);
@@ -2199,7 +2236,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const altFrom = marks[0].to;
 						const altTo = marks[1].from;
 						const urlNode = node.node.getChild('URL');
-						const src = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : '';
+						const src = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : referenceLinkTarget(state, node.node);
+						if (src === undefined) return false;
 						const alt = state.sliceDoc(altFrom, altTo);
 						if (isDrawioPath(src) && !isDiagramRenderingAllowed()) return false;
 						if (!cursorTouchesRange(state, node.from, node.to)) {

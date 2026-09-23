@@ -520,6 +520,7 @@ Additional references:
 
 ## Known limitations
 
+- VS Code's built-in Markdown Preview does not render the extension's wikilinks or Obsidian-style callouts. Use **Markdown Live Preview** for those features; selecting another viewing mode does not add syntax support to that editor.
 - Only one local workspace folder is supported as a vault.
 - Windows, macOS, and Linux run the same source, package, filesystem, Trash, undo/redo, autosave, security, Restricted Mode, cache-recovery, and installed-VSIX validation gates. Platform-specific manual usability testing is still required before a production release.
 - VoiceOver, NVDA, and Orca checks remain part of the manual pre-release matrix.

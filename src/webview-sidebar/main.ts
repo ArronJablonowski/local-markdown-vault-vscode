@@ -105,6 +105,7 @@ function buildCard(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 	radio.type = 'radio';
 	radio.name = 'mlp-css-theme';
 	radio.className = 'mlp-radio';
+	radio.dataset.focusKey = `theme:${style.id}`;
 	radio.checked = style.enabled;
 	radio.setAttribute('aria-label', t('sidebar.applyStyle', style.name));
 	const apply = (): void => {
@@ -136,6 +137,9 @@ function buildCard(style: StyleEntry, themeKind: ThemeKind): HTMLElement {
 		iconButton('rename', t('sidebar.rename'), () => post({ type: 'renameStyle', id: style.id })),
 		iconButton('delete', t('sidebar.delete'), () => post({ type: 'deleteStyle', id: style.id })),
 	);
+	Array.from(actions.querySelectorAll('button')).forEach((button, index) => {
+		button.dataset.focusKey = `theme:${style.id}:action:${index}`;
+	});
 	head.appendChild(actions);
 
 	card.appendChild(head);
@@ -164,6 +168,7 @@ function buildSelect(
 	span.textContent = label;
 	const select = document.createElement('select');
 	select.className = 'mlp-select';
+	select.dataset.focusKey = `setting:${label}`;
 	for (const [val, text] of options) {
 		const opt = document.createElement('option');
 		opt.value = val;
@@ -246,6 +251,9 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 }
 
 function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: ThemeKind, workspaceTrusted: boolean): void {
+	const active = document.activeElement;
+	const focusKey = active instanceof HTMLElement && root.contains(active) ? active.dataset.focusKey : undefined;
+	const scrollTop = document.scrollingElement?.scrollTop ?? 0;
 	root.innerHTML = '';
 
 	const themesSection = document.createElement('div');
@@ -286,6 +294,7 @@ function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: Them
 	if (workspaceTrusted) {
 		const newButton = document.createElement('button');
 		newButton.className = 'mlp-new-style';
+		newButton.dataset.focusKey = 'new-style';
 		newButton.textContent = t('sidebar.newStyle');
 		newButton.addEventListener('click', () => post({ type: 'newStyle' }));
 		themesSection.appendChild(newButton);
@@ -294,6 +303,13 @@ function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: Them
 	// Settings on top, CSS themes at the bottom.
 	root.appendChild(buildSettings(settings));
 	root.appendChild(themesSection);
+	if (focusKey) {
+		// Compare values rather than interpolating untrusted theme IDs into CSS.
+		const replacement = Array.from(root.querySelectorAll<HTMLElement>('[data-focus-key]'))
+			.find(element => element.dataset.focusKey === focusKey);
+		replacement?.focus({ preventScroll: true });
+	}
+	if (document.scrollingElement) document.scrollingElement.scrollTop = scrollTop;
 }
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {

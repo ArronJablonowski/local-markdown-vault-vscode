@@ -118,7 +118,7 @@ function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks
 			const separator = rows[1][column]?.trim() ?? '';
 			if (separator.endsWith(':')) cell.style.textAlign = separator.startsWith(':') ? 'center' : 'right';
 			else if (separator.startsWith(':')) cell.style.textAlign = 'left';
-			renderInlineInto(cell, (rows[row][column] ?? '').trim(), hooks);
+			renderInlineInto(cell, (rows[row][column] ?? '').trim(), { ...hooks, inTableCell: true });
 			tr.appendChild(cell);
 		}
 		(row === 0 ? head : body).appendChild(tr);
