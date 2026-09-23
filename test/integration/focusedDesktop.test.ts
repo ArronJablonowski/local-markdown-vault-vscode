@@ -64,6 +64,23 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('list Tab and Shift+Tab update nesting and autosave without extra blank lines', async () => {
+		const fixture = await makeFixture('list-qa');
+		const note = await service.createNote(fixture, 'List QA');
+		const initial = '# Heading\n- Parent\n- Child';
+		await vscode.workspace.fs.writeFile(note, Buffer.from(initial));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Parent');
+		await frame.locator('.cm-line', { hasText: 'Child' }).click();
+		await frame.page().keyboard.press('Tab');
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === '# Heading\n- Parent\n  - Child', 'Tab did not nest and save the bullet');
+		await frame.page().keyboard.press('End');
+		await frame.page().keyboard.press('Enter');
+		await frame.page().keyboard.press('Shift+Tab');
+		await frame.page().keyboard.type('Sibling', { delay: 20 });
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === '# Heading\n- Parent\n  - Child\n- Sibling', 'Shift+Tab did not realign and save the new bullet');
+	});
+
 	test('renders complex mixed-content notes and autosaves their table edits in real VS Code', async function () {
 		this.timeout(120_000);
 		const fixture = await makeFixture('complex-qa');

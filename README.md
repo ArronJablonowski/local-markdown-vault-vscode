@@ -197,6 +197,11 @@ Use `[ ]` for an open task and any non-space status character for a completed ta
 
 Nested bullet levels automatically use solid, hollow, and square markers in Live Preview while keeping ordinary `-` markers in the file.
 
+Press **Tab** on a bullet to make it a sub-bullet, and **Shift+Tab** to move it
+back one level. This also works on a new empty bullet after Return. Nested
+lists stay compact beneath headings; intentional blank lines in your Markdown
+are preserved. These behaviors apply to **Markdown Live Preview** while unlocked.
+
 #### Add callouts
 
 Start a blockquote with `[!type]`. Add `-` to start collapsed or `+` to start expanded.

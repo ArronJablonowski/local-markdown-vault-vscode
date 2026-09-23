@@ -235,6 +235,12 @@ html, body {
 .cm-line.mlp-line-h5 { font-size: 1.05em; }
 .cm-line.mlp-line-h6 { font-size: 1em; opacity: 0.85; }
 
+/* Keep a heading attached to its list. Source blank lines remain editable;
+   theme heading margins must not add another paragraph-sized gap. */
+.cm-line.mlp-heading-before-list {
+	padding-bottom: 0.12em !important;
+}
+
 /* ── Inline emphasis ─────────────────────────────────────────────────────── */
 .mlp-strong { font-weight: 700; }
 .mlp-em { font-style: italic; }
@@ -375,11 +381,16 @@ html, body {
 }
 
 /* ── Lists ───────────────────────────────────────────────────────────────── */
+.mlp-list-indent {
+	display: inline-block;
+}
 /* Muted, matching the ordered-list marker below rather than link blue — a
    marker glyph isn't a link and shouldn't visually imply one. */
 .mlp-bullet {
 	display: inline-block;
-	width: 1ch;
+	/* ch changes with font weight in proportional themes; all shapes need
+	   the same marker box so text starts at a consistent offset. */
+	width: 0.65em;
 	text-align: center;
 	color: var(--vscode-descriptionForeground, #888);
 	font-weight: 700;
@@ -388,7 +399,7 @@ html, body {
 	font-weight: 500;
 }
 .mlp-bullet-3 {
-	font-size: 0.82em;
+	font-weight: 500;
 }
 .mlp-list-mark {
 	color: var(--vscode-descriptionForeground, #888);

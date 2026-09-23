@@ -1841,6 +1841,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 				if (name in HEADING_LINE_CLASS) {
 					addLineClass(doc.lineAt(node.from).from, HEADING_LINE_CLASS[name]);
+					const next = node.node.nextSibling;
+					if (next && (next.name === 'BulletList' || next.name === 'OrderedList')) {
+						addLineClass(doc.lineAt(node.from).from, 'mlp-heading-before-list');
+					}
 					// Unconditionally plant a zero-size widget at the *end* of the heading
 					// line, even while the cursor sits on it and the "#" marker is fully
 					// visible. Otherwise, at the moment a heading line first mounts with
@@ -1947,10 +1951,22 @@ function buildDecorations(view: EditorView): DecorationSet {
 						// `-last`: with every item marked "last", every item picked up
 						// that trailing margin, spacing a tight list out like a loose one.
 						const parent = node.node.parent;
-						const isFirstItem = !parent || parent.firstChild?.from === node.from;
-						const isLastItem = !parent || parent.lastChild?.to === node.to;
+						// Nested lists share their outer list's line boxes. Giving each
+						// nested list its own block edges adds theme spacing mid-list.
+						const nested = parent?.parent && hasAncestor(parent.parent, 'ListItem');
+						const isFirstItem = !nested && (!parent || parent.firstChild?.from === node.from);
+						const isLastItem = !nested && (!parent || parent.lastChild?.to === node.to);
 						const taskComplete = taskItemCompletion(state, node.from);
 						const taskLineNumber = doc.lineAt(node.from).number;
+						const itemLine = doc.line(taskLineNumber);
+						const indentation = state.sliceDoc(itemLine.from, node.from);
+						if (/^[ \t]+$/.test(indentation)) {
+							let columns = 0;
+							for (const char of indentation) columns += char === '\t' ? state.tabSize - columns % state.tabSize : 1;
+							// Proportional themes make two literal spaces narrower than a
+							// bullet. Reserve actual character columns for visible nesting.
+							decorations.push(Decoration.mark({ class: 'mlp-list-indent', attributes: { style: `width: ${columns}ch` } }).range(itemLine.from, node.from));
+						}
 						// Lines a nested table widget will replace get no line decoration,
 						// or CodeMirror discards the widget and shows raw pipes instead.
 						const replaced = blockReplacedLines(state, node.node);

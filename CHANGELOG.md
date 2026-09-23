@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep nested bullets compact by applying theme list-edge spacing only to the outer list. Reduce heading-to-list gaps, give all bullet shapes equal-width marker boxes, and preserve clear indentation in proportional-font themes. Add list spacing, alignment, Tab/Shift+Tab, and real VS Code autosave regression tests.
+
 - Render Mermaid and draw.io fences nested on their own lines inside lists and callouts, preserving their complete content and source-button behavior. Keep embedded wide tables horizontally scrollable, preserve column alignment, and normalize short or extra cells to the header width.
 - Add four complex mixed-content QA notes and regression coverage for diagrams, embedded tables, property/task/table edits, themes, and real VS Code autosave.
 
