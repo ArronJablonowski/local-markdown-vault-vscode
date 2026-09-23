@@ -403,6 +403,13 @@ Compressed draw.io payloads still require exporting uncompressed XML first.
 
 For a complete comparison corpus, see [`test/fixtures/obsidian-advanced`](test/fixtures/obsidian-advanced) and the [Obsidian compatibility guide](docs/OBSIDIAN_COMPATIBILITY.md).
 
+For combined stress tests, copy [`test/fixtures/complex-qa`](test/fixtures/complex-qa)
+into a disposable vault. Its four main notes combine properties, advanced inline
+formatting, nested tasks/callouts, wide tables, math, links/embeds, Mermaid entity
+tables, and multi-page draw.io diagrams. See the [complex Markdown QA report](docs/COMPLEX_MARKDOWN_QA_2026-09-23.md)
+for coverage, fixes, and limitations. Diagram fences nested in lists or callouts
+must start on their own line, with the appropriate indentation or `>` prefix.
+
 ### Use the Obsidian Dark theme
 
 Local Markdown Vault includes an independently authored `obsidian-dark.css`

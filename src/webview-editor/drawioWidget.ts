@@ -44,12 +44,12 @@ const DRAG_THRESHOLD_PX = 4;
 type DisplayMode = 'fit' | 'native';
 
 export class DrawioWidget extends WidgetType {
-	constructor(private readonly code: string) {
+	constructor(private readonly code: string, private readonly sourceOffset = 0) {
 		super();
 	}
 
 	eq(other: DrawioWidget): boolean {
-		return other.code === this.code;
+		return other.code === this.code && other.sourceOffset === this.sourceOffset;
 	}
 
 	toDOM(view: EditorView): HTMLElement {
@@ -114,7 +114,7 @@ export class DrawioWidget extends WidgetType {
 		const zoomOutBtn = makeButton('−', t('zoom.out'), () => zoomCenter(1 / 1.2));
 		const zoomResetBtn = makeButton('↺', t('zoom.reset'), () => setMode('fit'));
 		const modeToggleBtn = makeButton('', '', () => setMode(mode === 'fit' ? 'native' : 'fit'));
-		const codeModeBtn = createCodeModeButton(view, { anchor: wrap });
+		const codeModeBtn = createCodeModeButton(view, { anchor: wrap, caretPos: () => view.posAtDOM(wrap) + this.sourceOffset });
 
 		// ── Page switcher, shown only for a file that actually has pages to switch
 		// between ────────────────────────────────────────────────────────────────

@@ -32,12 +32,12 @@ const DRAG_THRESHOLD_PX = 4;
 type DisplayMode = 'fit' | 'native';
 
 export class MermaidWidget extends WidgetType {
-	constructor(private readonly code: string) {
+	constructor(private readonly code: string, private readonly sourceOffset = 0) {
 		super();
 	}
 
 	eq(other: MermaidWidget): boolean {
-		return other.code === this.code;
+		return other.code === this.code && other.sourceOffset === this.sourceOffset;
 	}
 
 	toDOM(view: EditorView): HTMLElement {
@@ -128,7 +128,7 @@ export class MermaidWidget extends WidgetType {
 		// Same control every rendered block carries, so the way back to the source
 		// is in the same place whatever the block is. Clicking the diagram itself
 		// still works too — this just makes the route visible.
-		const codeModeBtn = createCodeModeButton(view, { anchor: wrap });
+		const codeModeBtn = createCodeModeButton(view, { anchor: wrap, caretPos: () => view.posAtDOM(wrap) + this.sourceOffset });
 		toolbar.append(codeModeBtn, modeToggleBtn, zoomInBtn, zoomOutBtn, zoomResetBtn);
 		wrap.appendChild(toolbar);
 

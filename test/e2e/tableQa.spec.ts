@@ -8,7 +8,7 @@ function table(columns: number, rows: number, prefix = 'Table'): string {
 	return [row(Array.from({ length: columns }, (_, i) => `${prefix} heading ${i}`)),
 		row(Array.from({ length: columns }, (_, i) => [':---', ':---:', '---:'][i % 3])),
 		...Array.from({ length: rows }, (_, r) => row(Array.from({ length: columns }, (_, c) =>
-			c % 3 === 0 ? `**Row ${r}**<br>Detail ${c}` : c % 3 === 1 ? `Value ${r} — café 日本語` : `[Link ${r}](https://example.com)`)))].join('\n');
+			c % 3 === 0 ? `**Row ${r}**<br>Detail ${c}` : c % 3 === 1 ? `Value ${r} — café \u65e5\u672c\u8a9e` : `[Link ${r}](https://example.com)`)))].join('\n');
 }
 
 for (const columns of [1, 3, 12, 30]) {
@@ -41,11 +41,23 @@ for (const themed of [false, true]) {
 				scroller.scrollTop += el.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top;
 			});
 			const wrap = page.locator('.mlp-table-wrap').filter({ hasText: index === 0 ? 'First heading 0' : 'Second heading 0' });
-			await wrap.evaluate(el => {
+			// Materializing the next table changes CodeMirror's estimated heights.
+			// Wait for the intended scroll position, not a stale pre-layout offset
+			// that can jump beyond the table (where its header should be hidden).
+			await expect.poll(() => wrap.evaluate(async el => {
 				const scroller = document.querySelector('.cm-scroller')!;
-				scroller.scrollTop += el.querySelector('.mlp-table')!.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 120;
+				const table = el.querySelector('.mlp-table')!;
+				scroller.scrollTop += table.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 120;
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				return Math.abs(table.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 120);
+			})).toBeLessThanOrEqual(2);
+			await expect(wrap.locator('.mlp-table-sticky-header')).not.toHaveAttribute('hidden').catch(async error => {
+				throw new Error(`${error.message}; geometry=${JSON.stringify(await wrap.evaluate(el => {
+					const scroller = document.querySelector('.cm-scroller')!;
+					const table = el.querySelector('.mlp-table')!;
+					return { scroll: scroller.scrollTop, scroller: scroller.getBoundingClientRect().toJSON(), table: table.getBoundingClientRect().toJSON(), viewport: el.querySelector('.mlp-table-viewport')!.className };
+				}))}`);
 			});
-			await expect(wrap.locator('.mlp-table-sticky-header')).not.toHaveAttribute('hidden');
 			await wrap.locator('.mlp-table-viewport').evaluate(el => { el.scrollLeft = 450; });
 			for (const width of [400, 1000]) {
 				await page.setViewportSize({ width, height: 700 });

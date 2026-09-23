@@ -4,6 +4,7 @@ import type { Range, EditorState } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
 import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
+import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { isDrawioPath } from './drawioFileClient';
 import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
@@ -2040,7 +2041,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 						if (
 							isDiagramLang(lang) !== null &&
 							!blockCursorTouchesRange(state, node.from, node.to) &&
-							isLineAligned(state, node.from, node.to)
+							diagramFenceRange(state, node.node) !== null &&
+							diagramFenceText(state, node.node).trim().length > 0
 						) {
 							// Rendered as a diagram by blockDecorationsField; skip entirely.
 							return false;

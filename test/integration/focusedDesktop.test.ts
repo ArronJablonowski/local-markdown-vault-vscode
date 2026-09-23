@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, type Browser, type Frame, type Page } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
@@ -63,6 +64,47 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('renders complex mixed-content notes and autosaves their table edits in real VS Code', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('complex-qa');
+		const content = vscode.Uri.joinPath(fixture, 'content');
+		await vscode.workspace.fs.copy(vscode.Uri.joinPath(extensionUri, 'test/fixtures/complex-qa'), content);
+		for (const name of ['01-research-workbench.md', '02-linked-diagram-atlas.md', '03-long-project-review.md', '04-editing-boundaries.md']) {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			const note = vscode.Uri.joinPath(content, name);
+			const original = Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame(name.startsWith('04') ? 'Mixed editing boundaries' : 'Properties');
+			let mermaid = false, drawio = false;
+			for (let step = 0; step < 150; step++) {
+				await delay(100);
+				assert.strictEqual(await frame.locator('.mlp-mermaid-error, .mlp-math-error').count(), 0, `${name} has a rendering error`);
+				mermaid ||= await frame.locator('.mlp-mermaid-wrap:not(.mlp-drawio-wrap) svg').count() > 0;
+				drawio ||= await frame.locator('.mlp-drawio-wrap svg').count() > 0;
+				const end = await frame.locator('.cm-scroller').evaluate(el => {
+					if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) return true;
+					el.scrollTop += 400;
+					return false;
+				});
+				if (end) break;
+			}
+			assert.ok(mermaid && drawio, `${name} must render both diagram types`);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original, 'rendering must not mutate a note');
+			if (name.startsWith('04')) {
+				await frame.locator('.cm-scroller').evaluate(el => { el.scrollTop = 0; });
+				await delay(100);
+				const cell = frame.locator('.mlp-table td').first();
+				await cell.scrollIntoViewIfNeeded();
+				await cell.focus();
+				await frame.page().keyboard.press('F2');
+				await frame.page().keyboard.type('**Saved QA cell**<br>Second line');
+				await frame.page().keyboard.press('Enter');
+				await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8').includes('**Saved QA cell**<br>Second line'), 'mixed-content table edit was not automatically saved');
+				assert.strictEqual(await cell.locator('strong').textContent(), 'Saved QA cell');
+			}
+		}
+	});
+
 	test('a plain paragraph created in Text Editor stays outside the native Markdown Editor list', async () => {
 		const fixture = await makeFixture('native-exit');
 		const note = await service.createNote(fixture, 'Native exit');
@@ -93,9 +135,10 @@ suite('focused cross-platform desktop transactions', () => {
 		await paragraph.waitFor({ state: 'visible' });
 		if (await nativeFrame.locator('.md-readonly-toggle').getAttribute('aria-pressed') === 'true') await nativeFrame.locator('.md-readonly-toggle').click();
 		await paragraph.click();
-		await nativeFrame.page().keyboard.press('End');
-		await nativeFrame.page().keyboard.type(' continued');
-		await waitFor(async () => (await vscode.workspace.openTextDocument(note)).getText() === original + 'Independent paragraph continued', 'typing did not stay in the independent paragraph');
+		await nativeFrame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowRight' : 'End');
+		await nativeFrame.page().keyboard.type(' continued', { delay: 40 });
+		await waitFor(async () => (await vscode.workspace.openTextDocument(note)).getText() === original + 'Independent paragraph continued', 'typing did not stay in the independent paragraph')
+			.catch(async error => { throw new Error(`${error.message}; actual=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText())}`); });
 	});
 
 	test('one Text Editor picker selection stays in source mode with Markdown Editor as default', async () => {

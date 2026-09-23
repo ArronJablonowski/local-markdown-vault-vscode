@@ -106,17 +106,31 @@ function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks
 	const rows = lines.map(splitRow);
 	const table = document.createElement('table');
 	table.className = 'mlp-table mlp-embed-table';
+	const head = document.createElement('thead');
+	const body = document.createElement('tbody');
+	const width = rows[0].length;
 	for (let row = 0; row < rows.length; row++) {
 		if (row === 1) continue;
 		const tr = document.createElement('tr');
-		for (const value of rows[row]) {
+		for (let column = 0; column < width; column++) {
 			const cell = document.createElement(row === 0 ? 'th' : 'td');
-			renderInlineInto(cell, value.trim(), hooks);
+			if (row === 0) cell.setAttribute('scope', 'col');
+			const separator = rows[1][column]?.trim() ?? '';
+			if (separator.endsWith(':')) cell.style.textAlign = separator.startsWith(':') ? 'center' : 'right';
+			else if (separator.startsWith(':')) cell.style.textAlign = 'left';
+			renderInlineInto(cell, (rows[row][column] ?? '').trim(), hooks);
 			tr.appendChild(cell);
 		}
-		table.appendChild(tr);
+		(row === 0 ? head : body).appendChild(tr);
 	}
-	parent.appendChild(table);
+	table.append(head, body);
+	const viewport = document.createElement('div');
+	viewport.className = 'mlp-table-viewport mlp-table-scrollable';
+	viewport.tabIndex = 0;
+	viewport.setAttribute('role', 'region');
+	viewport.setAttribute('aria-label', t('table.scrollRegion'));
+	viewport.appendChild(table);
+	parent.appendChild(viewport);
 }
 
 function splitRow(line: string): string[] {

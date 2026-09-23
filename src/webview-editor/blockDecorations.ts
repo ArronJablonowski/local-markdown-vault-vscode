@@ -4,7 +4,8 @@ import { syntaxTree } from '@codemirror/language';
 import { MermaidWidget } from './mermaidWidget';
 import { DrawioWidget } from './drawioWidget';
 import { isDiagramLang } from './diagramLang';
-import { buildTableWidget, isLineAligned, alignedBlockRange } from './livePreviewPlugin';
+import { buildTableWidget, alignedBlockRange } from './livePreviewPlugin';
+import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { blockCursorTouchesRange, noteRevealed, onPointerRelease } from './cmUtils';
 import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, FrontmatterErrorWidget } from './frontmatterWidget';
 import { parseFrontmatterYaml } from './frontmatterSecurity';
@@ -60,12 +61,13 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 				const diagramRevealed = blockCursorTouchesRange(state, node.from, node.to);
 				noteRevealed(node.from, node.to, diagramRevealed);
 				if (diagramRevealed) return;
-				if (!isLineAligned(state, node.from, node.to)) return;
-				const textNode = node.node.getChild('CodeText');
-				const code = textNode ? state.sliceDoc(textNode.from, textNode.to) : '';
+				const range = diagramFenceRange(state, node.node);
+				if (!range) return;
+				const code = diagramFenceText(state, node.node);
 				if (!code.trim()) return;
-				const widget = diagram === 'mermaid' ? new MermaidWidget(code) : new DrawioWidget(code);
-				decorations.push(Decoration.replace({ widget, block: true }).range(node.from, node.to));
+				const offset = node.from - range.from;
+				const widget = diagram === 'mermaid' ? new MermaidWidget(code, offset) : new DrawioWidget(code, offset);
+				decorations.push(Decoration.replace({ widget, block: true }).range(range.from, range.to));
 				return false;
 			}
 			if (node.name === 'Table') {

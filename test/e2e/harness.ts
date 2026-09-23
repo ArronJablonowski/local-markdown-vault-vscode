@@ -46,6 +46,7 @@ export async function mountEditor(
 		vaultNotes?: Array<{ path: string; basename: string; aliases: string[]; headings: Array<{ text: string; line: number }>; blockIds: string[] }>;
 		currentVaultPath?: string;
 		editingMode?: 'editing' | 'locked';
+		themeKind?: 'dark' | 'light';
 	} = {},
 ): Promise<void> {
 	const script = readFileSync(join(ROOT, 'dist', 'webview-editor.js'), 'utf8');
@@ -94,7 +95,7 @@ html, body { margin: 0; height: 100%; background: var(--vscode-editor-background
 ${style}
 </style>
 </head>
-<body>
+<body class="vscode-${options.themeKind ?? 'dark'}">
 <div id="mlp-root" data-mermaid-uri="https://example.invalid/mermaid-chunk.js" data-aws-shapes-uri="https://example.invalid/aws4-shapes.json" data-script-nonce="test"></div>
 <script>${HOST_STUB}</script>
 <script>${script.replace(/<\/script>/gi, '<\/script>')}</script>

@@ -1,5 +1,8 @@
 # Changelog
 
+- Render Mermaid and draw.io fences nested on their own lines inside lists and callouts, preserving their complete content and source-button behavior. Keep embedded wide tables horizontally scrollable, preserve column alignment, and normalize short or extra cells to the header width.
+- Add four complex mixed-content QA notes and regression coverage for diagrams, embedded tables, property/task/table edits, themes, and real VS Code autosave.
+
 - Add an always-visible compact table source button. Preserve horizontal scrolling when saving cells or changing table structure, and prevent Tab from targeting the decorative sticky header. Expand table QA across 1–30 columns, up to 100 rows, narrow/wide layouts, multiple tables, themes, resizing, and source-mode transitions.
 
 - Keep sticky table headers and table bodies synchronized horizontally, including scrolling directly over a pinned header.
