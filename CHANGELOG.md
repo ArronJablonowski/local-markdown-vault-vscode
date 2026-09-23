@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep revealed table and diagram source open during mouse and keyboard text selection, preventing replacement text from landing outside the intended block. Reproduced in trusted-mode native VS Code QA; add Mermaid, draw.io, table, and selection-state regression coverage.
+
 - Keep callout headers and footnote navigation visible after table or YAML property edits. Prevent ordinary link decorations from overlapping rendered callout titles or replacing bare bracket syntax with empty-destination links. Reproduced through native VS Code mouse/keyboard QA and protected with regression tests.
 
 - Render tables and quoted display math inside callouts; preserve their tinted panels around diagrams and other block objects, including the Obsidian-style theme. Keep nested callout colors independent.

@@ -10,10 +10,9 @@ Created four Markdown files through VS Code's New File and Save dialogs in
 `/tmp/local-markdown-vault-human-qa.pkxD2C`: `Everyday.md`, `Diagrams.md`,
 `Clipboard.md`, and `Research.md`. Existing personal notes were not edited.
 
-The new folder opened in Restricted Mode. Workspace trust approval was requested
-but not assumed. This session therefore does not claim hands-on completion of
-trusted diagram rendering, custom themes, or vault create/move/rename/trash.
-These controls correctly remain unavailable in Restricted Mode.
+The new folder initially opened in Restricted Mode. After explicit user approval,
+trusted only this disposable folder and continued the hands-on checks below.
+Personal vault trust and global security settings were not changed.
 
 ## Hands-on coverage
 
@@ -59,12 +58,45 @@ confirmed on disk.
 - 373 browser tests passed, including both new regression cases.
 - Package integrity, type checking, and US English checks passed.
 - Installed-package smoke checks passed: 9 trusted, 5 restricted, and 1
-  disabled-extension check. These automated checks supplement, but do not
-  replace, the pending trusted-mode hands-on workflow.
+  disabled-extension check. These automated checks supplement the hands-on work.
+
+## Trusted-mode continuation
+
+- Verified Mermaid flowchart and draw.io XML rendering in the actual app;
+  exercised actual-size, zoom in/out, pan, and reset controls.
+- Created `QA Archive` through the vault command and `Move Test.md` through the
+  folder context menu; typed linked content and confirmed autosave.
+- Renamed `Everyday.md` to `Everyday Renamed.md`. Verified saved wikilinks updated
+  in three notes, including an aliased link.
+- Moved `Research.md` into the new folder, then renamed the populated folder to
+  `QA Renamed`. The tree and open-note paths updated immediately.
+- Trashed the disposable Move Test note. Tested both Cancel and confirmation on
+  nonempty-folder deletion, then trashed QA Renamed and its remaining Research
+  note. These test items are recoverable through macOS Trash; no personal files
+  were deleted.
+- Source editing exposed another real defect: selecting text in an already
+  revealed block could re-render it and move replacement typing outside the
+  source. The remembered source-editing state must take precedence over the
+  protection for dragging across a still-rendered widget. Fixed that ordering
+  and added Mermaid, draw.io, table, and unit regression tests.
+
+### Final verification
+
+Installed the updated package and repeated source selection and replacement in
+VS Code. Mermaid rendered the edited `Verified` node; draw.io rendered the edited
+`Verified QA` label. Both changes were also confirmed in the saved Markdown.
+
+- 1,002 unit tests and 376 browser tests passed.
+- Type checking, package integrity, and US English checks passed.
+- Packaged-extension smoke checks passed: 9 trusted, 5 restricted, and 1
+  disabled-extension check.
+- The new browser regressions cover selecting and replacing revealed Mermaid,
+  draw.io, and table source without prematurely returning to rendered mode.
 
 ## Limits
 
 This is a bounded macOS workflow pass, not a claim that every possible document,
-platform, or interaction is perfect. Trusted-mode diagram and file-management
-workflows still need the requested approval for this disposable folder. No
-security settings were weakened to complete the test.
+platform, or interaction is perfect. Custom-theme editing, every possible diagram
+family, and cross-platform native interactions were not exhaustively exercised
+in this continuation. Only the explicitly approved disposable folder was trusted;
+no global security protections were disabled.

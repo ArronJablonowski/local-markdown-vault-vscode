@@ -226,6 +226,9 @@ export function setPointerDownForTesting(value: boolean): void {
 export function blockCursorTouchesRange(state: EditorState, from: number, to: number): boolean {
 	const touching = cursorTouchesRange(state, from, to);
 	if (!touching) return false;
+	// Once source is open, selecting text inside it is an edit, not a drag
+	// across a rendered widget. Keep it open before applying gesture guards.
+	if (revealedRanges.has(rangeKey(from, to))) return true;
 	// Sweeping a selection across a block is a copy, not a request to edit it:
 	// unrendering mid-sweep replaces the rows being selected with pipe text and
 	// loses the selection. Inline constructs want the opposite (a drag across an
@@ -235,15 +238,8 @@ export function blockCursorTouchesRange(state: EditorState, from: number, to: nu
 	if (!selectionIsSearchMatch(state) && state.selection.ranges.some((range) => !range.empty)) {
 		return false;
 	}
-	// A block already showing its source keeps showing it, whatever the mouse is
-	// doing. The guards below exist to stop a *rendered* block being revealed by
-	// a stray click; applying them to one that is already open made it flip back
-	// to its rendered form for an instant on every press inside it — the caret
-	// was in the source, so nothing was being protected, and the flash was the
-	// only visible effect. `wasRevealed` is remembered per block range because
-	// the DOM cannot answer this: while the source shows there is no widget under
-	// the pointer to hit-test.
-	if (revealedRanges.has(rangeKey(from, to))) return true;
+	// These guards apply only to a block that is still rendered, never to the
+	// source already being edited (handled above).
 	// A gesture still in progress has not resolved into anything yet.
 	if (pointerDown) return false;
 	// The gesture touched a rendered block, so its caret is not a request to

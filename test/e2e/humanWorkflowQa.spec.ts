@@ -24,3 +24,35 @@ test('property edits preserve footnote navigation and callout controls', async (
 	await page.getByRole('button', { name: 'Go to footnote one', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Return to footnote reference one', exact: true })).toBeVisible();
 });
+
+test('diagram source button places the keyboard caret inside the source', async ({ page }) => {
+	await mountEditor(page, '# Diagrams\n\n```mermaid\nflowchart LR\nA[Start] --> B[Review]\n```\n\nAfter');
+	await expect(page.locator('.mlp-mermaid-wrap svg')).toBeVisible();
+	await page.locator('.mlp-mermaid-wrap .mlp-code-mode-btn').click();
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Home');
+	await page.keyboard.press('Shift+End');
+	await page.keyboard.type('A[Start] --> B[Verified]');
+	await page.locator('.cm-line', { hasText: 'After' }).click();
+	await expect(page.locator('.mlp-mermaid-wrap svg')).toContainText('Verified');
+});
+
+for (const kind of ['table', 'drawio'] as const) {
+	test(`${kind} source stays open while selecting and replacing text`, async ({ page }) => {
+		const vertex = '<mxCell id="2" value="Original" vertex="1" parent="1">';
+		const xml = `<mxGraphModel>\n<root>\n<mxCell id="0"/>\n<mxCell id="1" parent="0"/>\n${vertex}\n<mxGeometry x="20" y="20" width="140" height="60" as="geometry"/>\n</mxCell>\n</root>\n</mxGraphModel>`;
+		const source = kind === 'table' ? '| Name |\n| --- |\n| Original |' : `\`\`\`drawio\n${xml}\n\`\`\``;
+		await mountEditor(page, `Intro\n\n${source}\n\nAfter`);
+		const block = kind === 'table' ? '.mlp-table-wrap' : '.mlp-drawio-wrap';
+		await page.locator(`${block} .mlp-code-mode-btn`).click();
+		const line = page.locator('.cm-line', { hasText: kind === 'table' ? '| Original |' : vertex });
+		await line.click();
+		await page.keyboard.press('Home');
+		await page.keyboard.press('Shift+End');
+		await expect(page.locator(block)).toHaveCount(0);
+		await page.keyboard.type(kind === 'table' ? '| Verified |' : vertex.replace('Original', 'Verified'));
+		await page.locator('.cm-line', { hasText: 'After' }).click();
+		await expect(page.locator(kind === 'table' ? '.mlp-table td' : '.mlp-drawio-wrap svg')).toContainText('Verified');
+	});
+}

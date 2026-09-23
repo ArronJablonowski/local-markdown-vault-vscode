@@ -148,6 +148,16 @@ describe('blockCursorTouchesRange', () => {
 		setPointerDownForTesting(true);
 		expect(blockCursorTouchesRange(stateWithSelection(inside), from, to)).toBe(true);
 	});
+	it('keeps revealed source open during nonempty keyboard and mouse selections', () => {
+		const state = stateWithSelection(0);
+		const { from, to } = tableRange(state);
+		const inside = state.doc.line(3).from + 2;
+		noteRevealed(from, to, true);
+		expect(blockCursorTouchesRange(stateWithSelection(inside, inside + 2), from, to)).toBe(true);
+		setPointerDownForTesting(true);
+		expect(blockCursorTouchesRange(stateWithSelection(inside, inside + 2), from, to)).toBe(true);
+		expect(blockCursorTouchesRange(stateWithSelection(0, 1), from, to)).toBe(false);
+	});
 
 	it('stops exempting a block once it is rendered again', () => {
 		const state = stateWithSelection(0);
