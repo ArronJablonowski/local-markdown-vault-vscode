@@ -1860,12 +1860,17 @@ function buildDecorations(view: EditorView): DecorationSet {
 	}
 
 	const decoratedQuotes = new Set<number>();
+	const calloutHeaders = new Map<number, { from: number; to: number }>();
 	for (const { from: rangeFrom, to: rangeTo } of view.visibleRanges) {
 		tree.iterate({
 			from: rangeFrom,
 			to: rangeTo,
 			enter: (node) => {
 				if (fm && node.from >= fm.from && node.to <= fm.to) return false;
+				// A rendered callout header owns its inline syntax. Overlapping
+				// link/marker replacements can steal its DOM during later edits.
+				const header = calloutHeaders.get(doc.lineAt(node.from).from);
+				if (header && node.from >= header.from && node.to <= header.to) return false;
 				const name = node.name;
 
 				if (name in HEADING_LINE_CLASS) {
@@ -2028,6 +2033,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 								addLineRange(node.from, collapsed ? firstLine.to : node.to, (n, first, last) => replaced.has(n) ? '' :
 									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}`);
 								if (!blockCursorTouchesRange(state, node.from, node.to)) {
+									calloutHeaders.set(firstLine.from, { from: firstLine.from + callout.markerOffset, to: firstLine.to });
 									pushReplace(
 										firstLine.from + callout.markerOffset,
 										firstLine.to,
@@ -2155,6 +2161,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 						return; // descend to hide the ``` fence marks
 					}
 					case 'Link': {
+						// Bare bracket syntax is also parsed as a potential reference
+						// link. Leave it intact for footnotes/callouts (or as text),
+						// rather than creating an empty-href link over their widgets.
+						if (!node.node.getChild('URL')) return false;
 						const marks = node.node.getChildren('LinkMark');
 						if (marks.length < 2) return;
 						const labelFrom = marks[0].to;

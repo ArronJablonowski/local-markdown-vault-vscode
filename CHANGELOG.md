@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep callout headers and footnote navigation visible after table or YAML property edits. Prevent ordinary link decorations from overlapping rendered callout titles or replacing bare bracket syntax with empty-destination links. Reproduced through native VS Code mouse/keyboard QA and protected with regression tests.
+
 - Render tables and quoted display math inside callouts; preserve their tinted panels around diagrams and other block objects, including the Obsidian-style theme. Keep nested callout colors independent.
 - Replace DOM-only callout folding with editor-state folding that hides every contained object, preserves nested fold state, survives unrelated edits, and never edits the note. Accept `notes` as an alias for `note`.
 - Fix callout task strikethrough, quoted code copying, and Tab/Shift+Tab list nesting. Preserve table rendering when finishing or canceling a cell edit.
