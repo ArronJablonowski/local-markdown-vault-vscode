@@ -117,7 +117,7 @@ html, body {
 	overflow: hidden;
 	/* Append Japanese fallbacks so CJK glyphs render with a proper font when the
 	   editor font lacks them. */
-	font-family: var(--vscode-editor-font-family, monospace), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+	font-family: var(--vscode-editor-font-family, monospace), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
 	font-size: var(--vscode-editor-font-size, 14px);
 }
 
@@ -1091,7 +1091,7 @@ table.mlp-table th.mlp-table-cell-editing, table.mlp-table td.mlp-table-cell-edi
 	   top), CJK fallbacks included. Naming only the monospace face dropped those
 	   fallbacks, so a cell holding Japanese switched font — and line height —
 	   the instant it was clicked. */
-	font-family: var(--vscode-editor-font-family, monospace), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+	font-family: var(--vscode-editor-font-family, monospace), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
 }
 table.mlp-table th {
 	background: rgba(127, 127, 127, 0.12);

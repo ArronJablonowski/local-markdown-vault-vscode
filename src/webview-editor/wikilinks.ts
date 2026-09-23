@@ -12,6 +12,7 @@ import { t } from '../shared/i18n';
 import { rebaseEmbeddedLink } from '../shared/embeddedLink';
 import { resolveLocalImage } from './localImageClient';
 import { isOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
+import { emojiCompletions } from './emojiCompletion';
 
 let vaultNotes: VaultNoteSummary[] = [];
 let currentVaultPath = '';
@@ -46,7 +47,7 @@ export function setWikilinkOpener(opener: (href: string) => void): void {
 }
 
 export const wikilinkCompletionExtension: Extension = autocompletion({
-	override: [wikilinkCompletions],
+	override: [wikilinkCompletions, emojiCompletions],
 	activateOnTyping: true,
 	maxRenderedOptions: 100,
 });

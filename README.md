@@ -172,6 +172,19 @@ built-in editor.
 
 These examples remain ordinary Markdown files and are compatible with the supported Obsidian-style syntax. In Live Preview, move the cursor away from a formatted line to see its rendered appearance; move the cursor back to reveal and edit its source.
 
+#### Add emoji
+
+Paste or type Unicode emoji anywhere in a note: 😄 ✅ ⚠️ 👩🏽‍💻.
+They remain ordinary text in the saved Markdown, including in headings, tasks,
+tables, and code. Appearance depends on the emoji fonts installed on your system.
+
+In **Markdown Live Preview**, type `:smile`, `:heart`, `:warning`, or `:rocket`
+and select a suggestion with the arrow keys and Enter, or click it. This small
+offline menu inserts the actual emoji; it does not automatically rewrite existing
+shortcodes. Code and link destinations do not offer emoji suggestions. Use your
+system's character picker or paste for emoji not in the menu. No images, remote
+fonts, or network service are used.
+
 #### Highlight text
 
 Wrap text in double equals signs:
