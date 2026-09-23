@@ -11,6 +11,11 @@ import {
 } from './messageValidation';
 
 describe('validateEditorToHostMessage', () => {
+	it('accepts only an exact host draw.io invalidation signal', () => {
+		expect(validateHostToEditorMessage({ type: 'invalidateDrawioFiles' }, 0).ok).toBe(true);
+		expect(validateHostToEditorMessage({ type: 'invalidateDrawioFiles', src: '../../secret' }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ type: 'invalidateDrawioFiles' }, 0, 0).ok).toBe(false);
+	});
 	it('accepts only boolean, exact whitespace display updates', () => {
 		for (const enabled of [true, false]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(true);
 		for (const enabled of ['true', 1, null, {}]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(false);

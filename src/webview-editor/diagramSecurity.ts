@@ -217,10 +217,9 @@ export function sanitizeDiagramSvg(svg: string): SVGElement {
 		}
 		if (element === root) sanitizeSvgViewport(root);
 		if (element.localName.toLowerCase() === 'style') {
-			const decodedStyle = decodeCssForSecurity(element.textContent ?? '');
-			if (unsafeSvgCss(decodedStyle, true)) {
-				element.remove();
-			}
+			const safeStyle = sanitizeSvgStylesheet(element.textContent ?? '');
+			if (safeStyle) element.textContent = safeStyle;
+			else element.remove();
 		}
 	}
 
@@ -241,6 +240,34 @@ function unsafeSvgCss(decodedCss: string, stylesheet: boolean): boolean {
 	return /\b(?:https?|data|file|blob)\s*:|\/\//i.test(decodedCss)
 		|| /(?:url\s*\(|@import|expression\s*\(|@(?:font-face|property|keyframes)\b|\banimation(?:-[\w-]+)?\s*:|\btransition(?:-[\w-]+)?\s*:)/i.test(decodedCss)
 		|| (stylesheet && /:host(?:-context)?\b|::slotted\b/i.test(decodedCss));
+}
+
+/** Parse in a detached sheet: imports never load and rules never touch live DOM. */
+function sanitizeSvgStylesheet(css: string): string {
+	if (css.length > 1024 * 1024) return '';
+	try {
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync(css);
+		if (sheet.cssRules.length > 10_000) return '';
+		const safe: string[] = [];
+		for (const rule of Array.from(sheet.cssRules)) {
+			// Drop all at-rules, including keyframes, imports and font loading.
+			if (!(rule instanceof CSSStyleRule)) continue;
+			if (unsafeSvgCss(decodeCssForSecurity(rule.selectorText), true)) continue;
+			// Ignore nested rules; retain only this selector's direct declarations.
+			const declarations: string[] = [];
+			for (const name of Array.from(rule.style)) {
+				const value = rule.style.getPropertyValue(name);
+				const declaration = `${name}:${value}${rule.style.getPropertyPriority(name) ? '!important' : ''};`;
+				if (!unsafeSvgCss(decodeCssForSecurity(declaration), false)) declarations.push(declaration);
+			}
+			if (declarations.length) safe.push(`${rule.selectorText}{${declarations.join('')}}`);
+		}
+		const result = safe.join('\n');
+		return unsafeSvgCss(decodeCssForSecurity(result), true) ? '' : result;
+	} catch {
+		return '';
+	}
 }
 
 function sanitizeSvgViewport(root: Element): void {

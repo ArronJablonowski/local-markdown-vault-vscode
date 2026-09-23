@@ -9,7 +9,7 @@ import {
 	DrawioUnsupportedError,
 	DrawioParseError,
 } from './drawioRender';
-import { readDrawioFile } from './drawioFileClient';
+import { drawioFileGeneration, readDrawioFile } from './drawioFileClient';
 import type { DrawioDiagram } from '../shared/drawio';
 import { t } from '../shared/i18n';
 import { DiagramLimitError, replaceWithIsolatedDiagramSvg } from './diagramSecurity';
@@ -311,6 +311,7 @@ export class DrawioWidget extends WidgetType {
  * about a file-backed diagram that should behave differently once it is drawn.
  */
 export class DrawioFileWidget extends WidgetType {
+	private readonly generation = drawioFileGeneration();
 	constructor(
 		private readonly src: string,
 		private readonly alt: string,
@@ -319,7 +320,7 @@ export class DrawioFileWidget extends WidgetType {
 	}
 
 	eq(other: DrawioFileWidget): boolean {
-		return other.src === this.src && other.alt === this.alt;
+		return other.src === this.src && other.alt === this.alt && other.generation === this.generation;
 	}
 
 	toDOM(view: EditorView): HTMLElement {

@@ -10,10 +10,11 @@ describe('Mermaid configuration', () => {
 			maxTextSize: 100 * 1024,
 			maxEdges: 500,
 			htmlLabels: false,
+			suppressErrorRendering: true,
 			theme: 'default',
 		});
 		expect(config.secure).toEqual(expect.arrayContaining([
-			'secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'htmlLabels',
+			'secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'htmlLabels', 'suppressErrorRendering',
 		]));
 	});
 

@@ -383,6 +383,16 @@ flowchart LR
 
 Mermaid runs locally in strict mode. Script execution, click callbacks, external resources, HTML labels, and document attempts to weaken strict mode remain blocked.
 
+Safe diagram colors and labels are preserved; SVG animations and external
+resources remain disabled. Malformed diagrams show an error inside their panel.
+
+For draw.io, use an uncompressed XML `drawio` fenced block or reference a local
+file with `![](diagram.drawio)`. Multi-page diagrams have Previous/Next controls.
+Referenced diagrams refresh after external file changes, including deletion and
+recreation, without changing the Markdown note. Up to 256 distinct referenced
+file paths are tracked per open editor; reopen the note if that limit is reached.
+Compressed draw.io payloads still require exporting uncompressed XML first.
+
 For a complete comparison corpus, see [`test/fixtures/obsidian-advanced`](test/fixtures/obsidian-advanced) and the [Obsidian compatibility guide](docs/OBSIDIAN_COMPATIBILITY.md).
 
 ### Use the Obsidian Dark theme

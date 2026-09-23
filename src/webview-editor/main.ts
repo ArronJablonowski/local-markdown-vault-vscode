@@ -488,6 +488,10 @@ onHostMessage((message) => {
 			resetView(message.text);
 			updateEditingModeUi();
 			break;
+		case 'invalidateDrawioFiles':
+			clearDrawioFileCache();
+			if (view) view.dispatch({ selection: view.state.selection, annotations: remoteChange.of(true) });
+			break;
 		case 'ackEdit':
 			baseVersion = message.version;
 			break;

@@ -192,6 +192,26 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('refreshes externally edited, deleted, and recreated draw.io references', async () => {
+		const fixture = await makeFixture('diagram-refresh');
+		const note = await service.createNote(fixture, 'Diagram refresh');
+		const diagram = vscode.Uri.joinPath(fixture, 'sample.drawio');
+		const xml = (label: string) => `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="${label}" vertex="1" parent="1"><mxGeometry x="0" y="0" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel>`;
+		await vscode.workspace.fs.writeFile(diagram, bytes(xml('Original')));
+		const markdown = 'Diagram refresh fixture\n\n![](sample.drawio)\n\nAfter\n';
+		await vscode.workspace.fs.writeFile(note, bytes(markdown));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Diagram refresh fixture');
+		await waitFor(async () => (await frame.locator('.mlp-drawio-wrap svg').textContent())?.includes('Original') === true, 'initial diagram did not render');
+		await vscode.workspace.fs.writeFile(diagram, bytes(xml('Changed')));
+		await waitFor(async () => (await frame.locator('.mlp-drawio-wrap svg').textContent())?.includes('Changed') === true, 'changed diagram stayed cached');
+		await vscode.workspace.fs.delete(diagram);
+		await waitFor(() => frame.locator('.mlp-mermaid-error').isVisible(), 'deleted diagram stayed visible');
+		await vscode.workspace.fs.writeFile(diagram, bytes(xml('Recreated')));
+		await waitFor(async () => (await frame.locator('.mlp-drawio-wrap svg').textContent())?.includes('Recreated') === true, 'recreated diagram stayed in error state');
+		assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), markdown);
+	});
+
 	test('cuts mouse-selected table text, autosaves, and restores it with host undo', async () => {
 		const previousClipboard = await vscode.env.clipboard.readText();
 		try {

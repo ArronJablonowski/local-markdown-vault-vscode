@@ -7,6 +7,7 @@ const PROTECTED_MERMAID_KEYS = [
 	'maxTextSize',
 	'maxEdges',
 	'htmlLabels',
+	'suppressErrorRendering',
 ] as const;
 
 /**
@@ -25,6 +26,9 @@ export function mermaidConfiguration(isDark: boolean): MermaidConfig {
 		maxTextSize: 100 * 1024,
 		maxEdges: 500,
 		htmlLabels: false,
+		// Our widget owns the accessible error UI. Mermaid's fallback otherwise
+		// leaves an extra SVG in the document body, outside the isolated diagram.
+		suppressErrorRendering: true,
 		theme: isDark ? 'dark' : 'default',
 		flowchart: { useMaxWidth: false },
 		sequence: { useMaxWidth: false },

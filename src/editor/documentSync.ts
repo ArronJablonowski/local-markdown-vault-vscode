@@ -103,6 +103,8 @@ export class DocumentSyncSession {
 	private readonly clipboardRateLimiter = new TokenBucketRateLimiter(4, 1_000);
 	private readonly localImageLimiter = new RequestLimiter(MAX_CONCURRENT_LOCAL_IMAGE_READS);
 	private readonly drawioLimiter = new RequestLimiter(MAX_CONCURRENT_DRAWIO_READS);
+	private readonly referencedDrawioFiles = new Set<string>();
+	private drawioRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly embedLimiter = new RequestLimiter(MAX_CONCURRENT_EMBED_READS);
 	private readonly linkLimiter = new RequestLimiter(MAX_CONCURRENT_LINK_OPENS);
 	private readonly linkRateLimiter = new TokenBucketRateLimiter(LINK_OPEN_BURST, LINK_OPEN_REFILL_MS);
@@ -119,6 +121,20 @@ export class DocumentSyncSession {
 		this.lastAppliedVersion = document.version;
 		this.documentText = document.getText();
 		this.visible = webviewPanel.visible;
+		const diagramRoot = localWorkspaceVaultRoot(document.uri);
+		if (diagramRoot?.scheme === 'file') {
+			const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(diagramRoot, '**/*'));
+			const refresh = (uri: vscode.Uri) => {
+				if (this.disposed || !this.readyReceived || !vscode.workspace.isTrusted ||
+					!this.referencedDrawioFiles.has(uri.toString())) return;
+				if (this.drawioRefreshTimer) clearTimeout(this.drawioRefreshTimer);
+				this.drawioRefreshTimer = setTimeout(() => {
+					this.drawioRefreshTimer = undefined;
+					if (!this.disposed && vscode.workspace.isTrusted) this.post({ type: 'invalidateDrawioFiles' });
+				}, 150);
+			};
+			this.disposables.push(watcher, watcher.onDidChange(refresh), watcher.onDidCreate(refresh), watcher.onDidDelete(refresh));
+		}
 		this.disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('mdLivePreview.showWhitespace', this.document.uri) && this.readyReceived) {
 				this.sendWhitespaceSetting();
@@ -408,6 +424,9 @@ export class DocumentSyncSession {
 		}
 		const docDir = vscode.Uri.joinPath(this.document.uri, '..');
 		const uri = vscode.Uri.joinPath(docDir, target.path);
+		// Track only bounded, local authored references. Every re-read still uses
+		// the canonical containment and size checks below, including symlink swaps.
+		if (isInside(vaultRoot, uri) && this.referencedDrawioFiles.size < 256) this.referencedDrawioFiles.add(uri.toString());
 		if (!isInside(vaultRoot, uri) || !(await isCanonicallyInside(vaultRoot, uri))) {
 			reply({ error: vscode.l10n.t('Files outside the workspace cannot be read.') });
 			return;
@@ -1116,6 +1135,7 @@ export class DocumentSyncSession {
 
 	dispose() {
 		this.disposed = true;
+		if (this.drawioRefreshTimer) clearTimeout(this.drawioRefreshTimer);
 		this.vaultNotesGeneration++;
 		if (this.rehighlightTimer) {
 			clearTimeout(this.rehighlightTimer);

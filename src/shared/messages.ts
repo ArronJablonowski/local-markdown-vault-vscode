@@ -61,6 +61,7 @@ export type HostToEditorMessage =
 	// matches the reply to the widget that asked, since several diagrams in one
 	// document can have requests in flight at the same time.
 	| { type: 'drawioFile'; requestId: number; text?: string; error?: string }
+	| { type: 'invalidateDrawioFiles' }
 	| { type: 'wikiEmbed'; requestId: number; sourcePath?: string; text?: string; error?: string }
 	| { type: 'localImage'; requestId: number; mimeType?: string; dataBase64?: string; error?: string }
 	| { type: 'setCursor'; pos: number }

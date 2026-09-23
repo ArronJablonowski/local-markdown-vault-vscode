@@ -209,6 +209,10 @@ export function validateHostToEditorMessage(
 				validVaultNotes(value.notes) && withinSerializedByteLimit(value, MAX_VAULT_NOTE_CHUNK_BYTES)
 				? { ok: true, value: value as unknown as HostToEditorMessage }
 				: { ok: false, reason: 'Invalid vault note metadata chunk.' };
+		case 'invalidateDrawioFiles':
+			return hasExactKeys(value, ['type'])
+				? { ok: true, value: { type: 'invalidateDrawioFiles' } }
+				: { ok: false, reason: 'Invalid draw.io invalidation.' };
 		case 'drawioFile': {
 			if (!isNonNegativeInteger(value.requestId)) return { ok: false, reason: 'Invalid draw.io reply.' };
 			const textReply = hasExactKeys(value, ['type', 'requestId', 'text']) && typeof value.text === 'string' && withinByteLimit(value.text, MAX_DRAWIO_TEXT_BYTES);

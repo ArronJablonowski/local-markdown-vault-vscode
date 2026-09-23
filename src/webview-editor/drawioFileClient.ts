@@ -23,6 +23,8 @@ type Pending = { resolve: (text: string) => void; reject: (err: Error) => void; 
 const pending = new Map<number, Pending>();
 const cache = new Map<string, Promise<string>>();
 let nextRequestId = 1;
+let generation = 0;
+export function drawioFileGeneration(): number { return generation; }
 const MAX_PENDING_DRAWIO_FILES = 4;
 const DRAWIO_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -74,7 +76,7 @@ export function readDrawioFile(src: string): Promise<string> {
 	// A failed read must not be cached as the permanent answer: the file may
 	// simply not exist yet, and re-rendering after the user creates it should
 	// pick it up rather than keep showing the old error.
-	promise.catch(() => cache.delete(src));
+	promise.catch(() => { if (cache.get(src) === promise) cache.delete(src); });
 	cache.set(src, promise);
 	return promise;
 }
@@ -92,6 +94,7 @@ export function invalidateDrawioFile(src: string): void {
 
 /** Clears every cached read — used when the document itself is re-initialised. */
 export function clearDrawioFileCache(): void {
+	generation++;
 	cache.clear();
 	for (const request of pending.values()) {
 		clearTimeout(request.timer);
