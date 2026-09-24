@@ -146,9 +146,14 @@ suite('focused cross-platform desktop transactions', () => {
 		assert.match(source, /> \[!warning\]\+ Release risk\n> Keep the backup local\.\n\n## Example/);
 		assert.match(source, /```python\nprint\("ready"\)\n+```\n+Final decision/);
 		assert.ok(!(await frame.locator('.cm-content').innerText()).includes('Invalid math'));
+		// Opening a Markdown file must not commandeer another sidebar container.
+		// Ask to see the extension's Outline before checking its live contents.
+		await vscode.commands.executeCommand('mdLivePreview.outline.focus');
 		const outline = await connectToFrameWith('#mlp-outline-root');
 		await waitFor(async () => await outline.getByRole('button', { name: 'Planning session', exact: true }).count() === 1, 'typed headings did not appear in the outline');
 		// Return to the tasks through the real Find UI rather than changing selection in code.
+		await frame.locator('.cm-line').first().click();
+		await assertTypingFocus();
 		await keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
 		await frame.locator('.cm-search input[name="search"]').fill('Confirm the schedule');
 		await keyboard.press('Enter');
@@ -472,6 +477,102 @@ suite('focused cross-platform desktop transactions', () => {
 			await config.update('showWhitespace', originalWorkspace, vscode.ConfigurationTarget.Workspace);
 			for (const [index, key] of keys.entries()) await config.update(key, originals[index], vscode.ConfigurationTarget.Global);
 		}
+	});
+
+	test('sidebar visibility: hidden Vault stays hidden through Live Preview typing, checkbox saves, and Text Editor typing', async function () {
+		this.timeout(90_000);
+		const fixture = await makeFixture('hidden-sidebar');
+		const note = await service.createNote(fixture, 'Hidden sidebar editing');
+		const nextNote = await service.createNote(fixture, 'Hidden sidebar next note');
+		const original = '# Hidden sidebar editing\n\n- [ ] Keep the sidebar hidden\n\nDraft: ';
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		await expandOnlySidebarPane(await getWorkbenchPage(), 'Document Vault');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor', { preview: false });
+		const frame = await connectToLivePreviewFrame('Hidden sidebar editing');
+		const page = frame.page();
+		const sidebar = page.locator('#workbench\\.parts\\.sidebar');
+		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		const assertHidden = async (action: string) => {
+			// Include delayed reveal callbacks fired by dirty/save tab changes.
+			for (let sample = 0; sample < 10; sample++) {
+				assert.strictEqual(await sidebar.isVisible(), false, `${action} reopened the hidden sidebar`);
+				await delay(25);
+			}
+		};
+		await frame.locator('.cm-content').click();
+		await page.keyboard.press(`${modifier()}+End`);
+		await vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
+		await waitFor(async () => !await sidebar.isVisible(), 'sidebar did not hide before typing');
+		// Collapsing the workbench changes iframe focus. Click the actual final
+		// line as a user returning to the note, then verify typing is directed there.
+		await frame.locator('.cm-line').last().click();
+		await page.keyboard.press('End');
+		await waitFor(() => frame.locator('.cm-content').evaluate(element => document.hasFocus() && document.activeElement === element && (element as HTMLElement).isContentEditable), 'hidden-sidebar typing did not have editable document focus');
+		await page.keyboard.type('live preview edit', { delay: 20 });
+		await waitFor(async () => await disk() === original + 'live preview edit', 'hidden-sidebar Live Preview edit did not save exactly');
+		await assertHidden('Live Preview typing and automatic saving');
+		await frame.locator('.mlp-checkbox').click();
+		const checked = (original + 'live preview edit').replace('- [ ]', '- [x]');
+		await waitFor(async () => await disk() === checked, 'hidden-sidebar checkbox change did not save exactly');
+		await assertHidden('Checkbox automatic saving');
+		await page.keyboard.press(`${modifier()}+s`);
+		await assertHidden('Explicit Save');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'default', { preview: false });
+		await assertHidden('Switching to Text Editor');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
+		const editor = vscode.window.activeTextEditor;
+		assert.ok(editor && editor.document.uri.toString() === note.toString());
+		assert.strictEqual(editor.document.offsetAt(editor.selection.active), checked.length, 'native editor cursor was not at the end');
+		await page.keyboard.type(' and native text edit', { delay: 20 });
+		await waitFor(async () => await disk() === checked + ' and native text edit', 'hidden-sidebar native edit did not save exactly');
+		await assertHidden('Text Editor typing and automatic saving');
+		await vscode.commands.executeCommand('vscode.openWith', nextNote, 'default', { preview: false });
+		await assertHidden('Switching to a different note while hidden');
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		const relative = nextNote.path.slice(service.rootUri.path.length + 1);
+		await waitFor(async () => await page.getByRole('treeitem', { name: `File: ${relative}`, exact: true }).getAttribute('aria-selected') === 'true', 'explicitly reopening Vault did not reveal the active note');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'default', { preview: false });
+		const originalRelative = note.path.slice(service.rootUri.path.length + 1);
+		await waitFor(async () => await page.getByRole('treeitem', { name: `File: ${originalRelative}`, exact: true }).getAttribute('aria-selected') === 'true', 'visible Vault stopped following active-file changes');
+		assert.strictEqual(await disk(), checked + ' and native text edit', 'reopening the Vault or following the active file altered saved text');
+		await page.screenshot({ path: '/tmp/mdlp-sidebar-hidden-save-qa.png' });
+	});
+
+	test('sidebar visibility: editing preserves a different sidebar container and a collapsed Vault view', async function () {
+		this.timeout(90_000);
+		const fixture = await makeFixture('collapsed-sidebar');
+		const note = await service.createNote(fixture, 'Collapsed vault editing');
+		await vscode.workspace.fs.writeFile(note, bytes('Sidebar context: '));
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		await expandOnlySidebarPane(await getWorkbenchPage(), 'Document Vault');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor', { preview: false });
+		const frame = await connectToLivePreviewFrame('Sidebar context:');
+		const page = frame.page();
+		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		await vscode.commands.executeCommand('workbench.view.search');
+		const searchView = page.locator('#workbench\\.parts\\.sidebar .search-view');
+		await searchView.waitFor({ state: 'visible' });
+		await frame.locator('.cm-content').click();
+		await page.keyboard.press(`${modifier()}+End`);
+		await page.keyboard.type('search stays open', { delay: 20 });
+		await waitFor(async () => await disk() === 'Sidebar context: search stays open', 'typing with Search visible did not save');
+		assert.ok(await searchView.isVisible(), 'automatic saving replaced Search with the Vault sidebar');
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		const header = page.locator('#workbench\\.parts\\.sidebar .pane-header:visible').filter({ hasText: 'Document Vault' });
+		await waitFor(async () => await header.getAttribute('aria-expanded') === 'true', 'Vault view was not expanded before collapsing');
+		await header.focus(); await page.keyboard.press('Enter');
+		assert.strictEqual(await header.getAttribute('aria-expanded'), 'false');
+		await frame.locator('.cm-content').click();
+		await page.keyboard.press(`${modifier()}+End`);
+		await page.keyboard.type(' and vault stays collapsed', { delay: 20 });
+		await waitFor(async () => await disk() === 'Sidebar context: search stays open and vault stays collapsed', 'typing with collapsed Vault did not save');
+		assert.strictEqual(await header.getAttribute('aria-expanded'), 'false', 'automatic saving expanded the collapsed Vault view');
+		await header.focus(); await page.keyboard.press('Enter');
+		const relative = note.path.slice(service.rootUri.path.length + 1);
+		await waitFor(async () => await page.getByRole('treeitem', { name: `File: ${relative}`, exact: true }).getAttribute('aria-selected') === 'true', 'explicitly expanding Vault did not reveal the active note');
+		await page.screenshot({ path: '/tmp/mdlp-sidebar-collapsed-save-qa.png' });
 	});
 
 	test('vault context menus create, rename, copy paths, and move through the UI', async function () {
@@ -857,9 +958,9 @@ suite('focused cross-platform desktop transactions', () => {
 			tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
 				&& tab.input.viewType === 'vscode.markdown.editor');
 		assert.strictEqual(retainedNative.length, 1, 'routing must retain the native tab for an explicit user-controlled close');
+		await waitFor(() => !sourceEditor.document.isDirty && retainedNative.every(tab => !tab.isDirty), 'the explicit close requires a known-clean working copy');
 		assert.strictEqual(sourceEditor.document.getText(), beforeRoute, 'routing changed the document');
 		assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(beforeRoute), 'routing changed disk bytes');
-		assert.ok(!sourceEditor.document.isDirty && retainedNative.every(tab => !tab.isDirty), 'the explicit close requires a known-clean working copy');
 		// This is the user's explicit close, not a production handoff operation.
 		// No typing begins until the clean native view is completely gone.
 		assert.strictEqual(await vscode.window.tabGroups.close(retainedNative, true), true);

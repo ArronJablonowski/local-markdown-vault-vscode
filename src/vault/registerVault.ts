@@ -15,6 +15,7 @@ import { classifyVaultWorkspace } from './vaultWorkspace';
 import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './knowledgeCommandValidation';
 import { openConfiguredVaultResource } from '../editor/configuredDocumentOpen';
 import { topLevelSelection } from './topLevelSelection';
+import { PassiveTreeReveal } from './PassiveTreeReveal';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -495,24 +496,25 @@ export async function registerVault(
 		}),
 	);
 
-	const revealActive = async () => {
-		const service = provider.service;
-		if (!service || !vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<boolean>('autoReveal', true)) return;
-		const uri = activeFileUri();
-		const entry = uri && await provider.entryForUri(uri);
-		if (entry) {
-			try {
-				await tree.reveal(entry, { select: true, focus: false, expand: true });
-			} catch {
-				// The file may have been moved or deleted between the active-tab event
-				// and tree resolution. A watcher refresh will converge the view; this
-				// benign race must not become an unhandled extension-host rejection.
-			}
-		}
-	};
+	const activeReveal = new PassiveTreeReveal({
+		isVisible: () => tree.visible,
+		getTarget: () => {
+			const service = provider.service;
+			if (!service || !vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<boolean>('autoReveal', true)) return undefined;
+			const uri = activeFileUri();
+			return uri ? { key: uri.toString(), scope: service } : undefined;
+		},
+		resolve: ({ key }) => provider.entryForUri(vscode.Uri.parse(key)),
+		reveal: (entry, isCurrent) => provider.revealWhileCurrent(entry, isCurrent,
+			item => tree.reveal(item, { select: true, focus: false, expand: true })),
+	});
+	const revealActive = () => activeReveal.update();
 
 	context.subscriptions.push(
+		activeReveal,
+		tree.onDidChangeVisibility(() => { void revealActive(); }),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
+			activeReveal.invalidate();
 			const generation = ++vaultGeneration;
 			closeVaultPickers();
 			indexListener?.dispose();
@@ -573,12 +575,14 @@ export async function registerVault(
 				backlinksProvider.setActiveUri(activeFileUri());
 				await updateContext();
 				queueActiveNote();
+				void revealActive();
 			}).catch((error) => {
 				if (generation === vaultGeneration) showIndexWarning(error);
 			});
 		}),
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration('mdLivePreview.vault')) provider.refresh();
+			if (event.affectsConfiguration('mdLivePreview.vault.autoReveal')) void revealActive();
 			if (event.affectsConfiguration('mdLivePreview.vault.exclude')) {
 				// Serialize exclusion rebuilds. A rapid settings edit must not let an
 				// older generation prune recent history against a half-rebuilt index.
@@ -605,8 +609,13 @@ export async function registerVault(
 			backlinksProvider.setActiveUri(activeFileUri());
 			queueActiveNote();
 		}),
-		vscode.window.tabGroups.onDidChangeTabGroups(queueActiveNote),
+		vscode.window.tabGroups.onDidChangeTabGroups(() => {
+			void revealActive();
+			backlinksProvider.setActiveUri(activeFileUri());
+			queueActiveNote();
+		}),
 	);
+	void revealActive();
 	return {
 		getIndex: () => index,
 		getService: () => provider.service,

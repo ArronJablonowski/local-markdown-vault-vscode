@@ -64,7 +64,7 @@
   "config.vault.openDefaultOnStartup": "When VS Code has no folder open, create and open a default vault at ~/Documents/Markdown Vault. An existing workspace is never replaced.",
   "config.vault.attachmentFolder": "Note-relative folder where pasted and dropped attachments are stored. The resolved folder must remain inside the vault.",
   "config.vault.sortOrder": "Sort order used by the Document Vault tree.",
-  "config.vault.autoReveal": "Reveal the active Markdown file in the Document Vault tree.",
+  "config.vault.autoReveal": "Follow the active Markdown file in the Document Vault tree when the view is visible.",
   "config.vault.exclude": "Bounded file, folder, or glob patterns hidden from the Document Vault and its local metadata index. Patterns match at any depth; prefix with / to anchor at the vault root. Supports *, ?, and **.",
   "config.diagnostics.enabled": "Enable a local, bounded diagnostic log. Markdown bodies, URLs, clipboard data, secrets, and absolute paths are redacted. No diagnostic data is uploaded.",
   "config.diagramRendering": "Controls local Mermaid and draw.io rendering. Diagram rendering is always disabled in untrusted workspaces."

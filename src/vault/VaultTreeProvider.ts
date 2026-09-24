@@ -42,6 +42,10 @@ class VaultUnavailableItem extends vscode.TreeItem {
 }
 
 type VaultNode = VaultEntry | VaultUnavailableItem;
+interface RevealGuard {
+	isCurrent: () => boolean;
+	entries: Set<VaultEntry>;
+}
 
 export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vscode.Disposable {
 	private static readonly SETTLED_REFRESH_DELAY_MS = 50;
@@ -51,6 +55,32 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	private watcher: vscode.FileSystemWatcher | undefined;
 	private settledRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
+	private readonly revealGuards = new WeakMap<VaultEntry, RevealGuard>();
+
+	/** Guard request-only clones while VS Code waits for its tree refresh. */
+	async revealWhileCurrent(entry: VaultEntry, isCurrent: () => boolean, reveal: (entry: VaultEntry) => PromiseLike<unknown>): Promise<void> {
+		const guard: RevealGuard = { isCurrent, entries: new Set() };
+		const clone = this.guardRevealEntry(new VaultEntry(entry.uri, entry.fileType, entry.parentUri, entry.vaultPath), guard);
+		try {
+			this.assertRevealCurrent(clone);
+			await reveal(clone);
+		} finally {
+			// The host may retain a resolved item. Never leave a stale cancellation
+			// predicate on an item after this one passive request has completed.
+			for (const item of guard.entries) this.revealGuards.delete(item);
+		}
+	}
+
+	private guardRevealEntry(entry: VaultEntry, guard: RevealGuard): VaultEntry {
+		this.revealGuards.set(entry, guard);
+		guard.entries.add(entry);
+		return entry;
+	}
+
+	private assertRevealCurrent(entry: VaultNode): void {
+		const guard = entry instanceof VaultEntry ? this.revealGuards.get(entry) : undefined;
+		if (guard && !guard.isCurrent()) throw new vscode.CancellationError();
+	}
 
 	async initialize(isCurrent: () => boolean = () => true): Promise<void> {
 		const resolution = await VaultService.resolve();
@@ -128,6 +158,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	getTreeItem(element: VaultNode): vscode.TreeItem {
+		this.assertRevealCurrent(element);
 		return element;
 	}
 
@@ -159,15 +190,18 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	getParent(element: VaultNode): VaultNode | undefined {
+		this.assertRevealCurrent(element);
 		if (!(element instanceof VaultEntry) || !this.resolution.available) return undefined;
 		if (element.parentUri.toString() === this.resolution.service.rootUri.toString()) return undefined;
 		const path = this.resolution.service.relativePath(element.parentUri);
-		return path === undefined ? undefined : new VaultEntry(
+		const parent = path === undefined ? undefined : new VaultEntry(
 			element.parentUri,
 			vscode.FileType.Directory,
 			vscode.Uri.file(dirname(element.parentUri.fsPath)),
 			path,
 		);
+		const guard = this.revealGuards.get(element);
+		return parent && guard ? this.guardRevealEntry(parent, guard) : parent;
 	}
 
 	async entryForUri(uri: vscode.Uri): Promise<VaultEntry | undefined> {

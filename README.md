@@ -549,7 +549,7 @@ independent local backup of important vaults and do not ignore save warnings.
 | Attachment location | Choose where pasted attachments are stored | Inside vault |
 | Open default vault on startup | Create and open `~/Documents/Markdown Vault` when no folder is open | Enabled |
 | Vault sort order | Configure Document Vault ordering | Name |
-| Reveal active file | Follow the active note in the vault tree | Enabled |
+| Reveal active file | Follow the active note while the vault tree is visible; keep hidden/collapsed panes closed | Enabled |
 | Excluded paths | Omit paths from indexing and navigation | Conservative defaults |
 | Diagram rendering | Enable Mermaid and draw.io rendering | Trust-aware |
 
