@@ -87,6 +87,7 @@ export class DocumentSyncSession {
 	// has it — corrupting later offset math and losing/duplicating characters.
 	private applyingLocalEdit = false;
 	private rehighlightTimer: ReturnType<typeof setTimeout> | undefined;
+	private rehighlightGeneration = 0;
 	// Serializes text edits, attachment batches, and undo/redo so one mutation
 	// cannot race a prior operation before document.version and offsets settle.
 	private readonly mutationQueue = new BoundedSerialQueue(MAX_QUEUED_MUTATION_BATCHES);
@@ -149,6 +150,9 @@ export class DocumentSyncSession {
 		this.disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('mdLivePreview.showWhitespace', this.document.uri) && this.readyReceived) {
 				this.sendWhitespaceSetting();
+			}
+			if (event.affectsConfiguration('mdLivePreview.codeTheme', this.document.uri) && this.readyReceived) {
+				this.scheduleRehighlight(true);
 			}
 		}));
 
@@ -1127,20 +1131,29 @@ export class DocumentSyncSession {
 	}
 
 	private scheduleRehighlight(immediate = false) {
+		const generation = ++this.rehighlightGeneration;
 		if (this.rehighlightTimer) {
 			clearTimeout(this.rehighlightTimer);
 			this.rehighlightTimer = undefined;
 		}
+		if (this.disposed || this.closing || this.document.isClosed) return;
 		if (!this.visible) {
 			this.needsRehighlight = true;
 			return;
 		}
-		const run = () => {
+		const run = async () => {
 			this.rehighlightTimer = undefined;
-			const version = this.document.version;
-			const rawText = this.document.getText();
-			void tokenizeDocument(this.document).then((blocks) => {
-				if (version !== this.document.version) {
+			if (this.disposed || this.closing || generation !== this.rehighlightGeneration) return;
+			const document = this.document;
+			const version = document.version;
+			try {
+				const rawText = document.getText();
+				const blocks = await tokenizeDocument(document);
+				// A palette change can launch a newer request without changing the
+				// document version. Closed/recreated iframes must not receive old
+				// results or keep rescheduling parsing after their session ends.
+				if (this.disposed || this.closing || document.isClosed || document !== this.document || generation !== this.rehighlightGeneration) return;
+				if (version !== document.version) {
 					this.scheduleRehighlight();
 					return;
 				}
@@ -1156,12 +1169,14 @@ export class DocumentSyncSession {
 				}));
 				if (this.visible) this.post({ type: 'codeTokens', blocks: normalizedBlocks });
 				else this.needsRehighlight = true;
-			});
+			} catch {
+				if (!this.disposed && !this.closing && generation === this.rehighlightGeneration) diagnosticEventRateLimited('editor.codeHighlightFailed');
+			}
 		};
 		if (immediate) {
-			run();
+			void run();
 		} else {
-			this.rehighlightTimer = setTimeout(run, REHIGHLIGHT_DEBOUNCE_MS);
+			this.rehighlightTimer = setTimeout(() => { void run(); }, REHIGHLIGHT_DEBOUNCE_MS);
 		}
 	}
 
@@ -1190,6 +1205,7 @@ export class DocumentSyncSession {
 	}
 
 	reloadWebview(html: string): void {
+		this.rehighlightGeneration++;
 		this.queuePendingDraftFlush();
 		this.readyReceived = false;
 		this.webviewPanel.webview.html = html;
@@ -1252,6 +1268,7 @@ export class DocumentSyncSession {
 		if (visible === this.visible) return;
 		this.visible = visible;
 		if (!visible) {
+			this.rehighlightGeneration++;
 			this.queuePendingDraftFlush();
 			// retainContextWhenHidden is false, so the next reveal creates a new
 			// script context with one legitimate ready handshake.
@@ -1297,6 +1314,7 @@ export class DocumentSyncSession {
 	dispose(): Promise<void> {
 		if (this.closeOperation) return this.closeOperation;
 		this.closing = true;
+		this.rehighlightGeneration++;
 		this.queuePendingDraftFlush();
 		if (this.drawioRefreshTimer) clearTimeout(this.drawioRefreshTimer);
 		this.vaultNotesGeneration++;

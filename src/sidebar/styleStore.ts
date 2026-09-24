@@ -61,6 +61,7 @@ h1 {
  */
 export class StyleStore {
 	private cachedCss = '';
+	private refreshGeneration = 0;
 	private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
@@ -326,7 +327,10 @@ export class StyleStore {
 	}
 
 	private async refresh(): Promise<void> {
-		this.cachedCss = await this.computeCombinedCss();
+		const generation = ++this.refreshGeneration;
+		const css = await this.computeCombinedCss();
+		if (generation !== this.refreshGeneration) return;
+		this.cachedCss = css;
 		this.onDidChangeEmitter.fire();
 	}
 

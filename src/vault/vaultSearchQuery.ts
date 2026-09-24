@@ -22,7 +22,7 @@ export function parseVaultQuery(query: string): ParsedVaultQuery | undefined {
 			continue;
 		}
 		let value = rawToken.value;
-		let negated = false;
+		let negated = rawToken.negated;
 		if (!rawToken.quoted && value.startsWith('-') && value.length > 1) {
 			negated = true;
 			value = value.slice(1);
@@ -75,7 +75,10 @@ function score(record: VaultIndexRecord, query: ParsedVaultQuery): number {
 			// every note that merely has `key`, before the authoritative note can be
 			// checked by `findVaultContentMatch`.
 			const unknownNegatedProperty = clause.negated && isUnknownPropertyValue(record, clause);
-			if (!unknownNegatedProperty && (clause.negated ? result.matched : !result.matched)) {
+			// Tokens retain neither order nor adjacency. Finding every word of a
+			// negated phrase is not evidence that the phrase occurs in the note.
+			const unknownNegatedPhrase = clause.negated && clause.kind === 'text' && clause.exact && /\s/.test(clause.value);
+			if (!unknownNegatedProperty && !unknownNegatedPhrase && (clause.negated ? result.matched : !result.matched)) {
 				matches = false;
 				break;
 			}
@@ -244,10 +247,12 @@ function propertyText(value: unknown): string {
 	return '';
 }
 
-function tokenize(query: string): Array<{ value: string; quoted: boolean }> {
-	const tokens: Array<{ value: string; quoted: boolean }> = [];
-	const pattern = /"([^"\n]{0,512})"|(\S+)/g;
-	for (const match of query.matchAll(pattern)) tokens.push({ value: match[1] ?? match[2], quoted: match[1] !== undefined });
+function tokenize(query: string): Array<{ value: string; quoted: boolean; negated: boolean }> {
+	const tokens: Array<{ value: string; quoted: boolean; negated: boolean }> = [];
+	const pattern = /(-?)"([^"\n]{0,512})"|(\S+)/g;
+	for (const match of query.matchAll(pattern)) tokens.push({
+		value: match[2] ?? match[3], quoted: match[2] !== undefined, negated: match[1] === '-',
+	});
 	return tokens;
 }
 

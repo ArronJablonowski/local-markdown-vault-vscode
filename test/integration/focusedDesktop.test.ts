@@ -265,6 +265,186 @@ suite('focused cross-platform desktop transactions', () => {
 		await frame.page().screenshot({ path: '/tmp/mdlp-wrapped-bullets-native.png' });
 	});
 
+	test('fresh journey: writes a field handoff, edits nested tasks, and excludes an exact search phrase', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('fresh-handoff');
+		const note = await service.createNote(fixture, 'Field handoff');
+		const { frame, keyboard, type, line, find, disk } = await beginTypedJourney(note);
+		for (const text of ['# Field handoff', '', 'Remote access is allowed. Images stay local.', '', '## Triage', '- [ ] Inspect the equipment']) await line(text);
+		await keyboard.press('Tab');
+		await line('Photograph the label');
+		await keyboard.press('Shift+Tab');
+		await line('Record the owner');
+		await line();
+		await line('## Local evidence');
+		await line('> [!abstract]+ Inspection summary');
+		await line('All photographs remain **local**.');
+		await line();
+		await line('## Decision');
+		await type('Keep the original evidence and review tomorrow.');
+		await waitFor(async () => (await disk()).endsWith('review tomorrow.'), 'fresh handoff typing did not save');
+		assert.match(await disk(), /- \[ \] Inspect the equipment\n  - \[ \] Photograph the label\n- \[ \] Record the owner/);
+		assert.match(await disk(), /> \[!abstract\]\+ Inspection summary\n> All photographs remain \*\*local\*\*\./);
+		await find('Photograph the label');
+		await frame.locator('.mlp-checkbox').nth(1).click();
+		await waitFor(async () => (await disk()).includes('  - [x] Photograph the label'), 'nested checkbox click did not save');
+		await find('review tomorrow.');
+		const oldClipboard = await vscode.env.clipboard.readText();
+		try {
+			await keyboard.press(`${modifier()}+c`);
+			await waitFor(async () => await vscode.env.clipboard.readText() === 'review tomorrow.', 'Find-selected phrase did not copy exactly');
+			const beforeDelete = await disk();
+			await keyboard.press('Backspace');
+			await waitFor(async () => (await disk()) === beforeDelete.replace('review tomorrow.', ''), 'selected phrase deletion changed unrelated source');
+			await keyboard.press(`${modifier()}+z`);
+			await waitFor(async () => (await disk()) === beforeDelete, 'Undo did not restore the exact deleted phrase');
+			await find('review tomorrow.');
+			await keyboard.type('review next week.', { delay: 6 });
+			await waitFor(async () => (await disk()).endsWith('review next week.'), 'selected phrase replacement did not save');
+		} finally { await vscode.env.clipboard.writeText(oldClipboard); }
+		const other = await service.createNote(fixture, 'Excluded transmission');
+		const second = await beginTypedJourney(other);
+		await second.line('# Excluded transmission');
+		await second.line();
+		await second.type('Remote images are forbidden in this comparison note.');
+		await waitFor(async () => (await second.disk()).endsWith('comparison note.'), 'second search fixture did not save');
+		const relative = fixture.path.slice(service.rootUri.path.length + 1);
+		await waitFor(() => api.getVaultIndexRecords().filter(record => record.path.startsWith(relative + '/')).length === 2, 'typed search notes did not reach the index');
+		await vscode.commands.executeCommand('mdLivePreview.vaultSearch');
+		const page = await getWorkbenchPage();
+		const picker = page.locator('.quick-input-widget:visible');
+		await picker.locator('input').fill(`path:${relative} -"remote images"`);
+		await picker.locator('.monaco-list-row').filter({ hasText: 'Field handoff' }).waitFor({ state: 'visible' });
+		assert.strictEqual(await picker.locator('.monaco-list-row').filter({ hasText: 'Excluded transmission' }).count(), 0, 'negative quoted phrase retained an adjacent phrase');
+		await picker.locator('input').press('Escape');
+		await page.screenshot({ path: '/tmp/mdlp-fresh-handoff.png' });
+	});
+
+	test('fresh journey: builds a wide inventory table, edits pipes, deletes one cell, and checks sticky alignment', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('fresh-inventory');
+		const note = await service.createNote(fixture, 'Equipment inventory');
+		const { frame, keyboard, type, line, find, disk } = await beginTypedJourney(note);
+		const headings = ['Asset description', 'Storage location', 'Accountable owner', 'Inspection outcome', 'Follow-up instructions', 'Serial number'];
+		await line('# Equipment inventory'); await line();
+		await line('| ' + headings.join(' | ') + ' |');
+		await line('| ' + headings.map(() => '---').join(' | ') + ' |');
+		for (let row = 0; row < 14; row++) await line(`| Instrument ${row} | Locked cabinet ${row} | Inventory coordinator ${row} | Passed functional inspection | Review documentation before deployment | LOCAL-DEVICE-${row} |`);
+		await line();
+		await type('Inventory complete. Do not remove the original records.');
+		await waitFor(async () => (await disk()).endsWith('original records.'), 'typed inventory did not save');
+		const original = await disk();
+		await find('# Equipment inventory');
+		const cell = frame.locator('.mlp-table td').first();
+		await cell.click();
+		await waitFor(async () => await cell.getAttribute('contenteditable') === 'true', 'table cell did not enter editing');
+		await keyboard.press(`${modifier()}+a`);
+		assert.strictEqual(await frame.evaluate(() => window.getSelection()?.toString()), 'Instrument 0', 'Select All escaped the active table cell');
+		await keyboard.press('Backspace');
+		await keyboard.press('Enter');
+		const cleared = original.replace('Instrument 0', '');
+		await waitFor(async () => (await disk()) === cleared, 'cell-only delete changed other Markdown or did not save');
+		await frame.locator('.cm-line').first().click();
+		await keyboard.press(`${modifier()}+z`);
+		await waitFor(async () => (await disk()) === original, 'one Undo did not restore exactly the deleted cell');
+		await cell.click();
+		await keyboard.press(`${modifier()}+a`);
+		await keyboard.type('left||right|||tail', { delay: 6 });
+		await keyboard.press('Enter');
+		const edited = original.replace('Instrument 0', 'left\\|\\|right\\|\\|\\|tail');
+		await waitFor(async () => (await disk()) === edited, 'adjacent pipes did not save as escaped cell text');
+		assert.strictEqual(await frame.locator('.mlp-table tbody tr').count(), 14);
+		assert.strictEqual(await frame.locator('.mlp-table tbody tr').first().locator('td').count(), 6);
+		assert.strictEqual(await cell.textContent(), 'left||right|||tail');
+		assert.strictEqual(await frame.locator('.mlp-table tbody tr').first().locator('td').nth(1).textContent(), 'Locked cabinet 0');
+		const viewport = frame.locator('.mlp-table-viewport');
+		assert.ok(await viewport.evaluate(el => el.scrollWidth > el.clientWidth + 100), 'wide inventory was squeezed instead of horizontally scrollable');
+		await viewport.hover();
+		await frame.page().mouse.wheel(300, 0);
+		await waitFor(async () => await viewport.evaluate(el => el.scrollLeft) > 0, 'horizontal mouse wheel did not scroll the table');
+		await frame.page().mouse.wheel(0, 240);
+		await waitFor(async () => await frame.locator('.mlp-table-sticky-header').getAttribute('hidden') === null, 'header did not stick during vertical scrolling');
+		for (const delta of [-200, 450]) {
+			// Locator.hover() scrolls the whole partially visible table into view,
+			// undoing the vertical gesture under test. Move within its visible body.
+			const box = await viewport.boundingBox();
+			const scroller = await frame.locator('.cm-scroller').boundingBox();
+			assert.ok(box && scroller, 'visible table geometry is unavailable');
+			await frame.page().mouse.move(box.x + box.width / 2, Math.max(box.y, scroller.y) + 80);
+			await frame.page().mouse.wheel(delta, 0);
+			assert.strictEqual(await frame.locator('.mlp-table-sticky-header').getAttribute('hidden'), null, 'horizontal gesture unexpectedly unstuck the header');
+			await waitFor(() => frame.locator('.mlp-table-wrap').evaluate(el => {
+				const cells = Array.from(el.querySelectorAll('.mlp-table tbody tr:first-child td'));
+				const headers = Array.from(el.querySelectorAll('.mlp-sticky-table th'));
+				return headers.length === cells.length && cells.every((item, index) => {
+					const body = item.getBoundingClientRect(), heading = headers[index].getBoundingClientRect();
+					return Math.abs(body.left - heading.left) <= 2 && Math.abs(body.width - heading.width) <= 2;
+				});
+			}), 'sticky header no longer matched the corresponding table columns').catch(async error => {
+				const geometry = await frame.locator('.mlp-table-wrap').evaluate(el => ({
+					scroll: el.querySelector('.mlp-table-viewport')?.scrollLeft,
+					headerHidden: (el.querySelector('.mlp-table-sticky-header') as HTMLElement | null)?.hidden,
+					cells: Array.from(el.querySelectorAll('.mlp-table tbody tr:first-child td')).map(item => { const r = item.getBoundingClientRect(); return { text: item.textContent, x: r.left, width: r.width }; }),
+					headers: Array.from(el.querySelectorAll('.mlp-sticky-table th')).map(item => { const r = item.getBoundingClientRect(); return { text: item.textContent, x: r.left, width: r.width }; }),
+				}));
+				throw new Error(`${String(error)}; geometry=${JSON.stringify(geometry)}`);
+			});
+		}
+		assert.strictEqual(await disk(), edited, 'scrolling rewrote the table');
+		await frame.page().screenshot({ path: '/tmp/mdlp-fresh-inventory.png' });
+	});
+
+	test('fresh journey: types a runbook with code and a sequence diagram then changes the visible code palette', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('fresh-runbook');
+		const note = await service.createNote(fixture, 'Recovery runbook');
+		const { frame, keyboard, type, line, find, disk } = await beginTypedJourney(note);
+		await line('# Recovery runbook'); await line();
+		await line('Budget $40-$65. Formula: $n^2 + 1$. Keep every backup local.'); await line();
+		await line('## Validation program');
+		await line('```typescript');
+		const code = ['const status = "ready";', 'const attempts = 3;', 'const values = [1, 2, 3];', 'let count = 0;', 'count += attempts;', 'console.log(status);', 'console.log(values);', 'console.log(count);', 'export { status };'];
+		for (const value of code) await line(value);
+		await line(); // An empty final code line exits through the real editor keymap.
+		await line();
+		await line('## Verification sequence');
+		await line('```mermaid');
+		for (const value of ['sequenceDiagram', 'participant Operator', 'participant LocalDisk', 'Operator->>LocalDisk: Save evidence', 'LocalDisk-->>Operator: Confirm bytes']) await line(value);
+		await line(); await line();
+		await type('Reopen the file before ending the review.');
+		await waitFor(async () => (await disk()).endsWith('ending the review.'), 'runbook did not save');
+		const source = await disk();
+		assert.ok(source.includes(code.join('\n')), 'code typing changed source content');
+		await find('## Verification sequence');
+		await frame.locator('.mlp-mermaid-wrap svg').waitFor({ state: 'visible', timeout: 15000 });
+		assert.ok((await frame.locator('.mlp-mermaid-wrap svg').textContent())?.includes('Confirm bytes'));
+		await find('## Validation program');
+		await frame.locator('.mlp-code-language', { hasText: 'typescript' }).waitFor({ state: 'visible' });
+		await frame.getByRole('button', { name: 'Collapse code block', exact: true }).first().click();
+		await frame.getByRole('button', { name: 'Expand code block', exact: true }).first().press('Enter');
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			await frame.getByRole('button', { name: 'Copy code block', exact: true }).first().click();
+			const expected = /```typescript\n([\s\S]*?)\n```/.exec(source)![1];
+			await waitFor(async () => await vscode.env.clipboard.readText() === expected, 'runbook copy button did not copy exact code');
+		} finally { await vscode.env.clipboard.writeText(previousClipboard); }
+		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
+		await expandOnlySidebarPane(await getWorkbenchPage(), 'CSS Themes');
+		const sidebar = await connectToFrameWith('#mlp-sidebar-root');
+		const palette = sidebar.locator('select').nth(4);
+		const originalPalette = await palette.inputValue();
+		const colors = () => frame.locator('.cm-line').filter({ hasText: 'const status' }).evaluateAll(lines => lines.flatMap(el => Array.from(el.querySelectorAll('span')).map(span => getComputedStyle(span).color)).join('|'));
+		try {
+			await palette.selectOption('light-plus');
+			await waitFor(async () => (await colors()).includes('rgb(0, 0, 255)'), 'light palette did not update visible TypeScript without editing');
+			const light = await colors();
+			await palette.selectOption('dark-plus');
+			await waitFor(async () => (await colors()).includes('rgb(86, 156, 214)') && await colors() !== light, 'dark palette did not refresh the existing code');
+			assert.strictEqual(await disk(), source, 'palette, folding, or copy modified the runbook');
+		} finally { await palette.selectOption(originalPalette); }
+		await frame.page().screenshot({ path: '/tmp/mdlp-fresh-runbook.png' });
+	});
+
 	test('all sidebar setting options persist through the actual host and workspace overrides', async function () {
 		this.timeout(120_000);
 		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
@@ -1547,6 +1727,30 @@ async function insert(document: vscode.TextDocument, offset: number, text: strin
 	assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
 }
 
+function modifier(): string { return process.platform === 'darwin' ? 'Meta' : 'Control'; }
+
+/** User-input journey setup: an empty owned note, real iframe focus, then keys. */
+async function beginTypedJourney(note: vscode.Uri) {
+	await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor', { preview: false });
+	await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+	const frame = await connectToLivePreviewFrame();
+	const keyboard = frame.page().keyboard;
+	await frame.locator('.cm-content').click();
+	await waitFor(() => frame.locator('.cm-content').evaluate(element => (element as HTMLElement).isContentEditable && document.hasFocus() && document.activeElement === element), 'fresh journey requires a focused editable document');
+	const type = async (text: string) => {
+		assert.ok(await frame.locator('.cm-content').evaluate(element => document.hasFocus() && document.activeElement === element), 'typing focus escaped the document');
+		await keyboard.type(text, { delay: 3 });
+	};
+	const line = async (text = '') => { await type(text); await keyboard.press('Enter'); };
+	const find = async (text: string) => {
+		await keyboard.press(`${modifier()}+f`);
+		await frame.locator('.cm-search input[name="search"]').fill(text);
+		await keyboard.press('Enter'); await keyboard.press('Escape');
+	};
+	const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+	return { frame, keyboard, type, line, find, disk };
+}
+
 function bytes(value: string): Uint8Array {
 	return new TextEncoder().encode(value);
 }
@@ -1561,7 +1765,7 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 					if (frame.isDetached()) continue;
 					try {
 						const editor = frame.locator('.cm-content');
-						if (await editor.count() === 0) continue;
+						if (await editor.count() === 0 || !await editor.isVisible()) continue;
 						if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
 					} catch (error) {
 						// A settings reload or native-to-safe editor transition can detach

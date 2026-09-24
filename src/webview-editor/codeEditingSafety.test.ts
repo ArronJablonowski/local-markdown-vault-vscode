@@ -49,6 +49,16 @@ describe('code editing safety', () => {
 		expect(exitFencedCodeOnBlankLine(view(doc, doc.indexOf('\n\n\n') + 1))).toBe(false);
 	});
 
+	it.each(['```', '```text', '~~~~'])('does not jump into or past the next block from prose between %s fences', fence => {
+		const closer = fence[0] === '~' ? '~~~~' : '```';
+		const doc = `${fence}\none\n${closer}\n\n${fence}\ntwo\n${closer}`;
+		const cursor = doc.indexOf('\n\n') + 1;
+		const editor = view(doc, cursor);
+		expect(escapeFencedCode(editor)).toBe(false);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
 	it('does not guess a closing prefix for a nested unfinished fence', () => {
 		const editor = view('> ```text\n> code\n> ');
 		expect(escapeFencedCode(editor)).toBe(false);

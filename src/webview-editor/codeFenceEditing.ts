@@ -45,10 +45,17 @@ function textualFenceAroundLine(state: Parameters<Command>[0]['state'], lineNumb
 	const first = Math.max(1, lineNumber - MAX_FENCE_SCAN_LINES);
 	let candidates = 0;
 	for (let candidate = lineNumber; candidate >= first; candidate--) {
-		const opener = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(state.doc.line(candidate).text);
+		const candidateLine = state.doc.line(candidate);
+		const opener = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(candidateLine.text);
 		if (!opener) continue;
 		if (opener[1][0] === '`' && opener[2].includes('`')) continue;
 		if (++candidates > MAX_FENCE_CANDIDATES) return undefined;
+		const markFrom = candidateLine.from + candidateLine.text.indexOf(opener[1]);
+		const parsed = fencedCodeAncestor(syntaxTree(state).resolveInner(markFrom, 1))
+			?? fencedCodeAncestor(syntaxTree(state).resolveInner(markFrom, -1));
+		// A previous block's closing fence looks exactly like an opener in plain
+		// text. Never pair it with the next block and jump from unrelated prose.
+		if (parsed?.getChildren('CodeMark')[0]?.from !== markFrom) continue;
 		const fence = opener[1];
 		const last = Math.min(state.doc.lines, candidate + MAX_FENCE_SCAN_LINES);
 		for (let closing = candidate + 1; closing <= last; closing++) {

@@ -14,6 +14,7 @@ import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { detectFrontmatter } from './frontmatterWidget';
 import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
+import { escapeTableCellSource } from './tableCellSource';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import {
 	insertRow,
@@ -542,10 +543,7 @@ function readCellRef(cell: HTMLElement): CellRef | null {
  * cell.
  */
 export function sanitizeCellInput(text: string): string {
-	return text
-		.replace(/\r?\n/g, ' ')
-		.replace(/(^|[^\\])\|/g, '$1\\|')
-		.trim();
+	return escapeTableCellSource(text).trim();
 }
 
 /**
@@ -830,6 +828,21 @@ class TableWidget extends WidgetType {
 			if (!editing) return;
 			const ref = readCellRef(editing);
 			if (!ref) return;
+			if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a') {
+				// A nested contenteditable is one cell, not the whole CodeMirror
+				// document. Otherwise Mod+A bubbles into selectAll and the next
+				// keystroke replaces the entire note instead of this cell's text.
+				event.preventDefault();
+				event.stopPropagation();
+				const selection = window.getSelection?.();
+				if (selection) {
+					const range = document.createRange();
+					range.selectNodeContents(editing);
+					selection.removeAllRanges();
+					selection.addRange(range);
+				}
+				return;
+			}
 			if (event.key === 'Tab') {
 				event.preventDefault();
 				const current = editing;
@@ -1255,7 +1268,7 @@ class TableWidget extends WidgetType {
 			const read = readTableModel(state, table);
 			return {
 				model: {
-					rows: read.rows,
+					rows: read.sourceRows ?? read.rows,
 					headerRowCount: read.headerRowCount,
 					align: read.align,
 					indent: read.indent,
@@ -1680,6 +1693,8 @@ function fitRow<T>(cells: T[], width: number, pad: T = '' as T): T[] {
 
 export interface TableModel {
 	rows: string[][];
+	/** Untruncated authored cells, including GFM-hidden overflow, for rewrites. */
+	sourceRows?: string[][];
 	headerRowCount: number;
 	align: ColumnAlign[];
 	/**
@@ -1724,6 +1739,7 @@ export function readTableModel(state: EditorState, tableNode: SyntaxNode): Table
 	const firstLine = state.doc.lineAt(tableNode.from);
 	return {
 		rows: spanRows.map((cells) => fitRow(cells.map((c) => c.text), width)),
+		sourceRows: spanRows.map(cells => cells.map(cell => cell.text)),
 		cellRanges: spanRows.map((cells) => fitRow<CellSpan | null>(cells, width, null)),
 		headerRowCount,
 		align,

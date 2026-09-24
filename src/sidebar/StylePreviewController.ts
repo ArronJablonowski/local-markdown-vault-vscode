@@ -32,6 +32,8 @@ export class StylePreviewController {
 	private pushTimer: ReturnType<typeof setTimeout> | undefined;
 	private lastSelector: string | null = null;
 	private sizeWarningShown = false;
+	private openGeneration = 0;
+	private pushGeneration = 0;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -56,24 +58,30 @@ export class StylePreviewController {
 
 	/** Open `id`'s CSS on the left and (re)reveal the live preview on the right. */
 	async open(id: string, name: string): Promise<void> {
+		const generation = ++this.openGeneration;
+		this.invalidatePush();
 		if (!vscode.workspace.isTrusted) return;
 		const uri = await this.styleStore.resolveStyleUri(id);
-		if (!uri) return;
+		if (!uri || generation !== this.openGeneration || !vscode.workspace.isTrusted) return;
 		const doc = await vscode.workspace.openTextDocument(uri);
-		if (!vscode.workspace.isTrusted) return;
+		if (generation !== this.openGeneration || doc.isClosed || !vscode.workspace.isTrusted) return;
 		const editor = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
-		if (!vscode.workspace.isTrusted) return;
+		if (generation !== this.openGeneration || doc.isClosed || !vscode.workspace.isTrusted) return;
 
 		// Key off the opened document's *own* URI, not the one we constructed to
 		// resolve it. VS Code may canonicalize the file URI (e.g. drive-letter case
 		// on Windows), and onDidChangeTextDocument/onDidChangeTextEditorSelection
 		// carry that canonical URI — comparing against the constructed one would
 		// silently never match, so edits wouldn't reach the preview.
+		this.invalidatePush();
 		this.currentUri = doc.uri;
 		this.currentName = name;
+		this.lastSelector = null;
 		this.ensurePanel();
 		await this.push(doc.getText());
-		this.updateHighlight(editor.document, editor.selection.active);
+		if (generation === this.openGeneration && !editor.document.isClosed) {
+			this.updateHighlight(editor.document, editor.selection.active);
+		}
 	}
 
 	private ensurePanel(): void {
@@ -83,7 +91,7 @@ export class StylePreviewController {
 			this.panel.reveal(vscode.ViewColumn.Beside, true);
 			return;
 		}
-		this.panel = vscode.window.createWebviewPanel(
+		const panel = vscode.window.createWebviewPanel(
 			'mdLivePreview.stylePreview',
 			title,
 			{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
@@ -95,8 +103,10 @@ export class StylePreviewController {
 				localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')],
 			},
 		);
-		this.panel.webview.html = this.buildHtml(this.panel.webview);
-		this.panel.webview.onDidReceiveMessage((raw: unknown) => {
+		this.panel = panel;
+		panel.webview.html = this.buildHtml(panel.webview);
+		panel.webview.onDidReceiveMessage((raw: unknown) => {
+			if (this.panel !== panel) return;
 			const parsed = validatePreviewToHostMessage(raw);
 			if (!parsed.ok) {
 				diagnosticEventRateLimited('protocol.previewMessageRejected', { reason: parsed.reason });
@@ -107,17 +117,32 @@ export class StylePreviewController {
 				this.postHighlight(this.lastSelector);
 			}
 		});
-		this.panel.onDidDispose(() => {
+		panel.onDidDispose(() => {
+			if (this.panel !== panel) return;
+			this.openGeneration++;
+			this.invalidatePush();
 			this.panel = undefined;
 			this.currentUri = undefined;
 		});
 	}
 
-	private schedulePush(document: vscode.TextDocument): void {
+	private invalidatePush(): void {
+		this.pushGeneration++;
 		if (this.pushTimer) clearTimeout(this.pushTimer);
+		this.pushTimer = undefined;
+	}
+
+	private schedulePush(document: vscode.TextDocument): void {
+		if (!this.panel || this.currentUri?.toString() !== document.uri.toString()) return;
+		this.invalidatePush();
+		const generation = this.pushGeneration;
+		const panel = this.panel;
 		this.pushTimer = setTimeout(() => {
 			this.pushTimer = undefined;
-			if (!document.isClosed) void this.push(document.getText());
+			if (this.panel === panel && generation === this.pushGeneration && !document.isClosed
+				&& this.currentUri?.toString() === document.uri.toString()) {
+				void this.push(document.getText());
+			}
 		}, PUSH_DEBOUNCE_MS);
 	}
 
@@ -130,20 +155,27 @@ export class StylePreviewController {
 	private postHighlight(selector: string | null): void {
 		if (!this.panel) return;
 		const message: HostToPreviewMessage = { type: 'highlight', selector };
-		void this.panel.webview.postMessage(message);
+		void this.postMessage(this.panel, message);
 	}
 
 	private async push(css?: string): Promise<void> {
-		if (!this.panel || !this.currentUri) return;
+		const panel = this.panel;
+		const uri = this.currentUri;
+		if (!panel || !uri) return;
+		const generation = ++this.pushGeneration;
+		const name = this.currentName;
 		if (!vscode.workspace.isTrusted) return this.clearPreviewCss();
 		let content = css;
 		if (content === undefined) {
 			try {
-				content = (await vscode.workspace.openTextDocument(this.currentUri)).getText();
+				const document = await vscode.workspace.openTextDocument(uri);
+				if (document.isClosed) return;
+				content = document.getText();
 			} catch {
-					return; // file vanished
-				}
+				return; // file vanished
+			}
 		}
+		if (this.panel !== panel || this.currentUri !== uri || generation !== this.pushGeneration) return;
 		if (!vscode.workspace.isTrusted) return this.clearPreviewCss();
 		if (content.length > MAX_STYLE_BYTES || new TextEncoder().encode(content).byteLength > MAX_STYLE_BYTES) {
 			content = '';
@@ -158,12 +190,23 @@ export class StylePreviewController {
 			type: 'update',
 			css: content,
 			themeKind: currentThemeKind(),
-			name: this.currentName,
+			name,
 		};
-		void this.panel.webview.postMessage(message);
+		await this.postMessage(panel, message);
+	}
+
+	private async postMessage(panel: vscode.WebviewPanel, message: HostToPreviewMessage): Promise<void> {
+		if (this.panel !== panel) return;
+		try {
+			await panel.webview.postMessage(message);
+		} catch {
+			// Disposing a panel can race a pending post. Do not reject a fire-and-forget callback.
+			diagnosticEventRateLimited('preview.postFailed');
+		}
 	}
 
 	private clearPreviewCss(): void {
+		this.invalidatePush();
 		if (!this.panel) return;
 		const message: HostToPreviewMessage = {
 			type: 'update',
@@ -171,7 +214,7 @@ export class StylePreviewController {
 			themeKind: currentThemeKind(),
 			name: this.currentName,
 		};
-		void this.panel.webview.postMessage(message);
+		void this.postMessage(this.panel, message);
 	}
 
 	refreshSecurityPolicy(): void {

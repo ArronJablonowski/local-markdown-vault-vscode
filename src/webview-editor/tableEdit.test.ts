@@ -65,6 +65,17 @@ describe('renderTableMarkdown', () => {
 		expect(out.split('\n')[0]).toBe('| a\\|b | c |');
 	});
 
+	it('escapes adjacent pipes and lone carriage returns in rebuilt cells', () => {
+		const out = renderTableMarkdown(model({ rows: [['a||b', 'c\rd'], ['1', '2']] }));
+		expect(out.split('\n')[0]).toBe('| a\\|\\|b | c d |');
+	});
+
+	it('retains overflow source cells when adding rows or moving visible columns', () => {
+		const original = model({ rows: [['a', 'b'], ['1', '2', 'hidden source content']] });
+		expect(renderTableMarkdown(insertRow(original, 2))).toContain('| 1 | 2 | hidden source content |');
+		expect(renderTableMarkdown(moveColumn(original, 0, 1))).toContain('| 2 | 1 | hidden source content |');
+	});
+
 	it('pads a short row so every line has the same column count', () => {
 		const out = renderTableMarkdown(model({ rows: [['a', 'b'], ['1']] }));
 		expect(out).toBe('| a | b |\n| --- | --- |\n| 1 |  |');

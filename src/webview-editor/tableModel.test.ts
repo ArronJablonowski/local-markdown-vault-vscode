@@ -22,6 +22,11 @@ function modelFor(markdownText: string) {
 }
 
 describe('readTableModel', () => {
+	it('keeps overflow authored cells separately from the fixed-width display grid', () => {
+		const model = modelFor('| A | B |\n| --- | --- |\n| One | Two | Hidden source |\n');
+		expect(model.rows[1]).toEqual(['One', 'Two']);
+		expect(model.sourceRows?.[1]).toEqual(['One', 'Two', 'Hidden source']);
+	});
 	describe('column alignment', () => {
 		it('reads left, center and right specs from the delimiter row', () => {
 			expect(modelFor('| l | c | r |\n|:--|:-:|--:|\n| 1 | 2 | 3 |\n').align).toEqual([

@@ -51,7 +51,10 @@ describe('host security boundaries', () => {
 			'src/editor/shikiHost.ts',
 			'src/vault/VaultService.ts',
 			'src/vault/defaultVaultFilesystem.ts',
+			'src/vault/readBoundedFile.ts',
 		]);
+		expect(readFileSync(join(ROOT, 'src', 'vault', 'readBoundedFile.ts'), 'utf8'))
+			.toContain("import type { FileHandle } from 'node:fs/promises';");
 
 		const nativeFsUsers = files
 			.filter((file) => /['"]node:fs['"]/.test(readFileSync(file, 'utf8')))
@@ -208,7 +211,7 @@ describe('host security boundaries', () => {
 		expect(readyCase).toContain('if (this.readyReceived)');
 		expect(readyCase).toContain("diagnosticEventRateLimited('protocol.duplicateReadyRejected')");
 		expect(readyCase.indexOf('if (this.readyReceived)')).toBeLessThan(readyCase.indexOf('this.sendInit()'));
-		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.queuePendingDraftFlush();\n\t\tthis.readyReceived = false;');
+		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.rehighlightGeneration++;\n\t\tthis.queuePendingDraftFlush();\n\t\tthis.readyReceived = false;');
 		const setVisible = sync.slice(sync.indexOf('setVisible(visible: boolean)'), sync.indexOf('\n\tdispose()', sync.indexOf('setVisible(visible: boolean)')));
 		const hiddenCase = setVisible.slice(setVisible.indexOf('if (!visible) {'), setVisible.indexOf('if (this.needsFullSync)'));
 		expect(hiddenCase).toContain('this.readyReceived = false;');
@@ -497,10 +500,11 @@ describe('host security boundaries', () => {
 		const sidebar = readFileSync(join(ROOT, 'src', 'webview-sidebar', 'main.ts'), 'utf8');
 		expect(provider).toContain('const loadedStyles = trustedAtStart ? await this.styleStore.listEntries() : []');
 		expect(provider).toContain('const workspaceTrusted = trustedAtStart && vscode.workspace.isTrusted');
-		expect(provider).toContain('const styles = workspaceTrusted ? loadedStyles : []');
+		expect(provider).toContain('styles: workspaceTrusted ? loadedStyles : []');
 		expect(provider).toContain("message.type !== 'ready' && message.type !== 'setSetting'");
 		expect(provider).toContain('this.preview.refreshSecurityPolicy()');
-		expect(preview.match(/if \(!vscode\.workspace\.isTrusted\)/g)?.length).toBeGreaterThanOrEqual(4);
+		// Open lifecycle guards also combine trust with generation/document checks.
+		expect(preview.match(/if \([^\n]*!vscode\.workspace\.isTrusted/g)?.length).toBeGreaterThanOrEqual(6);
 		expect(preview).toContain('if (!vscode.workspace.isTrusted) return this.clearPreviewCss()');
 		expect(preview).toContain("css: ''");
 		for (const method of ['setEnabled', 'createNewStyle', 'duplicateStyle', 'renameStyle', 'deleteStyle', 'openStyleForEditing']) {

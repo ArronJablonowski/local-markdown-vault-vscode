@@ -45,6 +45,22 @@ describe('vault search query', () => {
 		expect(searchVaultRecords(records, 'file:launch OR tag:archive')).toHaveLength(2);
 	});
 
+	it('parses a negated quoted phrase without splitting or negating a literal quoted dash', () => {
+		expect(parseVaultQuery('-"remote images"')?.groups).toEqual([[{
+			kind: 'text', value: 'remote images', exact: true, negated: true,
+		}]]);
+		expect(parseVaultQuery('"-remote"')?.groups).toEqual([[{
+			kind: 'text', value: '-remote', exact: true, negated: false,
+		}]]);
+	});
+
+	it('does not reject a negated phrase using unordered index tokens', () => {
+		const record = { ...records[0], searchTokens: ['remote', 'images'] };
+		expect(searchVaultRecords([record], '-"remote images"')).toEqual([record]);
+		expect(findVaultContentMatch(record, 'Remote access is allowed. Images stay local.', '-"remote images"')).toBeDefined();
+		expect(findVaultContentMatch(record, 'Remote images stay local.', '-"remote images"')).toBeUndefined();
+	});
+
 	it('supports tag, task, property, and bounded regex filters', () => {
 		expect(searchVaultRecords(records, 'tag:work task:open property:status=ready')).toEqual([records[0]]);
 		expect(searchVaultRecords(records, '/threat\\s+model/i')).toEqual([records[0]]);

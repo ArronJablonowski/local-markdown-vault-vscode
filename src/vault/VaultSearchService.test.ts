@@ -65,6 +65,37 @@ describe('authoritative vault search matching', () => {
 		await expect(searchVaultWithContext(index, '-property:status=ready', 10)).resolves.toEqual([]);
 	});
 
+	it('applies the result limit after authoritative property verification', async () => {
+		const candidates = ['A', 'B', 'C'].map(name => ({ ...record, path: `${name}.md`, basename: name, properties: { status: null } }));
+		const index = {
+			flushDocumentUpdates: async () => undefined,
+			search: (query: string, limit: number) => searchVaultRecords(candidates, query, limit),
+			readText: async (path: string) => `---\nstatus: ${path === 'B.md' ? 'ready' : 'draft'}\n---\n`,
+		} as unknown as VaultIndex;
+		await expect(searchVaultWithContext(index, 'property:status=ready', 1)).resolves.toEqual([{ record: candidates[1] }]);
+	});
+
+	it('does not read note bodies when the caller requests no results', async () => {
+		const readText = vi.fn(async () => 'remote images');
+		const index = { flushDocumentUpdates: async () => undefined, search: () => [record], readText } as unknown as VaultIndex;
+		await expect(searchVaultWithContext(index, 'remote', 0)).resolves.toEqual([]);
+		expect(readText).not.toHaveBeenCalled();
+	});
+
+	it('skips unreadable authoritative candidates instead of treating missing text as a negative match', async () => {
+		const candidate = { ...record, properties: { status: null } };
+		const index = { flushDocumentUpdates: async () => undefined, search: () => [candidate], readText: async () => undefined } as unknown as VaultIndex;
+		await expect(searchVaultWithContext(index, '-property:status=archived', 10)).resolves.toEqual([]);
+	});
+
+	it('stops scheduling candidates once the requested result count is verified', async () => {
+		const candidates = Array.from({ length: 500 }, (_, index) => ({ ...record, path: `${index}.md` }));
+		const readText = vi.fn(async () => 'remote images');
+		const index = { flushDocumentUpdates: async () => undefined, search: () => candidates, readText } as unknown as VaultIndex;
+		await expect(searchVaultWithContext(index, 'remote', 1)).resolves.toHaveLength(1);
+		expect(readText.mock.calls.length).toBeLessThanOrEqual(8);
+	});
+
 	it('stops scheduling note reads when an obsolete search is canceled', async () => {
 		const records = Array.from({ length: 40 }, (_, index) => ({
 			...record,

@@ -7,6 +7,7 @@ import { isPathInside, resolveVaultRelativePath } from '../shared/pathContainmen
 import { normalizeOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
 import { noteFileName, validateVaultEntryName } from './vaultName';
 import { classifyVaultWorkspace, isCurrentVaultWorkspace, type VaultUnavailableReason } from './vaultWorkspace';
+import { readBoundedFile } from './readBoundedFile';
 
 export type { VaultUnavailableReason } from './vaultWorkspace';
 
@@ -210,7 +211,10 @@ export class VaultService {
 			if (!opened.isFile()) throw new Error('The vault item is not a regular file.');
 			if (opened.size > maxBytes) throw new Error('The vault file exceeds the size limit.');
 			await this.assertOpenedFileInside(canonical, opened);
-			const bytes = await handle.readFile();
+			// The file can grow between stat and read. Bound the actual read to
+			// the authorized snapshot rather than allowing readFile() to allocate
+			// and return arbitrarily enlarged content before the final checks.
+			const bytes = await readBoundedFile(handle, opened.size);
 			const completed = await handle.stat();
 			if (!sameFileIdentity(opened, completed) || completed.size !== bytes.byteLength) {
 				throw new Error('The vault file changed while it was being read.');

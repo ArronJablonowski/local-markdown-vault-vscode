@@ -8,6 +8,29 @@ import {
 	validateHostToSidebarMessage,
 } from './auxMessageValidation';
 
+describe('auxiliary enum types', () => {
+	for (const [key, value] of [['defaultEditor', 'livePreview'], ['defaultEditingMode', 'locked'], ['codeTheme', 'auto'], ['vaultOpenBehavior', 'reuseTab']]) {
+		it(`rejects non-string ${key} without coercing attacker-controlled values`, () => {
+			for (const malformed of [[value], { toString: null, valueOf: null }, null, 1, false]) {
+				expect(validateSidebarToHostMessage({ type: 'setSetting', key, value: malformed }).ok).toBe(false);
+			}
+		});
+	}
+	it('rejects array or uncoercible theme kinds in preview updates', () => {
+		for (const themeKind of [['vscode-dark'], { toString: null, valueOf: null }]) {
+			expect(validateHostToPreviewMessage({ type: 'update', css: '', name: 'Theme', themeKind }).ok).toBe(false);
+		}
+	});
+	it('rejects non-string settings and theme kinds in sidebar snapshots', () => {
+		const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off' };
+		const message = { type: 'init', styles: [], settings, themeKind: 'vscode-dark', workspaceTrusted: true };
+		for (const key of ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior'] as const) {
+			expect(validateHostToSidebarMessage({ ...message, settings: { ...settings, [key]: [settings[key]] } }).ok).toBe(false);
+		}
+		expect(validateHostToSidebarMessage({ ...message, themeKind: ['vscode-dark'] }).ok).toBe(false);
+	});
+});
+
 describe('auxiliary webview message validation', () => {
 	it('accepts only the on/off whitespace setting', () => {
 		for (const value of ['on', 'off']) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(true);

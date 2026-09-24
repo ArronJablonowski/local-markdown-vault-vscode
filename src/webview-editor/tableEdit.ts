@@ -10,6 +10,7 @@
  */
 
 import type { ColumnAlign } from './livePreviewPlugin';
+import { escapeTableCellSource } from './tableCellSource';
 
 /** The pieces of a table needed to rewrite it. */
 export interface TableEditModel {
@@ -40,21 +41,13 @@ export function delimiterFor(align: ColumnAlign): string {
 	}
 }
 
-/**
- * A cell's text, escaped so it cannot break the row it is written into.
- *
- * Mirrors `sanitizeCellInput`: a newline would split the row across two lines
- * and a bare `|` would invent a column boundary.
- */
-function escapeCell(text: string): string {
-	return text.replace(/\r?\n/g, ' ').replace(/(^|[^\\])\|/g, '$1\\|');
-}
-
 /** Renders a table back to Markdown, one line per row plus the delimiter row. */
 export function renderTableMarkdown(model: TableEditModel): string {
 	const width = model.align.length || model.rows[0]?.length || 0;
 	const line = (cells: string[]): string => {
-		const padded = Array.from({ length: width }, (_, i) => escapeCell(cells[i] ?? '').trim());
+		// GFM hides overflow cells, but that is not permission for an unrelated
+		// structural edit to delete their authored source.
+		const padded = Array.from({ length: Math.max(width, cells.length) }, (_, i) => escapeTableCellSource(cells[i] ?? '').trim());
 		return `${model.indent}| ${padded.join(' | ')} |`;
 	};
 	const out: string[] = [];
@@ -152,7 +145,7 @@ export function moveColumn(model: TableEditModel, index: number, delta: -1 | 1):
 	const target = index + delta;
 	if (index < 0 || index >= width || target < 0 || target >= width) return model;
 	const rows = model.rows.map((cells) => {
-		const padded = Array.from({ length: width }, (_, i) => cells[i] ?? '');
+		const padded = Array.from({ length: Math.max(width, cells.length) }, (_, i) => cells[i] ?? '');
 		[padded[index], padded[target]] = [padded[target], padded[index]];
 		return padded;
 	});

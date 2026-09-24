@@ -16,13 +16,14 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 
 	private view: vscode.WebviewView | undefined;
 	private readonly preview: StylePreviewController;
+	private refreshGeneration = 0;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly styleStore: StyleStore,
 	) {
 		this.preview = new StylePreviewController(context, styleStore);
-		this.styleStore.onDidChange(() => void this.pushStyles());
+		this.context.subscriptions.push(this.styleStore.onDidChange(() => void this.pushStyles()));
 		// Re-push when the surfaced settings change or the color theme flips, so the
 		// settings controls and the preview thumbnails' light/dark rendering stay current.
 		this.context.subscriptions.push(
@@ -42,6 +43,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
+		this.refreshGeneration++;
 		this.view = webviewView;
 		webviewView.webview.options = {
 			enableScripts: true,
@@ -57,10 +59,14 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 				diagnosticEventRateLimited('protocol.sidebarMessageRejected', { reason: parsed.reason });
 				return;
 			}
-			void this.handleMessage(parsed.value);
+			void this.handleMessage(parsed.value).catch(() => {
+				void vscode.window.showErrorMessage(vscode.l10n.t('The CSS Themes action could not be completed. Your last saved settings remain in effect.'));
+				void this.pushStyles();
+			});
 		});
 		webviewView.onDidDispose(() => {
 			if (this.view === webviewView) {
+				this.refreshGeneration++;
 				this.view = undefined;
 			}
 		});
@@ -163,19 +169,28 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async pushStyles(): Promise<void> {
-		if (!this.view) return;
+		const view = this.view;
+		if (!view) return;
+		const generation = ++this.refreshGeneration;
 		const trustedAtStart = vscode.workspace.isTrusted;
-		const loadedStyles = trustedAtStart ? await this.styleStore.listEntries() : [];
-		const workspaceTrusted = trustedAtStart && vscode.workspace.isTrusted;
-		const styles = workspaceTrusted ? loadedStyles : [];
-		const msg: HostToSidebarMessage = {
-			type: 'init',
-			styles,
-			settings: this.getSettings(),
-			themeKind: this.getThemeKind(),
-			workspaceTrusted,
-		};
-		void this.view.webview.postMessage(msg);
+		try {
+			const loadedStyles = trustedAtStart ? await this.styleStore.listEntries() : [];
+			// Reads can complete after a newer selection, disposal, or recreation.
+			if (this.view !== view || generation !== this.refreshGeneration) return;
+			const workspaceTrusted = trustedAtStart && vscode.workspace.isTrusted;
+			const msg: HostToSidebarMessage = {
+				type: 'init',
+				styles: workspaceTrusted ? loadedStyles : [],
+				settings: this.getSettings(),
+				themeKind: this.getThemeKind(),
+				workspaceTrusted,
+			};
+			await view.webview.postMessage(msg);
+		} catch {
+			if (this.view === view && generation === this.refreshGeneration) {
+				void vscode.window.showErrorMessage(vscode.l10n.t('CSS Themes could not be refreshed. Reopen the view to try again.'));
+			}
+		}
 	}
 
 	refreshSecurityPolicy(): void {

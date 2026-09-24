@@ -112,6 +112,19 @@ describe('sanitizeCellInput', () => {
 		expect(sanitizeCellInput('a \\| b')).toBe('a \\| b');
 	});
 
+	it.each(['||', 'a|||b', '|a||b|'])('escapes every adjacent pipe in %s', text => {
+		expect(sanitizeCellInput(text)).toBe(text.replace(/\|/g, '\\|'));
+	});
+
+	it('escapes pipes after an even backslash run and preserves already escaped runs', () => {
+		expect(sanitizeCellInput(String.raw`a\\|b`)).toBe(String.raw`a\\\|b`);
+		expect(sanitizeCellInput(String.raw`a\\\|b`)).toBe(String.raw`a\\\|b`);
+	});
+
+	it('flattens lone carriage returns as well as LF and CRLF', () => {
+		expect(sanitizeCellInput('a\rb\r\nc\nd')).toBe('a b c d');
+	});
+
 	it('trims surrounding whitespace so the source keeps its own padding', () => {
 		expect(sanitizeCellInput('  a  ')).toBe('a');
 	});

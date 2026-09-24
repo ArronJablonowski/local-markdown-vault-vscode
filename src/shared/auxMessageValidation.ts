@@ -20,6 +20,8 @@ function exact(value: Record<string, unknown>, keys: string[]): boolean {
 
 const safeId = (value: unknown): value is string =>
 	typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\u0000-\u001f\u007f/\\]/.test(value);
+const oneOf = (value: unknown, allowed: readonly string[]): value is string =>
+	typeof value === 'string' && allowed.includes(value);
 const encodedBytesWithin = (value: string, maximum: number): number | undefined => {
 	if (value.length > maximum) return undefined;
 	const bytes = new TextEncoder().encode(value).byteLength;
@@ -54,11 +56,11 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 	}
 	if (
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
-		((value.key === 'defaultEditor' && ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'].includes(String(value.value))) ||
+		((value.key === 'defaultEditor' && oneOf(value.value, ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'])) ||
 			(value.key === 'showWhitespace' && (value.value === 'off' || value.value === 'on')) ||
-			(value.key === 'defaultEditingMode' && ['editing', 'locked'].includes(String(value.value))) ||
-			(value.key === 'codeTheme' && ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.value))) ||
-			(value.key === 'vaultOpenBehavior' && ['reuseTab', 'newTab'].includes(String(value.value))))
+			(value.key === 'defaultEditingMode' && oneOf(value.value, ['editing', 'locked'])) ||
+			(value.key === 'codeTheme' && oneOf(value.value, ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'])) ||
+			(value.key === 'vaultOpenBehavior' && oneOf(value.value, ['reuseTab', 'newTab'])))
 	) {
 		return { ok: true, value: value as unknown as SidebarToHostMessage };
 	}
@@ -79,7 +81,7 @@ export function validateHostToOutlineMessage(value: unknown): ValidationResult<H
 export function validateHostToPreviewMessage(value: unknown): ValidationResult<HostToPreviewMessage> {
 	if (!isRecord(value) || typeof value.type !== 'string') return { ok: false, reason: 'Invalid preview update.' };
 	if (value.type === 'highlight' && exact(value, ['type', 'selector']) && (value.selector === null || (typeof value.selector === 'string' && value.selector.length <= 4096))) return { ok: true, value: value as unknown as HostToPreviewMessage };
-	if (value.type === 'update' && exact(value, ['type', 'css', 'themeKind', 'name']) && typeof value.css === 'string' && encodedBytesWithin(value.css, 1024 * 1024) !== undefined && ['vscode-light', 'vscode-dark', 'vscode-high-contrast'].includes(String(value.themeKind)) && typeof value.name === 'string' && value.name.length <= 256) return { ok: true, value: value as unknown as HostToPreviewMessage };
+	if (value.type === 'update' && exact(value, ['type', 'css', 'themeKind', 'name']) && typeof value.css === 'string' && encodedBytesWithin(value.css, 1024 * 1024) !== undefined && oneOf(value.themeKind, ['vscode-light', 'vscode-dark', 'vscode-high-contrast']) && typeof value.name === 'string' && value.name.length <= 256) return { ok: true, value: value as unknown as HostToPreviewMessage };
 	return { ok: false, reason: 'Invalid preview update.' };
 }
 
@@ -95,11 +97,11 @@ export function validateHostToSidebarMessage(value: unknown): ValidationResult<H
 	if (
 		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior', 'showWhitespace']) ||
 		(value.settings.showWhitespace !== 'off' && value.settings.showWhitespace !== 'on') ||
-		!['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'].includes(String(value.settings.defaultEditor)) ||
-		!['editing', 'locked'].includes(String(value.settings.defaultEditingMode)) ||
-		!['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(String(value.settings.codeTheme)) ||
-		!['reuseTab', 'newTab'].includes(String(value.settings.vaultOpenBehavior))
+		!oneOf(value.settings.defaultEditor, ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview']) ||
+		!oneOf(value.settings.defaultEditingMode, ['editing', 'locked']) ||
+		!oneOf(value.settings.codeTheme, ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light']) ||
+		!oneOf(value.settings.vaultOpenBehavior, ['reuseTab', 'newTab'])
 	) return { ok: false, reason: 'Invalid sidebar settings.' };
-	if (!['vscode-light', 'vscode-dark', 'vscode-high-contrast'].includes(String(value.themeKind))) return { ok: false, reason: 'Invalid sidebar theme.' };
+	if (!oneOf(value.themeKind, ['vscode-light', 'vscode-dark', 'vscode-high-contrast'])) return { ok: false, reason: 'Invalid sidebar theme.' };
 	return { ok: true, value: value as unknown as HostToSidebarMessage };
 }

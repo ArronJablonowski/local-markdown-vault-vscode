@@ -578,6 +578,7 @@ Additional references:
 - [Migration and rollback](docs/MIGRATION.md)
 - [Windows and Linux testing](docs/PLATFORM_TESTING.md)
 - [Accessibility](docs/ACCESSIBILITY.md)
+- [Code and adversarial UI QA](docs/CODE_AND_UI_QA_2026-09-24.md)
 - [Latest active security assessment](docs/SECURITY_ASSESSMENT_2026-09-21.md)
 - [Security policy](SECURITY.md)
 
