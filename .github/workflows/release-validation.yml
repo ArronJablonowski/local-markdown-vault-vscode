@@ -81,6 +81,12 @@ jobs:
       - name: Focused desktop integration test (macOS and Windows)
         if: runner.os != 'Linux'
         run: npm run test:integration:focused
+      - name: Save durability integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration:saves
+      - name: Save durability integration tests (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:integration:saves
       - run: npm run package
       - name: Packaged VSIX smoke tests (Linux)
         if: runner.os == 'Linux'

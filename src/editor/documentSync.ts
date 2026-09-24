@@ -99,6 +99,9 @@ export class DocumentSyncSession {
 	private readyReceived = false;
 	private vaultNotesGeneration = 0;
 	private disposed = false;
+	private closing = false;
+	private readonly resyncRateLimiter = new TokenBucketRateLimiter(4, 1000);
+	private readonly recoveryLimiter = new RequestLimiter(2);
 	private clipboardWritePending = false;
 	private readonly clipboardRateLimiter = new TokenBucketRateLimiter(4, 1_000);
 	private readonly localImageLimiter = new RequestLimiter(MAX_CONCURRENT_LOCAL_IMAGE_READS);
@@ -110,14 +113,21 @@ export class DocumentSyncSession {
 	private readonly linkRateLimiter = new TokenBucketRateLimiter(LINK_OPEN_BURST, LINK_OPEN_REFILL_MS);
 	/** Raw VS Code text corresponding to the last protocol snapshot/version. */
 	private documentText: string;
+	// A single replaceable snapshot, not one full-document allocation per queued
+	// keystroke. Captured before blur/close because iframe teardown can skip them.
+	private pendingDraft?: Extract<EditorToHostMessage, { type: 'draftSnapshot' }>;
+	private draftFlushQueued = false;
+	private closeOperation?: Promise<void>;
 
 	constructor(
-		private readonly document: vscode.TextDocument,
+		private document: vscode.TextDocument,
 		private readonly webviewPanel: vscode.WebviewPanel,
 		private readonly getCss: () => string,
 		private readonly getVaultNotes: () => VaultNoteSummary[],
 		private readonly revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 		private readonly settleAutoSave?: () => Promise<void>,
+		private readonly preserveDraft?: (text: string) => Promise<void>,
+		private readonly saveExplicitly?: () => Promise<void>,
 	) {
 		this.lastAppliedVersion = document.version;
 		this.documentText = document.getText();
@@ -144,6 +154,7 @@ export class DocumentSyncSession {
 
 		this.disposables.push(
 			webviewPanel.webview.onDidReceiveMessage((raw: unknown) => {
+				if (this.closing) return;
 				const parsed = validateEditorToHostMessage(
 					raw,
 					createLineEndingMap(this.document.getText()).normalizedText.length,
@@ -151,6 +162,12 @@ export class DocumentSyncSession {
 				);
 				if (!parsed.ok) {
 					diagnosticEventRateLimited('protocol.webviewMessageRejected', { reason: parsed.reason });
+					// A well-shaped stale edit is a normal concurrent-writer conflict,
+					// not permission to silently abandon the renderer's pending text.
+					if (validateEditorToHostMessage(raw, MAX_EDITOR_DOCUMENT_BYTES).ok &&
+						(raw as EditorToHostMessage).type === 'edit' && this.resyncRateLimiter.tryTake()) {
+						this.enqueueMutation(() => this.sendInit());
+					}
 					return;
 				}
 				this.handleMessage(parsed.value);
@@ -179,6 +196,38 @@ export class DocumentSyncSession {
 
 	private handleMessage(message: EditorToHostMessage) {
 		switch (message.type) {
+			case 'draftSnapshot':
+				this.pendingDraft = message;
+				if (!this.visible) this.queuePendingDraftFlush();
+				break;
+			case 'save':
+				this.enqueueMutation(async () => { await this.saveExplicitly?.(); });
+				break;
+			case 'resync':
+				if (this.resyncRateLimiter.tryTake()) this.enqueueMutation(() => this.sendInit());
+				break;
+			case 'checkpoint':
+			case 'preserveDraft': {
+				const release = this.recoveryLimiter.tryAcquire();
+				if (!release) { this.post({ type: 'draftPreserved', requestId: message.requestId, ok: false }); break; }
+				if (!this.enqueueMutation(async () => {
+					try {
+						if (message.type === 'checkpoint') {
+							if (await this.trySaveSnapshot(message)) {
+								this.post({ type: 'draftPreserved', requestId: message.requestId, ok: true });
+								return;
+							}
+						}
+						if (!this.preserveDraft) throw new Error('Recovery store unavailable');
+						await this.preserveDraft(message.text);
+						this.post({ type: 'draftPreserved', requestId: message.requestId, ok: true });
+					} catch {
+						this.post({ type: 'draftPreserved', requestId: message.requestId, ok: false });
+						void vscode.window.showErrorMessage(vscode.l10n.t('A Markdown recovery draft could not be saved. Keep the editor open and save a copy before closing it.'));
+					} finally { release(); }
+				})) { release(); this.post({ type: 'draftPreserved', requestId: message.requestId, ok: false }); }
+				break;
+			}
 			case 'copyCode': {
 				if (this.disposed || !this.webviewPanel.active || this.clipboardWritePending || !this.clipboardRateLimiter.tryTake()) {
 					this.post({ type: 'copyCodeResult', requestId: message.requestId, ok: false });
@@ -197,18 +246,21 @@ export class DocumentSyncSession {
 					break;
 				}
 				this.readyReceived = true;
-				if (this.visible) {
-					this.sendInit();
-					this.scheduleRehighlight(true);
-				} else {
-					this.needsFullSync = true;
-					this.needsRehighlight = true;
-				}
-				this.flushPendingJump();
+				void this.mutationQueue.drain().then(() => {
+					if (this.disposed) return;
+					if (this.visible) { this.sendInit(); this.scheduleRehighlight(true); }
+					else { this.needsFullSync = true; this.needsRehighlight = true; }
+					this.flushPendingJump();
+				});
 				break;
-			case 'edit':
-				if (!this.enqueueMutation(() => this.applyEdit(message.changes, message.baseVersion))) this.sendInit();
+			case 'edit': {
+				const acceptedText = this.documentText;
+				if (!this.enqueueMutation(async () => {
+					try { await this.applyEdit(message.changes, message.baseVersion, true, acceptedText); }
+					catch { await this.recoverRejectedEdit(acceptedText, message.changes); }
+				})) this.sendInit();
 				break;
+			}
 			case 'undo':
 				// Chained onto mutationQueue (not fired immediately) so it can't run ahead
 				// of an 'edit' message still being applied — otherwise it would undo
@@ -299,6 +351,48 @@ export class DocumentSyncSession {
 			});
 		}
 		return accepted;
+	}
+
+	private queuePendingDraftFlush(): void {
+		if (this.draftFlushQueued || !this.pendingDraft) return;
+		this.draftFlushQueued = true;
+		if (!this.enqueueMutation(async () => {
+			const pending = this.pendingDraft;
+			try { await this.flushPendingDraft(); }
+			finally {
+				this.draftFlushQueued = false;
+				if (this.pendingDraft && this.pendingDraft !== pending) this.queuePendingDraftFlush();
+			}
+		})) this.draftFlushQueued = false;
+	}
+
+	private async trySaveSnapshot(draft: { text: string; baselineText: string; requiresSeparatePreservation?: true }): Promise<boolean> {
+		if (draft.requiresSeparatePreservation) return false;
+		try {
+			await this.reopenClosedDocument();
+			const text = normalizeLineEndingsForWebview(this.document.getText());
+			if (text === draft.baselineText && text !== draft.text) {
+				await this.applyEdit([{ from: 0, to: text.length, insert: draft.text }], this.document.version, false);
+			}
+			await this.settleAutoSave?.();
+			return !this.document.isDirty && normalizeLineEndingsForWebview(this.document.getText()) === draft.text;
+		} catch { return false; } // Native failure must still allow a local recovery copy.
+	}
+
+	private async flushPendingDraft(): Promise<void> {
+		const draft = this.pendingDraft;
+		if (!draft) return;
+		try {
+			if (await this.trySaveSnapshot(draft)) {
+				if (this.pendingDraft === draft) this.pendingDraft = undefined;
+				return;
+			}
+			if (!this.preserveDraft) throw new Error('Recovery unavailable');
+			await this.preserveDraft(draft.text);
+			if (this.pendingDraft === draft) this.pendingDraft = undefined;
+		} catch {
+			void vscode.window.showErrorMessage(vscode.l10n.t('The pending Markdown draft could not be saved or preserved. Reopen the editor and save a copy before closing VS Code.'));
+		}
 	}
 
 	private async handleResolveLocalImage(requestId: number, src: string, contextPath: string): Promise<void> {
@@ -880,19 +974,39 @@ export class DocumentSyncSession {
 		this.sendWhitespaceSetting();
 	}
 
-	private async applyEdit(changes: TextChange[], baseVersion: number) {
+	private async recoverRejectedEdit(acceptedText: string, changes: TextChange[]): Promise<void> {
+		// A closing iframe cannot respond to a resync. Preserve the already
+		// accepted draft using its immutable baseline, never stale file offsets.
+		if (this.closing) {
+			const draft = applyNormalizedTextChanges(normalizeLineEndingsForWebview(acceptedText), changes);
+			try {
+				if (draft === undefined || !this.preserveDraft) throw new Error('Recovery unavailable');
+				await this.preserveDraft(draft);
+			} catch {
+				void vscode.window.showErrorMessage(vscode.l10n.t('An accepted Markdown edit could not be saved or preserved after closing. Reopen the note and check its contents before continuing.'));
+			}
+		} else this.sendInit();
+	}
+
+	private async applyEdit(changes: TextChange[], baseVersion: number, acknowledge = true, acceptedText = this.documentText) {
 		// A new WorkspaceEdit can cancel a native save still writing the previous
 		// version. Keep the edit/ack queue behind that save, then recheck authority
 		// and version: a tab close or independent edit may have happened meanwhile.
 		await this.settleAutoSave?.();
 		if (this.disposed) return;
+		const oldVersion = this.document.version;
+		if (await this.reopenClosedDocument()) {
+			if (baseVersion !== oldVersion || this.document.getText() !== acceptedText) {
+				await this.recoverRejectedEdit(acceptedText, changes); return;
+			}
+			baseVersion = this.document.version;
+		}
 		if (baseVersion !== this.document.version) {
 			// Webview's batch was computed against a document snapshot that has since
 			// moved on (e.g. an external edit landed concurrently). Rather than risk
-			// corrupting the file with stale offsets, discard the batch and force a
-			// full resync; the user may lose only the last, still-unacknowledged burst
-			// of local keystrokes in this rare race.
-			this.sendInit();
+			// corrupting the file with stale offsets, request a full resync. The
+			// webview retains its divergent local draft for separate recovery.
+			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
 		if (changes.length === 0) {
@@ -900,13 +1014,13 @@ export class DocumentSyncSession {
 		}
 		const rawText = this.document.getText();
 		if (rawText !== this.documentText) {
-			this.sendInit();
+			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
 		const offsetMap = createLineEndingMap(rawText);
 		const expectedNormalizedText = applyNormalizedTextChanges(offsetMap.normalizedText, changes);
 		if (expectedNormalizedText === undefined) {
-			this.sendInit();
+			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
 
@@ -930,7 +1044,7 @@ export class DocumentSyncSession {
 			this.applyingLocalEdit = false;
 		}
 		if (!applied) {
-			this.sendInit();
+			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
 		// Drain this batch's save before acknowledging another editable snapshot.
@@ -943,10 +1057,16 @@ export class DocumentSyncSession {
 			// A filesystem provider or unusual line-ending boundary produced a
 			// different document than the batch the webview already applied. Do not
 			// acknowledge divergent state; replace it with the authoritative snapshot.
-			this.sendInit();
+			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
-		this.post({ type: 'ackEdit', version: this.document.version });
+		if (acknowledge && this.closing && this.document.isDirty) {
+			// The original editor is gone, so its native dirty buffer is not enough
+			// to call this accepted edit safe. Keep a separate local recovery copy.
+			await this.recoverRejectedEdit(acceptedText, changes);
+			return;
+		}
+		if (acknowledge) this.post({ type: 'ackEdit', version: this.document.version });
 		this.scheduleRehighlight();
 	}
 
@@ -1057,11 +1177,20 @@ export class DocumentSyncSession {
 		return this.document;
 	}
 
+	private async reopenClosedDocument(): Promise<boolean> {
+		if (!this.document.isClosed) return false;
+		const root = localWorkspaceVaultRoot(this.document.uri);
+		if (!root || !await isCanonicalPathInside(root.fsPath, this.document.uri.fsPath)) throw new Error('Closed document is no longer inside the vault');
+		this.document = await vscode.workspace.openTextDocument(this.document.uri);
+		return true;
+	}
+
 	getWebview(): vscode.Webview {
 		return this.webviewPanel.webview;
 	}
 
 	reloadWebview(html: string): void {
+		this.queuePendingDraftFlush();
 		this.readyReceived = false;
 		this.webviewPanel.webview.html = html;
 	}
@@ -1123,6 +1252,7 @@ export class DocumentSyncSession {
 		if (visible === this.visible) return;
 		this.visible = visible;
 		if (!visible) {
+			this.queuePendingDraftFlush();
 			// retainContextWhenHidden is false, so the next reveal creates a new
 			// script context with one legitimate ready handshake.
 			this.readyReceived = false;
@@ -1134,6 +1264,7 @@ export class DocumentSyncSession {
 			}
 			return;
 		}
+		if (!this.readyReceived) return;
 		if (this.needsFullSync) {
 			this.needsFullSync = false;
 			this.pendingCss = false;
@@ -1156,13 +1287,26 @@ export class DocumentSyncSession {
 		this.flushPendingJump();
 	}
 
-	dispose() {
-		this.disposed = true;
+	async flushPendingSaves(): Promise<void> {
+		this.queuePendingDraftFlush();
+		await this.mutationQueue.drain();
+		await this.flushPendingDraft();
+		await this.settleAutoSave?.();
+	}
+
+	dispose(): Promise<void> {
+		if (this.closeOperation) return this.closeOperation;
+		this.closing = true;
+		this.queuePendingDraftFlush();
 		if (this.drawioRefreshTimer) clearTimeout(this.drawioRefreshTimer);
 		this.vaultNotesGeneration++;
 		if (this.rehighlightTimer) {
 			clearTimeout(this.rehighlightTimer);
 		}
 		this.disposables.forEach((d) => d.dispose());
+		// Already-received edits/checkpoints remain authorized for this document.
+		// Closing a clean tab must not cancel its final queued keystrokes.
+		this.closeOperation = this.mutationQueue.drain().then(() => this.flushPendingDraft()).finally(() => { this.disposed = true; });
+		return this.closeOperation;
 	}
 }

@@ -142,6 +142,11 @@
     },
     "commands": [
       {
+        "command": "mdLivePreview.openRecoveredDrafts",
+        "title": "%command.openRecoveredDrafts%",
+        "category": "%command.category%"
+      },
+      {
         "command": "mdLivePreview.openWithLivePreview",
         "title": "%command.openWithLivePreview%",
         "category": "%command.category%",
@@ -605,6 +610,7 @@
     "test:coverage": "vitest run --coverage.enabled",
     "test:integration": "npm run compile && tsc -p tsconfig.test.json && vscode-test",
     "test:integration:cache-restart": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-cache-restart-integration.mjs",
+    "test:integration:saves": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-save-durability-integration.mjs",
     "test:integration:focused": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-focused-desktop-integration.mjs",
     "test:integration:focused:macos": "npm run test:integration:focused",
     "test:ui:native": "npm run compile && node scripts/run-human-ui-qa.mjs",
@@ -612,7 +618,7 @@
     "test:e2e": "npm run compile && playwright test",
     "test:performance:filesystem": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-filesystem-performance.mjs",
     "test:vsix": "tsc -p tsconfig.test.json && node scripts/run-vsix-smoke.mjs",
-    "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:cache-restart && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
+    "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:saves && npm run test:integration:cache-restart && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
     "package": "vsce package --no-dependencies && node scripts/verify-vsix.mjs",
     "package:verify": "node scripts/verify-vsix.mjs",
     "language:verify": "node scripts/verify-us-english.mjs",

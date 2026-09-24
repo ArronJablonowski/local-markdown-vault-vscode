@@ -80,7 +80,9 @@ test.describe('live preview editing', () => {
 		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
 
 		await expect.poll(() => page.evaluate(() =>
-			(window as unknown as { __posted: Array<{ type: string }> }).__posted.map((message) => message.type),
+			(window as unknown as { __posted: Array<{ type: string }> }).__posted
+				.filter((message) => message.type === 'edit' || message.type === 'undo')
+				.map((message) => message.type),
 		)).toEqual(['edit', 'undo']);
 	});
 

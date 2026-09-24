@@ -45,7 +45,7 @@ import { setVaultNotes, setWikilinkOpener, wikilinkCompletionExtension, wikilink
 import { clearWikiEmbedCache, handleWikiEmbedMessage, setWikiEmbedPoster } from './wikiEmbedClient';
 import { clearLocalImageCache, handleLocalImageMessage, setLocalImageContext, setLocalImagePoster } from './localImageClient';
 import { tagDecorations } from './tags';
-import { makePersistedEditorState, parsePersistedEditorState } from './persistedState';
+import { makePersistedEditorState } from './persistedState';
 import {
 	escapeFencedCode,
 	exitFencedCodeOnBlankLine,
@@ -60,9 +60,12 @@ import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
 import { takeEditBatch } from './editBatch';
 import { listHangingIndent } from './listHangingIndent';
+import { commitActiveDraft, readActiveDraftSnapshot, setActiveDraftInputHandler, setUncommittedDraftHandler } from './activeDraft';
+import { classifyDraftRecovery, makeDraftRecovery, parseDraftRecovery, mergeDraftRecovery, readPersistedDraftRecovery, stripDraftRecovery, type DraftRecovery } from './draftRecovery';
+import { applyNormalizedTextChanges } from '../shared/lineEndings';
+import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 
 const remoteChange = Annotation.define<boolean>();
-const FLUSH_DEBOUNCE_MS = 0;
 // Match Obsidian's list editing: continue list and task markers on Enter, but
 // leave a list immediately when its current item is empty. CodeMirror's default
 // inserts an extra blank line before leaving a two-item tight list.
@@ -72,6 +75,16 @@ let view: EditorView | undefined;
 let baseVersion = 0;
 let pending: ChangeSet | null = null;
 let editInFlight = false;
+let baselineText = '';
+let inFlightText: string | undefined;
+let currentVaultPath = '';
+let recovery: DraftRecovery | undefined;
+let awaitingResync = false;
+let processingHostSnapshot = false;
+let recoveryRequestId = 0;
+let recoveryRequest: { id: number; conflict: boolean; text: string; baselineText: string } | undefined;
+let recoveryBlocked = false;
+let pendingSave = false;
 const pendingHistory: Array<'undo' | 'redo'> = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let workspaceTrusted = false;
@@ -85,21 +98,33 @@ const whitespaceCompartment = new Compartment();
 
 function flush() {
 	flushTimer = undefined;
-	if (editInFlight) return;
+	if (editInFlight || awaitingResync || processingHostSnapshot || recoveryBlocked) return;
 	if (!view || !pending || pending.empty) {
 		pending = null;
 		for (const type of pendingHistory.splice(0)) postToHost({ type });
+		if (pendingSave) { pendingSave = false; postToHost({ type: 'save' }); }
 		return;
 	}
 	const { changes, remaining } = takeEditBatch(pending);
 	pending = remaining;
+	inFlightText = applyNormalizedTextChanges(baselineText, changes);
+	if (inFlightText === baselineText) {
+		// An identical replacement need not create a host version. Discard it
+		// locally so the strict monotonic ACK guard cannot strand a no-op batch.
+		inFlightText = undefined;
+		captureRecovery();
+		queueMicrotask(flushNow);
+		return;
+	}
 	editInFlight = true;
+	captureRecovery();
 	postToHost({ type: 'edit', baseVersion, changes });
 }
 
 function scheduleFlush() {
 	if (flushTimer !== undefined || editInFlight) return;
-	flushTimer = setTimeout(flush, FLUSH_DEBOUNCE_MS);
+	// Dispatch before a same-turn tab close can destroy the renderer.
+	flushNow();
 }
 
 function flushNow() {
@@ -171,7 +196,84 @@ function persistEditorUiState() {
 	if (!view) return;
 	const { anchor, head } = view.state.selection.main;
 	const state = makePersistedEditorState(anchor, head, view.scrollDOM.scrollTop);
-	if (state) setWebviewState(state);
+	if (state) setWebviewState(recovery ? mergeDraftRecovery(state, recovery) ?? state : state);
+}
+
+function captureRecovery(extra?: string): boolean {
+	if (!view || recoveryBlocked) return true;
+	const field = extra ? { residualText: extra } : readActiveDraftSnapshot();
+	const residual = field?.residualText;
+	const text = (field?.documentText ?? view.state.doc.toString()) + (residual ? `\n\n${residual}` : '');
+	const next = editInFlight || residual
+		? parseDraftRecovery({ version: 1, baselineText: inFlightText ?? baselineText, draftText: text, currentVaultPath,
+			...(residual ? { requiresSeparatePreservation: true } : {}) })
+		: makeDraftRecovery(baselineText, text, currentVaultPath);
+	if (!next && (editInFlight || text !== baselineText)) {
+		// Never replace a valid journal with undefined merely because a newer
+		// snapshot exceeds the security limit. Normal editing is bounded below;
+		// an invalid property residual may still require a manual copy.
+		recoveryNotice(t('recovery.tooLarge'));
+		persistEditorUiState();
+		return false;
+	}
+	recovery = next;
+	persistEditorUiState();
+	postToHost({ type: 'draftSnapshot', text, baselineText: inFlightText ?? baselineText,
+		...(residual ? { requiresSeparatePreservation: true } : {}) });
+	return true;
+}
+
+setActiveDraftInputHandler(() => { captureRecovery(); });
+setUncommittedDraftHandler(text => {
+	if (!captureRecovery(text) || !recovery) return;
+	const draft = recovery;
+	// Blur can occur while CodeMirror is rebuilding a widget; lock/reconfigure
+	// only after that update finishes, retaining the exact captured field text.
+	queueMicrotask(() => {
+		if (recoveryRequest?.conflict) return;
+		recovery = draft;
+		persistEditorUiState();
+		preserveLocalDraft(draft, true);
+	});
+});
+
+function recoveryNotice(message: string, retry = false): void {
+	let notice = document.getElementById('mlp-recovery-notice');
+	if (!notice) {
+		notice = document.createElement('div'); notice.id = 'mlp-recovery-notice'; notice.setAttribute('role', 'alert');
+		document.body.appendChild(notice);
+	}
+	notice.replaceChildren(document.createTextNode(message));
+	if (retry) {
+		const button = document.createElement('button'); button.textContent = t('recovery.retry');
+		button.onclick = () => { if (recovery) preserveLocalDraft(recovery, true); };
+		notice.appendChild(button);
+	}
+}
+
+function preserveLocalDraft(draft: DraftRecovery, conflict: boolean): void {
+	// Losing focus while a conflict copy is being written must not downgrade the
+	// request into a checkpoint whose reply can no longer unlock the editor.
+	if (recoveryRequest?.conflict || recoveryRequest && !conflict &&
+		recoveryRequest.text === draft.draftText && recoveryRequest.baselineText === draft.baselineText) return;
+	const id = ++recoveryRequestId;
+	recoveryRequest = { id, conflict, text: draft.draftText, baselineText: draft.baselineText };
+	if (conflict) {
+		recoveryBlocked = true;
+		view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(false)) });
+		recoveryNotice(t('recovery.preserving'));
+	}
+	postToHost(conflict
+		? { type: 'preserveDraft', requestId: id, text: draft.draftText }
+		: { type: 'checkpoint', requestId: id, text: draft.draftText, baselineText: draft.baselineText });
+}
+
+function settleFocusedDraft(): boolean {
+	const extra = commitActiveDraft();
+	if (!captureRecovery(extra)) return false;
+	if (extra && recovery?.requiresSeparatePreservation) preserveLocalDraft(recovery, true);
+	flushNow();
+	return true;
 }
 
 function createExtensions(): Extension[] {
@@ -181,11 +283,16 @@ function createExtensions(): Extension[] {
 		// the caret. This also blocks edits dispatched by rendered task, property,
 		// and table controls while still allowing authoritative host updates.
 		EditorState.transactionFilter.of((transaction) => {
-			if (editingAllowed || !transaction.docChanged || transaction.annotation(remoteChange)) return transaction;
+			if (transaction.docChanged && !transaction.annotation(remoteChange) &&
+				!isEditorDocumentWithinLimit(transaction.newDoc.toString())) {
+				queueMicrotask(() => recoveryNotice(t('recovery.tooLarge')));
+				return [];
+			}
+			if (editingAllowed && !recoveryBlocked || !transaction.docChanged || transaction.annotation(remoteChange)) return transaction;
 			shineLockedToggle();
 			return [];
 		}),
-		editingCompartment.of(EditorView.editable.of(editingAllowed)),
+		editingCompartment.of(EditorView.editable.of(editingAllowed && !recoveryBlocked)),
 		// A non-contenteditable (locked) document still needs keyboard focus for
 		// selection, Copy, and the guarded editor shortcuts.
 		EditorView.contentAttributes.of({ tabindex: '0' }),
@@ -320,6 +427,7 @@ function createExtensions(): Extension[] {
 				const isRemote = update.transactions.some((tr) => tr.annotation(remoteChange));
 				if (!isRemote) {
 					pending = pending ? pending.compose(update.changes) : update.changes;
+					captureRecovery();
 					scheduleFlush();
 				}
 			}
@@ -370,7 +478,7 @@ function setEditingAllowed(next: boolean): void {
 	}
 	if (!next) flushNow();
 	editingAllowed = next;
-	view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed)) });
+	view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed && !recoveryBlocked)) });
 	updateEditingModeUi();
 }
 
@@ -420,7 +528,7 @@ function ensureEditingModeButton(): void {
 // `fm.to` is the *end of the closing "---" line itself* (correct for the
 // decoration range), so it's still on that line — the anchor must go one
 // further, past its line break, to actually land outside the block.
-function initialStateFor(text: string, persisted = parsePersistedEditorState(getWebviewState(), text.length)): EditorState {
+function initialStateFor(text: string, persisted = stripDraftRecovery(getWebviewState(), text.length)): EditorState {
 	const state = EditorState.create({
 		doc: text,
 		selection: persisted ? { anchor: persisted.anchor, head: persisted.head } : undefined,
@@ -435,7 +543,7 @@ function initialStateFor(text: string, persisted = parsePersistedEditorState(get
 
 function restoreScrollPosition() {
 	if (!view) return;
-	const persisted = parsePersistedEditorState(getWebviewState(), view.state.doc.length);
+	const persisted = stripDraftRecovery(getWebviewState(), view.state.doc.length);
 	if (!persisted) return;
 	requestAnimationFrame(() => {
 		if (view) view.scrollDOM.scrollTop = persisted.scrollTop;
@@ -487,11 +595,24 @@ onHostMessage((message) => {
 		case 'copyCodeResult':
 			handleCodeClipboardResult(message.requestId, message.ok);
 			break;
-		case 'init':
+		case 'init': {
+			processingHostSnapshot = true;
+			const stored = recovery ?? readPersistedDraftRecovery(getWebviewState());
+			if (view && !recoveryBlocked && !settleFocusedDraft()) {
+				processingHostSnapshot = false;
+				awaitingResync = true;
+				break;
+			}
+			const draft = recovery ?? stored;
+			const classification = draft ? classifyDraftRecovery(draft, message.text, message.currentVaultPath) : 'matches-draft';
 			editInFlight = false;
+			inFlightText = undefined;
+			awaitingResync = false;
 			pendingHistory.length = 0;
 			workspaceTrusted = message.workspaceTrusted;
 			baseVersion = message.version;
+			baselineText = message.text;
+			currentVaultPath = message.currentVaultPath;
 			vaultNotesChunkGeneration = -1;
 			pendingVaultNoteChunks = [];
 			setLocalImageContext(message.currentVaultPath);
@@ -509,19 +630,59 @@ onHostMessage((message) => {
 			clearWikiEmbedCache();
 			clearLocalImageCache();
 			resetView(message.text);
+			processingHostSnapshot = false;
+			if (draft && classification === 'unchanged-baseline') {
+				recovery = draft;
+				view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: draft.draftText } });
+			} else if (draft && classification === 'divergent') {
+				recovery = draft;
+				persistEditorUiState();
+				preserveLocalDraft(draft, true);
+			} else { recovery = undefined; captureRecovery(); }
 			updateEditingModeUi();
+			flushNow();
 			break;
+		}
 		case 'invalidateDrawioFiles':
 			clearDrawioFileCache();
 			if (view) view.dispatch({ effects: refreshPreview.of(null), annotations: remoteChange.of(true) });
 			break;
 		case 'ackEdit':
+			if (awaitingResync || !editInFlight || message.version <= baseVersion) break;
 			baseVersion = message.version;
+			if (inFlightText !== undefined) baselineText = inFlightText;
+			inFlightText = undefined;
 			editInFlight = false;
+			captureRecovery();
 			flushNow();
 			break;
+		case 'draftPreserved': {
+			if (!recoveryRequest || recoveryRequest.id !== message.requestId) break;
+			if (recoveryRequest.conflict) {
+				if (message.ok) {
+					recoveryBlocked = false; recovery = undefined;
+					view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed)) });
+					captureRecovery();
+					recoveryNotice(t('recovery.saved'));
+				} else recoveryNotice(t('recovery.failed'), true);
+			}
+			recoveryRequest = undefined;
+			flushNow();
+			break;
+		}
 		case 'externalUpdate': {
 			if (!view) return;
+			processingHostSnapshot = true;
+			const captured = settleFocusedDraft();
+			processingHostSnapshot = false;
+			if (!captured) { awaitingResync = true; break; }
+			if (editInFlight || pending && !pending.empty || recovery) {
+				// Offsets belong to the host baseline, not the locally-ahead view.
+				// Preserve that view and request a full snapshot before reconciliation.
+				awaitingResync = true;
+				postToHost({ type: 'resync' });
+				break;
+			}
 			pending = null;
 			if (flushTimer) {
 				clearTimeout(flushTimer);
@@ -532,6 +693,8 @@ onHostMessage((message) => {
 				annotations: remoteChange.of(true),
 			});
 			baseVersion = message.version;
+			baselineText = view.state.doc.toString();
+			captureRecovery();
 			clearWikiEmbedCache();
 			break;
 		}
@@ -583,5 +746,22 @@ onHostMessage((message) => {
 		}
 	}
 });
+
+// Widget fields do not receive CodeMirror keymaps. Capture Save at the document
+// boundary so their validated draft enters the same ordered host-save path.
+document.addEventListener('keydown', event => {
+	if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && !event.altKey && !event.shiftKey) {
+		event.preventDefault(); event.stopPropagation();
+		pendingSave = true;
+		settleFocusedDraft();
+	}
+}, true);
+const preserveBeforeLeaving = () => {
+	if (!settleFocusedDraft()) return;
+	if (recovery) preserveLocalDraft(recovery, false);
+};
+window.addEventListener('blur', preserveBeforeLeaving);
+window.addEventListener('pagehide', preserveBeforeLeaving);
+document.addEventListener('visibilitychange', () => { if (document.hidden) preserveBeforeLeaving(); });
 
 postToHost({ type: 'ready' });

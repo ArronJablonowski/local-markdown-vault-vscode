@@ -1,4 +1,5 @@
 import type { EditorState } from '@codemirror/state';
+import { notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft } from './activeDraft';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { withCodeModeButton } from './codeModeButton';
@@ -215,7 +216,11 @@ export function updateFrontmatterProperty(
 	return `---${lineEnding}${body}${lineEnding}---`;
 }
 
-function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknown, onChange: (key: string, value: unknown) => void): void {
+function appendTypedValue(
+	cell: HTMLTableCellElement, key: string, value: unknown,
+	onChange: (key: string, value: unknown) => void,
+	getSnapshot: (key: string, value: unknown) => string | undefined,
+): void {
 	if (typeof value === 'boolean') {
 		const checkbox = document.createElement('input');
 		checkbox.type = 'checkbox';
@@ -231,7 +236,7 @@ function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknow
 	if (typeof value === 'number') {
 		cell.classList.add('mlp-property-number');
 		cell.textContent = String(value);
-		enableValueEditing(cell, key, value, onChange);
+		enableValueEditing(cell, key, value, onChange, getSnapshot);
 		return;
 	}
 	if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-]+Z?)?$/.test(value)) {
@@ -240,7 +245,7 @@ function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknow
 		time.textContent = value;
 		cell.classList.add(value.includes('T') || value.includes(' ') ? 'mlp-property-datetime' : 'mlp-property-date');
 		cell.appendChild(time);
-		enableValueEditing(cell, key, value, onChange);
+		enableValueEditing(cell, key, value, onChange, getSnapshot);
 		return;
 	}
 	const wikiBody = propertyWikiLinkBody(value);
@@ -249,7 +254,7 @@ function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknow
 		const edit = createPropertyEditButton();
 		cell.classList.add('mlp-property-link-cell');
 		cell.append(link, edit);
-		enableValueEditing(cell, key, value, onChange, edit);
+		enableValueEditing(cell, key, value, onChange, getSnapshot, edit);
 		return;
 	}
 	if (Array.isArray(value) && value.every(isScalar)) {
@@ -271,8 +276,8 @@ function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknow
 		if (hasWikiLinks) {
 			const edit = createPropertyEditButton();
 			cell.appendChild(edit);
-			enableValueEditing(cell, key, value, onChange, edit);
-		} else enableValueEditing(cell, key, value, onChange);
+			enableValueEditing(cell, key, value, onChange, getSnapshot, edit);
+		} else enableValueEditing(cell, key, value, onChange, getSnapshot);
 		return;
 	}
 	const formatted = formatValue(value);
@@ -284,7 +289,7 @@ function appendTypedValue(cell: HTMLTableCellElement, key: string, value: unknow
 		cell.textContent = formatted;
 	}
 	if (isScalar(value) || (Array.isArray(value) && value.every(isScalar))) {
-		enableValueEditing(cell, key, value, onChange);
+		enableValueEditing(cell, key, value, onChange, getSnapshot);
 	}
 }
 
@@ -293,6 +298,7 @@ function enableValueEditing(
 	key: string,
 	value: unknown,
 	onChange: (key: string, value: unknown) => void,
+	getSnapshot: (key: string, value: unknown) => string | undefined,
 	explicitTrigger?: HTMLButtonElement,
 ): void {
 	if (typeof value === 'boolean') return;
@@ -328,38 +334,54 @@ function enableValueEditing(
 				if (restored) bindTrigger(restored);
 				(restored ?? cell).focus();
 			} else cell.focus();
+			notifyActiveDraftChanged();
 		};
-		const commit = (): void => {
+		const readInput = (): { ok: true; value: unknown } | { ok: false } => {
 			let next: unknown;
 			if (Array.isArray(value)) {
 				next = parsePropertyListInput(input.value, value);
-				if (!next) {
-					input.setAttribute('aria-invalid', 'true');
-					input.setAttribute('aria-describedby', validation.id);
-					validation.hidden = false;
-					return;
-				}
-				if (key === 'tag' || key === 'tags') next = (next as string[]).map((item) => item.replace(/^#/, ''));
+				if (!next) return { ok: false };
+				if (key === 'tag' || key === 'tags') next = (next as unknown[]).map((item) => typeof item === 'string' ? item.replace(/^#/, '') : item);
 			} else if (typeof value === 'number') {
 				const parsed = Number(input.value.trim());
-				if (!Number.isFinite(parsed) || input.value.trim() === '') {
-					input.setAttribute('aria-invalid', 'true');
-					input.setAttribute('aria-describedby', validation.id);
-					validation.hidden = false;
-					return;
-				}
+				if (!Number.isFinite(parsed) || input.value.trim() === '') return { ok: false };
 				next = parsed;
 			} else next = input.value;
+			return { ok: true, value: next };
+		};
+		const commit = (): void => {
+			const next = readInput();
+			if (!next.ok) {
+				input.setAttribute('aria-invalid', 'true');
+				input.setAttribute('aria-describedby', validation.id);
+				validation.hidden = false;
+				return;
+			}
 			editing = false;
-			onChange(key, next);
+			onChange(key, next.value);
 		};
 		input.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); commit(); }
 			else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); restore(); }
 		});
 		input.addEventListener('input', clearValidation);
+		registerActiveDraft(input, () => { if (editing && input.isConnected) commit(); },
+			() => editing ? `Uncommitted property ${key}:\n${input.value}` : undefined,
+			() => {
+				if (!editing) return undefined;
+				const next = readInput();
+				return next.ok ? getSnapshot(key, next.value) : undefined;
+			});
 		input.addEventListener('mousedown', (event) => event.stopPropagation());
 		input.addEventListener('blur', () => {
+			if (editing && !readInput().ok) {
+				// Validation keeps this out of YAML, but moving focus must not erase
+				// its only journal when the next source/field change is captured.
+				// Preserve synchronously: a redraw may detach the input immediately.
+				commit();
+				preserveUncommittedDraft(`Uncommitted property ${key}:\n${input.value}`);
+				return;
+			}
 			// A click elsewhere is not cancellation. Defer past CodeMirror redraws
 			// and retain validation errors rather than silently discarding a draft.
 			queueMicrotask(() => { if (editing && input.isConnected) commit(); });
@@ -423,7 +445,7 @@ export class FrontmatterWidget extends WidgetType {
 		const table = document.createElement('table');
 		table.className = 'mlp-frontmatter';
 		const tbody = document.createElement('tbody');
-		const updateValue = (key: string, value: unknown): void => {
+		const propertyReplacement = (key: string, value: unknown): string | undefined => {
 			if (this.range.to > view.state.doc.length ||
 				view.state.sliceDoc(this.range.from, this.range.to) !== this.range.rawText) return;
 			let insert: string;
@@ -435,17 +457,26 @@ export class FrontmatterWidget extends WidgetType {
 				if (this.range.lineEnding === '\r\n') insert += '\r';
 			}
 			catch { return; }
+			return insert;
+		};
+		const updateValue = (key: string, value: unknown): void => {
+			const insert = propertyReplacement(key, value);
+			if (insert === undefined) return;
 			const nextLength = view.state.doc.length - (this.range.to - this.range.from) + insert.length;
 			const anchor = Math.min(this.range.from + insert.length + 1, nextLength);
 			view.dispatch({ changes: { from: this.range.from, to: this.range.to, insert }, selection: { anchor } });
 			view.focus();
+		};
+		const propertySnapshot = (key: string, value: unknown): string | undefined => {
+			const insert = propertyReplacement(key, value);
+			return insert === undefined ? undefined : view.state.sliceDoc(0, this.range.from) + insert + view.state.sliceDoc(this.range.to);
 		};
 		for (const [key, value] of this.entries) {
 			const tr = document.createElement('tr');
 			const th = document.createElement('th');
 			th.textContent = key;
 			const td = document.createElement('td');
-			appendTypedValue(td, key, value, updateValue);
+			appendTypedValue(td, key, value, updateValue, propertySnapshot);
 			tr.append(th, td);
 			tbody.appendChild(tr);
 		}

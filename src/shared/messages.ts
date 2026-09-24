@@ -35,6 +35,7 @@ export interface PastedImagePayload {
 }
 
 export type HostToEditorMessage =
+	| { type: 'draftPreserved'; requestId: number; ok: boolean }
 	| { type: 'setWhitespace'; enabled: boolean }
 	| { type: 'copyCodeResult'; requestId: number; ok: boolean }
 	| {
@@ -69,6 +70,11 @@ export type HostToEditorMessage =
 	| { type: 'vaultNotesChunk'; generation: number; offset: number; total: number; notes: VaultNoteSummary[] };
 
 export type EditorToHostMessage =
+	| { type: 'draftSnapshot'; text: string; baselineText: string; requiresSeparatePreservation?: true }
+	| { type: 'checkpoint'; requestId: number; text: string; baselineText: string }
+	| { type: 'preserveDraft'; requestId: number; text: string }
+	| { type: 'resync' }
+	| { type: 'save' }
 	| { type: 'copyCode'; requestId: number; text: string }
 	| { type: 'ready' }
 	| { type: 'edit'; baseVersion: number; changes: TextChange[] }

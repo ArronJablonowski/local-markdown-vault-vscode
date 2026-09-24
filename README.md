@@ -14,11 +14,12 @@ Local Markdown Vault keeps notes and attachments as ordinary files in one local 
 ### Live Preview editor
 
 These rendering and interaction features belong to **Markdown Live Preview**,
-the default viewing mode. **Markdown Editor** is VS Code's separate built-in editor: our CSS
-themes, lock default, code-block controls, and editing fixes do not customize
-that editor. Select **Markdown Live Preview** in **CSS Themes > Settings >
+the default viewing mode. The **Markdown Editor** choices temporarily route to
+Live Preview for save safety, as explained below. Our CSS themes, lock default,
+code-block controls, and editing fixes do not customize VS Code's separate
+built-in editor. Select **Markdown Live Preview** in **CSS Themes > Settings >
 Default viewing mode** to use the extension's Obsidian-style implementation.
-Existing explicitly saved viewing preferences are preserved when updating.
+Other explicitly saved viewing preferences are preserved when updating.
 
 - CodeMirror-based Markdown editing with formatting rendered in place
 - Source reveal around the cursor and normal text selection behavior
@@ -170,13 +171,24 @@ Markdown Editor is your default. Normal file opens and Document Vault opens
 still use the configured default. Other extensions that explicitly request a
 text editor are also respected rather than forcibly reopened in another mode.
 
-**Built-in Markdown Editor limitation:** If Enter or Command/Ctrl+Enter leaves
-the cursor inside the final nested list, switch to **Text Editor**, leave one
-blank line after the list, and type the start of your next paragraph at column
-1 (no indentation or bullet). Then switch back to **Markdown Editor**. Creating
-blank lines alone may not resolve it. This workaround was tested in VS Code
-1.138.0; the extension's Live Preview section-exit fixes do not change the
-built-in editor.
+**Markdown Editor compatibility routing:** Save QA on VS Code 1.139.0 found
+intermittent character loss in its built-in Markdown Editor during autosave.
+For data safety, the **Markdown Editor** and **VS Code Markdown Editor** settings
+temporarily open our **Markdown Live Preview** instead. Direct native Markdown
+Editor tabs inside the local vault are also routed to Live Preview with a
+compatibility notice. Plain **Text Editor** and read-only **Markdown Preview**
+remain available. This does not patch VS Code's application files or rewrite
+your Markdown. The native editor's caret position cannot always be carried over.
+
+If a built-in Markdown Editor tab is already open or explicitly requested,
+Live Preview opens alongside it and the old tab is deliberately kept open:
+testing showed that automatically closing it could discard shared unsaved text.
+Even an initially clean tab can receive edits while its asynchronous close is
+pending. Extension autosave stays paused for that file until the native tab
+closes. Save the complete document from Live Preview, verify it, and then close
+the old native tab. Follow any save-failure warning; do not discard unsaved
+changes to dismiss the tab. Normal opens through the extension's settings go
+directly to Live Preview and do not require this extra step.
 
 These examples remain ordinary Markdown files and are compatible with the supported Obsidian-style syntax. In Live Preview, move the cursor away from a formatted line to see its rendered appearance; move the cursor back to reveal and edit its source.
 
@@ -479,25 +491,59 @@ Common shortcuts:
 Search for `Local Markdown Vault` or `mdLivePreview` in VS Code Settings.
 
 Changes to an open Markdown document are sent for saving without waiting for a
-pause in typing, in every viewing mode. In Live Preview, this includes typed text, task
+pause in typing in the supported safe views. Autosave is paused while a built-in
+Markdown Editor tab for the same file remains open. In Live Preview, this includes typed text, task
 checkbox changes, properties, tables, and other controls that modify the
 underlying Markdown. This is enabled by default with `mdLivePreview.autoSave`. Autosave only
 writes the already-open Markdown document when its resolved path remains
 inside the current local workspace vault; it does not save attachments,
 follow links, or write to paths supplied by Markdown content. Turn the setting
-off if you prefer to save manually. A failed save displays a warning and leaves
-the document dirty. Saving is asynchronous: storage or save participants can delay
+off if you prefer to save manually. A failed or incomplete save displays a warning;
+keep the document open and save a copy rather than relying only on the tab's dirty
+indicator. Saving is asynchronous: storage or save participants can delay
 completion, so this does not guarantee survival of an abrupt application or power
 failure. Table cells commit with Enter, Tab, or leaving the cell; property fields
 commit with Enter or leaving a valid field. Escape cancels an uncommitted field
 edit, and invalid property values must be corrected before they can be committed.
 
+### Save safety and recovered drafts
+
+Live Preview retains a bounded pending-text snapshot before tab switching or
+closing, including text still being edited in a table cell or property field.
+Accepted edits finish in order. An incoming file change is never applied at stale
+offsets over your newer local draft. When a draft cannot safely replace the file,
+the extension preserves a separate local recovery copy instead of overwriting
+either version.
+
+Open the Command Palette and run **Local Markdown Vault: Open Recovered Drafts**.
+Select a copy to open it as an unsaved Markdown document, compare it with the
+original, and use **Save As** to keep it. Opening a copy does not remove it. The
+trash button permanently removes only that recovery copy, after confirmation.
+
+Recovery copies are **local, unencrypted note content** in VS Code's workspace
+storage, outside the vault. They are not uploaded or synchronized by this
+extension. Storage is limited to 20 copies and 60 MiB total; each document is
+limited to 20 MiB. Old recovery copies are never silently evicted. If storage is
+full or unavailable, the extension tries to open your exact draft as an unsaved
+Text Editor copy. Use **Save As** immediately; an unsaved copy is not a disk
+backup. If that editor cannot open, a bounded emergency copy remains in memory
+and appears in **Open Recovered Drafts**, labeled **memory only**. Keep VS Code
+open and resolve the warning. Emergency retention is limited to 20 copies and
+60 MiB; if storage, the native editor, and that buffer all fail or are full,
+preservation cannot be guaranteed. Invalid property input is retained separately
+and is never inserted into the original Markdown as diagnostic text.
+
+Saving and recovery are not backups or power-loss guarantees. Forced termination
+can interrupt a keystroke before it reaches the host or storage; disk failures and
+other extensions' save participants can also prevent completion. Keep an
+independent local backup of important vaults and do not ignore save warnings.
+
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
-| Default viewing mode | **Markdown Editor** opens VS Code's built-in Markdown Editor; **VS Code Markdown Editor** is a compatible alias for that same view. **Markdown Live Preview** opens Local Markdown Vault's custom editor. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Live Preview |
+| Default viewing mode | **Markdown Editor** and **VS Code Markdown Editor** temporarily route to **Markdown Live Preview** for save safety. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Live Preview |
 | Vault file tabs | Reuse one preview tab while browsing, or keep every opened vault file in a separate tab | Reuse one preview tab |
 | Default Live Preview mode | Start each preview in Editing or Locked mode | Editing |
-| Automatic save | Save every coalesced change to an open vault Markdown file in any viewing mode | Enabled |
+| Automatic save | Save changes to open vault Markdown files; paused while a built-in Markdown Editor tab for the same file remains open | Enabled |
 | Remote media | Permit HTTPS images for this workspace | Blocked |
 | Automatic link updates | Rewrite affected links after rename or move | Enabled |
 | Attachment location | Choose where pasted attachments are stored | Inside vault |

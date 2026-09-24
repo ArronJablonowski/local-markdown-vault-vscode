@@ -7,6 +7,11 @@
 
 /** Every user-visible webview string, keyed by a stable identifier. */
 const en = {
+	'recovery.retry': 'Retry preserving draft',
+	'recovery.preserving': 'The file changed while you were editing. Preserving your local draft separately before continuing…',
+	'recovery.saved': 'Your local draft was preserved. Run Local Markdown Vault: Open Recovered Drafts to compare it with this file.',
+	'recovery.failed': 'The local draft could not be preserved. Keep this tab open and retry after resolving the storage problem.',
+	'recovery.tooLarge': 'This change exceeds the 20 MiB Markdown editing and recovery limit. Keep this tab open and copy any uncommitted field text before continuing. The last valid recovery snapshot has been retained.',
 	'code.toggle.title': 'Code mode: show the Markdown source and edit it directly',
 	'code.toggle.aria': 'Switch to code mode',
 	'code.copy.title': 'Copy this code block',
@@ -143,8 +148,8 @@ const en = {
 	'sidebar.defaultEditor.prompt': 'VS Code default',
 	'sidebar.defaultEditor.textEditor': 'Text Editor',
 	'sidebar.defaultEditor.markdownPreview': 'Markdown Preview',
-	'sidebar.defaultEditor.vscodeMarkdownEditor': 'VS Code Markdown Editor',
-	'sidebar.defaultEditor.markdownEditor': 'Markdown Editor',
+	'sidebar.defaultEditor.vscodeMarkdownEditor': 'VS Code Markdown Editor (Live Preview)',
+	'sidebar.defaultEditor.markdownEditor': 'Markdown Editor (Live Preview)',
 	'sidebar.defaultEditor.livePreview': 'Markdown Live Preview',
 	'sidebar.vaultOpenBehavior': 'Vault file tabs',
 	'sidebar.vaultOpenBehavior.reuseTab': 'Reuse one preview tab',

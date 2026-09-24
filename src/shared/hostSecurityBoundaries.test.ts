@@ -165,7 +165,8 @@ describe('host security boundaries', () => {
 		expect(sync).toContain('MAX_CONCURRENT_LOCAL_IMAGE_READS = 4');
 		expect(sync).toContain('MAX_CONCURRENT_DRAWIO_READS = 4');
 		expect(sync).toContain('MAX_CONCURRENT_EMBED_READS = 8');
-		expect(sync.match(/new RequestLimiter\(/g)).toHaveLength(4);
+		expect(sync.match(/new RequestLimiter\(/g)).toHaveLength(5);
+		expect(sync).toContain('recoveryLimiter = new RequestLimiter(2)');
 		expect(images).toContain('MAX_PENDING_IMAGES = 4');
 		expect(diagrams).toContain('MAX_PENDING_DRAWIO_FILES = 4');
 		expect(embeds).toContain('MAX_PENDING_EMBEDS = 8');
@@ -207,7 +208,7 @@ describe('host security boundaries', () => {
 		expect(readyCase).toContain('if (this.readyReceived)');
 		expect(readyCase).toContain("diagnosticEventRateLimited('protocol.duplicateReadyRejected')");
 		expect(readyCase.indexOf('if (this.readyReceived)')).toBeLessThan(readyCase.indexOf('this.sendInit()'));
-		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.readyReceived = false;');
+		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.queuePendingDraftFlush();\n\t\tthis.readyReceived = false;');
 		const setVisible = sync.slice(sync.indexOf('setVisible(visible: boolean)'), sync.indexOf('\n\tdispose()', sync.indexOf('setVisible(visible: boolean)')));
 		const hiddenCase = setVisible.slice(setVisible.indexOf('if (!visible) {'), setVisible.indexOf('if (this.needsFullSync)'));
 		expect(hiddenCase).toContain('this.readyReceived = false;');

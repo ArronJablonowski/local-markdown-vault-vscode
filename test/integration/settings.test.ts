@@ -29,8 +29,8 @@ suite('settings and views', () => {
 			prompt: undefined,
 			textEditor: 'default',
 			markdownPreview: 'vscode.markdown.preview.editor',
-			vscodeMarkdownEditor: 'vscode.markdown.editor',
-			markdownEditor: 'vscode.markdown.editor',
+			vscodeMarkdownEditor: 'mdLivePreview.editor',
+			markdownEditor: 'mdLivePreview.editor',
 			livePreview: 'mdLivePreview.editor',
 		};
 		for (const [value, expectedViewType] of Object.entries(expectedViewTypes)) {
@@ -50,7 +50,8 @@ suite('settings and views', () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);
 		for (const [mode, expected] of [
-			['markdownEditor', 'vscode.markdown.editor'],
+			['markdownEditor', 'mdLivePreview.editor'],
+			['vscodeMarkdownEditor', 'mdLivePreview.editor'],
 			['livePreview', 'mdLivePreview.editor'],
 		]) {
 			await config().update('defaultEditor', mode, vscode.ConfigurationTarget.Global);

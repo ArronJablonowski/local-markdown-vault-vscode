@@ -14,6 +14,7 @@ import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwa
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
 import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
 import { DEFAULT_EDITOR_SETTING, editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
+import { registerNativeMarkdownCompatibility } from './editor/nativeMarkdownCompatibility';
 
 interface DevelopmentApi {
 	getDragDropTestTypes(): { VaultEntry: typeof VaultEntry; VaultTreeProvider: typeof VaultTreeProvider; VaultDragAndDropController: typeof VaultDragAndDropController };
@@ -90,6 +91,8 @@ async function syncDefaultEditorAssociation(): Promise<void> {
 	await rootConfig.update('workbench.editorAssociations', associations, vscode.ConfigurationTarget.Global);
 }
 
+let flushPendingSaves: (() => Promise<void>) | undefined;
+
 export async function activate(context: vscode.ExtensionContext): Promise<DevelopmentApi | undefined> {
 	// Never replace a workspace the user chose. In an empty window, create the
 	// local default vault and stop because vscode.openFolder reloads this host.
@@ -117,7 +120,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 			.map(createVaultNoteSummary) ?? [],
 	);
 	livePreviewProvider = provider;
+	flushPendingSaves = () => provider.flushPendingSaves();
 	context.subscriptions.push(providerDisposable);
+	context.subscriptions.push(registerNativeMarkdownCompatibility());
 	context.subscriptions.push(styleStore.onDidChange(() => provider.broadcastCssChanged()));
 	context.subscriptions.push(vaultRegistration.onDidChangeIndex(() => provider.broadcastVaultNotesChanged()));
 
@@ -264,6 +269,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 	return undefined;
 }
 
-export function deactivate(): void {
-	// All resources are registered on context.subscriptions and disposed by VS Code automatically.
+export async function deactivate(): Promise<void> {
+	// Cooperate with orderly reload/quit before VS Code disposes subscriptions.
+	// Forced termination/power loss can still interrupt IPC or storage writes.
+	await flushPendingSaves?.();
+	flushPendingSaves = undefined;
 }

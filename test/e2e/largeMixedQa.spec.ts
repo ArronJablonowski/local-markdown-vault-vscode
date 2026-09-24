@@ -31,6 +31,21 @@ for (const sections of [80, 240, 600]) {
 	});
 }
 
+test('closing Find keeps the selected match visible after a large preview scroll shift', async ({ page }) => {
+	await mountEditor(page, largeMixedDocument(240));
+	await page.locator('.cm-content').click();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+	await page.locator('.cm-search input[name="search"]').fill('Checkpoint 0120');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.cm-content')).toContainText('Paragraph 0120');
+	// Simulate the viewport displacement caused by late preview-height measures
+	// while preserving the selected search result and the panel's input focus.
+	await page.locator('.cm-scroller').evaluate(element => { element.scrollTop += 50_000; });
+	await expect(page.locator('.cm-content')).not.toContainText('Paragraph 0120');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.cm-content')).toContainText('Paragraph 0120');
+});
+
 test('large note mixed widgets survive repeated scrolling, folding, editing, and mouse selection', async ({ page }, info) => {
 	test.setTimeout(180000);
 	const errors: string[] = [];

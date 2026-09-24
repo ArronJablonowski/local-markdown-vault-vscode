@@ -14,8 +14,8 @@ const HOST_STUB = [
 	'window.acquireVsCodeApi = function () {',
 	'  return {',
 	'    postMessage: function (m) { window.__posted.push(m); if (m.type === "edit" && !window.__holdEditAck) setTimeout(function () { window.postMessage({ type: "ackEdit", version: m.baseVersion + 1 }, "*"); }, 0); },',
-	'    getState: function () { return undefined; },',
-	'    setState: function () {},',
+	'    getState: function () { return window.__webviewState; },',
+	'    setState: function (state) { window.__webviewState = state; },',
 	'  };',
 	'};',
 ].join(String.fromCharCode(10));
@@ -38,6 +38,7 @@ export async function mountEditor(
 	page: Page,
 	text: string,
 	options: {
+		persistedState?: unknown;
 		mermaidChunk?: string;
 		workspaceTrusted?: boolean;
 		diagramRenderingAllowed?: boolean;
@@ -97,7 +98,7 @@ ${style}
 </head>
 <body class="vscode-${options.themeKind ?? 'dark'}">
 <div id="mlp-root" data-mermaid-uri="https://example.invalid/mermaid-chunk.js" data-aws-shapes-uri="https://example.invalid/aws4-shapes.json" data-script-nonce="test"></div>
-<script>${HOST_STUB}</script>
+<script>window.__webviewState = ${JSON.stringify(options.persistedState ?? null).replace(/</g, '\\u003c')};${HOST_STUB}</script>
 <script>${script.replace(/<\/script>/gi, '<\/script>')}</script>
 </body>
 </html>`);

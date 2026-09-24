@@ -1,5 +1,9 @@
 # Changelog
 
+- Temporarily route Markdown Editor choices to Markdown Live Preview after save QA found intermittent typed-character loss in VS Code's built-in editor. Keep plain Text Editor available and suppress extension autosave while a native view remains open. Open Live Preview alongside existing or explicitly requested native tabs until they are safely saved and closed by the user; automatic closure reproduced a shared-document revert and could race new typing.
+
+- Harden Markdown saving across immediate tab switches/closure, close/reopen races, slow or failing saves, concurrent file changes, and explicit Save from table/property fields. Preserve conflicting drafts locally with an Open Recovered Drafts command instead of overwriting newer content. Add bounded per-input recovery snapshots and orderly-shutdown flushing. Preserve invalid property text on blur and open an unsaved native copy when recovery storage is full; retain existing filesystem containment and no-network behavior.
+
 - Align wrapped list text with the first content character using measured hanging indentation for bullets, nested lists, numbered items, and tasks. Keep the Markdown source unchanged. Preserve Find/Replace state and focus through full-document synchronization.
 - Serialize Live Preview edit batches with native saves so fast typing cannot race a preceding disk write. Recheck session and document versions after waiting and settle the new save before acknowledging the batch.
 

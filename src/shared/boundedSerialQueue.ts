@@ -31,8 +31,12 @@ export class BoundedSerialQueue {
 		return this.pending;
 	}
 
-	/** Test and shutdown hook: resolves when every accepted task has settled. */
-	drain(): Promise<void> {
-		return this.tail;
+	/** Test and shutdown hook: includes follow-up tasks accepted while draining. */
+	async drain(): Promise<void> {
+		let observed: Promise<void>;
+		do {
+			observed = this.tail;
+			await observed;
+		} while (observed !== this.tail);
 	}
 }

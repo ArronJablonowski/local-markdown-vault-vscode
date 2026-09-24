@@ -32,9 +32,61 @@ describe('validateEditorToHostMessage', () => {
 		expect(validateHostToEditorMessage({ type: 'copyCodeResult', requestId: 1, ok: true }, 0).ok).toBe(true);
 		expect(validateHostToEditorMessage({ type: 'copyCodeResult', requestId: 1, ok: 'true' }, 0).ok).toBe(false);
 	});
-	it.each(['ready', 'undo', 'redo'] as const)('accepts %s with no extra fields', (type) => {
+	it.each(['ready', 'undo', 'redo', 'save', 'resync'] as const)('accepts %s with no extra fields', (type) => {
 		expect(validateEditorToHostMessage({ type }, 10)).toEqual({ ok: true, value: { type } });
 		expect(validateEditorToHostMessage({ type, extra: true }, 10).ok).toBe(false);
+	});
+	it('accepts bounded recovery payloads without trusting a renderer-supplied URI or storage path', () => {
+		const preserve = { type: 'preserveDraft', requestId: 8, text: '# Unsaved draft\n- [x] Complete\n' };
+		const checkpoint = { type: 'checkpoint', requestId: 9, text: 'new version', baselineText: 'old version' };
+		expect(validateEditorToHostMessage(preserve, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage(checkpoint, 0).ok).toBe(true);
+		for (const request of [preserve, checkpoint]) {
+			for (const requestId of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '1', null]) {
+				expect(validateEditorToHostMessage({ ...request, requestId }, 0).ok).toBe(false);
+			}
+			for (const extra of [{ sourceUri: 'file:///etc/passwd' }, { path: '../secret' }, { command: 'execute' }, { force: true }]) {
+				expect(validateEditorToHostMessage({ ...request, ...extra }, 0).ok).toBe(false);
+			}
+			for (const text of [null, 123, [], {}, false]) expect(validateEditorToHostMessage({ ...request, text }, 0).ok).toBe(false);
+		}
+		expect(validateEditorToHostMessage({ type: 'checkpoint', requestId: 0, text: '', baselineText: '' }, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ ...checkpoint, baselineText: null }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ type: 'checkpoint', requestId: 1, text: 'missing baseline' }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ ...preserve, baselineText: 'unexpected' }, 0).ok).toBe(false);
+	});
+	it('bounds both checkpoint snapshots and preserves whole-document recovery above the incremental edit limit', () => {
+		const full = 'a'.repeat(MAX_EDITOR_DOCUMENT_BYTES);
+		const oversized = full + 'a';
+		const checkpoint = { type: 'checkpoint', requestId: 1, text: full, baselineText: '' };
+		expect(validateEditorToHostMessage(checkpoint, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ type: 'preserveDraft', requestId: 2, text: full }, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ ...checkpoint, text: oversized }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ ...checkpoint, text: '', baselineText: oversized }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ type: 'preserveDraft', requestId: 2, text: oversized }, 0).ok).toBe(false);
+		const unicodeOverflow = '😀'.repeat(Math.floor(MAX_EDITOR_DOCUMENT_BYTES / 4) + 1);
+		expect(validateEditorToHostMessage({ ...checkpoint, text: unicodeOverflow }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ ...checkpoint, text: '', baselineText: unicodeOverflow }, 0).ok).toBe(false);
+		for (const requiresSeparatePreservation of [undefined, true]) {
+			const snapshot = { type: 'draftSnapshot', text: full, baselineText: '', ...(requiresSeparatePreservation === true ? { requiresSeparatePreservation } : {}) };
+			expect(validateEditorToHostMessage(snapshot, 0).ok).toBe(true);
+			expect(validateEditorToHostMessage({ ...snapshot, text: oversized }, 0).ok).toBe(false);
+			expect(validateEditorToHostMessage({ ...snapshot, text: '', baselineText: oversized }, 0).ok).toBe(false);
+			expect(validateEditorToHostMessage({ ...snapshot, text: unicodeOverflow }, 0).ok).toBe(false);
+		}
+	});
+	it('accepts only exact renderer snapshots with an optional true-only separate-preservation flag', () => {
+		const snapshot = { type: 'draftSnapshot', text: 'unsaved draft', baselineText: 'original' };
+		expect(validateEditorToHostMessage(snapshot, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ ...snapshot, requiresSeparatePreservation: true }, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ type: 'draftSnapshot', text: '', baselineText: '' }, 0).ok).toBe(true);
+		for (const malformed of [
+			{ ...snapshot, requiresSeparatePreservation: false }, { ...snapshot, requiresSeparatePreservation: 'true' },
+			{ ...snapshot, requiresSeparatePreservation: 1 }, { ...snapshot, requiresSeparatePreservation: null },
+			{ ...snapshot, requestId: 1 }, { ...snapshot, sourceUri: 'file:///etc/passwd' },
+			{ ...snapshot, text: null }, { ...snapshot, baselineText: 1 }, { type: 'draftSnapshot', text: 'missing baseline' },
+		]) expect(validateEditorToHostMessage(malformed, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage(snapshot, 0).ok).toBe(false);
 	});
 
 	it('accepts a sorted, bounded edit batch', () => {
@@ -154,6 +206,17 @@ describe('validateHostToEditorMessage', () => {
 		vaultNotes: [],
 		currentVaultPath: 'Note.md',
 	};
+	it('accepts exact recovery acknowledgements and rejects forged fields and invalid identities', () => {
+		for (const ok of [true, false]) expect(validateHostToEditorMessage({ type: 'draftPreserved', requestId: 2, ok }, 0).ok).toBe(true);
+		for (const malformed of [
+			{ type: 'draftPreserved', requestId: -1, ok: true },
+			{ type: 'draftPreserved', requestId: Number.MAX_SAFE_INTEGER + 1, ok: true },
+			{ type: 'draftPreserved', requestId: 2, ok: 'true' },
+			{ type: 'draftPreserved', requestId: 2, ok: true, sourceUri: 'file:///other' },
+			{ type: 'draftPreserved', requestId: 2 },
+		]) expect(validateHostToEditorMessage(malformed, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ type: 'draftPreserved', requestId: 2, ok: true }, 0).ok).toBe(false);
+	});
 
 	it('accepts a complete initialization and rejects unexpected privilege fields', () => {
 		expect(validateHostToEditorMessage(init, 0).ok).toBe(true);

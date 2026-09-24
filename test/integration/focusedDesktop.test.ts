@@ -82,10 +82,27 @@ suite('focused cross-platform desktop transactions', () => {
 		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
 		const frame = await connectToLivePreviewFrame();
 		const keyboard = frame.page().keyboard;
-		const type = (text: string) => keyboard.type(text, { delay: 8 });
+		const assertTypingFocus = async () => {
+			const state = await frame.evaluate(() => {
+				const content = document.querySelector<HTMLElement>('.cm-content');
+				return {
+					editable: content?.isContentEditable,
+					focused: document.hasFocus() && document.activeElement === content,
+					active: document.activeElement?.outerHTML.slice(0, 500),
+					mode: document.querySelector('.mlp-editing-mode-toggle')?.getAttribute('aria-label'),
+				};
+			});
+			assert.ok(state.editable && state.focused, `typing requires an editable, focused CodeMirror: ${JSON.stringify(state)}`);
+		};
+		const type = async (text: string) => {
+			await assertTypingFocus();
+			await keyboard.type(text, { delay: 8 });
+		};
 		const enter = async (count = 1) => { for (let i = 0; i < count; i++) await keyboard.press('Enter'); };
 		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 		await frame.locator('.cm-content').click();
+		await assertTypingFocus();
 		await type('# Planning session');
 		await enter(2);
 		await type('Today we review **delivery**, *risks*, and ==decisions==. Budget: $15-$25.');
@@ -636,7 +653,7 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
-	test('a plain paragraph created in Text Editor stays outside the native Markdown Editor list', async () => {
+	test('a direct native Markdown Editor request safely routes to Live Preview and saves exact typing', async () => {
 		const fixture = await makeFixture('native-exit');
 		const note = await service.createNote(fixture, 'Native exit');
 		const original = '## Native exit\n\n- Parent\n  - Child\n\n';
@@ -648,28 +665,144 @@ suite('focused cross-platform desktop transactions', () => {
 		sourceEditor.selection = new vscode.Selection(end, end);
 		await vscode.commands.executeCommand('type', { text: 'Independent paragraph' });
 		await sourceEditor.document.save();
-		await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor');
-		const browser = await connectToDebugBrowser();
-		let nativeFrame: Frame | undefined;
-		await waitFor(async () => {
-		for (const page of browser.contexts().flatMap(c => c.pages())) {
-			for (const frame of page.frames()) {
-				if (await frame.locator('.md-editor').count() === 0) continue;
-				nativeFrame = frame;
-				return true;
-			}
+		const beforeRoute = original + 'Independent paragraph';
+		await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor', { preview: true });
+		await waitFor(() => {
+			const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+			const input = tab?.input;
+			return input instanceof vscode.TabInputCustom && input.viewType === 'mdLivePreview.editor'
+				&& input.uri.toString() === note.toString() && tab?.isPreview === false;
+		}, 'the unsafe native Markdown Editor did not route to Live Preview');
+		const retainedNative = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+			tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+				&& tab.input.viewType === 'vscode.markdown.editor');
+		assert.strictEqual(retainedNative.length, 1, 'routing must retain the native tab for an explicit user-controlled close');
+		assert.strictEqual(sourceEditor.document.getText(), beforeRoute, 'routing changed the document');
+		assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(beforeRoute), 'routing changed disk bytes');
+		assert.ok(!sourceEditor.document.isDirty && retainedNative.every(tab => !tab.isDirty), 'the explicit close requires a known-clean working copy');
+		// This is the user's explicit close, not a production handoff operation.
+		// No typing begins until the clean native view is completely gone.
+		assert.strictEqual(await vscode.window.tabGroups.close(retainedNative, true), true);
+		await waitFor(() => vscode.window.tabGroups.all.every(group => group.tabs.every(tab =>
+			!(tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+				&& tab.input.viewType === 'vscode.markdown.editor'))), 'the clean native handoff did not finish');
+		const frame = await connectToLivePreviewFrame('Independent paragraph');
+		assert.strictEqual(sourceEditor.document.getText(), beforeRoute, 'routing changed the document');
+		assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(beforeRoute), 'routing changed disk bytes');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await frame.locator('.cm-content').click();
+		await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		assert.ok(await frame.locator('.cm-content').evaluate(element =>
+			(element as HTMLElement).isContentEditable && document.hasFocus() && document.activeElement === element),
+		'typing requires a focused and editable Live Preview');
+		await frame.page().keyboard.type(' continued', { delay: 40 });
+		const expected = beforeRoute + ' continued';
+		await waitFor(async () => sourceEditor.document.getText() === expected
+			&& Buffer.from(await vscode.workspace.fs.readFile(note)).equals(Buffer.from(expected)),
+		'Live Preview did not preserve and automatically save every typed character').catch(async error => {
+			throw new Error(`${String(error)}; host=${JSON.stringify(sourceEditor.document.getText())}; dirty=${sourceEditor.document.isDirty}; disk=${JSON.stringify(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'))}`);
+		});
+		assert.ok(vscode.window.tabGroups.all.every(group => group.tabs.every(tab =>
+			!(tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+				&& tab.input.viewType === 'vscode.markdown.editor'))), 'the unsafe native editor remained open');
+	});
+
+	test('routing a pinned unsaved native request keeps its working copy and allows explicit saving while autosave is paused', async () => {
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const previous = config.inspect<boolean>('autoSave')?.globalValue;
+		const trace: unknown[] = [];
+		const subscriptions: vscode.Disposable[] = [];
+		try {
+			await config.update('autoSave', false, vscode.ConfigurationTarget.Global);
+			const fixture = await makeFixture('native-unsaved');
+			const note = await service.createNote(fixture, 'Unsaved native route');
+			const original = '# Unsaved route\n\nKeep this original.\n';
+			const draft = original + '\n- [ ] Unsaved working copy\n\n**Every character matters.**';
+			subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+				if (event.document.uri.toString() === note.toString()) trace.push({ event: 'change', time: Date.now(), version: event.document.version, dirty: event.document.isDirty, changes: event.contentChanges, text: event.document.getText() });
+			}), vscode.workspace.onDidCloseTextDocument(document => {
+				if (document.uri.toString() === note.toString()) trace.push({ event: 'close', time: Date.now(), version: document.version, text: document.getText() });
+			}));
+			await vscode.workspace.fs.writeFile(note, bytes(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'default', { preview: false });
+			const editor = vscode.window.activeTextEditor;
+			assert.ok(editor && editor.document.uri.toString() === note.toString());
+			const end = editor.document.positionAt(original.length);
+			editor.selection = new vscode.Selection(end, end);
+			await vscode.commands.executeCommand('type', { text: draft.slice(original.length) });
+			assert.strictEqual(editor.document.getText(), draft);
+			assert.ok(editor.document.isDirty, 'the fixture must be genuinely unsaved');
+			assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original));
+			await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor', { preview: false });
+			await waitFor(() => {
+				const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+				return tab?.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+					&& tab.input.viewType === 'mdLivePreview.editor' && !tab.isPreview;
+			}, 'the unsaved pinned note was not safely routed to pinned Live Preview');
+			assert.strictEqual(editor.document.getText(), draft, 'routing discarded unsaved content before the renderer became ready');
+			const frame = await connectToLivePreviewFrame('Every character matters.').catch(async error => {
+				console.log('PINNED_ROUTE_FAILURE', JSON.stringify({ text: editor.document.getText(), dirty: editor.document.isDirty, closed: editor.document.isClosed, version: editor.document.version, disk: Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), trace: trace.slice(-10) }));
+				throw error;
+			});
+			assert.strictEqual(editor.document.getText(), draft, 'routing discarded unsaved content');
+			assert.ok(editor.document.isDirty, 'routing must not silently save an autosave-disabled note');
+			assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original), 'routing wrote an autosave-disabled note');
+			const hasNativeTab = () => vscode.window.tabGroups.all.some(group => group.tabs.some(tab =>
+				tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+					&& tab.input.viewType === 'vscode.markdown.editor'));
+			assert.ok(hasNativeTab(), 'a dirty native tab must be retained rather than risk reverting its shared working copy');
+			const page = await getWorkbenchPage();
+			await waitFor(async () => /automatic saving.*paused/i.test(await page.locator('.notifications-toasts').innerText()),
+				'the user was not warned that automatic saving is paused while the dirty native tab remains');
+			await config.update('autoSave', true, vscode.ConfigurationTarget.Global);
+			await delay(500);
+			assert.ok(hasNativeTab(), 'enabling autosave must not close the dirty native tab');
+			assert.strictEqual(editor.document.getText(), draft, 'enabling autosave discarded the retained working copy');
+			assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original), 'autosave must remain paused until the unsafe native view can close safely');
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			await frame.locator('.cm-content').click();
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).equals(Buffer.from(draft)),
+				'explicit Save from the safe view did not preserve the retained working copy');
+		} finally {
+			for (const subscription of subscriptions) subscription.dispose();
+			await config.update('autoSave', previous, vscode.ConfigurationTarget.Global);
 		}
-		return false;
-		}, 'native Markdown Editor did not open');
-		assert.ok(nativeFrame);
-		const paragraph = nativeFrame.locator('.md-document > p').filter({ hasText: 'Independent paragraph' });
-		await paragraph.waitFor({ state: 'visible' });
-		if (await nativeFrame.locator('.md-readonly-toggle').getAttribute('aria-pressed') === 'true') await nativeFrame.locator('.md-readonly-toggle').click();
-		await paragraph.click();
-		await nativeFrame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowRight' : 'End');
-		await nativeFrame.page().keyboard.type(' continued', { delay: 40 });
-		await waitFor(async () => (await vscode.workspace.openTextDocument(note)).getText() === original + 'Independent paragraph continued', 'typing did not stay in the independent paragraph')
-			.catch(async error => { throw new Error(`${error.message}; actual=${JSON.stringify((await vscode.workspace.openTextDocument(note)).getText())}`); });
+	});
+
+	test('native requests in two split groups preserve content through explicit clean native-tab closure', async () => {
+		const fixture = await makeFixture('native-split');
+		const note = await service.createNote(fixture, 'Native split route');
+		const original = '# Native split route\n\n- [x] Preserve the same working copy in both groups.\n';
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor', { viewColumn: vscode.ViewColumn.One, preview: false });
+			await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor', { viewColumn: vscode.ViewColumn.Two, preview: false });
+			await waitFor(() => {
+				const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+					tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString());
+				return tabs.length === 4 && tabs.every(tab => !tab.isPreview)
+					&& tabs.filter(tab => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'mdLivePreview.editor').length === 2
+					&& tabs.filter(tab => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'vscode.markdown.editor').length === 2;
+			}, 'both split groups must contain safe views and retained native tabs');
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+			assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original));
+			const retainedNative = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+				tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+					&& tab.input.viewType === 'vscode.markdown.editor');
+			assert.ok(retainedNative.every(tab => !tab.isDirty));
+			assert.strictEqual(await vscode.window.tabGroups.close(retainedNative, true), true);
+			await waitFor(() => {
+				const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+					tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString());
+				return tabs.length === 2 && tabs.every(tab => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'mdLivePreview.editor');
+			}, 'explicit clean-tab closure must leave both safe split views');
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+			assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original));
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand('workbench.action.joinAllGroups');
+		}
 	});
 
 	test('one Text Editor picker selection stays in source mode with Markdown Editor as default', async () => {
@@ -684,15 +817,23 @@ suite('focused cross-platform desktop transactions', () => {
 			const page = await getWorkbenchPage();
 			for (let attempt = 0; attempt < 3; attempt++) {
 				await vscode.commands.executeCommand('vscode.openWith', note, 'vscode.markdown.editor');
-				// openWith returns before the native webview finishes loading. Opening
+				// openWith returns before the safe replacement finishes loading. Opening
 				// a picker during that focus handoff can dismiss it before the click.
-				await waitFor(async () => {
-					for (const frame of page.frames()) {
-						if (await frame.locator('.md-editor').count() &&
-							(await frame.locator('.md-editor').textContent())?.includes('Switch mode')) return true;
-					}
-					return false;
-				}, 'the native Markdown Editor was not ready for a viewing-mode change');
+				await connectToLivePreviewFrame('Switch mode');
+				const retainedNative = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
+					tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === note.toString()
+						&& tab.input.viewType === 'vscode.markdown.editor');
+				const document = await vscode.workspace.openTextDocument(note);
+				assert.strictEqual(document.getText(), original);
+				assert.deepStrictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)), Buffer.from(original));
+				assert.ok(retainedNative.length === 1 && !document.isDirty && retainedNative.every(tab => !tab.isDirty));
+				// Follow the documented explicit-close workflow before trying another
+				// viewing mode; routing deliberately does not close native tabs for us.
+				assert.strictEqual(await vscode.window.tabGroups.close(retainedNative, true), true);
+				await waitFor(() => {
+					const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+					return input instanceof vscode.TabInputCustom && input.viewType === 'mdLivePreview.editor';
+				}, 'the safe Live Preview replacement was not ready for a viewing-mode change');
 				await page.bringToFront();
 				await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 				void vscode.commands.executeCommand('workbench.action.reopenWithEditor');
@@ -1418,9 +1559,15 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 			for (const page of context.pages()) {
 				for (const frame of page.frames()) {
 					if (frame.isDetached()) continue;
-					const editor = frame.locator('.cm-content');
-					if (await editor.count() === 0) continue;
-					if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
+					try {
+						const editor = frame.locator('.cm-content');
+						if (await editor.count() === 0) continue;
+						if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
+					} catch (error) {
+						// A settings reload or native-to-safe editor transition can detach
+						// a candidate between discovery and inspection. Only retry that race.
+						if (!frame.isDetached() && !/frame was detached|frame has been detached|execution context was destroyed/i.test(String(error))) throw error;
+					}
 				}
 			}
 		}

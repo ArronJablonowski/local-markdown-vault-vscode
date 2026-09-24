@@ -3,6 +3,7 @@ import { diagnosticEventRateLimited } from '../diagnostics';
 import { isEditorDocumentWithinLimit, MAX_EDITOR_DOCUMENT_BYTES } from '../shared/messageValidation';
 import { isCanonicalPathInside } from './canonicalContainment';
 import { localWorkspaceVaultRoot } from './workspaceVault';
+import { hasUnsafeNativeMarkdownTab } from './nativeMarkdownCompatibility';
 
 // Yield only until VS Code has finished publishing the change and dirty state.
 export const MARKDOWN_AUTO_SAVE_DELAY_MS = 0;
@@ -21,9 +22,21 @@ interface TrackedDocument {
 	generation: number;
 	timer?: ReturnType<typeof setTimeout>;
 	saving: boolean;
+	waiting: boolean;
 	pending: boolean;
 	operation?: Promise<void>;
 	failureReported?: boolean;
+	dirtySuccessRetries: number;
+	contentRevision: number;
+	savedRevision: number;
+	successfulSaveEvents: number;
+	failedConcurrentRetries: number;
+	nativePauseReported?: boolean;
+}
+
+interface AutomaticTracking {
+	document: vscode.TextDocument;
+	disposable: vscode.Disposable;
 }
 
 /**
@@ -33,7 +46,8 @@ interface TrackedDocument {
  */
 export class MarkdownAutoSaveController implements vscode.Disposable {
 	private readonly tracked = new Map<string, TrackedDocument>();
-	private readonly automaticallyTracked = new Map<string, vscode.Disposable>();
+	private readonly operations = new Map<string, Promise<void>>();
+	private readonly automaticallyTracked = new Map<string, AutomaticTracking>();
 	private readonly disposables: vscode.Disposable[];
 	private disposed = false;
 
@@ -41,78 +55,120 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 		this.disposables = [
 			vscode.workspace.onDidChangeTextDocument((event) => {
 				this.trackAutomatically(event.document);
+				const state = this.tracked.get(event.document.uri.toString());
+				if (event.contentChanges.length > 0 && state?.document === event.document) state.contentRevision++;
 				// VS Code may publish the dirty-state transition separately from the
 				// content event, including after a previous save has just completed.
-				const saving = this.tracked.get(event.document.uri.toString())?.saving;
+				const saving = state?.saving;
 				if (event.contentChanges.length > 0 || (event.document.isDirty && !saving)) this.schedule(event.document);
 			}),
 			vscode.workspace.onDidOpenTextDocument((document) => this.trackAutomatically(document)),
+			vscode.workspace.onDidSaveTextDocument((document) => {
+				const state = this.tracked.get(document.uri.toString());
+				if (state?.document === document) state.successfulSaveEvents++;
+			}),
 			vscode.workspace.onDidCloseTextDocument((document) => {
 				const key = document.uri.toString();
-				this.automaticallyTracked.get(key)?.dispose();
-				this.automaticallyTracked.delete(key);
+				const automatic = this.automaticallyTracked.get(key);
+				if (automatic?.document === document) {
+					automatic.disposable.dispose();
+					this.automaticallyTracked.delete(key);
+				}
+				// A custom editor can retain its registration until after the native
+				// document closes. Neither that registration nor a late close event
+				// may keep a reopened URI attached to the old TextDocument.
+				const state = this.tracked.get(key);
+				if (state?.document === document) {
+					this.cancelTimer(state);
+					state.generation++;
+					this.tracked.delete(key);
+				}
 			}),
 			vscode.workspace.onDidChangeConfiguration((event) => {
 				if (!event.affectsConfiguration('mdLivePreview.autoSave')) return;
 				for (const state of this.tracked.values()) {
 					this.cancelTimer(state);
-					if (state.document.isDirty) this.schedule(state.document);
+					if (state.document.isDirty || state.contentRevision > state.savedRevision) this.schedule(state.document);
 				}
 			}),
+			vscode.window.tabGroups.onDidChangeTabs(() => this.resumeSafeDocuments()),
+			vscode.window.tabGroups.onDidChangeTabGroups(() => this.resumeSafeDocuments()),
 		];
 		for (const document of vscode.workspace.textDocuments) this.trackAutomatically(document);
 	}
 
 	private trackAutomatically(document: vscode.TextDocument): void {
-		if (this.disposed || document.languageId !== 'markdown') return;
+		if (this.disposed || document.isClosed || document.languageId !== 'markdown') return;
 		const key = document.uri.toString();
-		if (!this.automaticallyTracked.has(key)) {
-			this.automaticallyTracked.set(key, this.track(document));
+		const automatic = this.automaticallyTracked.get(key);
+		if (automatic?.document !== document) {
+			const disposable = this.track(document);
+			automatic?.disposable.dispose();
+			this.automaticallyTracked.set(key, { document, disposable });
 		}
 	}
 
 	track(document: vscode.TextDocument): vscode.Disposable {
+		if (this.disposed || document.isClosed) return new vscode.Disposable(() => {});
 		const key = document.uri.toString();
 		const existing = this.tracked.get(key);
-		if (existing) existing.references++;
-		else this.tracked.set(key, {
+		if (existing && existing.document !== document) {
+			this.cancelTimer(existing);
+			existing.generation++;
+		}
+		const state = existing?.document === document ? existing : {
 			document,
-			references: 1,
+			references: 0,
 			generation: 0,
 			saving: false,
+			waiting: false,
 			pending: false,
-		});
-		if (!existing && document.isDirty) this.schedule(document);
+			dirtySuccessRetries: 0,
+			contentRevision: 0,
+			savedRevision: 0,
+			successfulSaveEvents: 0,
+			failedConcurrentRetries: 0,
+			// A native save cannot be canceled once it has started. A replacement
+			// document at the same URI must wait for it before writing newer text.
+			operation: this.operations.get(key) ?? existing?.operation,
+		};
+		state.references++;
+		this.tracked.set(key, state);
+		if (state !== existing && document.isDirty) this.schedule(document);
 
 		let released = false;
 		return new vscode.Disposable(() => {
 			if (released) return;
 			released = true;
-			const state = this.tracked.get(key);
-			if (!state || --state.references > 0) return;
+			if (this.tracked.get(key) !== state || --state.references > 0) return;
 			this.cancelTimer(state);
 			state.generation++;
 			this.tracked.delete(key);
 		});
 	}
 
-	private schedule(document: vscode.TextDocument): void {
+	private schedule(document: vscode.TextDocument, continuation = false): void {
 		// During a WorkspaceEdit, VS Code can publish the content-change event just
 		// before `isDirty` flips to true. Schedule from every tracked content change
 		// and check dirtiness when the timer fires; otherwise a one-click mutation
 		// such as checking a task can be the only event and remain unsaved forever.
-		if (this.disposed || !this.enabled(document)) return;
+		if (this.disposed || document.isClosed || !this.enabled(document)) return;
 		const state = this.tracked.get(document.uri.toString());
 		if (!state || state.document !== document) return;
-		if (state.saving) {
+		if (this.nativeSaveBlocked(state)) { this.cancelTimer(state); return; }
+		if (state.saving || state.waiting) {
 			state.pending = true;
 			return;
+		}
+		if (!continuation) {
+			state.dirtySuccessRetries = 0;
+			state.failedConcurrentRetries = 0;
 		}
 		if (state.timer !== undefined) return;
 		const generation = ++state.generation;
 		state.timer = setTimeout(() => {
 			state.timer = undefined;
-			state.operation = this.saveIfAuthorized(state, generation);
+			this.startSave(state, generation);
 		}, MARKDOWN_AUTO_SAVE_DELAY_MS);
 	}
 
@@ -120,13 +176,43 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 	async flush(document: vscode.TextDocument): Promise<void> {
 		const state = this.tracked.get(document.uri.toString());
 		if (!state || state.document !== document || this.disposed) return;
-		this.cancelTimer(state);
-		await state.operation;
-		while (state.saving) await state.operation;
-		this.cancelTimer(state);
-		if (this.tracked.get(document.uri.toString()) !== state || this.disposed) return;
-		state.operation = this.saveIfAuthorized(state, state.generation);
-		await state.operation;
+		do {
+			this.cancelTimer(state);
+			await state.operation;
+			while (state.saving || state.waiting) await state.operation;
+			this.cancelTimer(state);
+			if (this.tracked.get(document.uri.toString()) !== state || this.disposed) return;
+			await this.startSave(state, state.generation);
+			// A newer native keystroke can arrive during this save. Shutdown and
+			// history callers must wait for its scheduled follow-up too, rather
+			// than returning early and letting disposal cancel the last timer.
+		} while (state.timer !== undefined || state.saving || state.waiting);
+	}
+
+	private startSave(state: TrackedDocument, generation: number): Promise<void> {
+		const key = state.document.uri.toString();
+		const previous = this.operations.get(key);
+		state.waiting = true;
+		const operation = (async () => {
+			try {
+				await previous;
+				state.waiting = false;
+				await this.saveIfAuthorized(state, generation);
+			}
+			catch {
+				// A closed document or unexpected provider error must not poison all
+				// subsequent attempts or become an unhandled timer rejection.
+				diagnosticEventRateLimited('editor.autoSaveFailed');
+				this.warnOnce(state, 'Markdown could not be saved automatically. Keep this document open and save it manually.');
+			}
+			finally { state.waiting = false; }
+		})();
+		state.operation = operation;
+		this.operations.set(key, operation);
+		void operation.then(() => {
+			if (this.operations.get(key) === operation) this.operations.delete(key);
+		});
+		return operation;
 	}
 
 	private enabled(document: vscode.TextDocument): boolean {
@@ -135,14 +221,35 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 			.get<boolean>('autoSave', true);
 	}
 
+	private resumeSafeDocuments(): void {
+		for (const state of this.tracked.values()) {
+			if (hasUnsafeNativeMarkdownTab(state.document.uri)) this.cancelTimer(state);
+			else {
+				state.nativePauseReported = false;
+				if (state.document.isDirty || state.contentRevision > state.savedRevision) this.schedule(state.document);
+			}
+		}
+	}
+
+	private nativeSaveBlocked(state: TrackedDocument): boolean {
+		if (!hasUnsafeNativeMarkdownTab(state.document.uri)) return false;
+		if (!state.nativePauseReported) {
+			state.nativePauseReported = true;
+			void vscode.window.showWarningMessage('Automatic Markdown saving is paused while this file is open in VS Code\'s native Markdown Editor because saving can interrupt typing there. Use Markdown Live Preview or Text Editor, or save manually after you stop typing.');
+		}
+		return true;
+	}
+
 	private async saveIfAuthorized(state: TrackedDocument, generation: number): Promise<void> {
 		const document = state.document;
 		if (
 			this.disposed ||
 			this.tracked.get(document.uri.toString()) !== state ||
 			state.generation !== generation ||
-			!document.isDirty ||
+			document.isClosed ||
+			(!document.isDirty && state.contentRevision <= state.savedRevision) ||
 			!this.enabled(document) ||
+			this.nativeSaveBlocked(state) ||
 			document.languageId !== 'markdown'
 		) return;
 		if (document.uri.scheme !== 'file' || !documentWithinAutoSaveLimit(document)) {
@@ -154,6 +261,8 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 		// either asynchronous operation must trigger a follow-up save, not cancel it.
 		state.saving = true;
 		state.pending = false;
+		let retryDirtySuccess = false;
+		let saveFailed = false;
 		try {
 			const vaultRoot = localWorkspaceVaultRoot(document.uri);
 			if (!vaultRoot || !await isCanonicalPathInside(vaultRoot.fsPath, document.uri.fsPath)) {
@@ -168,12 +277,22 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 				this.disposed ||
 				this.tracked.get(document.uri.toString()) !== state ||
 				state.generation !== generation ||
-				!document.isDirty ||
+				document.isClosed ||
+				document.languageId !== 'markdown' ||
+				(!document.isDirty && state.contentRevision <= state.savedRevision) ||
 				!this.enabled(document) ||
+				this.nativeSaveBlocked(state) ||
 				!documentWithinAutoSaveLimit(document) ||
 				localWorkspaceVaultRoot(document.uri)?.toString() !== vaultRoot.toString()
 			) return;
 
+			// Native save notifications do not carry a document version. VS Code's
+			// extension-host mirror can therefore report clean for a newer edit when
+			// an older save completes. Only cover changes observed before this save
+			// began, and ask the native model to save newer revisions even when that
+			// stale mirror says isDirty=false. Never rewrite files or fabricate edits.
+			const savingRevision = state.contentRevision;
+			const successfulEventsBefore = state.successfulSaveEvents;
 			let saved = false;
 			try {
 				saved = await document.save();
@@ -182,16 +301,47 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 				// loop; the dirty document remains available for an explicit user save.
 			}
 			if (!saved) {
-				diagnosticEventRateLimited('editor.autoSaveFailed');
-				this.warnOnce(state, 'Markdown could not be saved automatically. Your changes remain unsaved in VS Code. Save the document before closing it.');
+				const newerContent = state.contentRevision > savingRevision;
+				const madeProgress = state.successfulSaveEvents > successfulEventsBefore;
+				if (newerContent && (madeProgress || state.failedConcurrentRetries++ === 0)) {
+					// VS Code can write the older snapshot and return false because a
+					// newer native keystroke kept its real model dirty. That is progress,
+					// not a failed filesystem write: finish saving the newer revision.
+					// A canceled save with no write gets only one follow-up attempt.
+					if (madeProgress) state.failedConcurrentRetries = 0;
+					retryDirtySuccess = true;
+				} else {
+					saveFailed = true;
+					diagnosticEventRateLimited('editor.autoSaveFailed');
+					this.warnOnce(state, 'Markdown could not be saved automatically. Your changes remain unsaved in VS Code. Save the document before closing it.');
+				}
+			} else if (document.isDirty) {
+				state.savedRevision = Math.max(state.savedRevision, savingRevision);
+				// Some save participants/providers can resolve successfully while a
+				// newer change remains dirty, without publishing a content event to
+				// this controller. Verify the postcondition instead of treating a
+				// true return value as proof that the latest content reached disk.
+				// Retry once when no newer edit was reported; a permanently dirty
+				// successful provider must not cause an unbounded save loop.
+				if (!state.pending && state.dirtySuccessRetries++ === 0) retryDirtySuccess = true;
+				else if (!state.pending) {
+					diagnosticEventRateLimited('editor.autoSaveStillDirty');
+					this.warnOnce(state, 'Markdown still has unsaved changes after automatic saving. Save the document manually before closing it.');
+				}
 			} else {
+				state.savedRevision = Math.max(state.savedRevision, savingRevision);
+				state.failedConcurrentRetries = 0;
+				state.dirtySuccessRetries = 0;
 				state.failureReported = false;
 			}
 		} finally {
 			state.saving = false;
-			if (state.pending) {
+			if (state.pending || retryDirtySuccess) {
 				state.pending = false;
-				this.schedule(document);
+				// Failed saves can themselves emit edits (for example from a save
+				// participant). Require the next independent edit or explicit flush
+				// to retry instead of repeatedly invoking a failing participant.
+				if (!saveFailed) this.schedule(document, true);
 			}
 		}
 	}
@@ -210,13 +360,14 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
-		for (const tracking of this.automaticallyTracked.values()) tracking.dispose();
+		for (const tracking of this.automaticallyTracked.values()) tracking.disposable.dispose();
 		this.automaticallyTracked.clear();
 		for (const state of this.tracked.values()) {
 			this.cancelTimer(state);
 			state.generation++;
 		}
 		this.tracked.clear();
+		this.operations.clear();
 		for (const disposable of this.disposables) disposable.dispose();
 	}
 }

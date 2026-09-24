@@ -15,6 +15,29 @@ The safer defaults can change what is displayed, but they do not change note tex
 
 No automatic content migration is required. Back up or commit important notes before upgrading, as you would before any editor change.
 
+## Native Markdown Editor compatibility
+
+Save QA on VS Code 1.139.0 observed intermittent typed-character loss in the
+built-in Markdown Editor while autosave invalidated its edit sequence. Existing
+`markdownEditor`, `vscodeMarkdownEditor`, and legacy `default` preferences now
+resolve to this extension's Markdown Live Preview. Direct native Markdown Editor
+tabs for Markdown inside the current local vault are also routed to Live Preview.
+The document and its text are preserved; native webview caret state is not exposed
+through VS Code's public tab API and may not transfer. Text Editor remains an
+explicit source-mode choice. No VS Code application files are patched.
+
+While a native Markdown Editor tab is still open for a document, extension
+autosave is suppressed to avoid contributing to that native race. Existing or
+explicitly requested native tabs are deliberately left open alongside Live
+Preview: automatically closing one reproduced a shared-working-copy revert
+during QA, and even a clean tab can become dirty while a close is pending. Save and verify the
+complete document from Live Preview before closing the old native tab. If saving
+fails, keep both tabs open and follow the warning; never discard changes to
+complete the switch. Failed routing also keeps autosave paused. This does not
+control saves already in progress or initiated by VS Code or other extensions.
+Normal file opens through the extension's settings go directly to Live Preview
+without opening a native tab.
+
 ## Existing Obsidian vaults
 
 Open the vault's folder as the single local VS Code workspace folder. Obsidian-compatible Markdown features such as wikilinks, embeds, properties, callouts, math, footnotes, tags, and tasks remain plain text.

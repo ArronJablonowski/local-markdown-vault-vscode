@@ -1,4 +1,5 @@
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
+import { notifyActiveDraftChanged, registerActiveDraft } from './activeDraft';
 import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
 import type { Range, EditorState } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
@@ -889,6 +890,7 @@ class TableWidget extends WidgetType {
 				// source text, so it still has to be restored.
 				cell.textContent = '';
 				renderInlineInto(cell, ref.source, { ...cellInlineHooks, inTableCell: true });
+				notifyActiveDraftChanged();
 				return ref.to;
 			}
 			// The span was read from the document as it stood when this widget was
@@ -1002,6 +1004,14 @@ class TableWidget extends WidgetType {
 			// new text.
 			delete cell.dataset.mlpCommitted;
 			cell.addEventListener('keydown', onCellKeydown);
+			registerActiveDraft(cell, () => { if (editing === cell) commit(cell); },
+				() => editing === cell ? `Uncommitted table cell:\n${cell.textContent ?? ''}` : undefined,
+				() => {
+					if (editing !== cell) return undefined;
+					const current = readCellRef(cell);
+					if (!current || current.to > view.state.doc.length || view.state.sliceDoc(current.from, current.to) !== current.source) return undefined;
+					return view.state.sliceDoc(0, current.from) + sanitizeCellInput(cell.textContent ?? '') + view.state.sliceDoc(current.to);
+				});
 			cell.classList.add('mlp-table-cell-editing');
 			cell.contentEditable = 'true';
 			cell.textContent = ref.source;

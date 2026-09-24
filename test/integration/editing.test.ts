@@ -53,12 +53,32 @@ suite('document editing', () => {
 	}
 
 	test('an edit reaches disk when the document is saved', async () => {
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const previous = config.inspect<boolean>('autoSave')?.workspaceValue;
+		await config.update('autoSave', false, vscode.ConfigurationTarget.Workspace);
+		try {
+			const editor = await openText();
+			// Isolate explicit saving here; the next case covers concurrent autosave.
+			assert.strictEqual(await editor.edit((builder) => builder.insert(new vscode.Position(2, 4), ' edited')), true, 'native editor rejected the insertion');
+			assert.strictEqual(editor.document.getText(), '# Title\n\nBody edited.\n');
+			assert.strictEqual(await editor.document.save(), true, 'native save did not complete');
+			assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(file)), '# Title\n\nBody edited.\n');
+		} finally { await config.update('autoSave', previous, vscode.ConfigurationTarget.Workspace); }
+	});
+
+	test('concurrent explicit and automatic saves settle to the exact newest native text', async () => {
 		const editor = await openText();
-		// Line 2 is "Body."; insert before the period.
-		await editor.edit((builder) => builder.insert(new vscode.Position(2, 4), ' edited'));
-		await editor.document.save();
-		const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
-		assert.ok(text.includes('Body edited.'), `unexpected file contents: ${JSON.stringify(text)}`);
+		let expected = '# Title\n\nBody.\n';
+		for (let index = 0; index < 12; index++) {
+			const addition = ` saved-${index}.`;
+			assert.strictEqual(await editor.edit(builder => builder.insert(editor.document.positionAt(expected.length), addition)), true);
+			expected += addition;
+			assert.strictEqual(editor.document.getText(), expected);
+			// VS Code can cancel/coalesce this call when autosave is already active.
+			// The durable postcondition is exact disk content, not this boolean.
+			await editor.document.save();
+			await waitFor(async () => new TextDecoder().decode(await vscode.workspace.fs.readFile(file)) === expected);
+		}
 	});
 
 	test('automatically saves changes made in the ordinary Text Editor', async () => {

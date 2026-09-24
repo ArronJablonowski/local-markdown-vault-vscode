@@ -8,6 +8,9 @@ import { resolveWorkspaceRemoteMediaPolicy } from '../shared/securitySettings';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 import { createCspNonce } from '../shared/cspNonce';
 import { MarkdownAutoSaveController } from './markdownAutoSave';
+import { MarkdownRecoveryStore } from './markdownRecoveryStore';
+import { registerMarkdownRecovery } from './markdownRecoveryUi';
+import { MarkdownDraftPreserver } from './markdownDraftPreserver';
 
 function remoteMediaPolicy(resource: vscode.Uri): RemoteMediaPolicy {
 	const inspected = vscode.workspace
@@ -20,13 +23,23 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 	static readonly viewType = 'mdLivePreview.editor';
 
 	private readonly sessions = new Set<DocumentSyncSession>();
+	private readonly closingSaves = new Set<Promise<void>>();
 	private readonly autoSave = new MarkdownAutoSaveController();
+	private readonly recovery?: MarkdownRecoveryStore;
+	private readonly draftPreserver: MarkdownDraftPreserver;
 
 	private constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly getCss: () => string,
 		private readonly getVaultNotes: () => VaultNoteSummary[],
-	) {}
+	) {
+		try { this.recovery = new MarkdownRecoveryStore(context.workspaceState); }
+		catch {
+			void vscode.window.showErrorMessage(vscode.l10n.t('Existing Markdown recovery data could not be loaded. It has not been overwritten. Save open drafts manually before closing VS Code.'));
+		}
+		this.draftPreserver = new MarkdownDraftPreserver(this.recovery);
+		context.subscriptions.push(registerMarkdownRecovery(this.recovery, this.draftPreserver));
+	}
 
 	static register(
 		context: vscode.ExtensionContext,
@@ -36,7 +49,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		const provider = new MarkdownLivePreviewProvider(context, getCss, getVaultNotes);
 		const registration = vscode.window.registerCustomEditorProvider(MarkdownLivePreviewProvider.viewType, provider, {
 			// Hidden editors are reconstructed from the authoritative TextDocument
-			// plus bounded caret/scroll hints stored by the webview. Keeping the full
+			// plus bounded pending-draft recovery and caret/scroll state. Keeping the full
 			// iframe alive would prolong rendered untrusted content, parsers, timers,
 			// and diagram state while the user is not looking at the tab.
 			webviewOptions: { retainContextWhenHidden: false },
@@ -65,27 +78,46 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		webviewPanel.webview.html = this.buildHtml(webviewPanel.webview, remoteMediaPolicy(document.uri));
 		const autoSaveTracking = this.autoSave.track(document);
 
-		const session = new DocumentSyncSession(
+		const session: DocumentSyncSession = new DocumentSyncSession(
 			document,
 			webviewPanel,
 			this.getCss,
 			this.getVaultNotes,
 			(uri, line) => this.jumpToDocument(uri, line),
-			() => this.autoSave.flush(document),
+			() => this.autoSave.flush(session.getDocument()),
+			(text) => this.draftPreserver.preserve(document.uri.toString(), text),
+			async () => {
+				try {
+					await this.autoSave.flush(session.getDocument());
+					const current = session.getDocument();
+					// This is an explicit user Save, not a background write. VS Code
+					// retains its normal participants, conflict checks, and prompts.
+					if (current.isDirty && (current.isClosed || !(await current.save()) || current.isDirty)) throw new Error('Save incomplete');
+				} catch {
+					void vscode.window.showErrorMessage(vscode.l10n.t('Markdown could not be saved. Keep this document open and save a copy.'));
+				}
+			},
 		);
 		this.sessions.add(session);
 
 		webviewPanel.onDidDispose(() => {
-			autoSaveTracking.dispose();
-			session.dispose();
+			const closing = session.dispose();
+			this.closingSaves.add(closing);
+			void closing.finally(() => { autoSaveTracking.dispose(); this.closingSaves.delete(closing); });
 			this.sessions.delete(session);
 		});
 	}
 
+	async flushPendingSaves(): Promise<void> {
+		await Promise.all([...this.sessions].map(session => session.flushPendingSaves()));
+		await Promise.all(this.closingSaves);
+		await Promise.all(vscode.workspace.textDocuments.filter(document => document.languageId === 'markdown').map(document => this.autoSave.flush(document)));
+	}
+
 	dispose(): void {
-		this.autoSave.dispose();
-		for (const session of this.sessions) session.dispose();
+		for (const session of this.sessions) this.closingSaves.add(session.dispose());
 		this.sessions.clear();
+		void Promise.all(this.closingSaves).finally(() => this.autoSave.dispose());
 	}
 
 	/** Called when the enabled CSS snippet set changes, to hot-reload every open panel. */

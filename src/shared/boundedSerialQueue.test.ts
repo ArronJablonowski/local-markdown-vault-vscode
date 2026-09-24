@@ -46,6 +46,53 @@ describe('BoundedSerialQueue', () => {
 		expect(next).toHaveBeenCalledOnce();
 		expect(queue.pendingCount).toBe(0);
 	});
+	it('keeps draining when a running task enqueues a deferred follow-up', async () => {
+		const queue = new BoundedSerialQueue(3);
+		const first = deferred();
+		const followup = deferred();
+		const order: string[] = [];
+		queue.tryEnqueue(async () => {
+			await first.promise;
+			order.push('first');
+			queue.tryEnqueue(async () => { await followup.promise; order.push('follow-up'); });
+		});
+		let finished = false;
+		const draining = queue.drain().then(() => { finished = true; });
+		first.resolve();
+		await vi.waitFor(() => expect(order).toEqual(['first']));
+		expect(finished).toBe(false);
+		followup.resolve();
+		await draining;
+		expect(order).toEqual(['first', 'follow-up']);
+		expect(queue.pendingCount).toBe(0);
+	});
+	it('waits for recovery work enqueued by a failure callback', async () => {
+		const queue = new BoundedSerialQueue(2);
+		const recovery = deferred();
+		queue.tryEnqueue(async () => { throw new Error('expected'); }, () => {
+			queue.tryEnqueue(() => recovery.promise);
+		});
+		let finished = false;
+		const draining = queue.drain().then(() => { finished = true; });
+		await vi.waitFor(() => expect(queue.pendingCount).toBe(1));
+		expect(finished).toBe(false);
+		recovery.resolve();
+		await draining;
+		expect(queue.pendingCount).toBe(0);
+	});
+	it('includes work accepted after drain starts but before its captured tail settles', async () => {
+		const queue = new BoundedSerialQueue(1);
+		const task = deferred();
+		const draining = queue.drain();
+		queue.tryEnqueue(() => task.promise);
+		let finished = false;
+		void draining.then(() => { finished = true; });
+		await Promise.resolve();
+		expect(finished).toBe(false);
+		task.resolve();
+		await draining;
+		expect(queue.pendingCount).toBe(0);
+	});
 
 	it.each([0, -1, 1.5, Number.NaN])('rejects invalid limit %s', (limit) => {
 		expect(() => new BoundedSerialQueue(limit)).toThrow(/positive integer/);

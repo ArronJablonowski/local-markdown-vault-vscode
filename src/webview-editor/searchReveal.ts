@@ -100,7 +100,11 @@ const clearOnPanelClose = EditorView.updateListener.of((update) => {
 	const wasOpen = searchPanelOpen(update.startState);
 	const isOpen = searchPanelOpen(update.state);
 	if (wasOpen && !isOpen) {
-		update.view.dispatch({ effects: setSearchSelection.of(false) });
+		// Revealing a search match and then closing the panel can change the
+		// measured heights of thousands of preview blocks. Keep the match in view
+		// after those decorations change instead of retaining an obsolete pixel
+		// scroll offset from before the panel closed.
+		update.view.dispatch({ effects: setSearchSelection.of(false), scrollIntoView: true });
 	}
 });
 

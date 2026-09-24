@@ -135,6 +135,10 @@ export function validateHostToEditorMessage(
 ): ValidationResult<HostToEditorMessage> {
 	if (!isRecord(value) || typeof value.type !== 'string') return { ok: false, reason: 'Message is not an object.' };
 	switch (value.type) {
+		case 'draftPreserved':
+			return hasExactKeys(value, ['type', 'requestId', 'ok']) && isNonNegativeInteger(value.requestId) && typeof value.ok === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid recovery result.' };
 		case 'copyCodeResult':
 			return hasExactKeys(value, ['type', 'requestId', 'ok']) && isNonNegativeInteger(value.requestId) && typeof value.ok === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }
@@ -309,6 +313,26 @@ export function validateEditorToHostMessage(
 				&& typeof value.text === 'string' && withinByteLimit(value.text, MAX_EDITOR_MESSAGE_TEXT_BYTES)
 				? { ok: true, value: value as unknown as EditorToHostMessage }
 				: { ok: false, reason: 'Invalid clipboard request.' };
+		case 'draftSnapshot':
+			return (hasExactKeys(value, ['type', 'text', 'baselineText']) ||
+				(hasExactKeys(value, ['type', 'text', 'baselineText', 'requiresSeparatePreservation']) && value.requiresSeparatePreservation === true))
+				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
+				&& typeof value.baselineText === 'string' && isEditorDocumentWithinLimit(value.baselineText)
+				? { ok: true, value: value as unknown as EditorToHostMessage }
+				: { ok: false, reason: 'Invalid pending draft snapshot.' };
+		case 'checkpoint':
+			return hasExactKeys(value, ['type', 'requestId', 'text', 'baselineText']) && isNonNegativeInteger(value.requestId)
+				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
+				&& typeof value.baselineText === 'string' && isEditorDocumentWithinLimit(value.baselineText)
+				? { ok: true, value: value as unknown as EditorToHostMessage }
+				: { ok: false, reason: 'Invalid save checkpoint.' };
+		case 'preserveDraft':
+			return hasExactKeys(value, ['type', 'requestId', 'text']) && isNonNegativeInteger(value.requestId)
+				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
+				? { ok: true, value: value as unknown as EditorToHostMessage }
+				: { ok: false, reason: 'Invalid recovery snapshot.' };
+		case 'resync':
+		case 'save':
 		case 'ready':
 		case 'undo':
 		case 'redo':

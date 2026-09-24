@@ -24,11 +24,11 @@ export function editorViewType(value: string | undefined): string | undefined {
 	switch (normalizeDefaultEditorSetting(value)) {
 		case 'textEditor': return 'default';
 		case 'markdownPreview': return 'vscode.markdown.preview.editor';
-		// Both names select VS Code's built-in Markdown Editor. Keep the explicit
-		// VS Code alias compatible with settings saved by earlier releases.
+		// Preserve stored choices, but temporarily route both native-editor names
+		// to our save-tested renderer. VS Code 1.139's native Markdown Editor can
+		// discard typed characters when save notifications invalidate its edits.
 		case 'vscodeMarkdownEditor':
 		case 'markdownEditor':
-			return 'vscode.markdown.editor';
 		case 'livePreview': return 'mdLivePreview.editor';
 		default: return undefined;
 	}

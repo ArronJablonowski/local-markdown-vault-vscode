@@ -21,8 +21,8 @@ test.describe('CSS theme sidebar accessibility', () => {
 			'VS Code default',
 			'Text Editor',
 			'Markdown Preview',
-			'VS Code Markdown Editor',
-			'Markdown Editor',
+			'VS Code Markdown Editor (Live Preview)',
+			'Markdown Editor (Live Preview)',
 			'Markdown Live Preview',
 		]);
 		await expect(defaultEditor).toHaveValue('livePreview');
