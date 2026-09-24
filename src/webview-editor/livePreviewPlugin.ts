@@ -710,6 +710,10 @@ class TableWidget extends WidgetType {
 		const syncStickyHeader = (): void => {
 			const header = table.tHead;
 			if (!header) return;
+			const originalCells = Array.from(header.rows[0]?.cells ?? []);
+			const widths = originalCells.map(cell => cell.getBoundingClientRect().width);
+			const tableWidth = table.getBoundingClientRect().width;
+			if (!tableWidth || !widths.length || widths.some(width => width <= 0)) return;
 			const clone = header.cloneNode(true) as HTMLTableSectionElement;
 			clone.querySelectorAll<HTMLElement>('[tabindex], [contenteditable]').forEach((cell) => {
 				cell.removeAttribute('tabindex');
@@ -721,12 +725,25 @@ class TableWidget extends WidgetType {
 					if (attribute.name.startsWith('data-mlp-')) cell.removeAttribute(attribute.name);
 				}
 			});
-			stickyTable.replaceChildren(clone);
-			stickyTable.style.width = `${table.getBoundingClientRect().width}px`;
-			const originalCells = Array.from(header.rows[0]?.cells ?? []);
+			// Pin column tracks, not content-box cell widths. Otherwise padding and
+			// theme table-layout rules let the header compute a different grid.
+			const columns = document.createElement('colgroup');
+			for (const width of widths) {
+				const column = document.createElement('col');
+				column.style.setProperty('width', `${width}px`, 'important');
+				columns.appendChild(column);
+			}
+			stickyTable.replaceChildren(columns, clone);
+			stickyTable.style.setProperty('table-layout', 'fixed', 'important');
+			stickyTable.style.setProperty('box-sizing', 'border-box', 'important');
+			stickyTable.style.setProperty('width', `${tableWidth}px`, 'important');
+			stickyTable.style.setProperty('min-width', '0', 'important');
+			stickyTable.style.setProperty('max-width', 'none', 'important');
 			const clonedCells = Array.from(clone.rows[0]?.cells ?? []);
-			originalCells.forEach((cell, index) => {
-				if (clonedCells[index]) clonedCells[index].style.width = `${cell.getBoundingClientRect().width}px`;
+			clonedCells.forEach(cell => {
+				cell.style.setProperty('box-sizing', 'border-box', 'important');
+				cell.style.setProperty('width', 'auto', 'important');
+				cell.style.setProperty('min-width', '0', 'important');
 			});
 			stickyClip.scrollLeft = tableViewport.scrollLeft;
 		};
@@ -736,7 +753,12 @@ class TableWidget extends WidgetType {
 			const headerHeight = table.tHead?.getBoundingClientRect().height ?? 0;
 			const show = tableViewport.classList.contains('mlp-table-scrollable')
 				&& bounds.top < scrollerTop && bounds.bottom > scrollerTop + headerHeight;
-			if (stickyHeader.hidden === show) stickyHeader.hidden = !show;
+			if (stickyHeader.hidden === show) {
+				stickyHeader.hidden = !show;
+				// A hidden clip cannot accept scrollLeft. Refresh after making it
+				// visible so its scroll range exists before restoring the offset.
+				if (show) syncStickyHeader();
+			}
 			if (show) stickyClip.scrollLeft = tableViewport.scrollLeft;
 		};
 		// Keep native horizontal scrolling synchronized in either direction,
