@@ -396,6 +396,10 @@ html, body {
 .mlp-list-indent {
 	display: inline-block;
 }
+.mlp-list-indent, .mlp-bullet, .mlp-checkbox {
+	/* Hanging indentation belongs to the line, never an inline marker box. */
+	text-indent: 0;
+}
 /* Muted, matching the ordered-list marker below rather than link blue — a
    marker glyph isn't a link and shouldn't visually imply one. */
 .mlp-bullet {

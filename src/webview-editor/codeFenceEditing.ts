@@ -131,7 +131,13 @@ export const exitFencedCodeOnBlankLine: Command = (view) => {
 		return unfinished ? closeUnfinishedFence(view, unfinished) : false;
 	}
 
-	const closingLine = state.doc.line(line.number + 1);
+	// Typing an opening fence and Enter auto-inserts its closing fence with
+	// padding. A second Enter after code must escape even when another blank
+	// line remains before that fence. Never skip actual code or scan unboundedly.
+	let closingNumber = line.number + 1;
+	while (closingNumber < state.doc.lines && closingNumber - line.number < MAX_FENCE_SCAN_LINES
+		&& state.doc.line(closingNumber).text.trim().length === 0) closingNumber++;
+	const closingLine = state.doc.line(closingNumber);
 	const node = fencedCodeAncestor(syntaxTree(state).resolveInner(line.from, 1));
 	if (!node || state.doc.lineAt(node.to).number !== closingLine.number) {
 		const textual = textualFenceAroundLine(state, line.number);

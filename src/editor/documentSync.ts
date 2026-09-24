@@ -881,6 +881,11 @@ export class DocumentSyncSession {
 	}
 
 	private async applyEdit(changes: TextChange[], baseVersion: number) {
+		// A new WorkspaceEdit can cancel a native save still writing the previous
+		// version. Keep the edit/ack queue behind that save, then recheck authority
+		// and version: a tab close or independent edit may have happened meanwhile.
+		await this.settleAutoSave?.();
+		if (this.disposed) return;
 		if (baseVersion !== this.document.version) {
 			// Webview's batch was computed against a document snapshot that has since
 			// moved on (e.g. an external edit landed concurrently). Rather than risk
@@ -928,6 +933,10 @@ export class DocumentSyncSession {
 			this.sendInit();
 			return;
 		}
+		// Drain this batch's save before acknowledging another editable snapshot.
+		// The controller still reports failures and never bypasses containment.
+		await this.settleAutoSave?.();
+		if (this.disposed) return;
 		this.lastAppliedVersion = this.document.version;
 		this.documentText = this.document.getText();
 		if (createLineEndingMap(this.documentText).normalizedText !== expectedNormalizedText) {

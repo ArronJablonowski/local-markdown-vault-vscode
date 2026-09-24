@@ -2124,6 +2124,13 @@ function buildDecorations(view: EditorView): DecorationSet {
 						});
 						return; // descend to hide the ">" marks
 					case 'ListMark': {
+						const line = doc.lineAt(node.from);
+						const following = state.sliceDoc(node.to, Math.min(line.to, node.to + 256));
+						const prefix = /^[ \t]+(?:\[[^\]\r\n]\][ \t]+)?/u.exec(following)?.[0] ?? '';
+						const textFrom = node.to + prefix.length;
+						if (textFrom < line.to) decorations.push(Decoration.line({ attributes: {
+							'data-mlp-list-text-offset': String(textFrom - line.from),
+						} }).range(line.from));
 						if (listItemIsTask(state, node)) {
 							// Task items render a checkbox from the TaskMarker; drop the bullet.
 							if (!cursorTouchesRange(state, node.from, node.to)) {

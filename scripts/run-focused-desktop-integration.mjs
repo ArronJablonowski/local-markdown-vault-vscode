@@ -19,6 +19,10 @@ try {
 		'files.autoSave': 'off',
 		'mdLivePreview.defaultEditor': 'textEditor',
 		'workbench.startupEditor': 'none',
+		// Keep menus/dialogs in the disposable workbench so keyboard/mouse QA
+		// can observe confirmations rather than automating OS-global surfaces.
+		'window.menuStyle': 'custom',
+		'window.dialogStyle': 'custom',
 		'update.mode': 'none',
 	}, null, 2));
 	const executable = await downloadAndUnzipVSCode('stable');

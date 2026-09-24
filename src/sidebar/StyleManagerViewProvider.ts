@@ -109,9 +109,12 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 				break;
 			case 'setSetting':
 				const configKey = message.key === 'vaultOpenBehavior' ? 'vault.openBehavior' : message.key;
-				await vscode.workspace
-					.getConfiguration(CONFIG_SECTION)
-					.update(configKey, message.value, vscode.ConfigurationTarget.Global);
+				const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+				// Change the value actually displayed by this sidebar. Updating only
+				// the user setting leaves an existing workspace override in force.
+				const target = config.inspect(configKey)?.workspaceValue !== undefined
+					? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+				await config.update(configKey, message.value, target);
 				break;
 		}
 	}

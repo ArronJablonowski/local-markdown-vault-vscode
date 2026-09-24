@@ -56,6 +56,8 @@ npm test
 npm run compile
 npm run test:e2e
 npm run test:integration
+npm run test:integration:focused
+npm run test:ui:native
 npm run test:integration:restricted
 npm run security:audit
 npm run package

@@ -218,6 +218,10 @@ Use `[ ]` for an open task and any non-space status character for a completed ta
 
 Nested bullet levels automatically use solid, hollow, and square markers in Live Preview while keeping ordinary `-` markers in the file.
 
+Long list items use hanging indentation: wrapped lines align with the start of
+the item's text, not its marker. This also applies to nested bullets, numbered
+lists, and tasks, and adapts when you resize the editor or change themes.
+
 Press **Tab** on a bullet to make it a sub-bullet, and **Shift+Tab** to move it
 back one level. This also works on a new empty bullet after Return. Nested
 lists stay compact beneath headings; intentional blank lines in your Markdown

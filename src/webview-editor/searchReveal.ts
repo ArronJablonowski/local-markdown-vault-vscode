@@ -108,6 +108,38 @@ const clearOnPanelClose = EditorView.updateListener.of((update) => {
 
 export { setSearchSelection, markingSearchSelection, getSearchQuery };
 
+/** Keep ephemeral Find/Replace UI across an authoritative full-document sync. */
+export function preserveSearchPanel(view: EditorView): () => void {
+	const query = getSearchQuery(view.state);
+	const open = searchPanelOpen(view.state);
+	const panel = view.dom.querySelector('.cm-search');
+	const expanded = panel?.classList.contains(REPLACE_OPEN_CLASS) ?? false;
+	const active = view.root.activeElement;
+	const controls = panel ? Array.from(panel.querySelectorAll<HTMLElement>('input, button')) : [];
+	const focusedIndex = controls.indexOf(active as HTMLElement);
+	const caret = active instanceof HTMLInputElement && active.type === 'text'
+		? { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection } : undefined;
+	return () => {
+		if (open) openSearchPanel(view);
+		view.dispatch({ effects: setSearchQuery.of(query) });
+		const restored = view.dom.querySelector('.cm-search');
+		if (!restored) return;
+		restored.classList.toggle(REPLACE_OPEN_CLASS, expanded);
+		restored.querySelector('.mlp-search-toggle')?.setAttribute('aria-expanded', String(expanded));
+		if (focusedIndex < 0) {
+			// Mounting CodeMirror's panel selects its input. Restore the previous
+			// focus owner when the user was typing in the note or another control.
+			if (active instanceof HTMLElement && active.isConnected) active.focus();
+			return;
+		}
+		const control = restored.querySelectorAll<HTMLElement>('input, button')[focusedIndex];
+		control?.focus();
+		if (control instanceof HTMLInputElement && caret?.start !== null && caret?.start !== undefined) {
+			control.setSelectionRange(caret.start, caret.end, caret.direction ?? undefined);
+		}
+	};
+}
+
 /**
  * Opens the find panel and puts the caret in its field.
  *

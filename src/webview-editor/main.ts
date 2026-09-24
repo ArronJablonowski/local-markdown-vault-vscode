@@ -33,6 +33,7 @@ import {
 	searchRevealExtension,
 	markingSearchSelection,
 	openSearchPanelFocused,
+	preserveSearchPanel,
 } from './searchReveal';
 import { t } from '../shared/i18n';
 import { adaptMarkdownCss, sanitizePreviewCss, scopePreviewCss } from '../shared/cssAdapter';
@@ -58,6 +59,7 @@ import { renderedSelection } from './renderedSelection';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
 import { takeEditBatch } from './editBatch';
+import { listHangingIndent } from './listHangingIndent';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 0;
@@ -201,6 +203,7 @@ function createExtensions(): Extension[] {
 		backtickInputHandler,
 		calloutState,
 		livePreviewPlugin,
+		listHangingIndent,
 		wikilinkDecorations,
 		wikilinkCompletionExtension,
 		tagDecorations,
@@ -459,7 +462,9 @@ function resetView(text: string) {
 		clearTimeout(flushTimer);
 		flushTimer = undefined;
 	}
+	const restoreSearch = preserveSearchPanel(view);
 	view.setState(initialStateFor(text));
+	restoreSearch();
 	restoreScrollPosition();
 }
 

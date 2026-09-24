@@ -56,6 +56,18 @@ test('locked table cells never become editable or display unsaved changes', asyn
 });
 
 for (const fence of ['```js', '~~~~text']) {
+	test(`repeated Enter escapes an automatically closed ${fence} block typed from scratch`, async ({ page }) => {
+		await mountEditor(page, '');
+		await page.locator('.cm-content').click();
+		await page.keyboard.type(fence);
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('const value = 1;');
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Outside');
+		await expect(page.locator('.cm-line').last()).toHaveText('Outside');
+		await expect(page.locator('.cm-line').last()).not.toHaveClass(/mlp-line-code/);
+	});
 	test(`repeated Enter exits an unfinished ${fence} block at EOF`, async ({ page }) => {
 		await mountEditor(page, `${fence}\nconst value = 1;`);
 		await page.locator('.cm-line', { hasText: 'const value = 1;' }).click();

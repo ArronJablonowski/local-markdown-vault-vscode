@@ -1,5 +1,10 @@
 # Changelog
 
+- Align wrapped list text with the first content character using measured hanging indentation for bullets, nested lists, numbered items, and tasks. Keep the Markdown source unchanged. Preserve Find/Replace state and focus through full-document synchronization.
+- Serialize Live Preview edit batches with native saves so fast typing cannot race a preceding disk write. Recheck session and document versions after waiting and settle the new save before acknowledging the batch.
+
+- Fix repeated Enter staying trapped in a newly typed code fence when the auto-inserted closing fence has blank padding. Preserve code and bound the scan. Sidebar settings now update an existing workspace override instead of appearing to revert. Add typed-from-blank native note-taking, complete theme/file menu workflows, and isolated real-dialog/settings UI QA.
+
 - Fix native vault file drags failing because TreeItem command arguments form a circular object graph. Transfer bounded URI-only JSON and revalidate every source/destination. Preserve selected folder hierarchies, honor canceled drops, and reject symbolic-link destinations. Add mouse-driven VS Code drag/undo QA and 11 host drop scenarios.
 
 - Remove typing-idle delays from Live Preview synchronization and Markdown autosave. Serialize edits behind host acknowledgments and disk saves behind path authorization; retain edits arriving during a slow save. Warn on save failure and commit valid property edits when leaving the field instead of discarding them.

@@ -58,7 +58,11 @@ suite('focused cross-platform desktop transactions', () => {
 		service = resolved;
 	});
 
-	teardown(async () => {
+	teardown(async function () {
+		if (this.currentTest?.state === 'failed') {
+			const page = await getWorkbenchPage();
+			await page.screenshot({ path: `/tmp/mdlp-ui-failed-${this.currentTest.title.slice(0, 32).replace(/[^a-z0-9]/gi, '-')}.png` });
+		}
 		// Do not remove a fixture while VS Code still has a native save in flight.
 		for (const document of vscode.workspace.textDocuments) {
 			if (fixtures.some(fixture => document.uri.path.startsWith(fixture.path + '/'))) {
@@ -69,6 +73,310 @@ suite('focused cross-platform desktop transactions', () => {
 		for (const fixture of fixtures.splice(0)) {
 			try { await vscode.workspace.fs.delete(fixture, { recursive: true }); } catch { /* already removed */ }
 		}
+	});
+
+	test('human note-taking from a blank file preserves typed structure, mouse edits, and autosave', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('human-notes');
+		const note = await service.createNote(fixture, 'Planning session');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame();
+		const keyboard = frame.page().keyboard;
+		const type = (text: string) => keyboard.type(text, { delay: 8 });
+		const enter = async (count = 1) => { for (let i = 0; i < count; i++) await keyboard.press('Enter'); };
+		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		await frame.locator('.cm-content').click();
+		await type('# Planning session');
+		await enter(2);
+		await type('Today we review **delivery**, *risks*, and ==decisions==. Budget: $15-$25.');
+		await enter(2);
+		await type('## Agenda');
+		await enter();
+		await type('- Release checklist');
+		await enter();
+		await keyboard.press('Tab');
+		await type('Review the draft');
+		await enter();
+		await type('Check accessibility');
+		await keyboard.press('Shift+Tab');
+		await enter(2);
+		await type('## Actions');
+		await enter();
+		await type('- [ ] Confirm the schedule');
+		await enter();
+		await type('Notify reviewers');
+		await enter(2);
+		await type('## Risks');
+		await enter();
+		await type('> [!warning]+ Release risk');
+		await enter();
+		await type('Keep the backup local.');
+		await enter(2);
+		await type('## Example');
+		await enter();
+		await type('```python');
+		await enter();
+		await type('print("ready")');
+		await enter(2);
+		await type('Final decision: ship after review.');
+		await waitFor(async () => (await disk()).endsWith('Final decision: ship after review.'), 'typed note did not save').catch(async error => {
+			await frame.page().screenshot({ path: '/tmp/mdlp-human-notes-failure.png' });
+			throw new Error(`${String(error)}; disk=${JSON.stringify(await disk())}; rendered=${await frame.locator('.cm-content').innerText()}`);
+		});
+		const source = await disk();
+		assert.match(source, /- Release checklist\n  - Review the draft\n- Check accessibility/);
+		assert.match(source, /- \[ \] Confirm the schedule\n- \[ \] Notify reviewers/);
+		assert.match(source, /> \[!warning\]\+ Release risk\n> Keep the backup local\.\n\n## Example/);
+		assert.match(source, /```python\nprint\("ready"\)\n+```\n+Final decision/);
+		assert.ok(!(await frame.locator('.cm-content').innerText()).includes('Invalid math'));
+		const outline = await connectToFrameWith('#mlp-outline-root');
+		await waitFor(async () => await outline.getByRole('button', { name: 'Planning session', exact: true }).count() === 1, 'typed headings did not appear in the outline');
+		// Return to the tasks through the real Find UI rather than changing selection in code.
+		await keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+		await frame.locator('.cm-search input[name="search"]').fill('Confirm the schedule');
+		await keyboard.press('Enter');
+		await keyboard.press('Escape');
+		await frame.locator('.mlp-checkbox').first().click();
+		await waitFor(async () => (await disk()).includes('- [x] Confirm the schedule'), 'mouse checkbox change did not save');
+		await frame.getByRole('button', { name: 'Release risk callout', exact: true }).click();
+		assert.strictEqual(await frame.getByRole('button', { name: 'Release risk callout', exact: true }).getAttribute('aria-expanded'), 'false');
+		await frame.getByRole('button', { name: 'Release risk callout', exact: true }).click();
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			await frame.getByRole('button', { name: 'Copy code block', exact: true }).click();
+			const code = /```python\n([\s\S]*?)\n```/.exec(source)![1];
+			await waitFor(async () => await vscode.env.clipboard.readText() === code, 'typed code block did not copy exactly');
+		} finally { await vscode.env.clipboard.writeText(previousClipboard); }
+		await frame.page().screenshot({ path: '/tmp/mdlp-human-notes-qa.png' });
+	});
+
+	test('types a research note with properties, tables, math, footnotes, and diagrams then edits the objects', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('typed-research');
+		const note = await service.createNote(fixture, 'Research notebook');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame();
+		const keyboard = frame.page().keyboard;
+		const type = (text: string) => keyboard.type(text, { delay: 5 });
+		const line = async (text = '') => { await type(text); await keyboard.press('Enter'); };
+		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		const find = async (text: string) => {
+			await keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+			await frame.locator('.cm-search input[name="search"]').fill(text);
+			await keyboard.press('Enter'); await keyboard.press('Escape');
+		};
+		await frame.locator('.cm-content').click();
+		for (const text of ['---', 'status: draft', 'priority: 2', 'approved: false', '---', '', '# Research notebook', '', 'A local experiment with $x^2 + y^2$ and a reference[^method].', '', '## Measurements', '| Equipment | Cost |', '| --- | ---: |', '| Sensor | $25 |', '| Cable | $5 |', '', '## Workflow', '```mermaid', 'flowchart LR', 'A[Collect] --> B[Review]']) await line(text);
+		await keyboard.press('Enter'); // Leave the code block on its final empty line.
+		await line();
+		await line('## Architecture');
+		await line('```drawio');
+		await line('<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="Local data" vertex="1" parent="1"><mxGeometry x="0" y="0" width="160" height="60" as="geometry"/></mxCell></root></mxGraphModel>');
+		await keyboard.press('Enter');
+		await line();
+		await line('## Method');
+		await line('[^method]: Keep the source files locally.');
+		await line();
+		await type('End of research.');
+		await waitFor(async () => (await disk()).endsWith('End of research.'), 'typed research did not reach disk').catch(async error => {
+			throw new Error(`${String(error)}; disk=${JSON.stringify(await disk())}; rendered=${await frame.locator('.cm-content').innerText()}`);
+		});
+		assert.match(await disk(), /\| Sensor \| \$25 \|/);
+		await find('## Architecture');
+		await frame.locator('.mlp-drawio-wrap svg').waitFor({ state: 'visible', timeout: 10000 });
+		assert.ok((await frame.locator('.mlp-drawio-wrap svg').textContent())?.includes('Local data'));
+		await find('## Workflow');
+		await frame.locator('.mlp-mermaid-wrap:not(.mlp-drawio-wrap) svg').waitFor({ state: 'visible', timeout: 10000 });
+		assert.ok((await frame.locator('.mlp-mermaid-wrap:not(.mlp-drawio-wrap) svg').textContent())?.includes('Collect'));
+		await find('# Research notebook');
+		await frame.locator('.mlp-math math').waitFor({ state: 'visible' });
+		await frame.getByRole('button', { name: 'Edit priority', exact: true }).dblclick();
+		await frame.getByRole('textbox', { name: 'Edit priority', exact: true }).fill('4');
+		await keyboard.press('Enter');
+		await waitFor(async () => (await disk()).includes('priority: 4'), 'property editor did not save');
+		await find('## Measurements');
+		const cell = frame.locator('.mlp-table td').first();
+		await cell.focus(); await keyboard.press('F2');
+		await type('**Calibrated sensor**<br>Local only');
+		await keyboard.press('Enter');
+		await waitFor(async () => (await disk()).includes('**Calibrated sensor**<br>Local only'), 'rich table edit did not save');
+		assert.strictEqual(await frame.locator('.mlp-table td').first().locator('br').count(), 1);
+		await frame.getByRole('button', { name: 'Table options', exact: true }).click();
+		await frame.getByRole('button', { name: 'Add a row', exact: true }).click();
+		await waitFor(async () => await frame.locator('.mlp-table tbody tr').count() === 3, 'typed table could not add a row');
+		await frame.page().screenshot({ path: '/tmp/mdlp-typed-research-qa.png' });
+	});
+
+	test('typed multi-line bullets keep wrapped text aligned in the native editor', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('wrapped-bullets');
+		const note = await service.createNote(fixture, 'Wrapped bullets');
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame();
+		const keyboard = frame.page().keyboard;
+		await frame.locator('.cm-content').click();
+		await keyboard.type('# Release review', { delay: 8 });
+		await keyboard.press('Enter');
+		await keyboard.press('Enter');
+		await keyboard.type('- Review the release checklist and record the remaining accessibility, security, and documentation questions before approving the build. Keep the supporting evidence beside each decision so another reviewer can reproduce the result without relying on a separate conversation.', { delay: 5 });
+		await keyboard.press('Enter');
+		await keyboard.press('Tab');
+		await keyboard.type('Confirm that the installation instructions match the packaged extension, test the keyboard shortcuts, and verify that every edited note has reached disk before switching to the next file. Document any differences observed while using a narrow editor window.', { delay: 5 });
+		await keyboard.press(process.platform === 'darwin' ? 'Meta+Home' : 'Control+Home');
+		const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+		await waitFor(async () => (await disk()).endsWith('narrow editor window.'), 'typed bullets did not save');
+		const original = await disk();
+		assert.match(original, /\n  - Confirm/);
+		const rows = frame.locator('.cm-line[data-mlp-list-text-offset]');
+		await waitFor(async () => await rows.count() === 2, 'both bullet prefixes were not rendered');
+		for (const row of await rows.all()) {
+			await waitFor(async () => row.evaluate(element => {
+				const edges = new Map<number, number>();
+				const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+				let node: Node | null;
+				while ((node = walker.nextNode())) for (const word of node.textContent!.matchAll(/[A-Za-z]+/g)) {
+					const range = document.createRange();
+					range.setStart(node, word.index!); range.setEnd(node, word.index! + 1);
+					const rect = range.getBoundingClientRect();
+					const top = Math.round(rect.top);
+					edges.set(top, Math.min(edges.get(top) ?? Infinity, rect.left));
+				}
+				return edges.size > 1 && Math.max(...edges.values()) - Math.min(...edges.values()) < 1.5;
+			}), 'wrapped words did not line up with the first word');
+		}
+		assert.strictEqual(await disk(), original, 'hanging indentation must not rewrite the Markdown');
+		await frame.page().screenshot({ path: '/tmp/mdlp-wrapped-bullets-native.png' });
+	});
+
+	test('all sidebar setting options persist through the actual host and workspace overrides', async function () {
+		this.timeout(120_000);
+		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
+		const frame = await connectToFrameWith('#mlp-sidebar-root');
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const keys = ['showWhitespace', 'defaultEditor', 'vault.openBehavior', 'defaultEditingMode', 'codeTheme'];
+		const originals = keys.map(key => config.inspect(key)?.globalValue);
+		const originalWorkspace = config.inspect('showWhitespace')?.workspaceValue;
+		try {
+			for (const [index, key] of keys.entries()) {
+				const control = frame.locator('select').nth(index);
+				const values = await control.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
+				for (const value of values) {
+					await control.selectOption(value);
+					await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get(key) === value, `${key}=${value} did not persist`);
+					await waitFor(async () => await control.inputValue() === value, `${key} reset after host confirmation`);
+				}
+			}
+			// A workspace override must not make the visible control silently ineffective.
+			await config.update('showWhitespace', 'on', vscode.ConfigurationTarget.Workspace);
+			await waitFor(async () => await frame.locator('select').first().inputValue() === 'on', 'workspace setting did not appear');
+			await frame.locator('select').first().selectOption('off');
+			await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get('showWhitespace') === 'off', 'sidebar cannot change a workspace-overridden setting');
+		} finally {
+			await config.update('showWhitespace', originalWorkspace, vscode.ConfigurationTarget.Workspace);
+			for (const [index, key] of keys.entries()) await config.update(key, originals[index], vscode.ConfigurationTarget.Global);
+		}
+	});
+
+	test('vault context menus create, rename, copy paths, and move through the UI', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('menus');
+		const rootPath = fixture.path.slice(service.rootUri.path.length + 1);
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		const page = await getWorkbenchPage();
+		await expandOnlySidebarPane(page, 'Document Vault');
+		await delay(300); // Let initial fixture watcher events settle before opening its context menu.
+		const row = (label: string) => page.getByRole('treeitem', { name: label, exact: true });
+		const menu = async (label: string, action: string) => {
+			await row(label).click({ button: 'right' });
+			await delay(250); // A human waits for the context-menu opening gesture to finish.
+			await page.getByRole('menuitem').filter({ hasText: action }).click({ timeout: 5000 });
+		};
+		const input = async (value: string) => {
+			const box = page.locator('.quick-input-widget:visible .quick-input-box input');
+			await box.fill(value, { timeout: 5000 }).catch(async error => {
+				await page.screenshot({ path: '/tmp/mdlp-vault-menu-failure.png' });
+				throw new Error(`${String(error)}; notifications=${await page.locator('.notifications-toasts').innerText()}`);
+			});
+			await box.press('Enter');
+			await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
+		};
+		await menu(`Folder: ${rootPath}`, 'New Folder');
+		await input('Review drafts');
+		const folder = vscode.Uri.joinPath(fixture, 'Review drafts');
+		await waitFor(() => exists(folder), 'New Folder menu failed');
+		if (await row(`Folder: ${rootPath}`).getAttribute('aria-expanded') !== 'true') {
+			await row(`Folder: ${rootPath}`).click();
+			await page.keyboard.press('ArrowRight');
+		}
+		await menu(`Folder: ${rootPath}/Review drafts`, 'New Note');
+		await input('Meeting');
+		const note = vscode.Uri.joinPath(folder, 'Meeting.md');
+		await waitFor(() => exists(note), 'New Note menu failed');
+		await vscode.commands.executeCommand('mdLivePreview.vault.focus');
+		if (await row(`Folder: ${rootPath}/Review drafts`).getAttribute('aria-expanded') !== 'true') {
+			await row(`Folder: ${rootPath}/Review drafts`).click();
+			await page.keyboard.press('ArrowRight');
+		}
+		await menu(`File: ${rootPath}/Review drafts/Meeting.md`, 'Rename Vault Item');
+		await input('Meeting reviewed.md');
+		const renamed = vscode.Uri.joinPath(folder, 'Meeting reviewed.md');
+		await waitFor(() => exists(renamed), 'Rename menu failed');
+		assert.strictEqual(await exists(note), false);
+		const oldClipboard = await vscode.env.clipboard.readText();
+		try {
+			for (const [label, uri] of [[`Folder: ${rootPath}/Review drafts`, folder], [`File: ${rootPath}/Review drafts/Meeting reviewed.md`, renamed]] as const) {
+				await menu(label, 'Copy Absolute Path');
+				await waitFor(async () => await vscode.env.clipboard.readText() === uri.fsPath, 'absolute path did not copy');
+				await menu(label, 'Copy Vault-Relative Path');
+				await waitFor(async () => await vscode.env.clipboard.readText() === uri.path.slice(service.rootUri.path.length + 1), 'relative path did not copy');
+			}
+		} finally { await vscode.env.clipboard.writeText(oldClipboard); }
+		await menu(`File: ${rootPath}/Review drafts/Meeting reviewed.md`, 'Move Vault Item…');
+		const picker = page.locator('.quick-input-widget:visible');
+		await picker.locator('.quick-input-box input').fill(rootPath);
+		await picker.locator('.monaco-list-row').filter({ hasText: rootPath }).filter({ hasNotText: 'Review drafts' }).click();
+		const moved = vscode.Uri.joinPath(fixture, 'Meeting reviewed.md');
+		await waitFor(() => exists(moved), 'Move menu failed');
+		// VS Code's extension-test host refuses modal dialogs. Real trash cancel/
+		// confirm coverage runs separately without --extensionTestsPath.
+		await page.screenshot({ path: '/tmp/mdlp-vault-menu-qa.png' });
+	});
+
+	test('theme action buttons create, edit, duplicate, rename, apply, and delete disposable styles', async function () {
+		this.timeout(120_000);
+		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
+		await expandOnlySidebarPane(await getWorkbenchPage(), 'CSS Themes');
+		const frame = await connectToFrameWith('#mlp-sidebar-root');
+		const page = frame.page();
+		const original = await frame.getByRole('radio', { checked: true }).getAttribute('aria-label');
+		const initialCount = await frame.locator('.mlp-card').count();
+		await frame.getByRole('button', { name: '+ New style', exact: true }).click();
+		await waitFor(async () => await frame.locator('.mlp-card').count() === initialCount + 1, 'new CSS theme did not appear');
+		const card = frame.locator('.mlp-card').filter({ has: frame.getByRole('radio', { name: 'Apply CSS theme New style.css', exact: true }) });
+		await card.getByRole('button', { name: 'Edit CSS', exact: true }).click();
+		await waitFor(() => vscode.window.activeTextEditor?.document.fileName.endsWith('New style.css') === true, 'Edit CSS did not open source');
+		const editor = vscode.window.activeTextEditor!;
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await page.keyboard.type('\nh2 { color: #123456; }', { delay: 15 });
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s');
+		await waitFor(() => editor.document.getText().includes('h2 { color: #123456; }') && !editor.document.isDirty, 'CSS edit did not save');
+		await card.getByRole('button', { name: 'Duplicate', exact: true }).click();
+		await waitFor(async () => await frame.locator('.mlp-card').count() === initialCount + 2, 'Duplicate did not create a theme');
+		await card.getByRole('button', { name: 'Rename', exact: true }).click();
+		const input = page.locator('.quick-input-widget:visible .quick-input-box input');
+		await input.fill('UI review');
+		await input.press('Enter');
+		const renamed = frame.locator('.mlp-card').filter({ has: frame.getByRole('radio', { name: 'Apply CSS theme UI review.css', exact: true }) });
+		await renamed.getByRole('radio').check();
+		await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get<string[]>('enabledStyles')?.[0] === 'UI review.css', 'Apply did not select the renamed theme');
+		// Restore the original before removing only this test's two themes.
+		await frame.getByRole('radio', { name: original!, exact: true }).check();
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await renamed.getByRole('button', { name: 'Delete', exact: true }).click();
+		const copy = frame.locator('.mlp-card').filter({ has: frame.getByRole('radio', { name: 'Apply CSS theme New style copy.css', exact: true }) });
+		await copy.getByRole('button', { name: 'Delete', exact: true }).click();
+		await waitFor(async () => await frame.locator('.mlp-card').count() === initialCount, 'Delete did not remove the disposable themes');
 	});
 
 	test('large clipboard paste and external replacement keep preview and disk synchronized', async function () {
@@ -85,7 +393,11 @@ suite('focused cross-platform desktop transactions', () => {
 		try {
 			await vscode.env.clipboard.writeText(pasted);
 			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+v' : 'Control+v');
-			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === 'Start ' + pasted, 'large paste did not reach disk');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === 'Start ' + pasted, 'large paste did not reach disk').catch(async error => {
+				const document = await vscode.workspace.openTextDocument(note);
+				const disk = Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+				throw new Error(`${String(error)}; expectedLength=${pasted.length + 6}; diskLength=${disk.length}; documentLength=${document.getText().length}; dirty=${document.isDirty}; diskStart=${JSON.stringify(disk.slice(0, 20))}; documentStart=${JSON.stringify(document.getText().slice(0, 20))}`);
+			});
 		} finally { await vscode.env.clipboard.writeText(previousClipboard); }
 		await frame.page().keyboard.type('END');
 		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8').endsWith('END'), 'typing after large paste stopped saving');
@@ -1115,6 +1427,32 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	assert.fail('could not find the active Live Preview CodeMirror frame');
+}
+
+async function connectToFrameWith(selector: string): Promise<Frame> {
+	const browser = await connectToDebugBrowser();
+	let found: Frame | undefined;
+	await waitFor(async () => {
+		for (const page of browser.contexts().flatMap(context => context.pages())) {
+			for (const frame of page.frames()) {
+				if (!frame.isDetached() && await frame.locator(selector).count()) { found = frame; return true; }
+			}
+		}
+		return false;
+	}, `could not find UI frame ${selector}`, 10_000);
+	return found!;
+}
+
+async function expandOnlySidebarPane(page: Page, title: string): Promise<void> {
+	const headers = page.locator('#workbench\\.parts\\.sidebar .pane-header:visible');
+	for (let i = 0; i < await headers.count(); i++) {
+		const header = headers.nth(i);
+		const wanted = (await header.textContent())?.includes(title);
+		if ((await header.getAttribute('aria-expanded') === 'true') !== Boolean(wanted)) {
+			await header.focus();
+			await page.keyboard.press('Enter');
+		}
+	}
 }
 
 async function livePreviewFrames(expectedText: string): Promise<Frame[]> {

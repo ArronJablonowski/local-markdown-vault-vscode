@@ -1,5 +1,36 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditor, openSearch, postToWebview } from './harness';
+
+for (const focused of ['search', 'replace', 'editor'] as const) {
+	test(`full host resynchronization preserves Find/Replace state and ${focused} focus`, async ({ page }) => {
+		await mountEditor(page, 'Before needle\n');
+		await openSearch(page);
+		const search = page.locator('.cm-search input[name="search"]');
+		await search.fill('needle');
+		await page.locator('.mlp-search-toggle').click();
+		const replace = page.locator('.cm-search input[name="replace"]');
+		await replace.fill('replacement');
+		await page.locator('.cm-search label').filter({ has: page.locator('input[name="case"]') }).click();
+		await page.locator('.cm-search label').filter({ has: page.locator('input[name="word"]') }).click();
+		const target = focused === 'editor' ? page.locator('.cm-content') : focused === 'replace' ? replace : search;
+		await target.click();
+		await target.press('End');
+		await target.press('ArrowLeft');
+		await postToWebview(page, {
+			type: 'init', protocolVersion: 1, version: 20, text: 'After needle\n', css: '',
+			codeTheme: 'dark-plus', remoteMedia: 'block', workspaceTrusted: true,
+			diagramRenderingAllowed: true, editingMode: 'editing', vaultNotes: [], currentVaultPath: '',
+		});
+		await expect(search).toHaveValue('needle');
+		await expect(replace).toBeVisible();
+		await expect(replace).toHaveValue('replacement');
+		await expect(page.locator('.cm-search input[name="case"]')).toBeChecked();
+		await expect(page.locator('.cm-search input[name="word"]')).toBeChecked();
+		await expect(target).toBeFocused();
+		if (focused !== 'editor') expect(await target.evaluate(el => (el as HTMLInputElement).selectionStart)).toBe(focused === 'search' ? 5 : 10);
+		await expect(page.locator('.cm-content')).toContainText('After needle');
+	});
+}
 
 test('host undo ranges remain valid after local typing extends the original document', async ({ page }) => {
 	await mountEditor(page, 'Start ');

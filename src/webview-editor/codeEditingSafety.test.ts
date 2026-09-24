@@ -34,6 +34,21 @@ describe('code editing safety', () => {
 		expect(editor.dispatch).not.toHaveBeenCalled();
 	});
 
+	it('escapes trailing padding before an automatically inserted closing fence', () => {
+		const doc = '```python\nprint("ready")\n\n\n```';
+		const editor = view(doc, doc.indexOf('\n\n\n') + 1);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: doc.length, insert: '\n' },
+			selection: { anchor: doc.length + 1 },
+		}));
+	});
+
+	it('does not escape an interior blank line followed by more code', () => {
+		const doc = '```python\none\n\n\ntwo\n```';
+		expect(exitFencedCodeOnBlankLine(view(doc, doc.indexOf('\n\n\n') + 1))).toBe(false);
+	});
+
 	it('does not guess a closing prefix for a nested unfinished fence', () => {
 		const editor = view('> ```text\n> code\n> ');
 		expect(escapeFencedCode(editor)).toBe(false);
