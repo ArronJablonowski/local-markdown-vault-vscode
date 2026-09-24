@@ -13,6 +13,7 @@ import { rebaseEmbeddedLink } from '../shared/embeddedLink';
 import { resolveLocalImage } from './localImageClient';
 import { isOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
 import { emojiCompletions } from './emojiCompletion';
+import { refreshPreview } from './previewRefresh';
 
 let vaultNotes: VaultNoteSummary[] = [];
 let currentVaultPath = '';
@@ -502,7 +503,7 @@ export const wikilinkDecorations = ViewPlugin.fromClass(class {
 		view.dom.addEventListener('blur', this.blur, true);
 	}
 	update(update: ViewUpdate) {
-		if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = buildDecorations(update.view);
+		if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(effect => effect.is(refreshPreview)))) this.decorations = buildDecorations(update.view);
 	}
 	destroy() {
 		this.view.dom.removeEventListener('mousedown', this.pointer, true);

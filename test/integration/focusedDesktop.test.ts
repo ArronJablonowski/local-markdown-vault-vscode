@@ -65,6 +65,26 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 	});
 
+	test('emoji menu survives autosave and vault indexing until mouse acceptance', async () => {
+		const fixture = await makeFixture('emoji-menu');
+		const note = await service.createNote(fixture, 'Emoji');
+		await vscode.workspace.fs.writeFile(note, bytes('Emoji probe: '));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Emoji probe:');
+		await frame.locator('.cm-content').click();
+		await frame.page().keyboard.press('End');
+		await frame.page().keyboard.type(':s', { delay: 150 });
+		const option = frame.getByRole('option', { name: /:smile:/ });
+		await option.waitFor({ state: 'visible' });
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === 'Emoji probe: :s', 'emoji query did not autosave');
+		for (let i = 0; i < 10; i++) {
+			await delay(300);
+			assert.ok(await option.isVisible(), 'vault indexing closed the emoji menu');
+		}
+		await option.click();
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === 'Emoji probe: 😄', 'selected emoji did not autosave');
+	});
+
 	test('large mixed documents preserve exact disk content through native UI edits and file switches', async function () {
 		this.timeout(180_000);
 		const fixture = await makeFixture('large-mixed');

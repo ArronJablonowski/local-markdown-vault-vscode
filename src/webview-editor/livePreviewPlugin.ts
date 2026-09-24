@@ -8,6 +8,7 @@ import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { calloutForNode, calloutState, containingCallouts, toggleCallout } from './calloutState';
 import { renderableMathRanges } from './math';
 import { isDrawioPath } from './drawioFileClient';
+import { refreshPreview } from './previewRefresh';
 import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { detectFrontmatter } from './frontmatterWidget';
@@ -2306,7 +2307,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
 		}
 
 		update(update: ViewUpdate) {
-			if (update.docChanged || update.viewportChanged || update.selectionSet || foldedRanges(update.startState) !== foldedRanges(update.state) || update.startState.field(calloutState, false) !== update.state.field(calloutState, false)) {
+			if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(effect => effect.is(refreshPreview))) || foldedRanges(update.startState) !== foldedRanges(update.state) || update.startState.field(calloutState, false) !== update.state.field(calloutState, false)) {
 				this.decorations = buildDecorations(update.view);
 			}
 		}

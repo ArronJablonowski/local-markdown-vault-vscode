@@ -10,6 +10,7 @@ import { blockCursorTouchesRange, noteRevealed, onPointerRelease } from './cmUti
 import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, FrontmatterErrorWidget } from './frontmatterWidget';
 import { parseFrontmatterYaml } from './frontmatterSecurity';
 import { calloutForNode, containingCallouts, toggleCallout } from './calloutState';
+import { refreshPreview } from './previewRefresh';
 
 /** Keep a block object's measured box inside its surrounding callout panel. */
 class CalloutBlockWidget extends WidgetType {
@@ -175,7 +176,7 @@ export const blockDecorationsField = StateField.define<DecorationSet>({
 		if (
 			tr.docChanged ||
 			tr.selection ||
-			tr.effects.some((e) => e.is(refreshBlocks) || e.is(toggleCallout)) ||
+			tr.effects.some((e) => e.is(refreshBlocks) || e.is(refreshPreview) || e.is(toggleCallout)) ||
 			syntaxTree(tr.startState) !== syntaxTree(tr.state)
 		) {
 			return buildBlockDecorations(tr.state);

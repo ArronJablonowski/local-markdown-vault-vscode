@@ -1,5 +1,24 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditor, postToWebview } from './harness';
+
+test('emoji menu stays open during background vault refreshes and accepts a mouse click', async ({ page }) => {
+	await mountEditor(page, 'Emoji test\n\n');
+	await page.locator('.cm-content').click();
+	await page.keyboard.press('ControlOrMeta+End');
+	await page.keyboard.type(':s', { delay: 120 });
+	const option = page.getByRole('option', { name: /:smile:/ });
+	await expect(option).toBeVisible();
+	for (const type of ['vaultNotes', 'vaultNotesChunk', 'invalidateDrawioFiles']) {
+		await postToWebview(page, type === 'vaultNotesChunk'
+			? { type, generation: 1, offset: 0, total: 0, notes: [] }
+			: type === 'vaultNotes' ? { type, notes: [] } : { type });
+		await page.waitForTimeout(500);
+		await expect(option).toBeVisible();
+	}
+	await option.click();
+	await expect(page.locator('.cm-content')).toContainText('😄');
+	await expect(page.locator('.cm-content')).not.toContainText(':s');
+});
 
 test('emoji completion inserts real Unicode and sends edits and undo to the host', async ({ page }) => {
 	await mountEditor(page, 'Emoji test\n\n');

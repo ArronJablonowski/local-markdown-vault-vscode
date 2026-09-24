@@ -56,6 +56,7 @@ import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 import { renderedSelection } from './renderedSelection';
 import { whitespaceMarkers } from './whitespaceMarkers';
+import { refreshPreview } from './previewRefresh';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 0;
@@ -509,7 +510,7 @@ onHostMessage((message) => {
 			break;
 		case 'invalidateDrawioFiles':
 			clearDrawioFileCache();
-			if (view) view.dispatch({ selection: view.state.selection, annotations: remoteChange.of(true) });
+			if (view) view.dispatch({ effects: refreshPreview.of(null), annotations: remoteChange.of(true) });
 			break;
 		case 'ackEdit':
 			baseVersion = message.version;
@@ -560,7 +561,7 @@ onHostMessage((message) => {
 			pendingVaultNoteChunks = [];
 			clearWikiEmbedCache();
 			setVaultNotes(message.notes);
-			if (view) view.dispatch({ selection: view.state.selection });
+			if (view) view.dispatch({ effects: refreshPreview.of(null) });
 			break;
 		case 'vaultNotesChunk': {
 			if (message.offset === 0) {
@@ -574,7 +575,7 @@ onHostMessage((message) => {
 			pendingVaultNoteChunks = [];
 			clearWikiEmbedCache();
 			setVaultNotes(complete);
-			if (view) view.dispatch({ selection: view.state.selection });
+			if (view) view.dispatch({ effects: refreshPreview.of(null) });
 			break;
 		}
 	}
