@@ -45,6 +45,23 @@ describe('immediate Markdown autosave', () => {
 		await vi.advanceTimersByTimeAsync(1);
 		expect(document.save).toHaveBeenCalledOnce();
 	});
+	it('flush waits for a running save and persists a newer dirty edit before history continues', async () => {
+		let finish!: (saved: boolean) => void;
+		document.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+		edit();
+		await vi.advanceTimersByTimeAsync(1);
+		let settled = false;
+		const flush = controller.flush(document).then(() => { settled = true; });
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		edit();
+		finish(true);
+		await flush;
+		expect(document.save).toHaveBeenCalledTimes(2);
+		expect(document.isDirty).toBe(false);
+		await vi.advanceTimersByTimeAsync(5);
+		expect(document.save).toHaveBeenCalledTimes(2);
+	});
 	it('starts saving on the next event turn without waiting for an idle typing gap', async () => {
 		for (let index = 0; index < 10; index++) {
 			edit();

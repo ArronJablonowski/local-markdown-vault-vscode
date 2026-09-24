@@ -71,6 +71,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 			this.getCss,
 			this.getVaultNotes,
 			(uri, line) => this.jumpToDocument(uri, line),
+			() => this.autoSave.flush(document),
 		);
 		this.sessions.add(session);
 

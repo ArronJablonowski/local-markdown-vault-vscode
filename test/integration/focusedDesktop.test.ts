@@ -59,10 +59,48 @@ suite('focused cross-platform desktop transactions', () => {
 	});
 
 	teardown(async () => {
+		// Do not remove a fixture while VS Code still has a native save in flight.
+		for (const document of vscode.workspace.textDocuments) {
+			if (fixtures.some(fixture => document.uri.path.startsWith(fixture.path + '/'))) {
+				try { await document.save(); } catch { /* failure diagnostics belong to the test */ }
+			}
+		}
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		for (const fixture of fixtures.splice(0)) {
 			try { await vscode.workspace.fs.delete(fixture, { recursive: true }); } catch { /* already removed */ }
 		}
+	});
+
+	test('large clipboard paste and external replacement keep preview and disk synchronized', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('large-paste');
+		const note = await service.createNote(fixture, 'Large paste');
+		await vscode.workspace.fs.writeFile(note, bytes('Start '));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		const frame = await connectToLivePreviewFrame('Start');
+		await frame.locator('.cm-content').click();
+		await frame.page().keyboard.press('End');
+		const pasted = ('\u{1F642} local note '.repeat(100) + '\n').repeat(800);
+		const previousClipboard = await vscode.env.clipboard.readText();
+		try {
+			await vscode.env.clipboard.writeText(pasted);
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+v' : 'Control+v');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === 'Start ' + pasted, 'large paste did not reach disk');
+		} finally { await vscode.env.clipboard.writeText(previousClipboard); }
+		await frame.page().keyboard.type('END');
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8').endsWith('END'), 'typing after large paste stopped saving');
+		const document = await vscode.workspace.openTextDocument(note);
+		const replacement = 'External replacement\n' + pasted + '\nExternal final marker';
+		const edit = new vscode.WorkspaceEdit();
+		edit.replace(note, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), replacement);
+		assert.ok(await vscode.workspace.applyEdit(edit));
+		await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+		await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
+		await frame.locator('.cm-search input[name="search"]').fill('External final marker');
+		await frame.page().keyboard.press('Enter');
+		await frame.page().keyboard.press('Escape');
+		await frame.locator('.cm-line', { hasText: 'External final marker' }).waitFor({ state: 'visible' });
+		await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === replacement, 'external replacement did not persist');
 	});
 
 	test('emoji menu survives autosave and vault indexing until mouse acceptance', async () => {
@@ -111,7 +149,10 @@ suite('focused cross-platform desktop transactions', () => {
 			await keyboard.press('ArrowRight');
 			await keyboard.type(' Native saved edit.', { delay: 20 });
 			const expected = original.replace('Final editable paragraph.', 'Final editable paragraph. Native saved edit.');
-			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'large-document edit did not save exactly');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8') === expected, 'large-document edit did not save exactly').catch(async error => {
+				const doc = await vscode.workspace.openTextDocument(note);
+				throw new Error(`${String(error)}; sections=${sections}; dirty=${doc.isDirty}; diskTail=${JSON.stringify(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8').slice(-100))}; documentTail=${JSON.stringify(doc.getText().slice(-100))}`);
+			});
 			// Host undo may group rapid typing into multiple transactions.
 			for (let attempt = 0; attempt < 20; attempt++) {
 				const before = Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
@@ -562,11 +603,12 @@ suite('focused cross-platform desktop transactions', () => {
 		const frame = await connectToLivePreviewFrame();
 		const editor = frame.locator('.cm-content');
 		await editor.click();
-		await frame.page().keyboard.type(inserted);
+		await frame.page().keyboard.insertText(inserted);
 		await waitFor(() => document.getText().includes(inserted), 'desktop keyboard input did not reach Live Preview');
 		const edited = document.getText();
 		assert.notStrictEqual(edited, original);
-		await waitFor(() => document.isDirty, 'Live Preview keyboard input did not mark the document dirty');
+		await waitFor(async () => new TextDecoder().decode(await vscode.workspace.fs.readFile(note)) === edited,
+			'Live Preview input did not autosave');
 
 		const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 		await frame.page().keyboard.press(`${primaryModifier}+z`);
@@ -577,11 +619,15 @@ suite('focused cross-platform desktop transactions', () => {
 
 		await frame.page().keyboard.press(`${primaryModifier}+s`);
 		await waitFor(() => !document.isDirty, 'the platform save shortcut did not save the Live Preview document');
-		assert.strictEqual(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)), edited);
+		await waitFor(async () => new TextDecoder().decode(await vscode.workspace.fs.readFile(note)) === edited,
+			'the redo/save operation did not reach disk');
 
 		const external = '# External Live Preview update\n';
+		await document.save();
 		await vscode.workspace.fs.writeFile(note, bytes(external));
-		await waitFor(() => document.getText() === external, 'the TextDocument did not receive the external file change');
+		await waitFor(() => document.getText() === external, 'the TextDocument did not receive the external file change').catch(async error => {
+			throw new Error(`${String(error)}; dirty=${document.isDirty}; document=${JSON.stringify(document.getText())}; disk=${JSON.stringify(new TextDecoder().decode(await vscode.workspace.fs.readFile(note)))}`);
+		});
 		await waitFor(async () => (await editor.textContent())?.includes('External Live Preview update') === true,
 			'Live Preview did not render the external file change');
 	});

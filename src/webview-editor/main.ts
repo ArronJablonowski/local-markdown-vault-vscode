@@ -36,7 +36,7 @@ import {
 } from './searchReveal';
 import { t } from '../shared/i18n';
 import { adaptMarkdownCss, sanitizePreviewCss, scopePreviewCss } from '../shared/cssAdapter';
-import type { TextChange, VaultNoteSummary } from '../shared/messages';
+import type { VaultNoteSummary } from '../shared/messages';
 import { setDiagramRenderingAllowed } from './diagramLang';
 import { mathDecorationsField } from './math';
 import { footnoteDecorations } from './footnotes';
@@ -57,6 +57,7 @@ import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboa
 import { renderedSelection } from './renderedSelection';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
+import { takeEditBatch } from './editBatch';
 
 const remoteChange = Annotation.define<boolean>();
 const FLUSH_DEBOUNCE_MS = 0;
@@ -88,11 +89,8 @@ function flush() {
 		for (const type of pendingHistory.splice(0)) postToHost({ type });
 		return;
 	}
-	const changes: TextChange[] = [];
-	pending.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-		changes.push({ from: fromA, to: toA, insert: inserted.toString() });
-	});
-	pending = null;
+	const { changes, remaining } = takeEditBatch(pending);
+	pending = remaining;
 	editInFlight = true;
 	postToHost({ type: 'edit', baseVersion, changes });
 }

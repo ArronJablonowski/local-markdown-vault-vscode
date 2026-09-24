@@ -22,6 +22,7 @@ interface TrackedDocument {
 	timer?: ReturnType<typeof setTimeout>;
 	saving: boolean;
 	pending: boolean;
+	operation?: Promise<void>;
 	failureReported?: boolean;
 }
 
@@ -111,8 +112,21 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 		const generation = ++state.generation;
 		state.timer = setTimeout(() => {
 			state.timer = undefined;
-			void this.saveIfAuthorized(state, generation);
+			state.operation = this.saveIfAuthorized(state, generation);
 		}, MARKDOWN_AUTO_SAVE_DELAY_MS);
+	}
+
+	/** Settle a save before/after undo so native history cannot race a disk write. */
+	async flush(document: vscode.TextDocument): Promise<void> {
+		const state = this.tracked.get(document.uri.toString());
+		if (!state || state.document !== document || this.disposed) return;
+		this.cancelTimer(state);
+		await state.operation;
+		while (state.saving) await state.operation;
+		this.cancelTimer(state);
+		if (this.tracked.get(document.uri.toString()) !== state || this.disposed) return;
+		state.operation = this.saveIfAuthorized(state, state.generation);
+		await state.operation;
 	}
 
 	private enabled(document: vscode.TextDocument): boolean {

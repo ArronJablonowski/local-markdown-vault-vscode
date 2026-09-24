@@ -1,6 +1,39 @@
 import { test, expect } from '@playwright/test';
 import { mountEditor, postToWebview } from './harness';
 
+test('host undo ranges remain valid after local typing extends the original document', async ({ page }) => {
+	await mountEditor(page, 'Start ');
+	await page.locator('.cm-content').click();
+	await page.keyboard.press('End');
+	await page.keyboard.type('added text');
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').flatMap((m: any) => m.changes).map((c: any) => c.insert).join(''))).toBe('added text');
+	await postToWebview(page, { type: 'externalUpdate', version: 50, changes: [{ from: 6, to: 16, insert: '' }] });
+	await expect(page.locator('.cm-content')).not.toContainText('added text');
+	await expect(page.locator('.cm-content')).toContainText('Start');
+});
+
+test('large Unicode paste is batched within protocol limits and later typing still saves', async ({ page }) => {
+	await mountEditor(page, 'Start ');
+	await page.locator('.cm-content').click();
+	await page.keyboard.press('End');
+	const pasted = ('\u{1F642} local note '.repeat(100) + '\n').repeat(800);
+	await page.locator('.cm-content').evaluate((el, text) => {
+		const clipboardData = new DataTransfer();
+		clipboardData.setData('text/plain', text);
+		el.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+	}, pasted);
+	await page.keyboard.type('END');
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').flatMap((m: any) => m.changes).map((c: any) => c.insert).join('').endsWith('END'))).toBe(true);
+	const edits = await page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit'));
+	let document = 'Start ';
+	for (const edit of edits) {
+		expect(edit.changes.length).toBeLessThanOrEqual(1000);
+		expect(edit.changes.reduce((sum: number, c: any) => sum + Buffer.byteLength(c.insert), 0)).toBeLessThanOrEqual(1024 * 1024);
+		for (const change of [...edit.changes].reverse()) document = document.slice(0, change.from) + change.insert + document.slice(change.to);
+	}
+	expect(document).toBe('Start ' + pasted + 'END');
+});
+
 test('continuous typing is sent before typing stops', async ({ page }) => {
 	await mountEditor(page, 'Start ');
 	await page.locator('.cm-content').click();

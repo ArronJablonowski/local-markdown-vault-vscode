@@ -5,7 +5,7 @@ import { pickCodeTheme, tokenizeDocument } from './shikiHost';
 import { extensionForMimeType, generateImageFileName, hasRasterImageSignature, hasSafeRasterImageDimensions, rasterMimeTypeForPath } from '../shared/imageAssets';
 import { resolveLinkTarget } from '../shared/linkTarget';
 import { isPathInside } from '../shared/pathContainment';
-import { MAX_EDITOR_DOCUMENT_BYTES, MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGE_COUNT, MAX_PASTED_IMAGE_OPERATION_BYTES, validateEditorToHostMessage } from '../shared/messageValidation';
+import { MAX_EDITOR_DOCUMENT_BYTES, MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGE_COUNT, MAX_PASTED_IMAGE_OPERATION_BYTES, validateEditorToHostMessage, validateHostToEditorMessage } from '../shared/messageValidation';
 import { isCanonicalPathInside } from './canonicalContainment';
 import { relative } from 'node:path';
 import { VaultService, type CreatedVaultFile } from '../vault/VaultService';
@@ -117,6 +117,7 @@ export class DocumentSyncSession {
 		private readonly getCss: () => string,
 		private readonly getVaultNotes: () => VaultNoteSummary[],
 		private readonly revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
+		private readonly settleAutoSave?: () => Promise<void>,
 	) {
 		this.lastAppliedVersion = document.version;
 		this.documentText = document.getText();
@@ -212,12 +213,20 @@ export class DocumentSyncSession {
 				// Chained onto mutationQueue (not fired immediately) so it can't run ahead
 				// of an 'edit' message still being applied — otherwise it would undo
 				// the wrong (older) change and desync from the webview's local state.
-				this.enqueueMutation(async () => { await vscode.commands.executeCommand('undo'); });
+				this.enqueueMutation(async () => {
+					await this.settleAutoSave?.();
+					if (this.disposed || !this.webviewPanel.active) return;
+					await vscode.commands.executeCommand('undo');
+					await this.settleAutoSave?.();
+				});
 				break;
 			case 'redo':
-				this.enqueueMutation(() => executeCaseAwareRedo(
-					() => vscode.commands.executeCommand('redo'),
-				));
+				this.enqueueMutation(async () => {
+					await this.settleAutoSave?.();
+					if (this.disposed || !this.webviewPanel.active) return;
+					await executeCaseAwareRedo(() => vscode.commands.executeCommand('redo'));
+					await this.settleAutoSave?.();
+				});
 				break;
 			case 'openLink':
 				{
@@ -979,7 +988,12 @@ export class DocumentSyncSession {
 			this.scheduleRehighlight();
 			return;
 		}
-		this.post({ type: 'externalUpdate', changes, version: event.document.version });
+		const update: HostToEditorMessage = { type: 'externalUpdate', changes, version: event.document.version };
+		// An external paste/replace-all can exceed the incremental message limit.
+		// Use the bounded document snapshot path instead of sending a patch the
+		// renderer must reject, which would leave it permanently out of sync.
+		if (validateHostToEditorMessage(update, offsetMap.normalizedText.length).ok) this.post(update);
+		else this.sendInit();
 		this.scheduleRehighlight();
 	}
 
