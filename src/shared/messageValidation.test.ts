@@ -21,6 +21,15 @@ describe('validateEditorToHostMessage', () => {
 		for (const enabled of ['true', 1, null, {}]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(false);
 		expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled: true, command: 'unsafe' }, 0).ok).toBe(false);
 	});
+	it('accepts only exact boolean sticky table header updates from the host', () => {
+		for (const enabled of [true, false]) expect(validateHostToEditorMessage({ type: 'setStickyTableHeaders', enabled }, 0).ok).toBe(true);
+		for (const enabled of ['true', 'false', 'on', 'off', 0, 1, null, undefined, [], {}]) {
+			expect(validateHostToEditorMessage({ type: 'setStickyTableHeaders', enabled }, 0).ok).toBe(false);
+		}
+		expect(validateHostToEditorMessage({ type: 'setStickyTableHeaders' }, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ type: 'setStickyTableHeaders', enabled: true, command: 'unsafe' }, 0).ok).toBe(false);
+		expect(validateEditorToHostMessage({ type: 'setStickyTableHeaders', enabled: true }, 0).ok).toBe(false);
+	});
 	it('accepts only exact boolean host-owned panel visibility updates', () => {
 		for (const visible of [true, false]) {
 			expect(validateHostToEditorMessage({ type: 'panelVisibility', visible }, 0)).toEqual({ ok: true, value: { type: 'panelVisibility', visible } });

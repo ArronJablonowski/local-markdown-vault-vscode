@@ -62,8 +62,8 @@
 	min-height: 2.4rem;
 }
 
-.markdown-body table thead th,
-body.vscode-body table thead th {
+.markdown-body table.lmv-sticky-table-headers thead th,
+body.vscode-body table.lmv-sticky-table-headers thead th {
 	position: sticky;
 	top: 0;
 	z-index: 2;

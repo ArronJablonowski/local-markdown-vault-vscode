@@ -151,6 +151,9 @@ export class DocumentSyncSession {
 			if (event.affectsConfiguration('mdLivePreview.showWhitespace', this.document.uri) && this.readyReceived) {
 				this.sendWhitespaceSetting();
 			}
+			if (event.affectsConfiguration('mdLivePreview.stickyTableHeaders', this.document.uri) && this.readyReceived) {
+				this.sendStickyTableHeadersSetting();
+			}
 			if (event.affectsConfiguration('mdLivePreview.codeTheme', this.document.uri) && this.readyReceived) {
 				this.scheduleRehighlight(true);
 			}
@@ -956,6 +959,10 @@ export class DocumentSyncSession {
 		this.post({ type: 'setWhitespace', enabled: vscode.workspace.getConfiguration('mdLivePreview', this.document.uri).get<string>('showWhitespace', 'off') === 'on' });
 	}
 
+	private sendStickyTableHeadersSetting(): void {
+		this.post({ type: 'setStickyTableHeaders', enabled: vscode.workspace.getConfiguration('mdLivePreview', this.document.uri).get<boolean>('stickyTableHeaders', false) === true });
+	}
+
 	private sendInit() {
 		const configuration = vscode.workspace.getConfiguration('mdLivePreview', this.document.uri);
 		const remoteMedia = resolveWorkspaceRemoteMediaPolicy(
@@ -990,6 +997,7 @@ export class DocumentSyncSession {
 		this.scheduleVaultNotesSync();
 		this.lastAppliedVersion = this.document.version;
 		this.sendWhitespaceSetting();
+		this.sendStickyTableHeadersSetting();
 	}
 
 	private async recoverRejectedEdit(acceptedText: string, changes: TextChange[]): Promise<void> {

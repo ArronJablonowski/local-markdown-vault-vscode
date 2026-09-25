@@ -43,6 +43,7 @@
   "config.codeTheme.githubLight": "GitHub Light palette.",
   "config.enabledStyles": "The CSS theme applied to the live preview. Pick one exclusively from \"CSS Themes\" in the sidebar (global setting).",
   "config.showWhitespace": "Show spaces, tabs, and line-break markers in Markdown Live Preview. Display only; does not change Markdown or copied text. Off by default.",
+  "config.stickyTableHeaders": "Keep table headers visible while scrolling through a table. Display only; does not change Markdown. Off by default.",
   "config.defaultEditor": "Selects the default viewing mode used when opening Markdown files.",
   "config.defaultEditor.prompt": "Use VS Code's current default editor association.",
   "config.defaultEditor.textEditor": "Open Markdown files as source in the Text Editor.",

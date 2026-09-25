@@ -15,8 +15,9 @@ import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/v
 import { openDefaultVaultWhenNeeded } from './vault/defaultVault';
 import { DEFAULT_EDITOR_SETTING, editorViewType, normalizeDefaultEditorSetting } from './shared/editorOpenPolicy';
 import { registerNativeMarkdownCompatibility } from './editor/nativeMarkdownCompatibility';
+import { createMarkdownPreviewSupport, type MarkdownPreviewApi } from './editor/markdownPreviewSupport';
 
-interface DevelopmentApi {
+interface DevelopmentApi extends MarkdownPreviewApi {
 	getDragDropTestTypes(): { VaultEntry: typeof VaultEntry; VaultTreeProvider: typeof VaultTreeProvider; VaultDragAndDropController: typeof VaultDragAndDropController };
 	getVaultService(): ReturnType<Awaited<ReturnType<typeof registerVault>>['getService']>;
 	getVaultRecentPaths(): readonly string[];
@@ -93,12 +94,15 @@ async function syncDefaultEditorAssociation(): Promise<void> {
 
 let flushPendingSaves: (() => Promise<void>) | undefined;
 
-export async function activate(context: vscode.ExtensionContext): Promise<DevelopmentApi | undefined> {
+export async function activate(context: vscode.ExtensionContext): Promise<MarkdownPreviewApi | DevelopmentApi | undefined> {
 	// Never replace a workspace the user chose. In an empty window, create the
 	// local default vault and stop because vscode.openFolder reloads this host.
 	if (await openDefaultVaultWhenNeeded()) return undefined;
 	context.subscriptions.push({ dispose: disposeCaseRenameCoordinators });
 	initializeDiagnostics(context);
+	const markdownPreviewSupport = createMarkdownPreviewSupport();
+	context.subscriptions.push(markdownPreviewSupport);
+	const markdownPreviewApi: MarkdownPreviewApi = { extendMarkdownIt: markdownPreviewSupport.extendMarkdownIt };
 	diagnosticEvent('extension.activate', { mode: vscode.ExtensionMode[context.extensionMode] ?? context.extensionMode });
 	// Syntax grammars are read from disk on first use rather than bundled (see
 	// shikiHost.ts); this is the only place that knows where the extension was
@@ -180,9 +184,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 	await syncDefaultEditorAssociation();
 	// Filesystem transaction tests need the live service from the real extension
 	// host. Keep this seam out of installed builds; production consumers receive
-	// no public API and cannot use it to bypass command trust checks.
+	// only VS Code's Markdown renderer hook, never services or test operations.
 	if (context.extensionMode !== vscode.ExtensionMode.Production) {
 		return {
+			...markdownPreviewApi,
 			getDragDropTestTypes: () => ({ VaultEntry, VaultTreeProvider, VaultDragAndDropController }),
 			getVaultService: () => vaultRegistration.getService(),
 			getVaultRecentPaths: () => vaultRegistration.getRecentPaths(),
@@ -266,7 +271,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Develo
 				},
 			};
 	}
-	return undefined;
+	return markdownPreviewApi;
 }
 
 export async function deactivate(): Promise<void> {

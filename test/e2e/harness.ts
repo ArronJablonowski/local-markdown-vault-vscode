@@ -47,6 +47,7 @@ export async function mountEditor(
 		vaultNotes?: Array<{ path: string; basename: string; aliases: string[]; headings: Array<{ text: string; line: number }>; blockIds: string[] }>;
 		currentVaultPath?: string;
 		editingMode?: 'editing' | 'locked';
+		stickyTableHeaders?: boolean;
 		themeKind?: 'dark' | 'light';
 	} = {},
 ): Promise<void> {
@@ -103,7 +104,7 @@ ${style}
 </body>
 </html>`);
 
-	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath, editingMode }) => {
+	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath, editingMode, stickyTableHeaders }) => {
 		window.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
@@ -122,6 +123,7 @@ ${style}
 				},
 			}),
 		);
+		window.dispatchEvent(new MessageEvent('message', { data: { type: 'setStickyTableHeaders', enabled: stickyTableHeaders } }));
 	}, {
 		docText: text,
 		workspaceTrusted: options.workspaceTrusted ?? true,
@@ -131,6 +133,7 @@ ${style}
 		vaultNotes: options.vaultNotes ?? [],
 		currentVaultPath: options.currentVaultPath ?? '',
 		editingMode: options.editingMode ?? 'editing',
+		stickyTableHeaders: options.stickyTableHeaders ?? false,
 	});
 
 	await page.waitForSelector('.cm-content');
@@ -159,6 +162,7 @@ export async function mountStyleSidebar(
 					codeTheme: 'auto',
 					vaultOpenBehavior: 'reuseTab',
 					showWhitespace: 'off',
+					stickyTableHeaders: false,
 				},
 				themeKind: 'vscode-dark',
 				workspaceTrusted: trusted,

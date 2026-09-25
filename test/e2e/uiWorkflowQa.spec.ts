@@ -7,7 +7,7 @@ const styles = [
 	{ id: 'first', name: 'First QA', enabled: true, css: '' },
 	{ id: 'second', name: 'Second QA', enabled: false, css: '' },
 ];
-const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off' };
+const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', stickyTableHeaders: false };
 
 test('settings keep keyboard focus after the host confirms a change', async ({ page }) => {
 	await mountStyleSidebar(page, styles);
@@ -28,11 +28,15 @@ test('theme selection keeps keyboard focus when its confirmation rebuilds the si
 
 test('every settings option emits the correct bounded host request', async ({ page }) => {
 	await mountStyleSidebar(page, styles);
-	for (const [index, key] of ['showWhitespace', 'defaultEditor', 'vaultOpenBehavior', 'defaultEditingMode', 'codeTheme'].entries()) {
-		const select = page.locator('select').nth(index);
+	for (const [key, label] of [
+		['showWhitespace', 'Show spaces and line breaks (Live Preview)'], ['stickyTableHeaders', 'Sticky table headers'],
+		['defaultEditor', 'Default viewing mode'], ['vaultOpenBehavior', 'Vault file tabs'],
+		['defaultEditingMode', 'Default Live Preview mode'], ['codeTheme', 'Code palette'],
+	]) {
+		const select = page.getByLabel(label);
 		for (const value of await select.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))) {
 			await select.selectOption(value);
-			expect(await page.evaluate(() => (window as unknown as { __posted: unknown[] }).__posted.at(-1))).toEqual({ type: 'setSetting', key, value });
+			expect(await page.evaluate(() => (window as unknown as { __posted: unknown[] }).__posted.at(-1))).toEqual({ type: 'setSetting', key, value: key === 'stickyTableHeaders' ? value === 'on' : value });
 		}
 	}
 });
@@ -64,7 +68,7 @@ test('sidebar updates neither steal external focus nor expose restricted theme a
 	await postToWebview(page, { type: 'init', styles, settings, themeKind: 'vscode-dark', workspaceTrusted: false });
 	await expect(page.locator('#external-control')).toBeFocused();
 	await expect(page.locator('.mlp-card, .mlp-new-style')).toHaveCount(0);
-	await expect(page.locator('select')).toHaveCount(5);
+	await expect(page.locator('select')).toHaveCount(6);
 });
 
 for (const editingMode of ['editing', 'locked'] as const) {

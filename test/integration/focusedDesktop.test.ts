@@ -327,6 +327,10 @@ suite('focused cross-platform desktop transactions', () => {
 
 	test('fresh journey: builds a wide inventory table, edits pipes, deletes one cell, and checks sticky alignment', async function () {
 		this.timeout(120_000);
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const originalSticky = config.inspect<boolean>('stickyTableHeaders')?.globalValue;
+		try {
+		await config.update('stickyTableHeaders', true, vscode.ConfigurationTarget.Global);
 		const fixture = await makeFixture('fresh-inventory');
 		const note = await service.createNote(fixture, 'Equipment inventory');
 		const { frame, keyboard, type, line, find, disk } = await beginTypedJourney(note);
@@ -397,6 +401,7 @@ suite('focused cross-platform desktop transactions', () => {
 		}
 		assert.strictEqual(await disk(), edited, 'scrolling rewrote the table');
 		await frame.page().screenshot({ path: '/tmp/mdlp-fresh-inventory.png' });
+		} finally { await config.update('stickyTableHeaders', originalSticky, vscode.ConfigurationTarget.Global); }
 	});
 
 	test('fresh journey: types a runbook with code and a sequence diagram then changes the visible code palette', async function () {
@@ -436,7 +441,7 @@ suite('focused cross-platform desktop transactions', () => {
 		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
 		await expandOnlySidebarPane(await getWorkbenchPage(), 'CSS Themes');
 		const sidebar = await connectToFrameWith('#mlp-sidebar-root');
-		const palette = sidebar.locator('select').nth(4);
+		const palette = sidebar.getByLabel('Code palette');
 		const originalPalette = await palette.inputValue();
 		const colors = () => frame.locator('.cm-line').filter({ hasText: 'const status' }).evaluateAll(lines => lines.flatMap(el => Array.from(el.querySelectorAll('span')).map(span => getComputedStyle(span).color)).join('|'));
 		try {
@@ -455,16 +460,22 @@ suite('focused cross-platform desktop transactions', () => {
 		await vscode.commands.executeCommand('mdLivePreview.styleManager.focus');
 		const frame = await connectToFrameWith('#mlp-sidebar-root');
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
-		const keys = ['showWhitespace', 'defaultEditor', 'vault.openBehavior', 'defaultEditingMode', 'codeTheme'];
+		const settings = [
+			['showWhitespace', 'Show spaces and line breaks (Live Preview)'], ['stickyTableHeaders', 'Sticky table headers'],
+			['defaultEditor', 'Default viewing mode'], ['vault.openBehavior', 'Vault file tabs'],
+			['defaultEditingMode', 'Default Live Preview mode'], ['codeTheme', 'Code palette'],
+		];
+		const keys = settings.map(([key]) => key);
 		const originals = keys.map(key => config.inspect(key)?.globalValue);
 		const originalWorkspace = config.inspect('showWhitespace')?.workspaceValue;
+		const originalStickyWorkspace = config.inspect('stickyTableHeaders')?.workspaceValue;
 		try {
-			for (const [index, key] of keys.entries()) {
-				const control = frame.locator('select').nth(index);
+			for (const [key, label] of settings) {
+				const control = frame.getByLabel(label);
 				const values = await control.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
 				for (const value of values) {
 					await control.selectOption(value);
-					await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get(key) === value, `${key}=${value} did not persist`);
+					await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get(key) === (key === 'stickyTableHeaders' ? value === 'on' : value), `${key}=${value} did not persist`);
 					await waitFor(async () => await control.inputValue() === value, `${key} reset after host confirmation`);
 				}
 			}
@@ -473,10 +484,80 @@ suite('focused cross-platform desktop transactions', () => {
 			await waitFor(async () => await frame.locator('select').first().inputValue() === 'on', 'workspace setting did not appear');
 			await frame.locator('select').first().selectOption('off');
 			await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get('showWhitespace') === 'off', 'sidebar cannot change a workspace-overridden setting');
+			await config.update('stickyTableHeaders', true, vscode.ConfigurationTarget.Workspace);
+			const sticky = frame.getByLabel('Sticky table headers');
+			await waitFor(async () => await sticky.inputValue() === 'on', 'workspace sticky-header override did not appear');
+			await sticky.selectOption('off');
+			await waitFor(() => vscode.workspace.getConfiguration('mdLivePreview').get('stickyTableHeaders') === false, 'sidebar cannot disable workspace-overridden sticky headers');
 		} finally {
 			await config.update('showWhitespace', originalWorkspace, vscode.ConfigurationTarget.Workspace);
+			await config.update('stickyTableHeaders', originalStickyWorkspace, vscode.ConfigurationTarget.Workspace);
 			for (const [index, key] of keys.entries()) await config.update(key, originals[index], vscode.ConfigurationTarget.Global);
 		}
+	});
+
+	test('sticky table headers default off and live changes preserve scroll, unfinished edits, and saved bytes', async function () {
+		this.timeout(60_000);
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const originalSticky = config.inspect<boolean>('stickyTableHeaders')?.globalValue;
+		assert.strictEqual(config.inspect<boolean>('stickyTableHeaders')?.defaultValue, false);
+		assert.strictEqual(config.get<boolean>('stickyTableHeaders'), false, 'the disposable profile should start with non-sticky headers');
+		const fixture = await makeFixture('sticky-preference');
+		const note = await service.createNote(fixture, 'Sticky preference');
+		const headings = Array.from({ length: 8 }, (_, index) => `Heading ${index}`);
+		const source = '# Sticky preference\n\n| ' + headings.join(' | ') + ' |\n| ' + headings.map(() => '---').join(' | ') + ' |\n'
+			+ Array.from({ length: 24 }, (_, row) => '| ' + headings.map((_, column) => `Original row ${row} column ${column}`).join(' | ') + ' |').join('\n')
+			+ '\n\nAfter table.\n'.repeat(12);
+		await vscode.workspace.fs.writeFile(note, bytes(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor', { preview: false });
+			const frame = await connectToLivePreviewFrame('Sticky preference');
+			const wrap = frame.locator('.mlp-table-wrap');
+			const table = await wrap.locator('.mlp-table').elementHandle();
+			const viewport = wrap.locator('.mlp-table-viewport');
+			const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+			assert.notStrictEqual(await wrap.locator('th').first().evaluate(element => getComputedStyle(element).position), 'sticky');
+			await waitFor(() => wrap.evaluate(async element => {
+				const scroller = document.querySelector('.cm-scroller')!;
+				const table = element.querySelector('.mlp-table')!;
+				scroller.scrollTop += table.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 120;
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				return Math.abs(table.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 120) <= 2;
+			}), 'table must settle at the intended vertical scroll position');
+			await viewport.evaluate(element => { element.scrollLeft = 350; });
+			const position = await viewport.evaluate(element => ({ left: element.scrollLeft, top: document.querySelector('.cm-scroller')!.scrollTop }));
+			assert.ok(position.left > 0, 'the fixture must exercise a genuinely wide table');
+			for (const enabled of [true, false]) {
+				await config.update('stickyTableHeaders', enabled, vscode.ConfigurationTarget.Global);
+				await waitFor(() => frame.locator('body').evaluate((element, enabled) => element.classList.contains('mlp-sticky-table-headers') === enabled, enabled), 'sticky setting did not reach the current editor');
+				await waitFor(async () => (await wrap.locator('.mlp-table-sticky-header').getAttribute('hidden') === null) === enabled, 'sticky overlay did not follow the live preference');
+				if (enabled) assert.ok(await wrap.locator('.mlp-table-sticky-clip').isVisible(), 'the sticky header content is not visible');
+				if (enabled) await waitFor(() => wrap.evaluate(element => {
+					const headers = Array.from(element.querySelectorAll('.mlp-sticky-table th'));
+					const cells = Array.from(element.querySelectorAll('.mlp-table tbody tr:first-child td'));
+					return headers.length === cells.length && headers.length > 0 && headers.every((header, index) => Math.abs(header.getBoundingClientRect().left - cells[index].getBoundingClientRect().left) <= 2);
+				}), 'enabled sticky columns must remain aligned after horizontal scrolling');
+				assert.ok(await table!.evaluate(element => element.isConnected), 'a display preference rebuilt the table');
+				const current = await viewport.evaluate(element => ({ left: element.scrollLeft, top: document.querySelector('.cm-scroller')!.scrollTop }));
+				assert.ok(Math.abs(current.left - position.left) <= 2 && Math.abs(current.top - position.top) <= 2, 'a display preference changed the scroll position');
+				assert.strictEqual(await disk(), source, 'changing sticky headers rewrote Markdown');
+			}
+			await frame.locator('.cm-scroller').evaluate(element => { element.scrollTop = 0; });
+			const cell = wrap.locator('tbody tr').first().locator('td').last();
+			await cell.focus();
+			await frame.page().keyboard.press('F2');
+			await frame.page().keyboard.type('Retained draft', { delay: 4 });
+			const draftCell = await cell.elementHandle();
+			for (const enabled of [true, false]) {
+				await config.update('stickyTableHeaders', enabled, vscode.ConfigurationTarget.Global);
+				await waitFor(() => frame.locator('body').evaluate((element, enabled) => element.classList.contains('mlp-sticky-table-headers') === enabled, enabled), 'draft setting did not reach the editor');
+				assert.ok(await draftCell!.evaluate(element => element.isConnected && element === document.activeElement), 'changing sticky headers detached or blurred the unfinished cell');
+				assert.strictEqual(await cell.textContent(), 'Retained draft');
+				assert.strictEqual(await disk(), source, 'a display preference committed an unfinished cell');
+			}
+			await frame.page().keyboard.press('Enter');
+			await waitFor(async () => await disk() === source.replace('Original row 0 column 7', 'Retained draft'), 'the preserved cell draft did not save exactly after Enter');
+		} finally { await config.update('stickyTableHeaders', originalSticky, vscode.ConfigurationTarget.Global); }
 	});
 
 	test('sidebar visibility: hidden Vault stays hidden through Live Preview typing, checkbox saves, and Text Editor typing', async function () {

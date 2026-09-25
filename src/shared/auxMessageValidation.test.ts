@@ -22,7 +22,7 @@ describe('auxiliary enum types', () => {
 		}
 	});
 	it('rejects non-string settings and theme kinds in sidebar snapshots', () => {
-		const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off' };
+		const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', stickyTableHeaders: false };
 		const message = { type: 'init', styles: [], settings, themeKind: 'vscode-dark', workspaceTrusted: true };
 		for (const key of ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior'] as const) {
 			expect(validateHostToSidebarMessage({ ...message, settings: { ...settings, [key]: [settings[key]] } }).ok).toBe(false);
@@ -35,6 +35,13 @@ describe('auxiliary webview message validation', () => {
 	it('accepts only the on/off whitespace setting', () => {
 		for (const value of ['on', 'off']) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(true);
 		for (const value of [true, 'all', {}, null]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(false);
+	});
+	it('accepts sticky table header setting changes only as exact booleans', () => {
+		for (const value of [true, false]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'stickyTableHeaders', value }).ok).toBe(true);
+		for (const value of ['true', 'false', 'on', 'off', 0, 1, null, undefined, [], {}]) {
+			expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'stickyTableHeaders', value }).ok).toBe(false);
+		}
+		expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'stickyTableHeaders', value: true, command: 'unsafe' }).ok).toBe(false);
 	});
 	it('accepts exact benign messages', () => {
 		expect(validateOutlineToHostMessage({ type: 'jumpToHeading', line: 3 }).ok).toBe(true);
@@ -79,11 +86,16 @@ describe('auxiliary webview message validation', () => {
 				codeTheme: 'auto',
 				vaultOpenBehavior: 'reuseTab',
 				showWhitespace: 'off',
+				stickyTableHeaders: false,
 			},
 			themeKind: 'vscode-dark',
 			workspaceTrusted: false,
 		};
 		expect(validateHostToSidebarMessage(sidebar).ok).toBe(true);
+		expect(validateHostToSidebarMessage({ ...sidebar, settings: { ...sidebar.settings, stickyTableHeaders: true } }).ok).toBe(true);
+		for (const stickyTableHeaders of ['false', 'on', 1, null, undefined, []]) {
+			expect(validateHostToSidebarMessage({ ...sidebar, settings: { ...sidebar.settings, stickyTableHeaders } }).ok).toBe(false);
+		}
 		expect(validateHostToSidebarMessage({ ...sidebar, workspaceTrusted: 'yes' }).ok).toBe(false);
 		expect(validateHostToSidebarMessage({ ...sidebar, unexpected: true }).ok).toBe(false);
 		expect(validateHostToSidebarMessage({ ...sidebar, settings: { ...sidebar.settings, codeTheme: 'remote-theme' } }).ok).toBe(false);

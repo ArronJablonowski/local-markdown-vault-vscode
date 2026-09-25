@@ -12,7 +12,7 @@ for (const editingMode of ['editing', 'locked'] as const) {
 			return `## Table set ${index}\n\n| ${headers.join(' | ')} |\n| ${headers.map(() => '---').join(' | ')} |\n` +
 				Array.from({ length: rows }, (_, row) => '| ' + headers.map((_, c) => `${row}-${c} ${'wide data '.repeat(c % 4 + 1)}<br>**Detail**`).join(' | ') + ' |').join('\n');
 		}).join('\n\n') + '\n\nAfter tables\n' + '\nTrailing paragraph\n'.repeat(40);
-		await mountEditor(page, source, { editingMode, css: 'th, td { padding: 12px 18px; } table { table-layout: auto !important; }' });
+		await mountEditor(page, source, { editingMode, stickyTableHeaders: true, css: 'th, td { padding: 12px 18px; } table { table-layout: auto !important; }' });
 		for (const index of [0, 1, 2, 0]) {
 			// Search brings distant widgets into CodeMirror's rendered viewport.
 			await page.locator('.cm-content').click({ position: { x: 5, y: 5 } });

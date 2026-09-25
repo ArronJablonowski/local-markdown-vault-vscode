@@ -38,6 +38,7 @@ export type HostToEditorMessage =
 	| { type: 'draftPreserved'; requestId: number; ok: boolean }
 	| { type: 'panelVisibility'; visible: boolean }
 	| { type: 'setWhitespace'; enabled: boolean }
+	| { type: 'setStickyTableHeaders'; enabled: boolean }
 	| { type: 'copyCodeResult'; requestId: number; ok: boolean }
 	| {
 			type: 'init';
@@ -113,6 +114,7 @@ export type CodeThemeSetting = 'auto' | 'dark-plus' | 'light-plus' | 'github-dar
 export type VaultOpenBehaviorSetting = 'reuseTab' | 'newTab';
 export interface SidebarSettings {
 	showWhitespace: 'off' | 'on';
+	stickyTableHeaders: boolean;
 	defaultEditor: DefaultEditorSetting;
 	defaultEditingMode: EditingModeSetting;
 	codeTheme: CodeThemeSetting;
@@ -138,7 +140,8 @@ export type SidebarToHostMessage =
 	| { type: 'duplicateStyle'; id: string }
 	| { type: 'renameStyle'; id: string }
 	| { type: 'deleteStyle'; id: string }
-	| { type: 'setSetting'; key: keyof SidebarSettings; value: string };
+	| { type: 'setSetting'; key: Exclude<keyof SidebarSettings, 'stickyTableHeaders'>; value: string }
+	| { type: 'setSetting'; key: 'stickyTableHeaders'; value: boolean };
 
 // Live CSS-theme preview panel (opened beside the CSS file while editing it).
 export type HostToPreviewMessage =

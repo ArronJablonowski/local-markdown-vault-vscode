@@ -194,6 +194,11 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 		[['off', t('sidebar.showWhitespace.off')], ['on', t('sidebar.showWhitespace.on')]],
 		(value) => post({ type: 'setSetting', key: 'showWhitespace', value }),
 	));
+	section.appendChild(buildSelect(
+		t('sidebar.stickyTableHeaders'), settings.stickyTableHeaders ? 'on' : 'off',
+		[['off', t('sidebar.stickyTableHeaders.off')], ['on', t('sidebar.stickyTableHeaders.on')]],
+		(value) => post({ type: 'setSetting', key: 'stickyTableHeaders', value: value === 'on' }),
+	));
 
 	section.appendChild(
 		buildSelect(

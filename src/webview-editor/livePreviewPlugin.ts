@@ -17,6 +17,7 @@ import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
 import { escapeTableCellSource } from './tableCellSource';
 import { pasteSpreadsheetCells, MAX_SPREADSHEET_INPUT_BYTES } from './spreadsheetClipboard';
 import { isolatedSpreadsheetPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
+import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHeaderSettings';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import {
 	insertRow,
@@ -711,6 +712,7 @@ class TableWidget extends WidgetType {
 		stickyHeader.appendChild(stickyClip);
 		wrap.insertBefore(stickyHeader, tableViewport);
 		const syncStickyHeader = (): void => {
+			if (!stickyTableHeadersEnabled()) return;
 			const header = table.tHead;
 			if (!header) return;
 			const originalCells = Array.from(header.rows[0]?.cells ?? []);
@@ -751,6 +753,11 @@ class TableWidget extends WidgetType {
 			stickyClip.scrollLeft = tableViewport.scrollLeft;
 		};
 		const updateStickyHeader = (): void => {
+			if (!stickyTableHeadersEnabled()) {
+				stickyHeader.hidden = true;
+				if (stickyTable.firstChild) stickyTable.replaceChildren();
+				return;
+			}
 			const scrollerTop = view.scrollDOM.getBoundingClientRect().top;
 			const bounds = table.getBoundingClientRect();
 			const headerHeight = table.tHead?.getBoundingClientRect().height ?? 0;
@@ -788,6 +795,7 @@ class TableWidget extends WidgetType {
 		if (table.tHead) headerObserver.observe(table.tHead, { childList: true, subtree: true, characterData: true });
 		view.scrollDOM.addEventListener('scroll', updateStickyHeader, { passive: true });
 		tableViewport.addEventListener('scroll', updateStickyHeader, { passive: true });
+		const stopHeaderSettings = onStickyTableHeadersChange(updateStickyHeader);
 		const preserveHorizontalScroll = (change: () => void): void => {
 			const left = tableViewport.scrollLeft;
 			change();
@@ -1405,9 +1413,11 @@ class TableWidget extends WidgetType {
 		view.dom.addEventListener('keydown', deleteSelectedTable, true);
 		view.dom.addEventListener('pointerdown', clearTableSelectionOutside, true);
 		tableWidgetCleanup.set(wrap, () => {
+			stopHeaderSettings();
 			widthObserver.disconnect();
 			headerObserver.disconnect();
 			view.scrollDOM.removeEventListener('scroll', updateStickyHeader);
+			tableViewport.removeEventListener('scroll', updateStickyHeader);
 			view.dom.removeEventListener('copy', copySelectedTable, true);
 			view.dom.removeEventListener('cut', cutSelectedTable, true);
 			view.dom.removeEventListener('keydown', deleteSelectedTable, true);

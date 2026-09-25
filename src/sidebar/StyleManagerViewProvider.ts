@@ -31,6 +31,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 				if (
 					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditor`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.showWhitespace`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.stickyTableHeaders`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.defaultEditingMode`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.codeTheme`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.vault.openBehavior`)
@@ -150,6 +151,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 		return {
 			defaultEditor: normalizeDefaultEditorSetting(defaultEditor),
 			showWhitespace: config.get<string>('showWhitespace', 'off') === 'on' ? 'on' : 'off',
+			stickyTableHeaders: config.get<boolean>('stickyTableHeaders', false) === true,
 			defaultEditingMode: (['editing', 'locked'].includes(defaultEditingMode) ? defaultEditingMode : 'editing') as EditingModeSetting,
 			codeTheme: (['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'].includes(codeTheme) ? codeTheme : 'auto') as CodeThemeSetting,
 			vaultOpenBehavior: normalizeVaultOpenBehavior(vaultOpenBehavior) as VaultOpenBehaviorSetting,

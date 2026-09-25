@@ -92,7 +92,10 @@ suite('Installed VSIX clean-profile smoke', () => {
 		assert.strictEqual(extension.isActive, true, 'the packaged extension did not activate automatically');
 		const productionApi = await extension.activate();
 		assert.strictEqual(extension.isActive, true);
-		assert.strictEqual(productionApi, undefined, 'the packaged extension exposed its development-only test API');
+		assert.deepStrictEqual(Object.keys(productionApi ?? {}), ['extendMarkdownIt'],
+			'the packaged extension exposed an API beyond its Markdown renderer hook');
+		assert.strictEqual(typeof productionApi.extendMarkdownIt, 'function',
+			'the packaged extension did not expose its Markdown renderer hook');
 	});
 
 	vsixOnly('opens packaged Live Preview from a clean profile', async () => {
@@ -103,6 +106,29 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 		assert.ok(input instanceof vscode.TabInputCustom, 'the packaged Live Preview custom editor did not open');
 		assert.strictEqual(input.viewType, 'mdLivePreview.editor');
+	});
+
+	(mode === 'trusted' ? test : test.skip)('toggles packaged built-in Markdown Preview table headers live from the off default', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root, 'the VSIX smoke workspace is unavailable');
+		const note = vscode.Uri.joinPath(root, 'Accessibility.md');
+		const config = vscode.workspace.getConfiguration('mdLivePreview', note);
+		const prior = config.inspect<boolean>('stickyTableHeaders')?.workspaceValue;
+		assert.strictEqual(config.get('stickyTableHeaders'), false, 'sticky headers were not off in the clean profile');
+		const before = await vscode.workspace.fs.readFile(note);
+		try {
+			await vscode.commands.executeCommand('markdown.showPreview', note);
+			await assertBuiltInPreviewStickyState(false);
+			await config.update('stickyTableHeaders', true, vscode.ConfigurationTarget.Workspace);
+			await assertBuiltInPreviewStickyState(true);
+			await config.update('stickyTableHeaders', false, vscode.ConfigurationTarget.Workspace);
+			await assertBuiltInPreviewStickyState(false);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(note), before,
+				'toggling built-in preview headers changed the Markdown source');
+		} finally {
+			await config.update('stickyTableHeaders', prior, vscode.ConfigurationTarget.Workspace);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		}
 	});
 
 	vsixOnly('matches the requested clean-profile trust state', async () => {
@@ -542,6 +568,46 @@ suite('Installed VSIX clean-profile smoke', () => {
 		);
 	});
 });
+
+async function assertBuiltInPreviewStickyState(enabled: boolean): Promise<void> {
+	const browser = await connectToDebugBrowser();
+	let lastTables: unknown[] = [];
+	try {
+		await waitFor(async () => {
+			for (const context of browser.contexts()) {
+				for (const page of context.pages()) {
+					for (const frame of page.frames()) {
+						if (frame.isDetached()) continue;
+						try {
+							// Exclude our editor and find only the built-in read-only preview.
+							const heading = frame.locator('body.vscode-body h1');
+							if (!await heading.count() || !((await heading.first().textContent()) ?? '').includes('Packaged accessibility')) continue;
+							lastTables = await frame.locator('table').evaluateAll(tables => tables.map(table => ({
+								classes: table.className,
+								headings: Array.from(table.querySelectorAll('thead th')).map(header => ({ text: header.textContent, position: getComputedStyle(header).position })),
+								text: table.textContent?.slice(0, 100),
+							})));
+							// YAML frontmatter also renders as a table; test the authored one.
+							const table = frame.locator('table').filter({ has: frame.getByRole('columnheader', { name: 'name', exact: true }) }).first();
+							if (!await table.count()) continue;
+							const state = await table.evaluate(table => {
+								const header = table.querySelector('thead th');
+								return { marked: table.classList.contains('lmv-sticky-table-headers'), position: header ? getComputedStyle(header).position : '' };
+							});
+							if (state.marked === enabled && (enabled ? state.position === 'sticky' : state.position !== 'sticky')) return true;
+						} catch (error) {
+							// A live configuration refresh can replace the preview frame.
+							if (!frame.isDetached() && !String(error).includes('Execution context was destroyed')) throw error;
+						}
+					}
+				}
+			}
+			return false;
+		}, `the packaged built-in Markdown Preview did not render sticky headers ${enabled ? 'on' : 'off'}`, 20_000);
+	} catch (error) {
+		throw new Error(`${String(error)}; rendered table state: ${JSON.stringify(lastTables)}`);
+	}
+}
 
 async function connectToLivePreviewFrame(expectedText: string, timeoutMs = 20_000): Promise<Frame> {
 	const browser = await connectToDebugBrowser();

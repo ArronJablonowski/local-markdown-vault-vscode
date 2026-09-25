@@ -66,6 +66,7 @@ import { applyNormalizedTextChanges } from '../shared/lineEndings';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 import { createSpreadsheetPasteHandler, isolatedSpreadsheetPaste, showSpreadsheetPasteWarning } from './spreadsheetPaste';
 import { setDiagramHostVisibility } from './diagramVisibility';
+import { setStickyTableHeaders } from './tableHeaderSettings';
 
 const remoteChange = Annotation.define<boolean>();
 // Match Obsidian's list editing: continue list and task markers on Enter, but
@@ -716,6 +717,9 @@ onHostMessage((message) => {
 			break;
 		case 'setWhitespace':
 			view?.dispatch({ effects: whitespaceCompartment.reconfigure(message.enabled ? whitespaceMarkers : []) });
+			break;
+		case 'setStickyTableHeaders':
+			setStickyTableHeaders(message.enabled);
 			break;
 		case 'applyCss':
 			if (workspaceTrusted) applyUserCss(message.css);

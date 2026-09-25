@@ -190,6 +190,10 @@ export function validateHostToEditorMessage(
 			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }
 				: { ok: false, reason: 'Invalid whitespace setting.' };
+		case 'setStickyTableHeaders':
+			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid sticky table header setting.' };
 		case 'panelVisibility':
 			return hasExactKeys(value, ['type', 'visible']) && typeof value.visible === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }

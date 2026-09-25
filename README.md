@@ -23,7 +23,7 @@ Other explicitly saved viewing preferences are preserved when updating.
 
 - CodeMirror-based Markdown editing with formatting rendered in place
 - Source reveal around the cursor and normal text selection behavior
-- Syntax highlighting, document outline, search, and editable tables with sticky headers
+- Syntax highlighting, document outline, search, and editable tables with optional sticky headers (off by default)
 - Local images and attachments, Mermaid diagrams, draw.io diagrams, and themes
 - Obsidian-style wikilinks, aliases, heading and block links, and inline embeds
 - YAML properties, highlighted text, color-coded callouts, math, footnotes, tags, and interactive task lists
@@ -341,9 +341,13 @@ the source remains read-only. Open **Table options** above the table
 to insert, move, sort, align, or delete rows and columns. The menu starts closed
 to keep notes uncluttered; actions that need a cell stay disabled until one is
 selected. Use Tab or arrow keys within the controls, and Escape to close them.
-The header row remains visible while a long table scrolls, then stops at the
-bottom of that table. The pinned header follows horizontal scrolling, and you
-can scroll sideways over either the header or the table body.
+**Sticky table headers are off by default.** Turn them on in
+**CSS Themes → Settings → Sticky table headers**, or enable
+`mdLivePreview.stickyTableHeaders` in VS Code Settings. The setting applies to
+Live Preview and Markdown Preview without changing the Markdown file. When
+enabled in Live Preview, the header remains visible while a long table scrolls,
+then stops at the bottom of that table. The pinned header follows horizontal
+scrolling, and you can scroll sideways over either the header or the table body.
 Wide tables scroll horizontally within the note instead
 of squeezing their columns; use Shift+mouse wheel, a trackpad gesture, or focus
 the table scroll region and use the horizontal scrollbar. To put multiple lines

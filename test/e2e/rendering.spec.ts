@@ -32,7 +32,7 @@ test.describe('block rendering', () => {
 		await expect(page.locator('.mlp-table')).toHaveCount(1);
 		await expect(page.locator('.mlp-table thead th')).toHaveCount(2);
 		await expect(page.locator('.mlp-table thead th').first()).toHaveAttribute('scope', 'col');
-		await expect(page.locator('.mlp-table thead th').first()).toHaveCSS('position', 'sticky');
+		await expect(page.locator('.mlp-table thead th').first()).not.toHaveCSS('position', 'sticky');
 		await expect(page.locator('.mlp-table td')).toHaveCount(2);
 	});
 
@@ -64,7 +64,7 @@ test.describe('block rendering', () => {
 
 	test('a long table keeps its header at the top while its rows scroll', async ({ page }) => {
 		const rows = Array.from({ length: 45 }, (_, index) => `| Row ${index + 1} | Value ${index + 1} |`).join('\n');
-		await mountEditor(page, `${'Before\n\n'.repeat(18)}| Name | Value |\n| --- | --- |\n${rows}\n\nAfter\n`);
+		await mountEditor(page, `${'Before\n\n'.repeat(18)}| Name | Value |\n| --- | --- |\n${rows}\n\nAfter\n`, { stickyTableHeaders: true });
 		await page.evaluate(() => {
 			const scroller = document.querySelector('.cm-scroller') as HTMLElement;
 			const table = document.querySelector('.mlp-table') as HTMLElement;
@@ -85,7 +85,7 @@ test.describe('block rendering', () => {
 	test('a wide long table keeps its header sticky while scrolling vertically', async ({ page }) => {
 		await page.setViewportSize({ width: 640, height: 720 });
 		const rows = Array.from({ length: 45 }, (_, index) => `| Row ${index + 1} with detail | Value ${index + 1} with long detail | Another ${index + 1} value with detail |`).join('\n');
-		await mountEditor(page, `${'Before\n\n'.repeat(18)}| First long heading | Second long heading | Third long heading |\n| --- | --- | --- |\n${rows}\n\nAfter\n`);
+		await mountEditor(page, `${'Before\n\n'.repeat(18)}| First long heading | Second long heading | Third long heading |\n| --- | --- | --- |\n${rows}\n\nAfter\n`, { stickyTableHeaders: true });
 		await expect(page.locator('.mlp-table-viewport')).toHaveClass(/mlp-table-scrollable/);
 		await page.evaluate(() => {
 			const scroller = document.querySelector('.cm-scroller') as HTMLElement;

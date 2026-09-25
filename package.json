@@ -78,6 +78,7 @@
   "main": "./dist/extension.js",
   "l10n": "./l10n",
   "contributes": {
+    "markdown.markdownItPlugins": true,
     "markdown.previewScripts": [
       {
         "path": "./media/markdown-preview-copy.js"
@@ -478,6 +479,12 @@
           "enum": ["off", "on"],
           "default": "off",
           "description": "%config.showWhitespace%"
+        },
+        "mdLivePreview.stickyTableHeaders": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.stickyTableHeaders%"
         },
         "mdLivePreview.autoSave": {
           "type": "boolean",

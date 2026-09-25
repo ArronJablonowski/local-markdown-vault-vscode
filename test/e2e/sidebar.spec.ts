@@ -16,6 +16,17 @@ test.describe('CSS theme sidebar accessibility', () => {
 		await expect.poll(() => page.evaluate(() =>
 			(window as unknown as { __posted: unknown[] }).__posted.at(-1),
 		)).toEqual({ type: 'setSetting', key: 'showWhitespace', value: 'on' });
+		const sticky = page.getByLabel('Sticky table headers');
+		await expect(sticky.locator('option')).toHaveText(['Off', 'On']);
+		await expect(sticky).toHaveValue('off');
+		await sticky.selectOption('on');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: unknown[] }).__posted.at(-1),
+		)).toEqual({ type: 'setSetting', key: 'stickyTableHeaders', value: true });
+		await sticky.selectOption('off');
+		await expect.poll(() => page.evaluate(() =>
+			(window as unknown as { __posted: unknown[] }).__posted.at(-1),
+		)).toEqual({ type: 'setSetting', key: 'stickyTableHeaders', value: false });
 		const defaultEditor = page.getByLabel('Default viewing mode');
 		await expect(defaultEditor.locator('option')).toHaveText([
 			'VS Code default',

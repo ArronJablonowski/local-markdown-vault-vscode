@@ -7,7 +7,7 @@ for (const css of ['', 'th, td { padding: 18px 25px; box-sizing: content-box; } 
 		await page.setViewportSize({ width: 850, height: 650 });
 		const headings = ['Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation'];
 		const rows = Array.from({ length: 25 }, (_, i) => `| ${headings.map((_, c) => `${'Long content '.repeat(c % 3 + 1)}${i}<br>Another line`).join(' | ')} |`);
-		await mountEditor(page, `Intro\n\n| ${headings.join(' | ')} |\n| ${headings.map(() => '---').join(' | ')} |\n${rows.join('\n')}\n\nAfter`, { css, editingMode });
+		await mountEditor(page, `Intro\n\n| ${headings.join(' | ')} |\n| ${headings.map(() => '---').join(' | ')} |\n${rows.join('\n')}\n\nAfter`, { css, editingMode, stickyTableHeaders: true });
 		const wrap = page.locator('.mlp-table-wrap');
 		const viewport = wrap.locator('.mlp-table-viewport');
 		await expect(viewport).toHaveClass(/mlp-table-scrollable/);

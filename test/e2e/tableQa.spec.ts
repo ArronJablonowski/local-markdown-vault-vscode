@@ -33,7 +33,7 @@ for (const themed of [false, true]) {
 	test(`multiple sticky tables remain independent through scrolling and resizing, theme=${themed}`, async ({ page }) => {
 		await page.setViewportSize({ width: 650, height: 700 });
 		const css = themed ? readFileSync(join(__dirname, '../../media/sample-styles/obsidian-dark.css'), 'utf8') : '';
-		await mountEditor(page, `Intro\n\n${table(12, 35, 'First')}\n\nBetween\n\n${table(8, 30, 'Second')}\n\n${'After\n\n'.repeat(20)}`, { css });
+		await mountEditor(page, `Intro\n\n${table(12, 35, 'First')}\n\nBetween\n\n${table(8, 30, 'Second')}\n\n${'After\n\n'.repeat(20)}`, { css, stickyTableHeaders: true });
 		for (const index of [0, 1, 0]) {
 			if (index === 0) await page.locator('.cm-scroller').evaluate(el => { el.scrollTop = 0; });
 			else await page.locator('.mlp-table-wrap').first().evaluate(el => {
