@@ -7,7 +7,13 @@
 
 /** Every user-visible webview string, keyed by a stable identifier. */
 const en = {
+	'spreadsheetPaste.malformed': 'The copied table has invalid CSV or TSV quoting. Nothing was pasted. Check the copied data and try again.',
+	'spreadsheetPaste.tooLarge': 'This table paste exceeds a safe limit (256 KiB copied data, 1,000 rows, 200 columns, 10,000 cells, or 512 KiB resulting table). Nothing was pasted.',
+	'spreadsheetPaste.textOnly': 'Copy the cell values as text. Clipboard HTML and spreadsheet formulas are not executed.',
+	'spreadsheetPaste.stale': 'The table changed before the paste could finish. Nothing was pasted. Select the destination cell and try again.',
+	'spreadsheetPaste.busy': 'Too many edits are waiting to save. Wait for saving to finish, then paste again. Nothing was pasted.',
 	'recovery.retry': 'Retry preserving draft',
+	'recovery.editQueueFull': 'Too many edits are waiting to save. This input was not applied. Keep the tab open and wait for saving to finish before continuing.',
 	'recovery.preserving': 'The file changed while you were editing. Preserving your local draft separately before continuing…',
 	'recovery.saved': 'Your local draft was preserved. Run Local Markdown Vault: Open Recovered Drafts to compare it with this file.',
 	'recovery.failed': 'The local draft could not be preserved. Keep this tab open and retry after resolving the storage problem.',

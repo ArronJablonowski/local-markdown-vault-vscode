@@ -1,4 +1,4 @@
-import { EditorState, Annotation, type Extension, ChangeSet, Compartment, Prec } from '@codemirror/state';
+import { EditorState, Annotation, type Extension, Compartment, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, indentWithTab, temporarilySetTabFocusMode } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -58,12 +58,14 @@ import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboa
 import { renderedSelection } from './renderedSelection';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
-import { takeEditBatch } from './editBatch';
+import { PendingEdits } from './pendingEdits';
 import { listHangingIndent } from './listHangingIndent';
 import { commitActiveDraft, readActiveDraftSnapshot, setActiveDraftInputHandler, setUncommittedDraftHandler } from './activeDraft';
 import { classifyDraftRecovery, makeDraftRecovery, parseDraftRecovery, mergeDraftRecovery, readPersistedDraftRecovery, stripDraftRecovery, type DraftRecovery } from './draftRecovery';
 import { applyNormalizedTextChanges } from '../shared/lineEndings';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
+import { createSpreadsheetPasteHandler, isolatedSpreadsheetPaste, showSpreadsheetPasteWarning } from './spreadsheetPaste';
+import { setDiagramHostVisibility } from './diagramVisibility';
 
 const remoteChange = Annotation.define<boolean>();
 // Match Obsidian's list editing: continue list and task markers on Enter, but
@@ -73,7 +75,7 @@ const continueMarkdownMarkup = insertNewlineContinueMarkupCommand({ nonTightList
 
 let view: EditorView | undefined;
 let baseVersion = 0;
-let pending: ChangeSet | null = null;
+const pending = new PendingEdits();
 let editInFlight = false;
 let baselineText = '';
 let inFlightText: string | undefined;
@@ -99,14 +101,13 @@ const whitespaceCompartment = new Compartment();
 function flush() {
 	flushTimer = undefined;
 	if (editInFlight || awaitingResync || processingHostSnapshot || recoveryBlocked) return;
-	if (!view || !pending || pending.empty) {
-		pending = null;
+	if (!view || pending.empty) {
+		pending.clear();
 		for (const type of pendingHistory.splice(0)) postToHost({ type });
 		if (pendingSave) { pendingSave = false; postToHost({ type: 'save' }); }
 		return;
 	}
-	const { changes, remaining } = takeEditBatch(pending);
-	pending = remaining;
+	const { changes } = pending.takeBatch()!;
 	inFlightText = applyNormalizedTextChanges(baselineText, changes);
 	if (inFlightText === baselineText) {
 		// An identical replacement need not create a host version. Discard it
@@ -284,6 +285,12 @@ function createExtensions(): Extension[] {
 		// and table controls while still allowing authoritative host updates.
 		EditorState.transactionFilter.of((transaction) => {
 			if (transaction.docChanged && !transaction.annotation(remoteChange) &&
+				!pending.canEnqueue(transaction.changes, Boolean(transaction.annotation(isolatedSpreadsheetPaste)))) {
+				queueMicrotask(() => transaction.annotation(isolatedSpreadsheetPaste)
+					? showSpreadsheetPasteWarning('busy') : recoveryNotice(t('recovery.editQueueFull')));
+				return [];
+			}
+			if (transaction.docChanged && !transaction.annotation(remoteChange) &&
 				!isEditorDocumentWithinLimit(transaction.newDoc.toString())) {
 				queueMicrotask(() => recoveryNotice(t('recovery.tooLarge')));
 				return [];
@@ -320,6 +327,7 @@ function createExtensions(): Extension[] {
 		dragReleaseRefresh,
 		codeHighlightExtension,
 		Prec.highest(createLinkClickHandler((href) => postToHost({ type: 'openLink', href }))),
+		createSpreadsheetPasteHandler(),
 		createImagePasteHandler(
 			(atPos, images, needsOwnParagraph) => {
 				if (!editingAllowed) return;
@@ -424,9 +432,9 @@ function createExtensions(): Extension[] {
 		]),
 		EditorView.updateListener.of((update) => {
 			if (update.docChanged) {
-				const isRemote = update.transactions.some((tr) => tr.annotation(remoteChange));
-				if (!isRemote) {
-					pending = pending ? pending.compose(update.changes) : update.changes;
+				const local = update.transactions.filter(tr => tr.docChanged && !tr.annotation(remoteChange));
+				if (local.length) {
+					for (const tr of local) pending.enqueue(tr.changes, Boolean(tr.annotation(isolatedSpreadsheetPaste)));
 					captureRecovery();
 					scheduleFlush();
 				}
@@ -565,7 +573,7 @@ function resetView(text: string) {
 		createView(text);
 		return;
 	}
-	pending = null;
+	pending.clear();
 	if (flushTimer) {
 		clearTimeout(flushTimer);
 		flushTimer = undefined;
@@ -592,6 +600,11 @@ onHostMessage((message) => {
 	if (handleWikiEmbedMessage(message)) return;
 	if (handleLocalImageMessage(message)) return;
 	switch (message.type) {
+		case 'panelVisibility':
+			setDiagramHostVisibility(message.visible);
+			document.getElementById('mlp-root')?.setAttribute('data-panel-visible', String(message.visible));
+			if (!message.visible) preserveBeforeLeaving();
+			break;
 		case 'copyCodeResult':
 			handleCodeClipboardResult(message.requestId, message.ok);
 			break;
@@ -676,14 +689,14 @@ onHostMessage((message) => {
 			const captured = settleFocusedDraft();
 			processingHostSnapshot = false;
 			if (!captured) { awaitingResync = true; break; }
-			if (editInFlight || pending && !pending.empty || recovery) {
+			if (editInFlight || !pending.empty || recovery) {
 				// Offsets belong to the host baseline, not the locally-ahead view.
 				// Preserve that view and request a full snapshot before reconciliation.
 				awaitingResync = true;
 				postToHost({ type: 'resync' });
 				break;
 			}
-			pending = null;
+			pending.clear();
 			if (flushTimer) {
 				clearTimeout(flushTimer);
 				flushTimer = undefined;

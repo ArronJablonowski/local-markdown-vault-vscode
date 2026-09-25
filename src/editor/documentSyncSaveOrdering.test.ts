@@ -320,6 +320,118 @@ describe('save and recovery protocol ordering', () => {
 });
 
 describe('cached renderer drafts across hide and close', () => {
+	it('notifies a retained renderer only when its host-owned visibility actually changes', () => {
+		const { session } = mutationHarness();
+		session.flushPendingJump = vi.fn();
+		session.setVisible(false);
+		session.setVisible(false);
+		session.setVisible(true);
+		session.setVisible(true);
+		expect(session.post.mock.calls).toEqual([
+			[{ type: 'panelVisibility', visible: false }],
+			[{ type: 'panelVisibility', visible: true }],
+		]);
+	});
+	it.each([true, false])('announces initial visibility %s before initializing a ready renderer', async visible => {
+		const { session } = mutationHarness();
+		session.readyReceived = false;
+		session.visible = visible;
+		session.flushPendingJump = vi.fn();
+		session.sendInit.mockImplementation(() => {
+			expect(session.post).toHaveBeenCalledWith({ type: 'panelVisibility', visible });
+		});
+		session.handleMessage({ type: 'ready' });
+		expect(session.post).toHaveBeenCalledExactlyOnceWith({ type: 'panelVisibility', visible });
+		await session.mutationQueue.drain();
+		await Promise.resolve();
+		expect(session.sendInit).toHaveBeenCalledTimes(visible ? 1 : 0);
+	});
+	it('sends current visibility to a replacement renderer after a hidden policy reload', async () => {
+		const { session } = mutationHarness();
+		session.flushPendingJump = vi.fn();
+		session.setVisible(false);
+		session.reloadWebview('<!doctype html><title>New policy</title>');
+		session.post.mockClear();
+		session.setVisible(true);
+		expect(session.post).not.toHaveBeenCalled();
+		session.handleMessage({ type: 'ready' });
+		expect(session.post).toHaveBeenCalledExactlyOnceWith({ type: 'panelVisibility', visible: true });
+		await session.mutationQueue.drain();
+		await Promise.resolve();
+		expect(session.sendInit).toHaveBeenCalledOnce();
+	});
+	it('keeps a retained renderer ready and accepts its edit after the tab becomes hidden', async () => {
+		const { session, document } = mutationHarness();
+		session.setVisible(false);
+		expect(session.readyReceived).toBe(true);
+		session.handleMessage({ type: 'edit', baseVersion: 1, changes: [{ from: 6, to: 6, insert: ' pasted before switching' }] });
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Before pasted before switching');
+		expect(document.isDirty).toBe(false);
+		expect(session.post).toHaveBeenCalledWith({ type: 'ackEdit', version: 2 });
+	});
+	it('refreshes a retained renderer on reveal without requiring a second ready handshake', () => {
+		const { session, document } = mutationHarness();
+		session.flushPendingJump = vi.fn();
+		session.setVisible(false);
+		document.text = 'Changed while hidden';
+		document.version++;
+		session.handleDocumentChanged({ document, contentChanges: [{ rangeOffset: 0, rangeLength: 6, text: document.text }] });
+		expect(session.sendInit).not.toHaveBeenCalled();
+		session.setVisible(true);
+		expect(session.sendInit).toHaveBeenCalledOnce();
+		expect(session.scheduleRehighlight).toHaveBeenCalledWith(true);
+		expect(session.readyReceived).toBe(true);
+	});
+	it('keeps duplicate ready messages rejected after hiding a retained renderer', async () => {
+		const { session } = mutationHarness();
+		session.setVisible(false);
+		session.handleMessage({ type: 'ready' });
+		await session.mutationQueue.drain();
+		expect(mocks.diagnostic).toHaveBeenCalledWith('protocol.duplicateReadyRejected');
+		expect(session.sendInit).not.toHaveBeenCalled();
+	});
+	it('refreshes the retained source and version after a hidden snapshot-only widget draft saves', async () => {
+		const { session, document } = mutationHarness();
+		session.flushPendingJump = vi.fn();
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Typed into a property' });
+		session.setVisible(false);
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Typed into a property');
+		expect(session.sendInit).not.toHaveBeenCalled();
+		expect(session.needsFullSync).toBe(true);
+		session.setVisible(true);
+		expect(session.sendInit).toHaveBeenCalledOnce();
+		expect(session.needsFullSync).toBe(false);
+	});
+	it('refreshes a snapshot-only draft when its renderer is revealed during the native save', async () => {
+		const { session, document, settle } = mutationHarness();
+		session.flushPendingJump = vi.fn();
+		let release!: () => void;
+		settle.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Typed into a table' });
+		session.setVisible(false);
+		await vi.waitFor(() => expect(settle).toHaveBeenCalled());
+		session.setVisible(true);
+		expect(session.sendInit).not.toHaveBeenCalled();
+		release();
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Typed into a table');
+		expect(document.isDirty).toBe(false);
+		expect(session.sendInit).toHaveBeenCalledOnce();
+		expect(session.needsFullSync).toBe(false);
+	});
+	it('still replaces a hidden retained renderer immediately when its security policy changes', async () => {
+		const { session, document } = mutationHarness();
+		session.setVisible(false);
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Last received draft' });
+		session.reloadWebview('<!doctype html><title>Restricted policy</title>');
+		expect(session.readyReceived).toBe(false);
+		expect(session.webviewPanel.webview.html).toContain('Restricted policy');
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Last received draft');
+		expect(document.isDirty).toBe(false);
+	});
 	it('flushes the cached draft when an HTML or security-policy reload replaces the iframe', async () => {
 		const { session, document } = mutationHarness();
 		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Typing immediately before reload' });

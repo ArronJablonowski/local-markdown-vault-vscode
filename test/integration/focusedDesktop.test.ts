@@ -677,6 +677,96 @@ suite('focused cross-platform desktop transactions', () => {
 		await waitFor(async () => await frame.locator('.mlp-card').count() === initialCount, 'Delete did not remove the disposable themes');
 	});
 
+	test('spreadsheet paste: native clipboard creates TSV and CSV tables, autosaves exact source, and undoes each paste once', async function () {
+		this.timeout(90_000);
+		const fixture = await makeFixture('spreadsheet-paste');
+		const note = await service.createNote(fixture, 'Spreadsheet import');
+		const { frame, keyboard, type, line, disk } = await beginTypedJourney(note);
+		await line('Spreadsheet import');
+		await line();
+		const before = 'Spreadsheet import\n\n';
+		await waitFor(async () => await disk() === before, 'typed spreadsheet note did not save before pasting');
+		const oldClipboard = await vscode.env.clipboard.readText();
+		try {
+			await vscode.env.clipboard.writeText('Item\tQuantity\r\nApples\t3\r\nPears\t7\r\n');
+			await keyboard.press(`${modifier()}+v`);
+			const tsvExpected = before + '| Item | Quantity |\n| --- | --- |\n| Apples | 3 |\n| Pears | 7 |\n\n';
+			await waitFor(async () => await disk() === tsvExpected, 'native TSV paste did not save exact Markdown');
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), tsvExpected);
+			await waitFor(async () => await frame.locator('.mlp-table tbody td').allTextContents().then(values => values.join('|') === 'Apples|3|Pears|7'), 'native TSV table values did not render');
+			await keyboard.press(`${modifier()}+z`);
+			await waitFor(async () => await disk() === before, 'one native Undo did not restore the entire pre-TSV document');
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), before);
+			await frame.locator('.cm-line').last().click();
+			await keyboard.press(process.platform === 'darwin' ? 'Meta+End' : 'Control+End');
+			await waitFor(() => frame.locator('.cm-content').evaluate(element => document.hasFocus() && document.activeElement === element), 'CSV paste requires real editable focus');
+			await vscode.env.clipboard.writeText('Name,Notes\r\n"Acme, Inc.","Line one\r\nLine two"\r\n');
+			await keyboard.press(`${modifier()}+v`);
+			const csvExpected = before + '| Name | Notes |\n| --- | --- |\n| Acme\\, Inc\\. | Line one<br>Line two |\n\n';
+			await waitFor(async () => await disk() === csvExpected, 'quoted CSV paste did not save exact escaped/multiline source');
+			assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), csvExpected);
+			await waitFor(async () => await frame.locator('.mlp-table tbody td').first().textContent() === 'Acme, Inc.', 'CSV literal punctuation did not render');
+			assert.strictEqual(await frame.locator('.mlp-table tbody td').nth(1).locator('br').count(), 1);
+			await keyboard.press(`${modifier()}+z`);
+			await waitFor(async () => await disk() === before, 'one native Undo did not restore the entire pre-CSV document');
+			await type('Final note survives.');
+			await waitFor(async () => await disk() === before + 'Final note survives.', 'typing after spreadsheet Undo did not save');
+		} finally {
+			await vscode.env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('spreadsheet paste: a native cell paste expands one rectangle and survives immediate switching and one Undo', async function () {
+		this.timeout(90_000);
+		const fixture = await makeFixture('spreadsheet-cell-paste');
+		const note = await service.createNote(fixture, 'Rectangular paste');
+		const other = await service.createNote(fixture, 'Switch target');
+		const original = 'Before\n\n| A | B | C |\n| :--- | :--: | ---: |\n| Keep first | Old B | Old C |\n| Keep second | Old 2B | Old 2C |\n\nAfter';
+		await vscode.workspace.fs.writeFile(note, bytes(original));
+		await vscode.workspace.fs.writeFile(other, bytes('Switch target remains unchanged.'));
+		await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+		let frame = await connectToLivePreviewFrame('Keep first');
+		const oldClipboard = await vscode.env.clipboard.readText();
+		try {
+			for (let attempt = 0; attempt < 3; attempt++) {
+				await frame.locator('.cm-line').first().click();
+				const cell = frame.locator('.mlp-table tbody tr').first().locator('td').nth(1);
+				await cell.click();
+				await waitFor(() => cell.evaluate(element => (element as HTMLElement).isContentEditable && document.hasFocus() && document.activeElement === element), 'rectangular paste requires an actively edited cell');
+				await vscode.env.clipboard.writeText('New B\tNew C\tNew D\nSecond B\tSecond C\tSecond D\nThird B\tThird C\tThird D');
+				await frame.page().keyboard.press(`${modifier()}+v`);
+				// Intentionally no event, render, host acknowledgment, or disk barrier:
+				// delayed native clipboard input can overlap the tab-hide transition.
+				await vscode.commands.executeCommand('vscode.openWith', other, 'mdLivePreview.editor');
+				const expected = 'Before\n\n| A | B | C |  |\n| :--- | :--: | ---: | --- |\n| Keep first | New B | New C | New D |\n| Keep second | Second B | Second C | Second D |\n|  | Third B | Third C | Third D |\n\nAfter';
+				const disk = async () => Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8');
+				await waitFor(async () => await disk() === expected, 'cell rectangle did not save exactly after immediate tab switch').catch(async error => {
+					const document = await vscode.workspace.openTextDocument(note);
+					throw new Error(`${String(error)}; attempt=${attempt + 1}; disk=${JSON.stringify(await disk())}; host=${JSON.stringify(document.getText())}; dirty=${document.isDirty}`);
+				});
+				assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), expected);
+				assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(other)).toString('utf8'), 'Switch target remains unchanged.');
+				assert.strictEqual(frame.isDetached(), false, 'a hidden editor must retain its accepted paste transport');
+				assert.strictEqual(await isVisibleFrame(frame), false, 'the saved original editor must actually be hidden by the workbench');
+				await waitFor(async () => await frame.locator('#mlp-root').getAttribute('data-panel-visible') === 'false',
+					'the retained renderer did not receive its authoritative hidden-panel signal');
+				await vscode.commands.executeCommand('vscode.openWith', note, 'mdLivePreview.editor');
+				frame = await connectToLivePreviewFrame('Keep first');
+				await waitFor(async () => await frame.locator('#mlp-root').getAttribute('data-panel-visible') === 'true',
+					'the reopened renderer did not receive its authoritative visible-panel signal');
+				await waitFor(async () => await frame.locator('.mlp-table thead th').count() === 4, 'reopened rectangular table lost its new column');
+				assert.deepStrictEqual(await frame.locator('.mlp-table tbody tr').first().locator('td').allTextContents(), ['Keep first', 'New B', 'New C', 'New D']);
+				assert.deepStrictEqual(await frame.locator('.mlp-table tbody tr').last().locator('td').allTextContents(), ['', 'Third B', 'Third C', 'Third D']);
+				await frame.locator('.cm-line').last().click();
+				await frame.page().keyboard.press(`${modifier()}+z`);
+				await waitFor(async () => await disk() === original, 'one Undo did not restore the entire original table and alignment');
+				assert.strictEqual((await vscode.workspace.openTextDocument(note)).getText(), original);
+			}
+		} finally {
+			await vscode.env.clipboard.writeText(oldClipboard);
+		}
+	});
+
 	test('large clipboard paste and external replacement keep preview and disk synchronized', async function () {
 		this.timeout(120_000);
 		const fixture = await makeFixture('large-paste');
@@ -917,7 +1007,15 @@ suite('focused cross-platform desktop transactions', () => {
 				});
 				if (end) break;
 			}
-			assert.ok(mermaid && drawio, `${name} must render both diagram types`);
+			assert.ok(mermaid && drawio, `${name} must render both diagram types; ${JSON.stringify({
+				mermaid, drawio, activeFile: activeTabUri()?.toString(), frameUrl: frame.url(),
+				viewport: await frame.locator('.cm-scroller').evaluate(el => ({
+					scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+					visibility: document.visibilityState, text: el.textContent?.slice(-1_000),
+					mermaidWidgets: el.querySelectorAll('.mlp-mermaid-wrap:not(.mlp-drawio-wrap)').length,
+					drawioWidgets: el.querySelectorAll('.mlp-drawio-wrap').length,
+				})),
+			})}`);
 			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(note)).toString('utf8'), original, 'rendering must not mutate a note');
 			if (name.startsWith('04')) {
 				await frame.locator('.cm-scroller').evaluate(el => { el.scrollTop = 0; });
@@ -1867,6 +1965,7 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 					try {
 						const editor = frame.locator('.cm-content');
 						if (await editor.count() === 0 || !await editor.isVisible()) continue;
+						if (!await isVisibleFrame(frame)) continue;
 						if (!expectedText || (await editor.textContent())?.includes(expectedText)) return frame;
 					} catch (error) {
 						// A settings reload or native-to-safe editor transition can detach
@@ -1879,6 +1978,23 @@ async function connectToLivePreviewFrame(expectedText?: string): Promise<Frame> 
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	assert.fail('could not find the active Live Preview CodeMirror frame');
+}
+
+async function isVisibleFrame(frame: Frame): Promise<boolean> {
+	// Retained webviews keep internally visible DOM even when their workbench
+	// iframe is hidden. Never return such a frame as the active typing target.
+	if (!await frame.evaluate(() => document.visibilityState === 'visible')) return false;
+	for (let current: Frame | null = frame; current?.parentFrame(); current = current.parentFrame()) {
+		const owner = await current.frameElement();
+		try {
+			if (!await owner.isVisible()) return false;
+			const box = await owner.boundingBox();
+			if (!box || box.width <= 0 || box.height <= 0) return false;
+		} finally {
+			await owner.dispose();
+		}
+	}
+	return true;
 }
 
 async function connectToFrameWith(selector: string): Promise<Frame> {

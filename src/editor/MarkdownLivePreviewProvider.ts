@@ -48,11 +48,12 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 	): { disposable: vscode.Disposable; provider: MarkdownLivePreviewProvider } {
 		const provider = new MarkdownLivePreviewProvider(context, getCss, getVaultNotes);
 		const registration = vscode.window.registerCustomEditorProvider(MarkdownLivePreviewProvider.viewType, provider, {
-			// Hidden editors are reconstructed from the authoritative TextDocument
-			// plus bounded pending-draft recovery and caret/scroll state. Keeping the full
-			// iframe alive would prolong rendered untrusted content, parsers, timers,
-			// and diagram state while the user is not looking at the tab.
-			webviewOptions: { retainContextWhenHidden: false },
+			// Keep editable contexts alive across tab switches: destroying an iframe
+			// can discard its last edit and recovery messages before VS Code receives
+			// them, even when both are posted synchronously. This deliberately trades
+			// per-open-tab memory for draft safety. Hidden expensive work is suspended
+			// separately; CSP, input limits, and policy-triggered reloads still apply.
+			webviewOptions: { retainContextWhenHidden: true },
 			supportsMultipleEditorsPerDocument: true,
 		});
 		const disposable = vscode.Disposable.from(registration, provider);

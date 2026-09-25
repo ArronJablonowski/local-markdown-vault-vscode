@@ -113,7 +113,7 @@ describe('host code highlighting lifecycle', () => {
 		finish([]); await settle();
 		await vi.advanceTimersByTimeAsync(200);
 		expect(mocks.tokenize).toHaveBeenCalledOnce();
-		expect(mocks.post).not.toHaveBeenCalled();
+		expect(mocks.post).toHaveBeenCalledExactlyOnceWith({ type: 'panelVisibility', visible: false });
 	});
 
 	it('does not retokenize for unrelated configuration changes', async () => {

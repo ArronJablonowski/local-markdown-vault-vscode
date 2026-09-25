@@ -190,6 +190,10 @@ export function validateHostToEditorMessage(
 			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }
 				: { ok: false, reason: 'Invalid whitespace setting.' };
+		case 'panelVisibility':
+			return hasExactKeys(value, ['type', 'visible']) && typeof value.visible === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid panel visibility.' };
 		case 'applyCss':
 			if (!hasExactKeys(value, ['type', 'css']) || typeof value.css !== 'string' || !withinByteLimit(value.css, MAX_CSS_BYTES)) return { ok: false, reason: 'Invalid CSS message.' };
 			return { ok: true, value: value as unknown as HostToEditorMessage };

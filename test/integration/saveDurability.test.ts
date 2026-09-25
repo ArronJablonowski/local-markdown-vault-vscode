@@ -185,15 +185,26 @@ suite('native Markdown save durability', () => {
 		const valueCell = frame.getByRole('button', { name: 'Edit status', exact: true });
 		// Visibility does not imply native iframe focus: the initial host focus
 		// handoff can still be pending when CodeMirror's content first appears.
-		// Establish the precise value target before one double-click, not after
-		// a missed click or after typing (which could hide real draft loss).
+		// Establish the precise value target before keyboard activation, not
+		// after typing (which could hide real draft loss). The committed-property
+		// test above separately exercises the native mouse double-click path.
 		await valueCell.focus();
 		await waitFor(() => valueCell.evaluate(element => document.hasFocus() && document.activeElement === element
 			&& document.querySelector<HTMLElement>('.cm-content')?.isContentEditable === true),
 		'the property value cell must be focused in an editable Live Preview before editing');
-		await valueCell.dblclick();
+		await frame.page().keyboard.press('F2');
 		const input = frame.getByRole('textbox', { name: 'Edit status', exact: true });
-		await input.selectText();
+		try { await input.selectText(); }
+		catch (error) {
+			const activation = await frame.evaluate(() => ({
+				focused: document.hasFocus(), activeTag: document.activeElement?.tagName,
+				activeLabel: document.activeElement?.getAttribute('aria-label'),
+				editable: document.querySelector<HTMLElement>('.cm-content')?.isContentEditable,
+				inputs: document.querySelectorAll('.mlp-property-input').length,
+				property: document.querySelector('.mlp-frontmatter')?.textContent,
+			}));
+			throw new Error(`${String(error)}; pre-typing property activation=${JSON.stringify(activation)}`);
+		}
 		assert.ok(await input.evaluate(element => {
 			const field = element as HTMLInputElement;
 			return document.hasFocus() && document.activeElement === field && field.value === 'draft'
@@ -554,11 +565,12 @@ async function findLiveFrame(marker: string): Promise<Frame> {
 				if (frame.isDetached()) continue;
 				try {
 					const content = frame.locator('.cm-content');
-					if (await content.count() && await content.isVisible() && (await content.textContent())?.includes(marker)) {
+					if (await content.count() && await content.isVisible() && await isVisibleFrame(frame)
+						&& (await content.textContent())?.includes(marker)) {
 						selected = frame; return true;
 					}
 				} catch (error) {
-					// VS Code destroys hidden iframes asynchronously. A candidate may
+					// VS Code destroys closed or rebuilt iframes asynchronously. A candidate may
 					// detach after the synchronous check but before the DOM query;
 					// retry discovery, never a save assertion or a typing operation.
 					if (!frame.isDetached() && !/Frame was detached|Execution context was destroyed/.test(String(error))) throw error;
@@ -568,6 +580,23 @@ async function findLiveFrame(marker: string): Promise<Frame> {
 		return false;
 	}, `Live Preview did not display ${marker}`, 15_000);
 	return selected!;
+}
+
+async function isVisibleFrame(frame: Frame): Promise<boolean> {
+	// A retained hidden webview can report its own editor visible. Check the
+	// actual iframe ancestry before choosing a target for keyboard input.
+	if (!await frame.evaluate(() => document.visibilityState === 'visible')) return false;
+	for (let current: Frame | null = frame; current?.parentFrame(); current = current.parentFrame()) {
+		const owner = await current.frameElement();
+		try {
+			if (!await owner.isVisible()) return false;
+			const box = await owner.boundingBox();
+			if (!box || box.width <= 0 || box.height <= 0) return false;
+		} finally {
+			await owner.dispose();
+		}
+	}
+	return true;
 }
 
 async function focusEnd(frame: Frame): Promise<void> {

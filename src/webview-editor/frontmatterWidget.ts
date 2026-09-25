@@ -18,6 +18,8 @@ export interface FrontmatterRange {
 
 let propertyValidationId = 0;
 
+type PropertyChangeHandler = (key: string, value: unknown, onAccepted?: () => void) => boolean;
+
 function lineContent(text: string): string {
 	return text.endsWith('\r') ? text.slice(0, -1) : text;
 }
@@ -218,7 +220,7 @@ export function updateFrontmatterProperty(
 
 function appendTypedValue(
 	cell: HTMLTableCellElement, key: string, value: unknown,
-	onChange: (key: string, value: unknown) => void,
+	onChange: PropertyChangeHandler,
 	getSnapshot: (key: string, value: unknown) => string | undefined,
 ): void {
 	if (typeof value === 'boolean') {
@@ -228,7 +230,12 @@ function appendTypedValue(
 		checkbox.setAttribute('aria-label', value ? t('property.true') : t('property.false'));
 		checkbox.addEventListener('mousedown', (event) => event.stopPropagation());
 		checkbox.addEventListener('click', (event) => event.stopPropagation());
-		checkbox.addEventListener('change', () => onChange(key, checkbox.checked));
+		checkbox.addEventListener('change', () => {
+			// A queue, size, or locked-mode filter may reject the replacement.
+			// Keep the control honest: only accepted changes can toggle the value.
+			if (!onChange(key, checkbox.checked)) checkbox.checked = value;
+			checkbox.setAttribute('aria-label', checkbox.checked ? t('property.true') : t('property.false'));
+		});
 		cell.classList.add('mlp-property-boolean');
 		cell.appendChild(checkbox);
 		return;
@@ -297,7 +304,7 @@ function enableValueEditing(
 	cell: HTMLTableCellElement,
 	key: string,
 	value: unknown,
-	onChange: (key: string, value: unknown) => void,
+	onChange: PropertyChangeHandler,
 	getSnapshot: (key: string, value: unknown) => string | undefined,
 	explicitTrigger?: HTMLButtonElement,
 ): void {
@@ -357,8 +364,11 @@ function enableValueEditing(
 				validation.hidden = false;
 				return;
 			}
-			editing = false;
-			onChange(key, next.value);
+			if (!onChange(key, next.value, () => { editing = false; })) {
+				// Do not spend an input until CodeMirror accepts its replacement.
+				// Preserve before a subsequent blur/redraw can detach the draft.
+				preserveUncommittedDraft(`Uncommitted property ${key}:\n${input.value}`);
+			}
 		};
 		input.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); commit(); }
@@ -459,13 +469,19 @@ export class FrontmatterWidget extends WidgetType {
 			catch { return; }
 			return insert;
 		};
-		const updateValue = (key: string, value: unknown): void => {
+		const updateValue: PropertyChangeHandler = (key, value, onAccepted) => {
 			const insert = propertyReplacement(key, value);
-			if (insert === undefined) return;
+			if (insert === undefined) return false;
 			const nextLength = view.state.doc.length - (this.range.to - this.range.from) + insert.length;
 			const anchor = Math.min(this.range.from + insert.length + 1, nextLength);
-			view.dispatch({ changes: { from: this.range.from, to: this.range.to, insert }, selection: { anchor } });
+			const transaction = view.state.update({ changes: { from: this.range.from, to: this.range.to, insert }, selection: { anchor } });
+			if (!transaction.docChanged) return false;
+			// Recovery observers run synchronously during dispatch. Clear only an
+			// accepted input first so they do not capture it again as a residual.
+			onAccepted?.();
+			view.dispatch(transaction);
 			view.focus();
+			return true;
 		};
 		const propertySnapshot = (key: string, value: unknown): string | undefined => {
 			const insert = propertyReplacement(key, value);

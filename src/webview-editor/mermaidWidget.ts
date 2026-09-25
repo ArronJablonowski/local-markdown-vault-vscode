@@ -10,6 +10,7 @@ import {
 } from './diagramSecurity';
 import { renderMermaidBounded } from './mermaidRenderQueue';
 import { mermaidConfiguration } from './mermaidConfiguration';
+import { DiagramVisibilityGate, disposeDiagramVisibility, trackDiagramVisibility } from './diagramVisibility';
 
 // The module load is cached by `loadMermaidModule`, but `initialize()` is
 // re-applied on every call (it's cheap) so a diagram rendered after the user
@@ -50,6 +51,9 @@ export class MermaidWidget extends WidgetType {
 		// can never carry the toolbar away with it.
 		const wrap = document.createElement('div');
 		wrap.className = 'mlp-mermaid-wrap';
+		const root = wrapBlockWidget(wrap);
+		const visibility = new DiagramVisibilityGate(document, error => displayError(error));
+		trackDiagramVisibility(root, visibility);
 
 		const container = document.createElement('div');
 		container.className = 'mlp-mermaid';
@@ -252,36 +256,38 @@ export class MermaidWidget extends WidgetType {
 			canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
 			canvas.classList.add('mlp-mermaid-error');
 			canvas.setAttribute('role', 'alert');
-			return wrapBlockWidget(wrap);
+			return root;
 		}
-		loadMermaid()
-			.then(async (m) => {
+		const displayError = (err: unknown): void => {
+			canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
+			canvas.classList.add('mlp-mermaid-error');
+			canvas.setAttribute('role', 'alert');
+			view.requestMeasure();
+		};
+		const showError = (err: unknown): void => visibility.run(() => displayError(err));
+		const showSvg = (svg: string): void => visibility.run(() => {
+			const safeSvg = replaceWithIsolatedDiagramSvg(canvas, svg);
+			// Some diagram types still emit inline max-width even with the
+			// configured limit disabled. Native mode must keep its true size.
+			safeSvg.style.removeProperty('max-width');
+			if (mode === 'native') resetPanZoom();
+			// CodeMirror measured the placeholder; remeasure after the async swap.
+			view.requestMeasure();
+		});
+		visibility.run(() => {
+			void loadMermaid().then((m) => visibility.run(() => {
 				const id = `mlp-mermaid-${renderCounter++}`;
-				const { svg } = await renderMermaidBounded(() => m.render(id, code));
-				const safeSvg = replaceWithIsolatedDiagramSvg(canvas, svg);
-				// Defensive: some diagram types still emit an inline `max-width` style
-				// even with `useMaxWidth: false` in the config above. An inline style
-				// always wins over the stylesheet's `max-width: none`, so strip it
-				// here to guarantee "native" mode renders at true native size; "fit"
-				// mode's own CSS (`.mlp-mermaid-canvas svg`) handles shrinking instead.
-				safeSvg.style.removeProperty('max-width');
-				if (mode === 'native') resetPanZoom(); // center once real dimensions are known
-				// Rendering is asynchronous: CodeMirror measured this widget while it
-				// still held the one-line "Rendering diagram…" placeholder, and has no
-				// way to observe the swap. Without this the height map keeps that
-				// placeholder height for the finished diagram — a difference of
-				// hundreds of pixels that throws off every position below it until
-				// some unrelated measure pass happens to correct it.
-				view.requestMeasure();
-			})
-			.catch((err: unknown) => {
-				canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
-				canvas.classList.add('mlp-mermaid-error');
-				canvas.setAttribute('role', 'alert');
-				view.requestMeasure(); // the error text is a different height too
-			});
+				void renderMermaidBounded(() => visibility.isDisposed
+					? Promise.reject(new Error('Diagram widget was disposed.')) : m.render(id, code))
+					.then(({ svg }) => showSvg(svg)).catch(showError);
+			})).catch(showError);
+		});
 
-		return wrapBlockWidget(wrap);
+		return root;
+	}
+
+	destroy(dom: HTMLElement): void {
+		disposeDiagramVisibility(dom);
 	}
 
 	// Height CodeMirror should assume for a diagram it hasn't measured yet (a

@@ -504,7 +504,8 @@ html, body {
 	padding: 0 0.08em;
 }
 
-#mlp-image-paste-warning {
+#mlp-image-paste-warning,
+#mlp-spreadsheet-paste-warning {
 	position: fixed;
 	right: 12px;
 	bottom: 12px;

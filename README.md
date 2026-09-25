@@ -360,6 +360,40 @@ cell text (such as bold text or a link), click the cell to edit its Markdown
 before cutting or deleting; ambiguous rendered selections are left unchanged.
 Locked mode never removes table content.
 
+##### Paste cells from Excel or CSV
+
+In **Markdown Live Preview**, unlock the note, copy a rectangular range of cells
+from Excel (or copy CSV text), then paste with **Command+V** on macOS or **Ctrl+V**
+on Windows/Linux:
+
+- Paste on an empty line to create a Markdown table. The first copied row becomes
+  the header; include column names in your selection if you want named headers.
+- Click a cell in an existing rendered table and paste to fill a rectangle from
+  that cell. The table grows as needed. Cells outside that rectangle, existing
+  column alignment, and list/callout nesting are preserved. Pasting into a body
+  cell does not replace the header.
+- With autosave enabled (the default), the change is saved automatically.
+  One Undo reverses the table paste, separately from
+  preceding and following typing.
+
+Tab-separated Excel-style data is recognized automatically. Plain CSV text must
+have at least two rows with the same number of columns (at least two); ordinary
+single-line comma-containing text and plain one-column text keep normal paste
+behavior. A clipboard explicitly labeled CSV or TSV can also contain a single
+row or column. Paste inside code, frontmatter, or raw table source stays ordinary
+text rather than creating a nested table.
+
+Empty cells, quoted commas, doubled quotes, Unicode/emoji, leading zeros, and
+multiline quoted values are supported. Real cell line breaks become `<br>`;
+Markdown punctuation is escaped so values remain literal. Only clipboard text
+is used: Excel styling, merged-cell layout, clipboard HTML, and macros are not
+imported, and formulas are never executed. No cloud service is involved.
+
+Table paste is bounded to 256 KiB of copied text, 1,000 rows, 200 columns, 10,000
+cells in the expanded table, and 512 KiB of resulting table source. Invalid
+quoting or excessive size produces a warning without applying a partial table.
+Split larger data into smaller tables. A locked note never accepts a paste.
+
 In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
 (Windows/Linux) work in both Edit and Locked modes. You can select part of a
 table cell, drag across paragraphs and rendered blocks, or keep selecting while
@@ -510,6 +544,9 @@ edit, and invalid property values must be corrected before they can be committed
 
 Live Preview retains a bounded pending-text snapshot before tab switching or
 closing, including text still being edited in a table cell or property field.
+Hidden Live Preview tabs also keep their editor context so switching tabs cannot
+tear down an outgoing paste/save message. This uses more memory per open tab;
+the default reusable-tab setting helps limit that cost.
 Accepted edits finish in order. An incoming file change is never applied at stale
 offsets over your newer local draft. When a draft cannot safely replace the file,
 the extension preserves a separate local recovery copy instead of overwriting

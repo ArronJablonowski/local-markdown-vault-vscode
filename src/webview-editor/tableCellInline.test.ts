@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { installStubDom, serializeChildren } from './testDom';
 import { renderInlineInto } from './tableCellInline';
+import { spreadsheetCellSource } from './spreadsheetClipboard';
 
 let createElement: (tag: string) => HTMLElement;
 
@@ -18,6 +19,22 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('preserves spreadsheet spaces, tabs, Unicode, and real multiline cell breaks', () => {
+		expect(render(spreadsheetCellSource('  A\t\r\nB 🙂 '))).toBe('  A\t<br>B 🙂 ');
+	});
+	it('renders numeric references as text only, never as active HTML', () => {
+		expect(render('&#60;img src=x onerror=alert(1)&#62;')).toBe('&lt;img src=x onerror=alert(1)&gt;');
+		expect(render('&#x1f642; &#0; &#xD800; &#1114112;')).toBe('🙂 � � �');
+	});
+	it('does not decode original spreadsheet entity-looking text twice', () => {
+		expect(render(spreadsheetCellSource('&#32; &amp; <br>'))).toBe('&amp;#32; &amp;amp; &lt;br&gt;');
+	});
+	it('keeps spreadsheet formulas, links, Markdown, and HTML literal', () => {
+		for (const value of ['=SUM(A1:B2)', '**bold**', '[[note]]', '[run](command:evil)', 'https://example.invalid', '$x$']) {
+			expect(render(spreadsheetCellSource(value))).toBe(value);
+		}
+		expect(render(spreadsheetCellSource('<script>alert(1)</script>'))).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+	});
 	it('decodes only escaped pipes in table code, without changing ordinary code', () => {
 		const source = '`x\\|y \\*literal\\*`';
 		const table = createElement('td');

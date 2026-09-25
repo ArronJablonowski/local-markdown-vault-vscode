@@ -143,12 +143,19 @@ describe('host security boundaries', () => {
 		expect(rewrites).toContain('if (!this.isCurrent())');
 	});
 
-	it('does not retain hidden webview execution contexts', () => {
+	it('retains editable drafts during tab switches while suspending hidden expensive work', () => {
 		const provider = readFileSync(join(ROOT, 'src', 'editor', 'MarkdownLivePreviewProvider.ts'), 'utf8');
 		const preview = readFileSync(join(ROOT, 'src', 'sidebar', 'StylePreviewController.ts'), 'utf8');
-		expect(provider).toContain('retainContextWhenHidden: false');
+		const sync = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
+		// Editable notes retain their IPC context to avoid dropping accepted local
+		// input on hide. Non-editable style previews have no draft to protect.
+		expect(provider).toContain('retainContextWhenHidden: true');
 		expect(preview).toContain('retainContextWhenHidden: false');
-		expect(`${provider}\n${preview}`).not.toContain('retainContextWhenHidden: true');
+		expect(preview).not.toContain('retainContextWhenHidden: true');
+		expect(sync).toContain('if (this.disposed || !this.visible || generation !== this.vaultNotesGeneration) return;');
+		expect(sync).toContain('if (!this.visible)');
+		expect(sync).toContain('this.rehighlightGeneration++;');
+		expect(provider).toContain('session.reloadWebview(this.buildHtml(');
 	});
 
 	it('keeps oversized documents out of the executable webview', () => {
@@ -205,7 +212,7 @@ describe('host security boundaries', () => {
 		expect(coordinator).toContain("transaction.state = 'retired'");
 	});
 
-	it('accepts only one initialization handshake per visible webview lifecycle', () => {
+	it('accepts only one initialization handshake per retained webview lifecycle', () => {
 		const sync = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
 		const readyCase = sync.slice(sync.indexOf("case 'ready':"), sync.indexOf("case 'edit':"));
 		expect(readyCase).toContain('if (this.readyReceived)');
@@ -214,7 +221,7 @@ describe('host security boundaries', () => {
 		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.rehighlightGeneration++;\n\t\tthis.queuePendingDraftFlush();\n\t\tthis.readyReceived = false;');
 		const setVisible = sync.slice(sync.indexOf('setVisible(visible: boolean)'), sync.indexOf('\n\tdispose()', sync.indexOf('setVisible(visible: boolean)')));
 		const hiddenCase = setVisible.slice(setVisible.indexOf('if (!visible) {'), setVisible.indexOf('if (this.needsFullSync)'));
-		expect(hiddenCase).toContain('this.readyReceived = false;');
+		expect(hiddenCase).not.toContain('this.readyReceived = false;');
 	});
 
 	it('bounds privileged link navigation by concurrency and sustained rate', () => {

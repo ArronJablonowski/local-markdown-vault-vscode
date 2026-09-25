@@ -99,6 +99,19 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 	}
 
 	switch (name) {
+		case 'Entity': {
+			// Numeric references preserve spreadsheet boundary whitespace without
+			// feeding clipboard/source text to an HTML parser. Decode to a text
+			// node only; a decoded '<' can never become markup or a resource.
+			const raw = src.slice(node.from, node.to);
+			const match = /^&#(x[\da-f]+|\d+);$/i.exec(raw);
+			if (match) {
+				const point = /^x/i.test(match[1]) ? parseInt(match[1].slice(1), 16) : Number(match[1]);
+				appendText(parent, point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+					? String.fromCodePoint(point) : '\ufffd');
+			} else appendText(parent, raw);
+			return;
+		}
 		case 'InlineCode': {
 			// The two CodeMark children delimit the literal run; everything between
 			// them is code text, backticks of a shorter run included.

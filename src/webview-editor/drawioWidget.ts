@@ -13,6 +13,7 @@ import { drawioFileGeneration, readDrawioFile } from './drawioFileClient';
 import type { DrawioDiagram } from '../shared/drawio';
 import { t } from '../shared/i18n';
 import { DiagramLimitError, replaceWithIsolatedDiagramSvg } from './diagramSecurity';
+import { DiagramVisibilityGate, disposeDiagramVisibility, trackDiagramVisibility } from './diagramVisibility';
 
 function replaceWithSafeSvg(container: HTMLElement, svg: string): void {
 	replaceWithIsolatedDiagramSvg(container, svg);
@@ -58,6 +59,9 @@ export class DrawioWidget extends WidgetType {
 		// scrolls, and `canvas` is what gets transformed for pan/zoom.
 		const wrap = document.createElement('div');
 		wrap.className = 'mlp-mermaid-wrap mlp-drawio-wrap';
+		const root = wrapBlockWidget(wrap);
+		const visibility = new DiagramVisibilityGate(document, error => showRenderError(error));
+		trackDiagramVisibility(root, visibility);
 
 		const container = document.createElement('div');
 		container.className = 'mlp-mermaid';
@@ -65,6 +69,7 @@ export class DrawioWidget extends WidgetType {
 
 		const canvas = document.createElement('div');
 		canvas.className = 'mlp-mermaid-canvas';
+		canvas.textContent = t('diagram.rendering');
 		container.appendChild(canvas);
 
 		let mode: DisplayMode = 'fit';
@@ -134,6 +139,11 @@ export class DrawioWidget extends WidgetType {
 			canvas.setAttribute('role', 'alert');
 			view.requestMeasure();
 		};
+		const showRenderError = (error: unknown): void => {
+			showError(error instanceof DrawioUnsupportedError || error instanceof DrawioParseError || error instanceof DiagramLimitError
+				? error.message : t('drawio.renderFailed'));
+			updatePageControls();
+		};
 
 		function updatePageControls(): void {
 			const count = diagram?.pages.length ?? 0;
@@ -154,12 +164,14 @@ export class DrawioWidget extends WidgetType {
 			// Wrap around rather than clamping: with only a prev/next pair, clamping
 			// leaves the last page a dead end that needs several clicks to escape.
 			pageIndex = ((next % count) + count) % count;
-			replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
-			updatePageControls();
-			if (mode === 'native') resetPanZoom();
-			// A different page is almost never the same height as the one it
-			// replaced, and CodeMirror cannot observe an innerHTML swap.
-			view.requestMeasure();
+			visibility.run(() => {
+				if (!diagram) return;
+				replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
+				updatePageControls();
+				if (mode === 'native') resetPanZoom();
+				// A page change can resize the diagram independently of CodeMirror.
+				view.requestMeasure();
+			});
 		}
 
 		function setMode(next: DisplayMode): void {
@@ -255,34 +267,30 @@ export class DrawioWidget extends WidgetType {
 		setMode('fit');
 
 		// ── Render ───────────────────────────────────────────────────────────────
-		try {
+		visibility.run(() => {
 			diagram = parseDrawioPages(this.code);
 			replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, 0));
 			updatePageControls();
+			view.requestMeasure(); // Also remeasure when initial rendering was deferred while hidden.
 			// AWS symbols live in a multi-megabyte table fetched on demand, so the
-			// first render draws plain coloured tiles. Redraw once it arrives —
+			// first render draws plain colored tiles. Redraw once it arrives —
 			// only for a diagram that actually uses them, and only if this widget
 			// is still on screen by then.
 			if (usesAwsShapes(diagram)) {
-				ensureAwsShapes(() => {
+				ensureAwsShapes(() => visibility.run(() => {
 					if (!wrap.isConnected || !diagram) return;
 					replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
 					if (mode === 'native') resetPanZoom();
 					view.requestMeasure();
-				});
+				}));
 			}
-		} catch (err) {
-			// A compressed file is a supported-input problem with a concrete fix, so
-			// its own message is surfaced verbatim rather than folded into a generic
-			// parse failure the user can do nothing about.
-			const message = err instanceof DrawioUnsupportedError || err instanceof DrawioParseError || err instanceof DiagramLimitError
-				? err.message
-				: t('drawio.renderFailed');
-			showError(message);
-			updatePageControls();
-		}
+		});
 
-		return wrapBlockWidget(wrap);
+		return root;
+	}
+
+	destroy(dom: HTMLElement): void {
+		disposeDiagramVisibility(dom);
 	}
 
 	// Same standing guess as the Mermaid widget: a fenced block's own text height
@@ -326,6 +334,11 @@ export class DrawioFileWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		const host = document.createElement('div');
 		host.className = 'mlp-block';
+		const visibility = new DiagramVisibilityGate(document, () => showReadError());
+		let child: { widget: DrawioWidget; dom: HTMLElement } | undefined;
+		trackDiagramVisibility(host, visibility, () => {
+			if (child) child.widget.destroy(child.dom);
+		});
 
 		const placeholder = document.createElement('div');
 		placeholder.className = 'mlp-mermaid-wrap mlp-drawio-wrap';
@@ -334,29 +347,36 @@ export class DrawioFileWidget extends WidgetType {
 		canvas.textContent = t('drawio.loading', this.src);
 		placeholder.appendChild(canvas);
 		host.appendChild(placeholder);
+		const showReadError = (): void => {
+			if (!host.isConnected) return;
+			canvas.textContent = t('drawio.readFailed');
+			canvas.classList.add('mlp-mermaid-error');
+			canvas.setAttribute('role', 'alert');
+			view.requestMeasure();
+		};
 
-		readDrawioFile(this.src)
-			.then((xml) => {
+		visibility.run(() => {
+			void readDrawioFile(this.src).then((xml) => visibility.run(() => {
 				if (!host.isConnected) return; // the widget was replaced while reading
 				// `DrawioWidget.toDOM` returns an already-wrapped block; this widget's
 				// own host is that wrapper, so swap in the wrapper's child to avoid
 				// nesting two `.mlp-block` boxes and doubling the vertical padding.
-				const rendered = new DrawioWidget(xml).toDOM(view);
+				const widget = new DrawioWidget(xml);
+				const rendered = widget.toDOM(view);
+				child = { widget, dom: rendered };
 				host.replaceChildren(...Array.from(rendered.childNodes));
 				// The file arrived after CodeMirror measured the placeholder, and it
 				// cannot observe the swap — without this the height map keeps the
 				// one-line placeholder height for a full diagram.
 				view.requestMeasure();
-			})
-			.catch((err: unknown) => {
-				if (!host.isConnected) return;
-				canvas.textContent = t('drawio.readFailed');
-				canvas.classList.add('mlp-mermaid-error');
-				canvas.setAttribute('role', 'alert');
-				view.requestMeasure();
-			});
+			})).catch(() => visibility.run(showReadError));
+		});
 
 		return host;
+	}
+
+	destroy(dom: HTMLElement): void {
+		disposeDiagramVisibility(dom);
 	}
 
 	get estimatedHeight(): number {

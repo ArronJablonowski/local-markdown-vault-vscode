@@ -148,10 +148,18 @@ The real extension-host scenario opens a Markdown file containing highlighted
 code in Live Preview, covers the tab, edits its backing `TextDocument`, and
 waits beyond the 150 ms highlighting debounce. The process-local tokenizer run
 count remains unchanged while hidden and advances only after the Live Preview
-tab is revealed. Together with `retainContextWhenHidden: false`, this verifies
-that a hidden panel has no running webview timers or animation context and does
-not invoke host syntax parsing for background edits. CSS and vault-summary
-notifications use the same visibility gate.
+tab is revealed. This verifies that hidden panels do not invoke host syntax
+parsing for background edits. CSS and vault-summary notifications use the same
+visibility gate.
+
+Editable Live Preview panels retain their webview context while hidden. Native
+spreadsheet-paste testing on September 25 reproduced a lost accepted edit when
+VS Code destroyed a hidden iframe before its outgoing save messages arrived.
+Retaining the context protects that transport and pending edit state; it costs
+more memory per open editor. Close unused saved tabs or use the default reusable
+tab to limit that cost. Style-preview panels still discard hidden contexts.
+Retention does not replace save acknowledgments or make abrupt process failure
+safe. See [spreadsheet paste QA](SPREADSHEET_PASTE_QA_2026-09-25.md).
 
 ## Remaining release evidence
 

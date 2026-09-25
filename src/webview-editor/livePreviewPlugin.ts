@@ -1,7 +1,7 @@
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
-import { notifyActiveDraftChanged, registerActiveDraft } from './activeDraft';
+import { notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft } from './activeDraft';
 import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
-import type { Range, EditorState } from '@codemirror/state';
+import type { Range, EditorState, Transaction } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
 import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
@@ -15,6 +15,8 @@ import { wrapBlockWidget } from './blockWidgetWrap';
 import { detectFrontmatter } from './frontmatterWidget';
 import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
 import { escapeTableCellSource } from './tableCellSource';
+import { pasteSpreadsheetCells, MAX_SPREADSHEET_INPUT_BYTES } from './spreadsheetClipboard';
+import { isolatedSpreadsheetPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import {
 	insertRow,
@@ -580,6 +582,7 @@ class TableWidget extends WidgetType {
 		);
 	}
 	toDOM(view: EditorView): HTMLElement {
+		const originalTableSource = view.state.sliceDoc(this.tableFrom, this.tableTo);
 		const table = renderTableElement(
 			{
 				rows: this.rows,
@@ -853,6 +856,7 @@ class TableWidget extends WidgetType {
 				// A newline cannot live inside a cell, so Enter means "done".
 				event.preventDefault();
 				commit(editing);
+				if (editing) return;
 				protectRenderedBlockFromCaret();
 				view.focus();
 				return;
@@ -884,9 +888,27 @@ class TableWidget extends WidgetType {
 			// share: without it the typed text was written twice ("oneXY" became
 			// "oneXYXY") on Enter, on Tab, and on a structural edit.
 			if (cell.dataset.mlpCommitted === '1') return null;
+			const ref = readCellRef(cell);
+			if (!ref) return null;
+			const next = sanitizeCellInput(cell.textContent ?? '');
+			let transaction: Transaction | undefined;
+			if (next !== ref.source) {
+				if (ref.to > view.state.doc.length || view.state.sliceDoc(ref.from, ref.to) !== ref.source) {
+					preserveUncommittedDraft(`Uncommitted table cell:\n${cell.textContent ?? ''}`);
+					return null;
+				}
+				const changes = { from: ref.from, to: ref.to, insert: next };
+				const anchor = caretPastTable(view.state, ref.from, next.length - (ref.to - ref.from));
+				transaction = view.state.update(anchor === null ? { changes } : { changes, selection: { anchor } });
+				// A size/queue/lock filter can reject a transaction. Keep the draft
+				// editable and recoverable instead of spending it before acceptance.
+				if (!transaction.docChanged) {
+					preserveUncommittedDraft(`Uncommitted table cell:\n${cell.textContent ?? ''}`);
+					return null;
+				}
+			}
 			cell.dataset.mlpCommitted = '1';
 			cell.removeEventListener('keydown', onCellKeydown);
-			const ref = readCellRef(cell);
 			cell.contentEditable = 'false';
 			cell.classList.remove('mlp-table-cell-editing');
 			if (editing === cell) editing = null;
@@ -895,8 +917,6 @@ class TableWidget extends WidgetType {
 			// `freezeColumnWidths` first), so the table never visibly relaxes
 			// between two cells — only when editing genuinely stops.
 			thawColumnWidths();
-			if (!ref) return null;
-			const next = sanitizeCellInput(cell.textContent ?? '');
 			if (next === ref.source) {
 				// Unchanged: re-render in place. Skipping the dispatch avoids pushing
 				// a no-op onto the undo history, but the DOM currently holds the raw
@@ -906,20 +926,7 @@ class TableWidget extends WidgetType {
 				notifyActiveDraftChanged();
 				return ref.to;
 			}
-			// The span was read from the document as it stood when this widget was
-			// built. Anything that changed the document since (an edit in another
-			// cell, an undo, a sync from disk) invalidates it, and writing through a
-			// stale range would overwrite unrelated text. Verifying the range still
-			// holds the text it was read from is what makes that safe.
-			if (ref.to > view.state.doc.length) return null;
-			if (view.state.sliceDoc(ref.from, ref.to) !== ref.source) return null;
-			// The caret must end up on a line *outside* the table. Any position on a
-			// table line makes `cursorTouchesRange` true, which drops the rendered
-			// widget for raw pipe text — the very mode switch this editor exists to
-			// avoid, and it would fire the instant the edit was saved.
-			const changes = { from: ref.from, to: ref.to, insert: next };
-			const anchor = caretPastTable(view.state, ref.from, next.length - (ref.to - ref.from));
-			preserveHorizontalScroll(() => view.dispatch(anchor === null ? { changes } : { changes, selection: { anchor } }));
+			preserveHorizontalScroll(() => view.dispatch(transaction!));
 			// The replacement's own length is what the cell now ends at.
 			return ref.from + next.length;
 		};
@@ -992,6 +999,7 @@ class TableWidget extends WidgetType {
 			}
 			if (editing === cell) return;
 			if (editing) commit(editing);
+			if (editing) return;
 			const ref = readCellRef(cell);
 			if (!ref) return; // padding cell invented by fitRow; no source to edit
 			// Must run before the cell's text is swapped below, while the columns
@@ -1059,6 +1067,7 @@ class TableWidget extends WidgetType {
 			// destination is identified by its grid position instead, and looked up
 			// again afterwards, in the table that is on screen by then.
 			if (editing) commit(editing);
+			if (editing) return false;
 			const finish = (): void => {
 				// Scoped to *this* table's replacement, not the first one in the
 				// document: a file with several tables would otherwise start editing
@@ -1278,6 +1287,85 @@ class TableWidget extends WidgetType {
 			};
 		};
 
+		// A widget opts out of CodeMirror DOM events, so spreadsheet paste must
+		// be handled at the actual cell boundary, before native rich-text paste.
+		table.addEventListener('paste', event => {
+			const cell = event.target instanceof Element ? event.target.closest<HTMLElement>('.mlp-table-cell') : null;
+			if (!cell || !table.contains(cell) || !event.clipboardData) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (!view.state.facet(EditorView.editable)) return;
+			if (!table.isConnected || view.state.sliceDoc(this.tableFrom, this.tableTo) !== originalTableSource) {
+				showSpreadsheetPasteWarning('stale'); return;
+			}
+			const { result, hasText, text } = readSpreadsheetClipboard(event.clipboardData);
+			if (!hasText) { showSpreadsheetPasteWarning('textOnly'); return; }
+			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return; }
+			if (result.kind === 'text') {
+				if (text.length > MAX_SPREADSHEET_INPUT_BYTES || new TextEncoder().encode(text).byteLength > MAX_SPREADSHEET_INPUT_BYTES) {
+					showSpreadsheetPasteWarning('tooLarge'); return;
+				}
+				// Preserve ordinary one-cell paste, without ever importing clipboard
+				// HTML or its images, links, scripts, styles, or event attributes.
+				if (editing !== cell) beginEditing(cell, 'all');
+				const selection = window.getSelection();
+				if (editing !== cell || !selection?.rangeCount) return;
+				const range = selection.getRangeAt(0);
+				if (!cell.contains(range.commonAncestorContainer)) return;
+				const ref = readCellRef(cell);
+				if (!ref) return;
+				const before = document.createRange(), after = document.createRange();
+				before.selectNodeContents(cell); before.setEnd(range.startContainer, range.startOffset);
+				after.selectNodeContents(cell); after.setStart(range.endContainer, range.endOffset);
+				const candidate = sanitizeCellInput(before.toString() + text + after.toString());
+				if (!spreadsheetReplacementFits(view.state, ref.from, ref.to, candidate)) {
+					showSpreadsheetPasteWarning('tooLarge'); return;
+				}
+				range.deleteContents();
+				const node = document.createTextNode(text);
+				range.insertNode(node); range.setStartAfter(node); range.collapse(true);
+				selection.removeAllRanges(); selection.addRange(range);
+				showSpreadsheetPasteWarning();
+				notifyActiveDraftChanged();
+				commit(cell);
+				return;
+			}
+			const row = Number(cell.dataset.mlpRow), col = Number(cell.dataset.mlpCol);
+			let current = currentTableModel();
+			if (!current) { showSpreadsheetPasteWarning('stale'); return; }
+			try {
+				// Preflight before committing a typed draft: a rejected paste must
+				// not change either the note or the in-progress cell text.
+				let preflight = current.model;
+				const draft = editing && readCellRef(editing);
+				if (draft && editing) {
+					preflight = { ...preflight, rows: preflight.rows.map(cells => cells.slice()) };
+					preflight.rows[draft.row][draft.col] = sanitizeCellInput(editing.textContent ?? '');
+				}
+				const proposed = renderTableMarkdown(pasteSpreadsheetCells(preflight, result.rows, row, col))
+					+ (current.to === view.state.doc.length ? '\n\n' : '');
+				if (!spreadsheetReplacementFits(view.state, current.from, current.to, proposed)) throw new RangeError();
+				// Commit preceding typing as its own operation so Undo of the paste
+				// restores the typed value. Re-read after that commit swaps the DOM.
+				if (editing) commit(editing);
+				if (editing) return;
+				current = currentTableModel();
+				if (!current) { showSpreadsheetPasteWarning('stale'); return; }
+				const { from, to, model } = current;
+				const insert = renderTableMarkdown(pasteSpreadsheetCells(model, result.rows, row, col))
+					+ (to === view.state.doc.length ? '\n\n' : '');
+				if (!spreadsheetReplacementFits(view.state, from, to, insert)) throw new RangeError();
+				showSpreadsheetPasteWarning();
+				protectRenderedBlockFromCaret();
+				const anchor = Math.min(from + insert.length + 1, view.state.doc.length - (to - from) + insert.length);
+				preserveHorizontalScroll(() => view.dispatch({ changes: { from, to, insert }, selection: { anchor },
+					annotations: isolatedSpreadsheetPaste.of(true), userEvent: 'input.paste' }));
+				view.focus();
+			} catch {
+				showSpreadsheetPasteWarning('tooLarge');
+			}
+		});
+
 		const copySelectedTable = (event: ClipboardEvent): void => {
 			if (!tableBlockSelected || !event.clipboardData) return;
 			const current = currentTableModel();
@@ -1342,6 +1430,7 @@ class TableWidget extends WidgetType {
 			// — without that, both paths committed and the typed text was written
 			// twice ("oneXY" became "oneXYXY").
 			if (editing) commit(editing);
+			if (editing) return;
 			// Re-read the table from the document rather than using this widget's own
 			// fields. Those describe the document as it stood when the widget was
 			// built, and the `commit` above may just have changed it — rebuilding

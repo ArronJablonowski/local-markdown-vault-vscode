@@ -250,6 +250,10 @@ export class DocumentSyncSession {
 					break;
 				}
 				this.readyReceived = true;
+				// Retained VS Code panels can stay document.hidden === false even
+				// when their tab is not shown. Send host-owned visibility before init
+				// so a new or policy-reloaded renderer does not start hidden work.
+				this.post({ type: 'panelVisibility', visible: this.visible });
 				void this.mutationQueue.drain().then(() => {
 					if (this.disposed) return;
 					if (this.visible) { this.sendInit(); this.scheduleRehighlight(true); }
@@ -377,6 +381,16 @@ export class DocumentSyncSession {
 			const text = normalizeLineEndingsForWebview(this.document.getText());
 			if (text === draft.baselineText && text !== draft.text) {
 				await this.applyEdit([{ from: 0, to: text.length, insert: draft.text }], this.document.version, false);
+				if (normalizeLineEndingsForWebview(this.document.getText()) !== text) {
+					// Snapshot-only widget drafts are not normal renderer batches, so
+					// they produce no edit ACK. A retained renderer still needs their
+					// authoritative source/version before its next edit. Visibility may
+					// have changed while the native edit/save was awaited.
+					if (this.visible && this.readyReceived && !this.closing) {
+						this.needsFullSync = false;
+						this.sendInit();
+					} else this.needsFullSync = true;
+				}
 			}
 			await this.settleAutoSave?.();
 			return !this.document.isDirty && normalizeLineEndingsForWebview(this.document.getText()) === draft.text;
@@ -1267,12 +1281,13 @@ export class DocumentSyncSession {
 	setVisible(visible: boolean): void {
 		if (visible === this.visible) return;
 		this.visible = visible;
+		if (this.readyReceived) this.post({ type: 'panelVisibility', visible });
 		if (!visible) {
 			this.rehighlightGeneration++;
 			this.queuePendingDraftFlush();
-			// retainContextWhenHidden is false, so the next reveal creates a new
-			// script context with one legitimate ready handshake.
-			this.readyReceived = false;
+			// Editable contexts survive hiding so in-transit edits can still arrive.
+			// Keep their completed handshake: a retained iframe does not send ready
+			// again when shown. Only reloadWebview resets the handshake.
 			this.vaultNotesGeneration++;
 			if (this.rehighlightTimer) {
 				clearTimeout(this.rehighlightTimer);

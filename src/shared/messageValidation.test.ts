@@ -21,6 +21,17 @@ describe('validateEditorToHostMessage', () => {
 		for (const enabled of ['true', 1, null, {}]) expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled }, 0).ok).toBe(false);
 		expect(validateHostToEditorMessage({ type: 'setWhitespace', enabled: true, command: 'unsafe' }, 0).ok).toBe(false);
 	});
+	it('accepts only exact boolean host-owned panel visibility updates', () => {
+		for (const visible of [true, false]) {
+			expect(validateHostToEditorMessage({ type: 'panelVisibility', visible }, 0)).toEqual({ ok: true, value: { type: 'panelVisibility', visible } });
+			expect(validateEditorToHostMessage({ type: 'panelVisibility', visible }, 0).ok).toBe(false);
+		}
+		for (const visible of ['true', 'false', 0, 1, null, undefined, [], {}]) {
+			expect(validateHostToEditorMessage({ type: 'panelVisibility', visible }, 0).ok).toBe(false);
+		}
+		expect(validateHostToEditorMessage({ type: 'panelVisibility' }, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ type: 'panelVisibility', visible: true, command: 'unsafe' }, 0).ok).toBe(false);
+	});
 	it('bounds clipboard requests and validates their acknowledgements', () => {
 		const request = { type: 'copyCode', requestId: 1, text: 'print("hello")' };
 		expect(validateEditorToHostMessage(request, 0).ok).toBe(true);

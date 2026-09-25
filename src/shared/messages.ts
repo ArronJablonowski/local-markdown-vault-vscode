@@ -36,6 +36,7 @@ export interface PastedImagePayload {
 
 export type HostToEditorMessage =
 	| { type: 'draftPreserved'; requestId: number; ok: boolean }
+	| { type: 'panelVisibility'; visible: boolean }
 	| { type: 'setWhitespace'; enabled: boolean }
 	| { type: 'copyCodeResult'; requestId: number; ok: boolean }
 	| {
