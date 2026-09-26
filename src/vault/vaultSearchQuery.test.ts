@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { collectBoundedSearchText, findVaultContentMatch, MAX_SEARCH_CANDIDATE_TEXT_LENGTH, parseVaultQuery, searchVaultRecords } from './vaultSearchQuery';
+import { describe, expect, it, vi } from 'vitest';
+import { collectBoundedSearchText, findParsedVaultContentMatch, findVaultContentMatch, MAX_SEARCH_CANDIDATE_TEXT_LENGTH, parseVaultQuery, searchVaultRecords } from './vaultSearchQuery';
 import type { VaultIndexRecord } from './VaultIndex';
 
 const records: VaultIndexRecord[] = [
@@ -54,6 +54,28 @@ describe('vault search query', () => {
 		}]]);
 	});
 
+	it.each(['file', 'path', 'tag', 'task', 'property'])('keeps a fully quoted %s: term literal without changing unquoted filters', (field) => {
+		expect(parseVaultQuery(`"${field}:value"`)?.groups).toEqual([[{
+			kind: 'text', value: `${field}:value`, exact: true, negated: false,
+		}]]);
+		expect(parseVaultQuery(`-"${field}:value"`)?.groups).toEqual([[{
+			kind: 'text', value: `${field}:value`, exact: true, negated: true,
+		}]]);
+		expect(parseVaultQuery(`${field}:value`)?.groups).toEqual([[{
+			kind: 'filter', field, value: 'value', negated: false,
+		}]]);
+	});
+
+	it('matches quoted filter-looking content as text, including negation', () => {
+		const record = { ...records[0], tags: ['value'], searchTokens: ['tag:value'] };
+		expect(findVaultContentMatch(record, 'Documented syntax: tag:value', '"tag:value"')).toEqual({ index: 19, length: 9 });
+		expect(findVaultContentMatch(record, 'No filter-looking text here.', '"tag:value"')).toBeUndefined();
+		expect(findVaultContentMatch(record, 'No filter-looking text here.', 'tag:value')).toBeDefined();
+		expect(findVaultContentMatch(record, 'Documented syntax: tag:value', '-"tag:value"')).toBeUndefined();
+		expect(findVaultContentMatch(record, 'No filter-looking text here.', '-"tag:value"')).toBeDefined();
+		expect(searchVaultRecords([record], '"tag:value"')).toEqual([record]);
+	});
+
 	it('does not reject a negated phrase using unordered index tokens', () => {
 		const record = { ...records[0], searchTokens: ['remote', 'images'] };
 		expect(searchVaultRecords([record], '-"remote images"')).toEqual([record]);
@@ -97,5 +119,41 @@ describe('vault search query', () => {
 		expect(parseVaultQuery('/threat\\s+model/i')).toBeDefined();
 		expect(parseVaultQuery('/(threat|risk) model/i')).toBeDefined();
 		expect(parseVaultQuery('/[a-z]{1,40} plan/iu')).toBeDefined();
+	});
+
+	it('preserves metadata case for regular expressions without affecting case-insensitive text queries', () => {
+		const record = { ...records[0], path: 'Notes/Security.md', basename: 'Security', headings: [], aliases: [], tags: [], properties: {} };
+		expect(findVaultContentMatch(record, 'Unrelated body.', '/Security/')).toEqual({ index: 0, length: 0 });
+		expect(findVaultContentMatch(record, 'Unrelated body.', '/security/')).toBeUndefined();
+		expect(findVaultContentMatch(record, 'Unrelated body.', '/security/i')).toEqual({ index: 0, length: 0 });
+		expect(findVaultContentMatch(record, 'Unrelated body.', 'security')).toEqual({ index: 0, length: 0 });
+	});
+
+	it('maps Unicode offsets once per note even for hundreds of matching text clauses', () => {
+		const text = `İ${'x'.repeat(100_000)} needle`;
+		const parsed = parseVaultQuery('needle '.repeat(290))!;
+		const iterate = vi.spyOn(String.prototype, Symbol.iterator);
+		try {
+			expect(findParsedVaultContentMatch(records[0], text, parsed)).toEqual({ index: 100_002, length: 6 });
+			expect(iterate).toHaveBeenCalledTimes(1);
+		} finally { iterate.mockRestore(); }
+	});
+
+	it('does not remap Unicode offsets for unsuccessful query groups', () => {
+		const text = `İ${'x'.repeat(100_000)} needle`;
+		const parsed = parseVaultQuery('needle absent OR needle forbidden')!;
+		const iterate = vi.spyOn(String.prototype, Symbol.iterator);
+		try {
+			expect(findParsedVaultContentMatch(records[0], text, parsed)).toBeUndefined();
+			expect(iterate).not.toHaveBeenCalled();
+		} finally { iterate.mockRestore(); }
+	});
+
+	it('compares folded text and original regex offsets only after Unicode conversion', () => {
+		const text = 'İ first second';
+		expect(findVaultContentMatch(records[0], text, 'second /first/')).toEqual({ index: 2, length: 5 });
+		expect(findVaultContentMatch(records[0], text, '/second/ first')).toEqual({ index: 2, length: 5 });
+		expect(findVaultContentMatch(records[0], text, '/fir/ first')).toEqual({ index: 2, length: 3 });
+		expect(findVaultContentMatch(records[0], text, 'first /fir/')).toEqual({ index: 2, length: 5 });
 	});
 });

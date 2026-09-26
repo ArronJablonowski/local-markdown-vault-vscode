@@ -27,7 +27,9 @@ export function parseVaultQuery(query: string): ParsedVaultQuery | undefined {
 			negated = true;
 			value = value.slice(1);
 		}
-		const filter = /^(file|path|tag|task|property):(.*)$/i.exec(value);
+		// Fully quoted text is always literal, including names that otherwise
+		// introduce a filter. The tokenizer preserves negation separately.
+		const filter = rawToken.quoted ? null : /^(file|path|tag|task|property):(.*)$/i.exec(value);
 		if (filter) {
 			groups.at(-1)!.push({ kind: 'filter', field: filter[1].toLocaleLowerCase() as FilterField, value: filter[2], negated });
 			continue;
@@ -140,21 +142,38 @@ function matchClause(record: VaultIndexRecord, clause: VaultQueryClause): { matc
 
 export interface VaultContentMatch { index: number; length: number }
 
+/** Literal, case-insensitive title/body matching for the default search UI. */
+export function findVaultKeywordMatch(record: VaultIndexRecord, text: string, keyword: string): VaultContentMatch | undefined {
+	const value = keyword.toLocaleLowerCase();
+	const body = text.toLocaleLowerCase();
+	const index = body.indexOf(value);
+	if (index >= 0) return originalTextMatch(text, body, index, value.length);
+	return record.basename.toLocaleLowerCase().includes(value) ? { index: 0, length: 0 } : undefined;
+}
+
 /** Rechecks an index candidate against authoritative note text and locates its first body match. */
 export function findVaultContentMatch(record: VaultIndexRecord, text: string, query: string): VaultContentMatch | undefined {
 	const parsed = parseVaultQuery(query);
 	if (!parsed) return undefined;
+	return findParsedVaultContentMatch(record, text, parsed);
+}
+
+/** Reuses a parsed query across a full-vault search without retaining note bodies. */
+export function findParsedVaultContentMatch(record: VaultIndexRecord, text: string, parsed: ParsedVaultQuery): VaultContentMatch | undefined {
 	if (!parsed.groups.length) return { index: 0, length: 0 };
 	const body = text.toLocaleLowerCase();
 	const metadataFields = [
 		record.basename, record.path, ...record.aliases, ...record.headings.map((heading) => heading.text),
 		...record.tags, ...Object.entries(record.properties).flatMap(([key, value]) => [key, propertyText(value)]),
-	].map((value) => value.toLocaleLowerCase());
+	];
+	const foldedMetadata = metadataFields.map((value) => value.toLocaleLowerCase());
+	const textMatches = new Map<string, { bodyMatch?: VaultContentMatch; metadataMatched: boolean }>();
 	let authoritativeProperties: Readonly<Record<string, unknown>> | undefined;
 	for (const group of parsed.groups) {
 		let valid = true;
-		let first: VaultContentMatch | undefined;
-		for (const clause of group) {
+		let firstText: { match: VaultContentMatch; order: number } | undefined;
+		let firstRegex: { match: VaultContentMatch; order: number } | undefined;
+		for (const [order, clause] of group.entries()) {
 			if (clause.kind === 'filter') {
 				const matched = clause.field === 'property' && clause.value.includes('=')
 					? matchAuthoritativeProperty(
@@ -169,9 +188,16 @@ export function findVaultContentMatch(record: VaultIndexRecord, text: string, qu
 			let bodyMatch: VaultContentMatch | undefined;
 			let metadataMatched = false;
 			if (clause.kind === 'text') {
-				const index = body.indexOf(clause.value);
-				if (index >= 0) bodyMatch = { index, length: clause.value.length };
-				metadataMatched = metadataFields.some((field) => field.includes(clause.value));
+				let cached = textMatches.get(clause.value);
+				if (!cached) {
+					const index = body.indexOf(clause.value);
+					cached = {
+						...(index >= 0 ? { bodyMatch: { index, length: clause.value.length } } : {}),
+						metadataMatched: foldedMetadata.some((field) => field.includes(clause.value)),
+					};
+					textMatches.set(clause.value, cached);
+				}
+				({ bodyMatch, metadataMatched } = cached);
 			} else {
 				const bodyResult = clause.value.matchAll(text).next().value;
 				if (bodyResult?.index !== undefined) bodyMatch = { index: bodyResult.index, length: bodyResult[0].length };
@@ -179,11 +205,40 @@ export function findVaultContentMatch(record: VaultIndexRecord, text: string, qu
 			}
 			const matched = Boolean(bodyMatch || metadataMatched);
 			if (clause.negated ? matched : !matched) { valid = false; break; }
-			if (!clause.negated && bodyMatch && (!first || bodyMatch.index < first.index)) first = bodyMatch;
+			if (!clause.negated && bodyMatch) {
+				if (clause.kind === 'text' && (!firstText || bodyMatch.index < firstText.match.index)) firstText = { match: bodyMatch, order };
+				if (clause.kind === 'regex' && (!firstRegex || bodyMatch.index < firstRegex.match.index)) firstRegex = { match: bodyMatch, order };
+			}
 		}
-		if (valid) return first ?? { index: 0, length: 0 };
+		if (valid) {
+			// Folded text offsets are monotonic, so only the earliest successful
+			// text match needs conversion. Mapping every clause can multiply a
+			// multi-megabyte Unicode walk by hundreds of query terms.
+			const first = firstText && originalTextMatch(text, body, firstText.match.index, firstText.match.length);
+			if (!first) return firstRegex?.match ?? { index: 0, length: 0 };
+			if (firstRegex && (firstRegex.match.index < first.index || (firstRegex.match.index === first.index && firstRegex.order < firstText!.order))) return firstRegex.match;
+			return first;
+		}
 	}
 	return undefined;
+}
+
+function originalTextMatch(text: string, folded: string, index: number, length: number): VaultContentMatch {
+	if (text.length === folded.length) return { index, length };
+	// Lowercasing can expand characters such as U+0130 into two code points.
+	// Search offsets must refer to the original document, not the folded copy.
+	let originalOffset = 0;
+	let foldedOffset = 0;
+	let start = 0;
+	for (const character of text) {
+		const nextOriginal = originalOffset + character.length;
+		const nextFolded = foldedOffset + character.toLocaleLowerCase().length;
+		if (foldedOffset <= index && index < nextFolded) start = originalOffset;
+		if (nextFolded >= index + length) return { index: start, length: nextOriginal - start };
+		originalOffset = nextOriginal;
+		foldedOffset = nextFolded;
+	}
+	return { index: start, length: text.length - start };
 }
 
 function matchAuthoritativeProperty(

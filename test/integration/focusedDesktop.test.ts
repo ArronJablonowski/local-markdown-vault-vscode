@@ -320,6 +320,7 @@ suite('focused cross-platform desktop transactions', () => {
 		await vscode.commands.executeCommand('mdLivePreview.vaultSearch');
 		const page = await getWorkbenchPage();
 		const picker = page.locator('.quick-input-widget:visible');
+		await picker.getByRole('button', { name: 'Use advanced search syntax', exact: true }).click();
 		await picker.locator('input').fill(`path:${relative} -"remote images"`);
 		await picker.locator('.monaco-list-row').filter({ hasText: 'Field handoff' }).waitFor({ state: 'visible' });
 		assert.strictEqual(await picker.locator('.monaco-list-row').filter({ hasText: 'Excluded transmission' }).count(), 0, 'negative quoted phrase retained an adjacent phrase');

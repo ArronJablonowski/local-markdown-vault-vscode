@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a visible Vault search button and context-menu action. Search every indexed document's title and full content with literal, case-insensitive keywords, paths, snippets, result counts, refresh, and click/keyboard navigation. Keep advanced query syntax behind an explicit toggle, remove the old UI result/candidate cutoffs, cancel obsolete scans, and recheck exclusions and index readiness without retaining note bodies.
+
 - Add dedicated Undo/Redo Vault Move or Rename commands to the Command Palette and Vault menus. Recalculate links from current content instead of relying on VS Code's disposed-model undo history. Keep bounded, memory-only history with collision, identity, policy, and workspace guards; preserve ordinary text Undo shortcuts.
 
 - Fix a close-during-save race that could discard the final accepted characters. Wait for in-progress native writes even after document tracking closes; recheck the reopened document and retry once only over the exact original baseline. Preserve conflicting text separately. Document a remaining VS Code native Undo limitation for moves that update an unopened note; reversing the move through the Vault is the tested workaround.

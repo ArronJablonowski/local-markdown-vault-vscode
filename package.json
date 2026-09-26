@@ -267,6 +267,7 @@
         "command": "mdLivePreview.vaultSearch",
         "title": "%command.vaultSearch%",
         "category": "%command.category%",
+        "icon": "$(search)",
         "enablement": "mdLivePreview.vaultAvailable"
       },
       {
@@ -348,6 +349,11 @@
       ],
       "view/title": [
         {
+          "command": "mdLivePreview.vaultSearch",
+          "when": "view == mdLivePreview.vault",
+          "group": "navigation@0"
+        },
+        {
           "command": "mdLivePreview.vault.undoMove",
           "when": "view == mdLivePreview.vault && isWorkspaceTrusted",
           "group": "history@1"
@@ -399,6 +405,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "mdLivePreview.vaultSearch",
+          "when": "view == mdLivePreview.vault",
+          "group": "5_search@1"
+        },
         {
           "command": "mdLivePreview.vault.undoMove",
           "when": "view == mdLivePreview.vault && isWorkspaceTrusted",
@@ -653,6 +664,7 @@
     "test:integration:cache-restart": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-cache-restart-integration.mjs",
     "test:integration:saves": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-save-durability-integration.mjs",
     "test:integration:vault-history": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-vault-move-history-integration.mjs",
+    "test:integration:vault-search": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-vault-search-integration.mjs",
     "test:integration:focused": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-focused-desktop-integration.mjs",
     "test:integration:focused:macos": "npm run test:integration:focused",
     "test:ui:native": "npm run compile && node scripts/run-human-ui-qa.mjs",
@@ -660,7 +672,7 @@
     "test:e2e": "npm run compile && playwright test",
     "test:performance:filesystem": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-filesystem-performance.mjs",
     "test:vsix": "tsc -p tsconfig.test.json && node scripts/run-vsix-smoke.mjs",
-    "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:saves && npm run test:integration:vault-history && npm run test:integration:cache-restart && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
+    "test:all": "npm run test:coverage && npm run test:integration && npm run test:integration:saves && npm run test:integration:vault-history && npm run test:integration:vault-search && npm run test:integration:cache-restart && npm run test:integration:restricted && npm run test:e2e && npm run package && npm run test:vsix",
     "package": "vsce package --no-dependencies && node scripts/verify-vsix.mjs",
     "package:verify": "node scripts/verify-vsix.mjs",
     "language:verify": "node scripts/verify-us-english.mjs",

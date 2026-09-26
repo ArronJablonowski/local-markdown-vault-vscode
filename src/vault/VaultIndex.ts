@@ -39,6 +39,7 @@ export class VaultIndex implements vscode.Disposable {
 	private readonly legacyStorageUris: readonly vscode.Uri[];
 	private readonly memoryBudget = new IndexMemoryBudget();
 	private rebuildGeneration = 0;
+	private readonly pendingRebuilds = new Set<Promise<void>>();
 	private disposed = false;
 	private indexingDisabled = false;
 	private indexFailure: Error | undefined;
@@ -144,13 +145,47 @@ export class VaultIndex implements vscode.Disposable {
 		await Promise.all([...this.documentUpdates.values()]);
 	}
 
+	/** Waits for complete snapshots, including a reset's asynchronous cache cleanup. */
+	async waitForRebuild(signal?: AbortSignal): Promise<boolean> {
+		while (!this.disposed && !signal?.aborted && this.pendingRebuilds.size > 0) {
+			const settled = Promise.allSettled([...this.pendingRebuilds]);
+			if (!signal) await settled;
+			else await new Promise<void>((resolve) => {
+				const finish = () => {
+					signal.removeEventListener('abort', finish);
+					resolve();
+				};
+				signal.addEventListener('abort', finish, { once: true });
+				void settled.then(finish);
+				if (signal.aborted) finish();
+			});
+		}
+		return !this.disposed && !this.indexingDisabled && !signal?.aborted;
+	}
+
+	private trackRebuild(run: () => Promise<void>): Promise<void> {
+		// Register before running so synchronous index-change listeners also see
+		// the pending reset/rebuild and cannot observe a partial snapshot.
+		const pending = Promise.resolve().then(run);
+		this.pendingRebuilds.add(pending);
+		const finished = () => { this.pendingRebuilds.delete(pending); };
+		void pending.then(finished, finished);
+		return pending;
+	}
+
 	/** Reads current note text on demand; content is never retained in the index or cache. */
 	async readText(relativePath: string): Promise<string | undefined> {
 		const record = this.get(relativePath);
 		if (!record) return undefined;
+		const generation = this.rebuildGeneration;
+		const isCurrent = () => !this.disposed && !this.indexingDisabled
+			&& generation === this.rebuildGeneration && this.get(record.path) !== undefined
+			&& !this.isExcluded(record.path);
+		if (!isCurrent()) return undefined;
 		const uri = this.vault.uriForRelative(record.path);
 		try { await this.vault.assertExistingInside(uri); }
 		catch { return undefined; }
+		if (!isCurrent()) return undefined;
 		const open = vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString());
 		if (open) {
 			const text = open.getText();
@@ -158,20 +193,23 @@ export class VaultIndex implements vscode.Disposable {
 		}
 		try {
 			const file = await this.vault.readFileInside(uri, MAX_INDEX_FILE_BYTES);
+			if (!isCurrent()) return undefined;
 			return new TextDecoder('utf-8', { fatal: true }).decode(file.bytes);
 		} catch { return undefined; }
 	}
 
-	async rebuild(cancellation?: vscode.CancellationToken): Promise<void> {
+	rebuild(cancellation?: vscode.CancellationToken): Promise<void> {
 		const generation = ++this.rebuildGeneration;
-		try {
-			await this.rebuildGenerationSnapshot(generation, cancellation);
-		} catch (error) {
-			// Search, backlinks, tags, and aliases must never continue from a
-			// cache that we could not reconcile with the current filesystem.
-			if (!this.disposed && generation === this.rebuildGeneration) this.clearAfterFailedRebuild();
-			throw error;
-		}
+		return this.trackRebuild(async () => {
+			try {
+				await this.rebuildGenerationSnapshot(generation, cancellation);
+			} catch (error) {
+				// Search, backlinks, tags, and aliases must never continue from a
+				// cache that we could not reconcile with the current filesystem.
+				if (!this.disposed && generation === this.rebuildGeneration) this.clearAfterFailedRebuild();
+				throw error;
+			}
+		});
 	}
 
 	private async rebuildGenerationSnapshot(generation: number, cancellation?: vscode.CancellationToken): Promise<void> {
@@ -245,25 +283,27 @@ export class VaultIndex implements vscode.Disposable {
 	}
 
 	/** Discards all rebuildable metadata and reconstructs it from current files. */
-	async reset(cancellation?: vscode.CancellationToken): Promise<void> {
+	reset(cancellation?: vscode.CancellationToken): Promise<void> {
 		this.rebuildGeneration++;
-		if (this.persistTimer) {
-			clearTimeout(this.persistTimer);
-			this.persistTimer = undefined;
-		}
-		const removed = [...this.records.keys()];
-		this.records.clear();
-		this.recordIdentityKeys.clear();
-		this.identityPaths.clear();
-		this.memoryBudget.clear();
-		if (removed.length) this.changedEmitter.fire(removed);
-		try { await vscode.workspace.fs.delete(this.storageUri, { useTrash: false }); }
-		catch { /* missing or inaccessible cache is equivalent to an empty cache */ }
-		for (const legacy of this.legacyStorageUris) {
-			try { await vscode.workspace.fs.delete(legacy, { useTrash: false }); }
+		return this.trackRebuild(async () => {
+			if (this.persistTimer) {
+				clearTimeout(this.persistTimer);
+				this.persistTimer = undefined;
+			}
+			const removed = [...this.records.keys()];
+			this.records.clear();
+			this.recordIdentityKeys.clear();
+			this.identityPaths.clear();
+			this.memoryBudget.clear();
+			if (removed.length) this.changedEmitter.fire(removed);
+			try { await vscode.workspace.fs.delete(this.storageUri, { useTrash: false }); }
 			catch { /* missing or inaccessible cache is equivalent to an empty cache */ }
-		}
-		await this.rebuild(cancellation);
+			for (const legacy of this.legacyStorageUris) {
+				try { await vscode.workspace.fs.delete(legacy, { useTrash: false }); }
+				catch { /* missing or inaccessible cache is equivalent to an empty cache */ }
+			}
+			await this.rebuild(cancellation);
+		});
 	}
 
 	private async updateUri(uri: vscode.Uri, notify = true, exclusionMatcher?: VaultExclusionMatcher): Promise<void> {

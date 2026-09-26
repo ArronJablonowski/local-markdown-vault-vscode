@@ -9,7 +9,7 @@ import { VaultEntry, VaultTreeProvider } from './vault/VaultTreeProvider';
 import { LinkRewriteService } from './vault/LinkRewriteService';
 import { vaultMoveHistoryFor } from './vault/VaultMoveHistory';
 import type { VaultIndexRecord } from './vault/VaultIndex';
-import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSearchService';
+import { searchVaultWithContext, searchVaultDocuments, type VaultSearchResult } from './vault/VaultSearchService';
 import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
 import { caseRenameCoordinatorFor, disposeCaseRenameCoordinators, executeCaseAwareRedo } from './vault/CaseRenameCoordinator';
 import { createVaultNoteSummary, isCanonicalVaultNoteIdentity } from './shared/vaultNoteSummary';
@@ -32,6 +32,7 @@ interface DevelopmentApi extends MarkdownPreviewApi {
 	getVaultTreeTitle(): string;
 	getVaultTreePaths(parentPath?: string): Promise<readonly string[]>;
 	searchVault(query: string, limit?: number): Promise<readonly VaultSearchResult[]>;
+	searchVaultDocuments(query: string): ReturnType<typeof searchVaultDocuments>;
 	renameOrMoveMany(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
 	renameOrMoveManyWithRejectedCommit(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
 	renameOrMoveManyWithStaleGeneration(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
@@ -227,6 +228,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 			searchVault: async (query, limit) => {
 				const index = vaultRegistration.getIndex();
 				return index ? searchVaultWithContext(index, query, limit) : [];
+			},
+			searchVaultDocuments: async query => {
+				const index = vaultRegistration.getIndex();
+				if (!index) throw new Error('Document Vault is unavailable.');
+				return searchVaultDocuments(index, query);
 			},
 				renameOrMoveMany: async (requests) => {
 					const service = vaultRegistration.getService();

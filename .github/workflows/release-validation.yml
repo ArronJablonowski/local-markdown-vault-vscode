@@ -93,6 +93,12 @@ jobs:
       - name: Dedicated vault move history (Windows and macOS)
         if: runner.os != 'Linux'
         run: npm run test:integration:vault-history
+      - name: Vault title and content search (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration:vault-search
+      - name: Vault title and content search (Windows and macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:integration:vault-search
       - run: npm run package
       - name: Packaged VSIX smoke tests (Linux)
         if: runner.os == 'Linux'

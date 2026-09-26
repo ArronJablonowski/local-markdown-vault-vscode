@@ -5,7 +5,7 @@ import { VaultEntry, VaultTreeProvider } from './VaultTreeProvider';
 import { LinkRewriteService, VaultTransactionConflictError } from './LinkRewriteService';
 import { VaultIndex, type VaultIndexRecord } from './VaultIndex';
 import { VaultBacklinksProvider, VaultBrokenLinksProvider, VaultTagsProvider } from './KnowledgeTreeProviders';
-import { searchVaultWithContext, type VaultSearchResult } from './VaultSearchService';
+import { searchVaultDocuments, type VaultSearchResult } from './VaultSearchService';
 import type { VaultService } from './VaultService';
 import type { BacklinkFilter, BacklinkSort } from './backlinkOrdering';
 import { hasExactQuickSwitcherRecord, searchQuickSwitcherRecords } from './quickSwitcher';
@@ -222,6 +222,7 @@ export async function registerVault(
 		}),
 		vscode.commands.registerCommand('mdLivePreview.vaultSearch', async () => {
 			await workspaceRefresh.catch(() => undefined);
+			await exclusionRefresh.catch(() => undefined);
 			const targetIndex = index;
 			const generation = vaultGeneration;
 			if (targetIndex) await showVaultSearch(
@@ -237,6 +238,7 @@ export async function registerVault(
 			const targetIndex = index;
 			const generation = vaultGeneration;
 			if (!targetIndex) return;
+			closeVaultPickers();
 			suppressRecentTracking = true;
 			let rebuilt = false;
 			try {
@@ -291,6 +293,8 @@ export async function registerVault(
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.searchTag', async (tag: unknown) => {
+			await workspaceRefresh.catch(() => undefined);
+			await exclusionRefresh.catch(() => undefined);
 			const targetIndex = index;
 			const generation = vaultGeneration;
 			const requestedTag = validateSearchTagArgument(tag);
@@ -304,6 +308,7 @@ export async function registerVault(
 				() => generation === vaultGeneration && targetIndex === index,
 				trackVaultPicker,
 				options.revealOpenedLine,
+				'advanced',
 			);
 		}),
 		vscode.commands.registerCommand('mdLivePreview.backlinks.filter', async () => {
@@ -638,6 +643,7 @@ export async function registerVault(
 			if (event.affectsConfiguration('mdLivePreview.vault')) provider.refresh();
 			if (event.affectsConfiguration('mdLivePreview.vault.autoReveal')) void revealActive();
 			if (event.affectsConfiguration('mdLivePreview.vault.exclude')) {
+				closeVaultPickers();
 				// Serialize exclusion rebuilds. A rapid settings edit must not let an
 				// older generation prune recent history against a half-rebuilt index.
 				exclusionRefresh = exclusionRefresh.catch(() => undefined).then(async () => {
@@ -781,51 +787,114 @@ async function showVaultSearch(
 	isCurrent: () => boolean,
 	trackPicker: <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>) => () => void,
 	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
+	initialMode: 'keyword' | 'advanced' = 'keyword',
 ): Promise<void> {
 	const picker = vscode.window.createQuickPick<VaultQuickPickItem>();
 	const untrack = trackPicker(picker);
 	picker.title = vscode.l10n.t('Search Document Vault');
-	picker.placeholder = vscode.l10n.t('Search note names, aliases, headings, tags, and indexed terms');
+	let mode = initialMode;
+	const refreshButton: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon('refresh'), tooltip: vscode.l10n.t('Refresh search') };
+	const updateControls = () => {
+		picker.placeholder = mode === 'keyword'
+			? vscode.l10n.t('Search document titles and content')
+			: vscode.l10n.t('Advanced search: "phrase", -excluded, tag:name, path:folder, /regex/');
+		picker.buttons = [{
+			iconPath: new vscode.ThemeIcon(mode === 'keyword' ? 'filter' : 'whole-word'),
+			tooltip: mode === 'keyword' ? vscode.l10n.t('Use advanced search syntax') : vscode.l10n.t('Use keyword search'),
+		}, refreshButton];
+	};
+	updateControls();
 	picker.matchOnDescription = true;
 	picker.matchOnDetail = true;
 	picker.value = initialValue;
 	let generation = 0;
 	let closed = false;
 	let activeSearch: AbortController | undefined;
-	// Keep at most one search generation active. Aborting prevents the old
-	// generation from scheduling further file reads; serializing generations
-	// also prevents slow local reads from accumulating eight more workers on
-	// every keystroke in a large vault.
+	let debounce: ReturnType<typeof setTimeout> | undefined;
+	// Only one generation may read notes at a time, even during fast typing.
 	let searchQueue: Promise<void> = Promise.resolve();
-	const update = async () => {
+	const statusItem = (label: string, detail?: string): VaultQuickPickItem => ({ label, detail, alwaysShow: true });
+	const scope = vscode.l10n.t('Searches indexed Markdown files. Excluded, oversized, and unindexable notes are not included.');
+	const schedule = (immediate = false) => {
 		const current = ++generation;
+		if (debounce) clearTimeout(debounce);
 		activeSearch?.abort();
 		const controller = new AbortController();
 		activeSearch = controller;
-		picker.busy = true;
+		// Never leave an obsolete result available for acceptance while a new
+		// query, filesystem change, or settings change is being processed.
+		picker.items = [];
 		const query = picker.value;
-		let results: VaultSearchResult[] = [];
-		const queued = searchQueue.then(async () => {
-			results = await searchVaultWithContext(index, query, 50, controller.signal);
-		});
-		searchQueue = queued.catch(() => undefined);
-		try {
-			try {
-				await queued;
-			} catch {
-				// A note may disappear or become unreadable while a query is in
-				// flight. Keep the picker usable and avoid surfacing provider paths.
-				results = [];
-			}
-			if (closed || !isCurrent() || controller.signal.aborted || current !== generation) return;
-			picker.items = results.map(searchResultItem);
-		} finally {
-			if (!closed && current === generation) picker.busy = false;
+		const queryMode = mode;
+		const isActive = () => !closed && isCurrent() && !controller.signal.aborted && current === generation;
+		if (!query.trim()) {
+			picker.busy = false;
+			picker.title = vscode.l10n.t('Search Document Vault');
+			picker.items = [statusItem(vscode.l10n.t('Type a keyword to find matching documents'), scope)];
+			return;
 		}
+		picker.busy = true;
+		picker.title = vscode.l10n.t('Search Document Vault — searching…');
+		const run = () => {
+			debounce = undefined;
+			const queued = searchQueue.then(async () => {
+				if (!isActive()) return;
+				let lastProgress = 0;
+				try {
+					const batch = await searchVaultDocuments(index, query, {
+						mode: queryMode,
+						signal: controller.signal,
+						onProgress: progress => {
+							if (!isActive() || Date.now() - lastProgress < 100) return;
+							lastProgress = Date.now();
+							picker.title = vscode.l10n.t('Search Document Vault — searched {0} of {1}', progress.scanned, progress.total);
+						},
+					});
+					if (!isActive()) return;
+					if (batch.status === 'unavailable') throw new Error('Vault index unavailable.');
+					if (batch.status === 'empty') {
+						picker.title = vscode.l10n.t('Search Document Vault');
+						picker.items = [statusItem(vscode.l10n.t('Enter at least one search term'), scope)];
+						return;
+					}
+					if (batch.status === 'invalid') {
+						picker.title = vscode.l10n.t('Search Document Vault');
+						picker.items = [statusItem(vscode.l10n.t('Invalid or oversized search'), vscode.l10n.t('Use a query of at most 2,048 characters. In advanced mode, check filter and regular-expression syntax.'))];
+						return;
+					}
+					if (batch.status !== 'complete') return;
+					picker.title = vscode.l10n.t('Search Document Vault — {0} matching documents', batch.results.length);
+					const items = batch.results.map(searchResultItem);
+					if (items.length === 0) items.push(statusItem(vscode.l10n.t('No matching documents'), scope));
+					if (batch.unreadable > 0) items.push(statusItem(
+						vscode.l10n.t('{0} documents could not be searched', batch.unreadable),
+						vscode.l10n.t('Results may be incomplete. Files may have moved, become unreadable, or exceeded the safe size limit.'),
+					));
+					picker.items = items;
+				} catch {
+					if (isActive()) {
+						picker.title = vscode.l10n.t('Search Document Vault');
+						picker.items = [statusItem(vscode.l10n.t('The vault could not be searched. Refresh the index and try again.'), scope)];
+					}
+				} finally { if (isActive()) picker.busy = false; }
+			});
+			searchQueue = queued.catch(() => undefined);
+		};
+		if (immediate) run();
+		else debounce = setTimeout(run, 180);
 	};
-	picker.onDidChangeValue(() => void update());
+	const changed = index.onDidChange(() => { if (!closed) schedule(); });
+	picker.onDidChangeValue(() => schedule());
+	picker.onDidTriggerButton(button => {
+		if (button !== refreshButton) {
+			mode = mode === 'keyword' ? 'advanced' : 'keyword';
+			updateControls();
+		}
+		schedule(true);
+	});
 	picker.onDidAccept(async () => {
 		if (!isCurrent()) return picker.hide();
+		if (picker.busy) return;
 		const selected = picker.selectedItems[0];
 		const record = selected?.record;
 		if (!record) return;
@@ -834,11 +903,13 @@ async function showVaultSearch(
 	});
 	picker.onDidHide(() => {
 		closed = true;
+		if (debounce) clearTimeout(debounce);
 		activeSearch?.abort();
+		changed.dispose();
 		untrack();
 		picker.dispose();
 	});
-	void update();
+	schedule(true);
 	picker.show();
 }
 

@@ -37,6 +37,7 @@ jobs:
       - run: xvfb-run -a npm run test:integration
       - run: xvfb-run -a npm run test:integration:saves
       - run: xvfb-run -a npm run test:integration:vault-history
+      - run: xvfb-run -a npm run test:integration:vault-search
       - run: xvfb-run -a npm run test:integration:cache-restart
       - run: xvfb-run -a npm run test:integration:restricted
       - run: npm run package

@@ -108,6 +108,19 @@ suite('extension', () => {
 		}
 	});
 
+	test('exposes read-only title and content search in the Vault toolbar and context menu', () => {
+		const contributions = vscode.extensions.getExtension(EXTENSION_ID)!.packageJSON.contributes;
+		const command = contributions.commands.find((item: { command: string }) => item.command === 'mdLivePreview.vaultSearch');
+		assert.strictEqual(command.icon, '$(search)');
+		assert.strictEqual(command.enablement, 'mdLivePreview.vaultAvailable');
+		for (const menu of ['view/title', 'view/item/context']) {
+			const action = contributions.menus[menu].find((item: { command: string }) => item.command === command.command);
+			assert.ok(action);
+			assert.strictEqual(action.when, 'view == mdLivePreview.vault');
+			if (menu === 'view/title') assert.match(action.group, /^navigation@/);
+		}
+	});
+
 	test('contributes its settings with the documented defaults', () => {
 		const config = vscode.workspace.getConfiguration('mdLivePreview');
 		assert.strictEqual(config.get('codeTheme'), 'auto');

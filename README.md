@@ -526,7 +526,40 @@ tasks, highlights, callouts, tables, code blocks, and properties. Open the
 `obsidian-dark.css`. Custom CSS is intentionally disabled in Restricted Mode;
 trust the vault workspace before enabling a theme you have reviewed.
 
-Common shortcuts:
+### Search document titles and contents
+
+Click the **magnifying glass** beside the Vault name, or right-click a Vault item
+and choose **Search Document Vault**. You can also use the Command Palette or
+`Cmd+Shift+F` on macOS (`Ctrl+Shift+F` on Windows/Linux) while the Vault or Live
+Preview has focus.
+
+Type a keyword or phrase. Keyword search is case-insensitive and matches a
+document's filename/title or its full Markdown content, including code blocks,
+tables, callouts, and YAML. Punctuation and emoji are literal: `C++`, `[!warning]`,
+and `:smile:` are not interpreted as commands or filters. Every matching indexed
+document appears once, with its relative path and a matching text excerpt when
+available; there is no 50-, 200-, or 500-result cutoff. Click a result or select it
+with the arrow keys and press Enter. Content matches open at their matching line.
+
+Results update as files change. The **Refresh search** button reruns the query,
+and Escape closes it. Current unsaved text in an open note is included without
+forcing a save. Search is read-only, local, and does not upload or retain note
+bodies in the index cache.
+
+For filters, click **Use advanced search syntax** in the search window. Examples:
+
+- `path:Projects deadline` — search within matching paths.
+- `"release date" -archived` — an exact phrase, excluding another term.
+- `tag:work` or `task:open` — find tagged notes or incomplete tasks.
+
+Click **Use keyword search** to return to literal matching. Search uses the
+existing safe index: up to 10,000 Markdown notes, each no larger than 2 MiB,
+subject to metadata-processing limits. Excluded folders, non-Markdown attachments,
+oversized notes, and notes that cannot be safely indexed are not searched. The
+search window reports unreadable notes encountered during a scan instead of
+silently presenting those results as complete.
+
+### Keyboard shortcuts
 
 | Action | macOS | Windows/Linux |
 | --- | --- | --- |
