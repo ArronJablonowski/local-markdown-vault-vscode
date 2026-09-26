@@ -134,6 +134,50 @@ describe('immediate Markdown autosave', () => {
 		await vi.advanceTimersByTimeAsync(5);
 		expect(document.save).toHaveBeenCalledTimes(2);
 	});
+	it('flush still waits for the native write after close has removed document tracking', async () => {
+		let finish!: (saved: boolean) => void;
+		document.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+		edit();
+		await vi.advanceTimersByTimeAsync(1);
+		document.isClosed = true;
+		mocks.close!(document);
+		let settled = false;
+		const flush = controller.flush(document).then(() => { settled = true; });
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		finish(true);
+		await flush;
+		expect(settled).toBe(true);
+		expect(document.save).toHaveBeenCalledOnce();
+	});
+	it.each([true, false])('flush of a replaced document drains a newer URI save (closed before flush: %s)', async closeBeforeFlush => {
+		let finishOld!: (saved: boolean) => void, finishNew!: (saved: boolean) => void;
+		const oldDocument = document;
+		oldDocument.save.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+		edit();
+		await vi.advanceTimersByTimeAsync(1);
+		const closeOld = () => { oldDocument.isClosed = true; mocks.close!(oldDocument); };
+		if (closeBeforeFlush) closeOld();
+		let settled = false;
+		const flush = controller.flush(oldDocument).then(() => { settled = true; });
+		await Promise.resolve();
+		if (!closeBeforeFlush) closeOld();
+		document = { ...oldDocument, isClosed: false,
+			save: vi.fn(() => new Promise<boolean>(resolve => { finishNew = resolve; })) };
+		mocks.open!(document);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(document.save).not.toHaveBeenCalled();
+		oldDocument.isDirty = false;
+		finishOld(true);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(document.save).toHaveBeenCalledOnce();
+		expect(settled).toBe(false);
+		document.isDirty = false;
+		finishNew(true);
+		await flush;
+		expect(settled).toBe(true);
+		expect(document.save).toHaveBeenCalledOnce();
+	});
 	it('starts saving on the next event turn without waiting for an idle typing gap', async () => {
 		for (let index = 0; index < 10; index++) {
 			edit();

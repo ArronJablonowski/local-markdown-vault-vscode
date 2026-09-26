@@ -137,6 +137,10 @@ const cellInlineHooks: CellInlineHooks = {
 
 const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
 
+// A click on a different table can blur/commit the old table between mouse
+// down and up. Keep its destination outside either replaceable widget DOM.
+const tablePointerPresses = new WeakMap<EditorView, { tableFrom: number; row: number; col: number; x: number; y: number }>();
+
 class ImageWidget extends WidgetType {
 	constructor(
 		private readonly src: string,
@@ -940,6 +944,8 @@ class TableWidget extends WidgetType {
 				notifyActiveDraftChanged();
 				return ref.to;
 			}
+			const press = tablePointerPresses.get(view);
+			if (press && ref.to <= press.tableFrom) press.tableFrom += next.length - (ref.to - ref.from);
 			preserveHorizontalScroll(() => view.dispatch(transaction!));
 			// The replacement's own length is what the cell now ends at.
 			return ref.from + next.length;
@@ -1140,22 +1146,20 @@ class TableWidget extends WidgetType {
 		// What still has to be distinguished is a click from a drag-select, and that
 		// is only knowable at release — so the press records its position and the
 		// decision is made on `mouseup`.
-		let pressedCell: HTMLElement | null = null;
-		let pressX = 0;
-		let pressY = 0;
 		const DRAG_SLOP_PX = 4;
+		const clearPointerPress = (): void => { tablePointerPresses.delete(view); };
+		view.dom.addEventListener('mousedown', clearPointerPress, true);
 
 		table.addEventListener('mousedown', (event) => {
 			setTableBlockSelected(false);
-			pressedCell = null;
 			// Ctrl/Cmd-click opens a link (createLinkClickHandler) and the secondary
 			// button opens a context menu; neither is ours to take.
 			if (event.ctrlKey || event.metaKey || event.button !== 0) return;
 			const cell = cellFromPoint(event, table);
 			if (!cell) return;
-			pressedCell = cell;
-			pressX = event.clientX;
-			pressY = event.clientY;
+			tablePointerPresses.set(view, { tableFrom: this.tableFrom,
+				row: Number(cell.dataset.mlpRow), col: Number(cell.dataset.mlpCol),
+				x: event.clientX, y: event.clientY });
 			if (event.detail > 1) {
 				// Second and later presses of a rapid sequence: the browser would
 				// select a word or paragraph of the *rendered* text, which is about to
@@ -1169,13 +1173,14 @@ class TableWidget extends WidgetType {
 		});
 
 		table.addEventListener('mouseup', (event) => {
-			const cell = pressedCell;
-			pressedCell = null;
-			if (!cell) return;
+			const press = tablePointerPresses.get(view);
+			tablePointerPresses.delete(view);
+			const cell = press?.tableFrom === this.tableFrom ? cellAt(press.row, press.col) : null;
+			if (!cell || !press) return;
 			event.stopPropagation();
 			// Released far from where it went down: that was a drag, and the text it
 			// selected is a copy gesture. Leave the selection alone.
-			if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > DRAG_SLOP_PX) {
+			if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_SLOP_PX) {
 				requestAnimationFrame(() => {
 					const selection = window.getSelection?.();
 					if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
@@ -1419,6 +1424,7 @@ class TableWidget extends WidgetType {
 		view.dom.addEventListener('keydown', deleteSelectedTable, true);
 		view.dom.addEventListener('pointerdown', clearTableSelectionOutside, true);
 		tableWidgetCleanup.set(wrap, () => {
+			view.dom.removeEventListener('mousedown', clearPointerPress, true);
 			stopHeaderSettings();
 			widthObserver.disconnect();
 			headerObserver.disconnect();
@@ -1457,8 +1463,12 @@ class TableWidget extends WidgetType {
 			if (!current) return;
 			const { model, from, to } = current;
 			const next = change(model);
-			const insert = renderTableMarkdown(next);
-			if (view.state.sliceDoc(from, to) === insert) return;
+			const rendered = renderTableMarkdown(next);
+			if (view.state.sliceDoc(from, to) === rendered) return;
+			// Leave an actual caret destination outside a final table. Without it,
+			// the next layout/selection cycle reveals raw source instead of the
+			// newly resized table because its final cell is also the document end.
+			const insert = rendered + (to === view.state.doc.length ? '\n\n' : '');
 			const doc = view.state.doc;
 			// The caret must not land inside the rebuilt table: a caret on a table
 			// line withholds the widget, so the table would show as raw pipe text

@@ -112,17 +112,52 @@ suite('native Markdown save durability', () => {
 		}
 	});
 
-	test('immediate close and reopen retains the complete final keystroke sequence', async () => {
-		const note = await fixture('close-reopen', 'Close probe: ');
-		const frame = await openLive(note, 'Close probe:');
-		await focusEnd(frame);
-		const suffix = 'The final characters must survive a closing tab.';
-		await frame.page().keyboard.type(suffix, { delay: 1 });
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-		await assertSaved(note, 'Close probe: ' + suffix, 'close before waiting for save');
-		const reopened = await openLive(note, suffix);
-		assert.ok((await reopened.locator('.cm-content').textContent())?.includes(suffix));
-		assert.strictEqual((await vscode.workspace.openTextDocument(note)).isDirty, false);
+	test('immediate close and reopen retains the complete final keystroke sequence', async function () {
+		this.timeout(120_000);
+		const page = await workbench();
+		const evidence: unknown[] = [];
+		const record = (message: { text(): string }) => {
+			if (message.text().startsWith('MDLP_CLOSE_INPUT ')) evidence.push(message.text());
+		};
+		const changed = vscode.workspace.onDidChangeTextDocument(event => {
+			if (event.document.uri.path.includes('close-reopen')) evidence.push({ event: 'hostChange', text: event.document.getText(), version: event.document.version });
+		});
+		const closed = vscode.workspace.onDidCloseTextDocument(document => {
+			if (document.uri.path.includes('close-reopen')) evidence.push({ event: 'hostClose', text: document.getText(), version: document.version });
+		});
+		page.on('console', record);
+		try {
+			for (let round = 0; round < 20; round++) {
+				const note = await fixture(`close-reopen-${round}`, 'Close probe: ');
+				const frame = await openLive(note, 'Close probe:');
+				await focusEnd(frame);
+				// Alternate entirely uninstrumented typing with a final-key probe:
+				// logging every character can itself slow the race we need to catch.
+				if (round % 2 === 0) await frame.evaluate(currentRound => {
+					const content = document.querySelector('.cm-content')!;
+					for (const type of ['beforeinput', 'input', 'keyup', 'blur']) content.addEventListener(type, event => {
+						if (type === 'keyup' && (event as KeyboardEvent).key !== '.') return;
+						if ((type === 'beforeinput' || type === 'input') && (event as InputEvent).data !== '.') return;
+						console.log('MDLP_CLOSE_INPUT ' + JSON.stringify({ round: currentRound, type,
+							data: (event as InputEvent).data, active: document.activeElement?.className,
+							text: content.textContent?.slice(-2_000) }));
+					});
+				}, round);
+				const suffix = 'The final characters must survive a closing tab.';
+				await frame.page().keyboard.type(suffix, { delay: 1 });
+				// No renderer query, save, or delay between the last key and close.
+				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+				await assertSaved(note, 'Close probe: ' + suffix, `close before waiting for save, round ${round}`);
+				const reopened = await openLive(note, suffix);
+				assert.ok((await reopened.locator('.cm-content').textContent())?.includes(suffix));
+				assert.strictEqual((await vscode.workspace.openTextDocument(note)).isDirty, false);
+				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+			}
+		} finally {
+			page.off('console', record); changed.dispose(); closed.dispose();
+			await mkdir(artifacts, { recursive: true });
+			await writeFile(join(artifacts, 'immediate-close-input-evidence.json'), JSON.stringify(evidence, null, 2));
+		}
 	});
 
 	test('UTF-8 BOM, CRLF, Unicode, combining marks, and trailing spaces survive edits byte-for-byte', async () => {

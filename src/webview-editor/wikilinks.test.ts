@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { EditorState } from '@codemirror/state';
+import { CompletionContext } from '@codemirror/autocomplete';
+import { markdown } from '@codemirror/lang-markdown';
+import { GFM } from './gfmTableFix';
 import type { VaultNoteSummary } from '../shared/messages';
-import { fragmentCompletionOptions, noteCompletionOptions, parseWikiImageSize } from './wikilinks';
+import { fragmentCompletionOptions, noteCompletionOptions, parseWikiImageSize, setVaultNotes, wikilinkCompletions } from './wikilinks';
 import { resolveWikiLinkSummary } from '../vault/LinkResolver';
 
 const notes: VaultNoteSummary[] = [
@@ -8,6 +12,24 @@ const notes: VaultNoteSummary[] = [
 	{ path: 'Folder/Other.md', basename: 'Other', aliases: ['Secondary'], headings: [], blockIds: [] },
 	{ path: 'Archive/Note.md', basename: 'Note', aliases: ['Old Note'], headings: [], blockIds: [] },
 ];
+
+describe('wikilink completion context', () => {
+	function complete(doc: string) {
+		setVaultNotes(notes);
+		const state = EditorState.create({ doc, extensions: [markdown({ extensions: GFM })] });
+		return wikilinkCompletions(new CompletionContext(state, doc.indexOf('[[No') + 4, true));
+	}
+
+	it.each(['```python\nvalue = [[No\n```', '`[[No`', '    [[No', '[link](https://example.test/[[No)', '[link](https://example.test/[[No]])', '![image [[No]]](image.png)', '![[No]](image.png)', '<div title="[[No">'])('keeps literal bracketed text out of note completion: %s', (doc) => {
+		expect(complete(doc)).toBeNull();
+	});
+
+	it('still offers notes in paragraphs, lists, and quoted callouts', () => {
+		for (const doc of ['See [[No', '- See [[No', '> [!note]\n> See [[No', 'Start [[No]]', 'Start ![[No]]', '- [[No]]', '> [!note]\n> [[No]]']) {
+			expect(complete(doc)?.options.map(option => option.label)).toContain('Note');
+		}
+	});
+});
 
 describe('wikilink note completion options', () => {
 	it('finds aliases and inserts the shortest unambiguous target with the alias', () => {

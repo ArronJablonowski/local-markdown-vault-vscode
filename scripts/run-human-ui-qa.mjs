@@ -10,14 +10,19 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { runVaultGestureQa } from './vault-gesture-qa.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = await mkdtemp(join(tmpdir(), 'mdlp-human-ui-'));
 const workspace = join(temporary, 'QA Vault');
 const profile = join(temporary, 'profile');
 const settingsFile = join(profile, 'User/settings.json');
-const artifacts = resolve(root, 'test-results/human-native-ui');
+// Playwright clears its test-results directory when browser QA starts. Keep
+// native-workbench evidence separate so the two suites can run concurrently.
+const artifacts = resolve(root, '.vscode-test/human-native-ui');
+const gesturesOnly = process.env.MDLP_GESTURES_ONLY === '1';
 const checks = [];
+const knownIssues = [];
 let browser, child, page;
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const port = await reservePort();
@@ -44,6 +49,7 @@ try {
 	await page.getByRole('tab', { name: /Local Markdown Vault/ }).click();
 	await delay(500);
 	await palette('Local Markdown Vault: Refresh Document Vault');
+	if (!gesturesOnly) {
 	const treeRow = text => page.getByRole('treeitem', { name: text, exact: true });
 	const menu = async (text, action) => {
 		await treeRow(text).click({ button: 'right' });
@@ -150,13 +156,23 @@ try {
 	await attachment.getByRole('textbox').press('Tab');
 	await wait(async () => ((await settings())['mdLivePreview.vault.attachmentFolder'] ?? 'assets') === 'assets', 'restore attachment folder');
 	check('Attachment folder text setting changes and restores');
-	await writeFile(join(artifacts, 'report.json'), JSON.stringify({ checks, platform: process.platform, completed: true }, null, 2));
+	// Settings can be presented as a modal on recent VS Code versions. Dismiss
+	// it before opening tree command palettes, just as a user closes Settings.
+	await page.keyboard.press('Escape');
+	}
+	await runVaultGestureQa({ page, workspace, modifier: mod,
+		onCheck: label => checks.push(label), onKnownIssue: issue => knownIssues.push(issue),
+	});
+	await writeFile(join(artifacts, 'report.json'), JSON.stringify({ checks, knownIssues, platform: process.platform,
+		completed: true, passed: knownIssues.length === 0,
+	}, null, 2));
+	if (knownIssues.length > 0) process.exitCode = 1;
 } catch (error) {
 	if (page) {
 		await page.screenshot({ path: join(artifacts, 'failure.png') }).catch(() => {});
 		await writeFile(join(artifacts, 'failure-dom.txt'), await page.locator('body').innerHTML()).catch(() => {});
 	}
-	await writeFile(join(artifacts, 'report.json'), JSON.stringify({ checks, platform: process.platform, completed: false, error: String(error) }, null, 2));
+	await writeFile(join(artifacts, 'report.json'), JSON.stringify({ checks, knownIssues, platform: process.platform, completed: false, passed: false, error: String(error) }, null, 2));
 	throw error;
 } finally {
 	await browser?.close().catch(() => {});

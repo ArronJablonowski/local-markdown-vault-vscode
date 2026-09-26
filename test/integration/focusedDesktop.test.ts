@@ -1,6 +1,8 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, type Browser, type Frame, type Page } from 'playwright';
 import { largeMixedDocument } from '../fixtures/largeMixedDocument';
@@ -1088,6 +1090,29 @@ suite('focused cross-platform desktop transactions', () => {
 				});
 				if (end) break;
 			}
+			if (!mermaid || !drawio) {
+				// Reaching the current scroll bottom is not proof that background
+				// parsing and asynchronous SVG rendering have finished. Observe the
+				// existing viewport without moving its caret or forcing a redraw.
+				const observe = () => frame.locator('.cm-scroller').evaluate(el => ({
+					scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+					selection: window.getSelection()?.anchorNode?.parentElement?.outerHTML.slice(0, 500),
+					mermaidWidgets: el.querySelectorAll('.mlp-mermaid-wrap:not(.mlp-drawio-wrap)').length,
+					drawioWidgets: el.querySelectorAll('.mlp-drawio-wrap').length,
+					text: el.textContent?.slice(-1_000),
+				}));
+				const before = await observe();
+				const started = Date.now();
+				while ((!mermaid || !drawio) && Date.now() - started < 10_000) {
+					await delay(100);
+					assert.strictEqual(await frame.locator('.mlp-mermaid-error, .mlp-math-error').count(), 0, `${name} has a terminal rendering error`);
+					mermaid ||= await frame.locator('.mlp-mermaid-wrap:not(.mlp-drawio-wrap) svg').count() > 0;
+					drawio ||= await frame.locator('.mlp-drawio-wrap svg').count() > 0;
+				}
+				console.log('Complex-note first-bottom rendering miss:', JSON.stringify({
+					name, settled: mermaid && drawio, waitMs: Date.now() - started, before, after: await observe(),
+				}));
+			}
 			assert.ok(mermaid && drawio, `${name} must render both diagram types; ${JSON.stringify({
 				mermaid, drawio, activeFile: activeTabUri()?.toString(), frameUrl: frame.url(),
 				viewport: await frame.locator('.cm-scroller').evaluate(el => ({
@@ -1263,6 +1288,114 @@ suite('focused cross-platform desktop transactions', () => {
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand('workbench.action.joinAllGroups');
 		}
+	});
+
+	test('adversarial journey: unfinished table edits survive a single mode-picker click and native source edits', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('draft-mode-picker');
+		const note = await service.createNote(fixture, 'Shift handoff');
+		const { frame, keyboard, line, type, disk } = await beginTypedJourney(note);
+		for (const text of ['# Shift handoff', '', '| Owner | Status |', '| --- | --- |', '| Alice | Pending |', '', 'Review before leaving.']) await line(text);
+		await type('Keep the original evidence.');
+		await waitFor(async () => (await disk()).endsWith('original evidence.'), 'typed handoff was not saved');
+		const original = await disk();
+		const owner = frame.locator('.mlp-table td').first();
+		await owner.focus(); await keyboard.press('F2');
+		await keyboard.type('Bob **verified**', { delay: 12 });
+		assert.strictEqual(await owner.getAttribute('contenteditable'), 'true', 'draft must still be active before switching modes');
+		const page = frame.page();
+		// Use the real picker without Enter/blur in the cell first: this exercises
+		// the exact handoff where a last unfinished edit can otherwise be lost.
+		void vscode.commands.executeCommand('workbench.action.reopenWithEditor');
+		await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Text Editor' }).click();
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.toString() === note.toString(), 'one Text Editor click did not switch modes');
+		const changed = original.replace('Alice', 'Bob **verified**');
+		await waitFor(async () => await disk() === changed, 'mode switch lost or duplicated the active cell draft');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
+		await keyboard.type('\nNative source review complete.', { delay: 10 });
+		const final = changed + '\nNative source review complete.';
+		await waitFor(async () => await disk() === final, 'native source typing did not automatically save exactly');
+		void vscode.commands.executeCommand('workbench.action.reopenWithEditor');
+		await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Markdown Live Preview' }).click();
+		const restored = await connectToLivePreviewFrame('Native source review complete.');
+		assert.strictEqual(await restored.locator('.mlp-table td').first().textContent(), 'Bob verified');
+		assert.strictEqual(await disk(), final);
+		await page.screenshot({ path: join(tmpdir(), 'mdlp-adversarial-mode-handoff.png') });
+	});
+
+	test('adversarial journey: mouse selection across code and table copies, deletes, and restores exact saved Markdown', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('mixed-selection');
+		const note = await service.createNote(fixture, 'Selected report');
+		const { frame, keyboard, line, type, disk } = await beginTypedJourney(note);
+		await line('Start report'); await line();
+		await line('```text'); await line('Local evidence only'); await line('Keep original bytes');
+		await line(); await line();
+		for (const text of ['| Item | Result |', '| --- | --- |', '| Evidence | Verified |', '']) await line(text);
+		await type('End report');
+		await waitFor(async () => (await disk()).endsWith('End report'), 'report typing was not saved');
+		const original = await disk();
+		const oldClipboard = await vscode.env.clipboard.readText();
+		try {
+			const first = await frame.locator('.cm-line').filter({ hasText: /^Start report$/ }).boundingBox();
+			const last = await frame.locator('.cm-line').filter({ hasText: /^End report$/ }).boundingBox();
+			assert.ok(first && last, 'selection endpoints must be visible');
+			await frame.page().mouse.move(first.x + 1, first.y + first.height / 2);
+			await frame.page().mouse.down();
+			await frame.page().mouse.move(last.x + last.width - 2, last.y + last.height / 2, { steps: 30 });
+			// Entering a code block reveals its fence lines. Follow the now-visible
+			// endpoint with the held mouse, as a user finishing the sweep would.
+			const revealedLast = await frame.locator('.cm-line').filter({ hasText: /^End report$/ }).boundingBox();
+			assert.ok(revealedLast);
+			await frame.page().mouse.move(revealedLast.x + revealedLast.width - 2, revealedLast.y + revealedLast.height / 2, { steps: 8 });
+			await frame.page().mouse.up();
+			await keyboard.press(`${modifier()}+c`);
+			await waitFor(async () => await vscode.env.clipboard.readText() === original, 'mixed selection did not copy the exact Markdown including table and code fences')
+				.catch(async error => { throw new Error(`${String(error)}; original=${JSON.stringify(original)}; copied=${JSON.stringify(await vscode.env.clipboard.readText())}; selection=${await frame.evaluate(() => window.getSelection()?.toString())}`); });
+			await keyboard.press('Backspace');
+			await waitFor(async () => await disk() === '', 'mixed selection delete left hidden Markdown behind');
+			await keyboard.press(`${modifier()}+z`);
+			await waitFor(async () => await disk() === original, 'one Undo did not restore the complete original report');
+			await frame.locator('.mlp-table').waitFor({ state: 'visible' });
+			await frame.getByRole('button', { name: 'Copy code block', exact: true }).waitFor({ state: 'visible' });
+			await frame.page().screenshot({ path: join(tmpdir(), 'mdlp-adversarial-mixed-selection.png') });
+		} finally { await vscode.env.clipboard.writeText(oldClipboard); }
+	});
+
+	test('adversarial journey: locked properties, table handoffs, and hidden Find results keep exact saved content', async function () {
+		this.timeout(120_000);
+		const fixture = await makeFixture('form-search');
+		const note = await service.createNote(fixture, 'Inspection results');
+		const { frame, keyboard, line, type, disk } = await beginTypedJourney(note);
+		for (const text of ['---', 'owner: Morgan', '---', '', '# Inspection results', '', '| Item | Identifier |', '| --- | --- |', '| Adapter | asset-418 |', '', 'Interim findings', '', '| Result | Owner |', '| --- | --- |', '| Pending | Morgan |', '']) await line(text);
+		await type('End inspection.');
+		await waitFor(async () => (await disk()).endsWith('End inspection.'), 'inspection note was not saved');
+		const original = await disk();
+		await frame.getByRole('button', { name: 'Editing: select to lock the editor', exact: true }).click();
+		await frame.getByRole('button', { name: 'Edit owner', exact: true }).focus();
+		await keyboard.press('F2');
+		assert.strictEqual(await frame.locator('.mlp-property-input').count(), 0, 'locked property exposed an editable draft');
+		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click();
+		const first = frame.locator('.mlp-table').first().locator('td').first();
+		const second = frame.locator('.mlp-table').last().locator('td').first();
+		await first.click(); await keyboard.press(`${modifier()}+a`);
+		await keyboard.type('Adapter verified', { delay: 7 });
+		await second.click();
+		assert.strictEqual(await second.getAttribute('contenteditable'), 'true', 'cross-table click was swallowed');
+		await keyboard.press(`${modifier()}+a`); await keyboard.type('Accepted', { delay: 7 });
+		await keyboard.press('Enter');
+		const changed = original.replace('| Adapter |', '| Adapter verified |').replace('| Pending |', '| Accepted |');
+		await waitFor(async () => await disk() === changed, 'cross-table handoff changed unrelated content or lost a draft');
+		await frame.locator('.cm-content').focus(); await keyboard.press(`${modifier()}+f`);
+		await frame.locator('.cm-search input[name="search"]').fill('asset-\\d+');
+		await frame.locator('.cm-search label').filter({ has: frame.locator('input[name="re"]') }).click();
+		await frame.locator('.cm-search input[name="search"]').press('Enter');
+		await frame.locator('.cm-line').filter({ hasText: '| Adapter verified | asset-418 |' }).waitFor({ state: 'visible' });
+		await frame.locator('.cm-content').focus();
+		await waitFor(() => frame.evaluate(() => window.getSelection()?.toString() === 'asset-418'), 'returning focus to the editor did not restore the highlighted Find match');
+		assert.strictEqual(await disk(), changed, 'search must not modify Markdown');
+		await frame.page().screenshot({ path: join(tmpdir(), 'mdlp-adversarial-form-search.png') });
 	});
 
 	test('one Text Editor picker selection stays in source mode with Markdown Editor as default', async () => {

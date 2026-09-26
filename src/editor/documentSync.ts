@@ -380,6 +380,7 @@ export class DocumentSyncSession {
 	private async trySaveSnapshot(draft: { text: string; baselineText: string; requiresSeparatePreservation?: true }): Promise<boolean> {
 		if (draft.requiresSeparatePreservation) return false;
 		try {
+			await this.settleAutoSave?.();
 			await this.reopenClosedDocument();
 			const text = normalizeLineEndingsForWebview(this.document.getText());
 			if (text === draft.baselineText && text !== draft.text) {
@@ -396,7 +397,11 @@ export class DocumentSyncSession {
 				}
 			}
 			await this.settleAutoSave?.();
-			return !this.document.isDirty && normalizeLineEndingsForWebview(this.document.getText()) === draft.text;
+			// A clean closed extension-host mirror may contain a newer edit than
+			// the native save that won the close race. Reopen after that save settles
+			// rather than treating the discarded mirror as proof of durability.
+			await this.reopenClosedDocument();
+			return !this.document.isClosed && !this.document.isDirty && normalizeLineEndingsForWebview(this.document.getText()) === draft.text;
 		} catch { return false; } // Native failure must still allow a local recovery copy.
 	}
 
@@ -1014,7 +1019,7 @@ export class DocumentSyncSession {
 		} else this.sendInit();
 	}
 
-	private async applyEdit(changes: TextChange[], baseVersion: number, acknowledge = true, acceptedText = this.documentText) {
+	private async applyEdit(changes: TextChange[], baseVersion: number, acknowledge = true, acceptedText = this.documentText, retryClosedSave = true): Promise<void> {
 		// A new WorkspaceEdit can cancel a native save still writing the previous
 		// version. Keep the edit/ack queue behind that save, then recheck authority
 		// and version: a tab close or independent edit may have happened meanwhile.
@@ -1077,6 +1082,22 @@ export class DocumentSyncSession {
 		// The controller still reports failures and never bypasses containment.
 		await this.settleAutoSave?.();
 		if (this.disposed) return;
+		if (await this.reopenClosedDocument()) {
+			const reopenedText = this.document.getText();
+			if (reopenedText === rawText && retryClosedSave) {
+				// VS Code can accept the last edit in its extension-host mirror while
+				// closing its native model on an older save. Replay once, but only over
+				// the exact immutable baseline; never overwrite an external change.
+				this.documentText = reopenedText;
+				this.lastAppliedVersion = this.document.version;
+				await this.applyEdit(changes, this.document.version, acknowledge, acceptedText, false);
+				return;
+			}
+			if (createLineEndingMap(reopenedText).normalizedText !== expectedNormalizedText) {
+				await this.recoverRejectedEdit(acceptedText, changes);
+				return;
+			}
+		}
 		this.lastAppliedVersion = this.document.version;
 		this.documentText = this.document.getText();
 		if (createLineEndingMap(this.documentText).normalizedText !== expectedNormalizedText) {
@@ -1086,7 +1107,7 @@ export class DocumentSyncSession {
 			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
 		}
-		if (acknowledge && this.closing && this.document.isDirty) {
+		if (acknowledge && this.closing && (this.document.isClosed || this.document.isDirty)) {
 			// The original editor is gone, so its native dirty buffer is not enough
 			// to call this accepted edit safe. Keep a separate local recovery copy.
 			await this.recoverRejectedEdit(acceptedText, changes);

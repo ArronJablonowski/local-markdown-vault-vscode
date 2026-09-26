@@ -1,4 +1,5 @@
 import { StateEffect, StateField, type EditorState } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { parseCalloutHeader } from './callouts';
 
@@ -6,7 +7,8 @@ export const toggleCallout = StateEffect.define<{ from: number; collapsed: boole
 export const calloutState = StateField.define<ReadonlyMap<number, boolean>>({
 	create: () => new Map(),
 	update(value, tr) {
-		if (!tr.docChanged && !tr.effects.some(effect => effect.is(toggleCallout))) return value;
+		const revealSearch = Boolean(tr.selection && tr.isUserEvent('select.search'));
+		if (!tr.docChanged && !revealSearch && !tr.effects.some(effect => effect.is(toggleCallout))) return value;
 		const next = new Map<number, boolean>();
 		for (const [from, collapsed] of value) {
 			const mapped = tr.changes.mapPos(from, 1);
@@ -18,6 +20,20 @@ export const calloutState = StateField.define<ReadonlyMap<number, boolean>>({
 				&& /^[ \t]*(?:>[ \t]*)+\[!/.test(tr.newDoc.lineAt(mapped).text)) next.set(mapped, collapsed);
 		}
 		for (const effect of tr.effects) if (effect.is(toggleCallout)) next.set(effect.value.from, effect.value.collapsed);
+		// A Find result must be visible even when its containing callout was
+		// collapsed. Expand the UI state (not the saved +/- marker), just as
+		// ordinary folded source expands when a search navigates into it.
+		if (revealSearch) for (const range of tr.newSelection.ranges) {
+			syntaxTree(tr.state).iterate({ from: range.from, to: range.to, enter(node) {
+				if (node.name !== 'Blockquote') return;
+				const line = tr.newDoc.lineAt(node.from);
+				if (range.to <= line.to || range.from >= node.to) return;
+				let depth = 0;
+				for (let ancestor: SyntaxNode | null = node.node; ancestor; ancestor = ancestor.parent) if (ancestor.name === 'Blockquote') depth++;
+				const callout = parseCalloutHeader(line.text, depth);
+				if (callout && (next.get(line.from) ?? callout.collapsed)) next.set(line.from, false);
+			} });
+		}
 		return next;
 	},
 });

@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
+import { markdown } from '@codemirror/lang-markdown';
 import { calloutState, toggleCallout } from './calloutState';
 
 describe('callout folding state', () => {
+	it('Find opens every collapsed ancestor without changing saved fold markers', () => {
+		const doc = 'Before\n\n> [!note]- Outer\n> > [!tip]- Inner\n> > Find this token.\n\nAfter';
+		const from = doc.indexOf('Find this');
+		let state = EditorState.create({ doc, extensions: [markdown(), calloutState] });
+		state = state.update({ selection: { anchor: from, head: from + 4 }, userEvent: 'select.search' }).state;
+		expect([...state.field(calloutState)]).toEqual([[doc.indexOf('> [!note]'), false], [doc.indexOf('> > [!tip]'), false]]);
+		expect(state.doc.toString()).toBe(doc);
+	});
+
+	it('ordinary selection and a Find match in the title leave its body collapsed', () => {
+		const doc = '> [!note]- Title\n> Body';
+		const state = EditorState.create({ doc, extensions: [markdown(), calloutState] });
+		expect(state.update({ selection: { anchor: 18, head: 21 }, userEvent: 'select.pointer' }).state.field(calloutState).size).toBe(0);
+		expect(state.update({ selection: { anchor: 11, head: 16 }, userEvent: 'select.search' }).state.field(calloutState).size).toBe(0);
+	});
+
 	it('folding does not edit source and survives edits before the callout', () => {
 		const doc = 'Intro\n\n> [!note]+ Title\n> Body';
 		let state = EditorState.create({ doc, extensions: [calloutState] });

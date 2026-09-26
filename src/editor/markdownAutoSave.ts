@@ -174,19 +174,44 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 
 	/** Settle a save before/after undo so native history cannot race a disk write. */
 	async flush(document: vscode.TextDocument): Promise<void> {
-		const state = this.tracked.get(document.uri.toString());
-		if (!state || state.document !== document || this.disposed) return;
+		const key = document.uri.toString();
+		const state = this.tracked.get(key);
+		if (this.disposed) return;
+		if (!state || state.document !== document) {
+			// Closing removes tracking, but cannot cancel a native save already in
+			// progress. A recovery reopen must wait for that write before reading or
+			// replaying its accepted draft at the same URI.
+			await this.settlePendingOperations(key);
+			return;
+		}
 		do {
 			this.cancelTimer(state);
 			await state.operation;
 			while (state.saving || state.waiting) await state.operation;
 			this.cancelTimer(state);
-			if (this.tracked.get(document.uri.toString()) !== state || this.disposed) return;
+			if (this.disposed) return;
+			if (this.tracked.get(key) !== state) {
+				await this.settlePendingOperations(key);
+				return;
+			}
 			await this.startSave(state, state.generation);
 			// A newer native keystroke can arrive during this save. Shutdown and
 			// history callers must wait for its scheduled follow-up too, rather
 			// than returning early and letting disposal cancel the last timer.
 		} while (state.timer !== undefined || state.saving || state.waiting);
+	}
+
+	private async settlePendingOperations(key: string): Promise<void> {
+		let operation = this.operations.get(key);
+		while (operation) {
+			await operation;
+			const current = this.operations.get(key);
+			// A replacement document can queue its save while the old document's
+			// write is awaited. Drain that successor too, without starting a save or
+			// awaiting ourselves. A settled identity needs no further iteration.
+			if (current === operation) return;
+			operation = current;
+		}
 	}
 
 	private startSave(state: TrackedDocument, generation: number): Promise<void> {

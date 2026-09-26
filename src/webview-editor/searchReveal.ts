@@ -22,8 +22,11 @@ const setSearchSelection = StateEffect.define<boolean>();
 /**
  * Whether the current selection came from a search command.
  *
- * Any transaction that changes the selection without saying so clears the flag,
- * so a match's reveal lasts exactly until the user moves on. The document
+ * CodeMirror marks panel navigation and Select All Matches transactions with
+ * `select.search`, including regular-expression queries. Use that provenance
+ * rather than comparing selected text with the query: a regex pattern is not
+ * its matched text, and re-evaluating it would duplicate potentially costly
+ * work. Any unrelated selection transaction clears the flag. The document
  * changing does not clear it: replacing a match leaves the selection on the
  * replacement, which should stay visible.
  */
@@ -33,7 +36,7 @@ const searchSelectionField = StateField.define<boolean>({
 		for (const effect of tr.effects) {
 			if (effect.is(setSearchSelection)) return effect.value;
 		}
-		if (tr.selection) return false;
+		if (tr.selection) return tr.isUserEvent('select.search');
 		return value;
 	},
 });
@@ -57,37 +60,6 @@ function markingSearchSelection(command: (view: EditorView) => boolean) {
 		return handled;
 	};
 }
-
-/**
- * Marks a match found by the panel itself.
- *
- * The panel's own Enter key and next/previous buttons call `findNext` directly,
- * so they never pass through `markingSearchSelection`. Rather than reimplement
- * the panel, this watches for the shape those commands leave behind: the panel
- * is open, a query is active, and the selection moved to a range whose text is
- * exactly what is being searched for. That is precisely a match, and nothing a
- * mouse sweep produces unless it happens to select the search term — in which
- * case revealing it is the right thing anyway.
- */
-const markPanelMatches = EditorView.updateListener.of((update) => {
-	if (!update.selectionSet || update.docChanged) return;
-	if (update.state.field(searchSelectionField, false)) return;
-	if (!searchPanelOpen(update.state)) return;
-	const query = getSearchQuery(update.state);
-	if (!query.search) return;
-	const range = update.state.selection.main;
-	if (range.empty) return;
-	const selected = update.state.sliceDoc(range.from, range.to);
-	const matches = query.caseSensitive
-		? selected === query.search
-		: selected.toLowerCase() === query.search.toLowerCase();
-	// A regexp query's match rarely equals its pattern, so compare against the
-	// pattern only for a literal search; a regexp match still reveals via the
-	// keymap path above.
-	if (!query.regexp && matches) {
-		update.view.dispatch({ effects: setSearchSelection.of(true) });
-	}
-});
 
 /**
  * Keeps the flag honest when the panel closes.
@@ -362,7 +334,6 @@ const replaceToggle = EditorView.updateListener.of((update) => {
 
 export const searchRevealExtension: Extension = [
 	searchSelectionField,
-	markPanelMatches,
 	clearOnPanelClose,
 	replaceToggle,
 ];

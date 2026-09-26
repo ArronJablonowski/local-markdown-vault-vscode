@@ -222,6 +222,7 @@ function appendTypedValue(
 	cell: HTMLTableCellElement, key: string, value: unknown,
 	onChange: PropertyChangeHandler,
 	getSnapshot: (key: string, value: unknown) => string | undefined,
+	canEdit: () => boolean,
 ): void {
 	if (typeof value === 'boolean') {
 		const checkbox = document.createElement('input');
@@ -243,7 +244,7 @@ function appendTypedValue(
 	if (typeof value === 'number') {
 		cell.classList.add('mlp-property-number');
 		cell.textContent = String(value);
-		enableValueEditing(cell, key, value, onChange, getSnapshot);
+		enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit);
 		return;
 	}
 	if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-]+Z?)?$/.test(value)) {
@@ -252,7 +253,7 @@ function appendTypedValue(
 		time.textContent = value;
 		cell.classList.add(value.includes('T') || value.includes(' ') ? 'mlp-property-datetime' : 'mlp-property-date');
 		cell.appendChild(time);
-		enableValueEditing(cell, key, value, onChange, getSnapshot);
+		enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit);
 		return;
 	}
 	const wikiBody = propertyWikiLinkBody(value);
@@ -261,7 +262,7 @@ function appendTypedValue(
 		const edit = createPropertyEditButton();
 		cell.classList.add('mlp-property-link-cell');
 		cell.append(link, edit);
-		enableValueEditing(cell, key, value, onChange, getSnapshot, edit);
+		enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit, edit);
 		return;
 	}
 	if (Array.isArray(value) && value.every(isScalar)) {
@@ -283,8 +284,8 @@ function appendTypedValue(
 		if (hasWikiLinks) {
 			const edit = createPropertyEditButton();
 			cell.appendChild(edit);
-			enableValueEditing(cell, key, value, onChange, getSnapshot, edit);
-		} else enableValueEditing(cell, key, value, onChange, getSnapshot);
+			enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit, edit);
+		} else enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit);
 		return;
 	}
 	const formatted = formatValue(value);
@@ -296,7 +297,7 @@ function appendTypedValue(
 		cell.textContent = formatted;
 	}
 	if (isScalar(value) || (Array.isArray(value) && value.every(isScalar))) {
-		enableValueEditing(cell, key, value, onChange, getSnapshot);
+		enableValueEditing(cell, key, value, onChange, getSnapshot, canEdit);
 	}
 }
 
@@ -306,12 +307,15 @@ function enableValueEditing(
 	value: unknown,
 	onChange: PropertyChangeHandler,
 	getSnapshot: (key: string, value: unknown) => string | undefined,
+	canEdit: () => boolean,
 	explicitTrigger?: HTMLButtonElement,
 ): void {
 	if (typeof value === 'boolean') return;
 	let editing = false;
 	const start = (): void => {
-		if (editing) return;
+		// Native inputs are editable even below a locked CodeMirror root. Check
+		// the live facet here, because equal widgets can survive a mode toggle.
+		if (editing || !canEdit()) return;
 		editing = true;
 		const original = Array.from(cell.childNodes).map((node) => node.cloneNode(true));
 		const input = document.createElement('input');
@@ -492,7 +496,7 @@ export class FrontmatterWidget extends WidgetType {
 			const th = document.createElement('th');
 			th.textContent = key;
 			const td = document.createElement('td');
-			appendTypedValue(td, key, value, updateValue, propertySnapshot);
+			appendTypedValue(td, key, value, updateValue, propertySnapshot, () => view.state.facet(EditorView.editable));
 			tr.append(th, td);
 			tbody.appendChild(tr);
 		}

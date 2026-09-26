@@ -27,7 +27,9 @@ try {
 	}, null, 2));
 	const executable = await downloadAndUnzipVSCode('stable');
 	const runner = resolve(root, 'node_modules/@vscode/test-cli/out/runner.cjs');
-	const testFile = resolve(root, 'out-test/integration/focusedDesktop.test.js');
+	const testFile = resolve(root, process.env.MDLP_VAULT_UNDO_LIFETIME_TEST === '1'
+		? 'out-test/integration/vaultUndoLifetime.test.js'
+		: 'out-test/integration/focusedDesktop.test.js');
 	const testOptions = JSON.stringify({
 		mochaOpts: { ui: 'tdd', timeout: 60_000, ...(process.env.MDLP_FOCUSED_TEST_GREP ? { grep: process.env.MDLP_FOCUSED_TEST_GREP } : {}) },
 		colorDefault: Boolean(process.stdout.isTTY),

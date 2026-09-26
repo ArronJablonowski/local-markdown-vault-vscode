@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix a close-during-save race that could discard the final accepted characters. Wait for in-progress native writes even after document tracking closes; recheck the reopened document and retry once only over the exact original baseline. Preserve conflicting text separately. Document a remaining VS Code native Undo limitation for moves that update an unopened note; reversing the move through the Vault is the tested workaround.
+
+- Keep locked YAML properties read-only, preserve direct clicks between unfinished edits in different tables, and keep tables rendered after adding rows or columns at the end of a note. Reveal regular-expression Find results and expand collapsed callout ancestors without changing saved Markdown. Suppress note autocomplete in literal code and HTML while retaining ordinary note and fragment suggestions. Add fresh native keyboard/mouse, clipboard, mode-switch, file-tree gesture, and browser interaction regression coverage.
+
 - Correct Markdown link/image destinations with angle wrappers and escaped punctuation, and preserve escaped pipes and columns in embedded tables. Keep renamed-note links valid when filenames contain spaces, parentheses, or URL delimiters. Refuse prepared rename edits if a save participant or concurrent edit changes their document positions.
 - Keep nested callout controls visible after an unfinished table edit and restore Cmd/Ctrl-click table links. Prevent long malformed bracket sequences from stalling vault indexing or link rewriting. Add fresh note-taking workflows and post-outage production-build verification.
 

@@ -12,6 +12,7 @@ const requiredFiles = new Set([
 		'extension/SECURITY.md',
 		'extension/docs/ACCESSIBILITY.md',
 		'extension/docs/MIGRATION.md',
+		'extension/docs/NATIVE_VAULT_UNDO_LIMITATION.md',
 		'extension/docs/OBSIDIAN_COMPATIBILITY.md',
 		'extension/THIRD-PARTY-NOTICES.md',
 	'extension/LICENSE.txt',

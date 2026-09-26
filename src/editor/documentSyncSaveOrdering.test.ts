@@ -118,6 +118,62 @@ function mutationHarness(text = 'Before') {
 }
 
 describe('accepted edits across close and reopen', () => {
+	it('replays the final accepted edit if native close discarded it while its save was settling', async () => {
+		const { session, document, settle } = mutationHarness();
+		const reopened = documentFor('Before', 7);
+		session.closing = true;
+		settle.mockImplementationOnce(async () => {}).mockImplementationOnce(async () => {
+			document.isClosed = true;
+			document.isDirty = false; // The closed mirror still contains the full accepted edit.
+		});
+		mocks.open.mockResolvedValue(reopened);
+		await session.applyEdit([{ from: 6, to: 6, insert: ' after' }], 1);
+		expect(document.text).toBe('Before after');
+		expect(reopened.text).toBe('Before after');
+		expect(reopened.isDirty).toBe(false);
+		expect(mocks.apply).toHaveBeenCalledTimes(2);
+		expect(session.post).toHaveBeenCalledWith({ type: 'ackEdit', version: 8 });
+		expect(session.preserveDraft).not.toHaveBeenCalled();
+	});
+	it('preserves rather than overwrites an external edit encountered after a native close during save', async () => {
+		const { session, document, settle } = mutationHarness();
+		const reopened = documentFor('External writer', 7);
+		session.closing = true;
+		settle.mockImplementationOnce(async () => {}).mockImplementationOnce(async () => {
+			document.isClosed = true; document.isDirty = false;
+		});
+		mocks.open.mockResolvedValue(reopened);
+		await session.applyEdit([{ from: 6, to: 6, insert: ' after' }], 1);
+		expect(reopened.text).toBe('External writer');
+		expect(mocks.apply).toHaveBeenCalledOnce();
+		expect(session.post).not.toHaveBeenCalled();
+		expect(session.preserveDraft).toHaveBeenCalledWith('Before after');
+	});
+	it('bounds close-during-save replay and preserves the exact draft if the native model closes again', async () => {
+		const { session, document, settle } = mutationHarness();
+		const reopened = documentFor('Before', 7);
+		const secondReopen = documentFor('Before', 11);
+		session.closing = true;
+		settle.mockImplementation(async () => {
+			if (session.document.isDirty) { session.document.isClosed = true; session.document.isDirty = false; }
+		});
+		mocks.open.mockResolvedValueOnce(reopened).mockResolvedValueOnce(secondReopen);
+		await session.applyEdit([{ from: 6, to: 6, insert: ' after' }], 1);
+		expect(document.text).toBe('Before after');
+		expect(mocks.apply).toHaveBeenCalledTimes(2);
+		expect(session.post).not.toHaveBeenCalled();
+		expect(session.preserveDraft).toHaveBeenCalledWith('Before after');
+	});
+	it('does not acknowledge a snapshot merely because its discarded closed mirror is clean', async () => {
+		const { session, document, settle } = mutationHarness('Before after');
+		const reopened = documentFor('Before', 7);
+		settle.mockImplementationOnce(async () => {}).mockImplementationOnce(async () => {
+			document.isClosed = true; document.isDirty = false;
+		});
+		mocks.open.mockResolvedValue(reopened);
+		expect(await session.trySaveSnapshot({ baselineText: 'Before', text: 'Before after' })).toBe(false);
+		expect(mocks.open).toHaveBeenCalledOnce();
+	});
 	it('drains an already accepted edit after panel disposal and saves it before final disposal', async () => {
 		const { session, document, settle } = mutationHarness();
 		let release!: () => void;
@@ -487,9 +543,12 @@ describe('cached renderer drafts across hide and close', () => {
 	it('flushes a newer hidden snapshot that arrives while the preceding snapshot is being saved', async () => {
 		const { session, document, settle } = mutationHarness();
 		let release!: () => void;
-		settle.mockImplementationOnce(async () => {}).mockImplementationOnce(() => new Promise<void>(resolve => {
-			release = () => { document.isDirty = false; resolve(); };
-		}));
+		settle.mockImplementation(async () => {
+			if (document.isDirty && !release) await new Promise<void>(resolve => {
+				release = () => { document.isDirty = false; resolve(); };
+			});
+			document.isDirty = false;
+		});
 		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'First typing tail' });
 		session.setVisible(false);
 		await vi.waitFor(() => expect(document.text).toBe('First typing tail'));

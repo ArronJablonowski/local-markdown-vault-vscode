@@ -53,9 +53,21 @@ export const wikilinkCompletionExtension: Extension = autocompletion({
 	maxRenderedOptions: 100,
 });
 
-function wikilinkCompletions(context: CompletionContext): CompletionResult | null {
+export function wikilinkCompletions(context: CompletionContext): CompletionResult | null {
 	const match = context.matchBefore(/\[\[([^\]\n]*)$/);
 	if (!match) return null;
+	// Bracket pairs in code, HTML, and link destinations are literal content,
+	// not requests to insert a vault note. A completion there could consume
+	// Enter and replace code the user is still writing.
+	for (let node = syntaxTree(context.state).resolveInner(context.pos, -1); node; node = node.parent!) {
+		if (/Code|HTML/.test(node.name) || node.name === 'URL') return null;
+		// Auto-paired closing brackets make Markdown parse [[Note]] as the
+		// shorthand Link [Note] inside an extra pair of brackets. ![[Note]]
+		// likewise gets a shorthand Image parent. These are the wikilink being
+		// completed, not an enclosing Markdown link/image destination.
+		if (node.name === 'Link' && (node.from !== match.from + 1 || node.getChild('URL'))) return null;
+		if (node.name === 'Image' && (node.from !== match.from - 1 || node.getChild('URL'))) return null;
+	}
 	const body = match.text.slice(2);
 	if (body.includes('|')) return null;
 	const headingAt = body.indexOf('#');

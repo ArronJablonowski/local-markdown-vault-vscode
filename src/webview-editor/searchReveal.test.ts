@@ -43,6 +43,16 @@ describe('selectionIsSearchMatch', () => {
 		expect(selectionIsSearchMatch(state)).toBe(true);
 	});
 
+	it.each(['select.search', 'select.search.matches'])('recognizes native %s panel transactions without comparing the query text', (userEvent) => {
+		const state = stateWith(0).update({ selection: { anchor: 8, head: 14 }, userEvent }).state;
+		expect(selectionIsSearchMatch(state)).toBe(true);
+	});
+
+	it('does not mistake a mouse selection for search navigation', () => {
+		const state = stateWith(0).update({ selection: { anchor: 8, head: 14 }, userEvent: 'select.pointer' }).state;
+		expect(selectionIsSearchMatch(state)).toBe(false);
+	});
+
 	it('clears when the selection moves on its own', () => {
 		const marked = markAsMatch(stateWith(8, 14));
 		const moved = marked.update({ selection: { anchor: 0 } }).state;
