@@ -45,11 +45,19 @@ Other explicitly saved viewing preferences are preserved when updating.
   Existing destinations are never overwritten. Symbolic-link destinations and
   moves into the source folder itself are rejected. Workspace Trust is required.
 - Dragging moves files; it does not create a manual sibling order. Name/date
-  sorting still determines where items appear. To reverse a move with link updates,
-  move the items back through the Vault tree or **Move Vault Item**, keeping
-  automatic link updates enabled. QA on VS Code 1.139.1 found that native Undo
-  can restore moved files without restoring links in a saved, unopened note.
-  See [the native Undo limitation](docs/NATIVE_VAULT_UNDO_LIMITATION.md).
+  sorting still determines where items appear. To reverse a move or rename, use
+  **Undo Vault Move or Rename** in the Vault's **…** menu, an item's right-click
+  menu, or the Command Palette. **Redo Vault Move or Rename** reapplies it.
+  These commands update links from current note contents and preserve later
+  writing; they do not restore old copies of notes. Ordinary text Undo remains
+  unchanged.
+- Vault history keeps up to 50 operations in memory for the current window.
+  Reloading or changing workspaces clears it; a new move clears Redo. Unexpected
+  renames invalidate history. Changed link-update/exclusion settings, replaced
+  items or parent folders, and occupied destinations can prevent a safe replay.
+  Use a fresh move through the Vault if history is unavailable. Native VS Code
+  Undo is still unsuitable for moves affecting unopened linked notes; see
+  [the native Undo limitation](docs/NATIVE_VAULT_UNDO_LIMITATION.md).
 - Local vault search, Quick Switcher, backlinks, unlinked mentions, recent notes, tags, aliases, and hover previews
 - Incremental metadata index that can be rebuilt from the files in the workspace
 

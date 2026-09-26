@@ -110,6 +110,19 @@ export async function runVaultGestureQa({ page, workspace, modifier, onCheck, on
 	await exact('01 Multi/Destination/Alpha.md', alpha);
 	await exact('01 Multi/Destination/Beta.md', beta);
 	await wait(async () => await readFile(path('01 Multi/Index.md'), 'utf8') === '[Alpha](Destination/Alpha.md) and [Beta](Destination/Beta.md)\n', 'both incoming links saved');
+	// Unlike native Undo, dedicated history must restore the saved, never-shown
+	// incoming-link note too. Exercise both palette and actual context menus.
+	await delay(1100);
+	await palette('Local Markdown Vault: Undo Vault Move or Rename');
+	await wait(async () => await exists(path('01 Multi/Alpha.md')) && await exists(path('01 Multi/Beta.md'))
+		&& await readFile(path('01 Multi/Index.md'), 'utf8') === links, 'dedicated Undo restores paths and unopened links');
+	await exact('01 Multi/Alpha.md', alpha); await exact('01 Multi/Beta.md', beta);
+	await revealFixture('01 Multi');
+	await menu('File', '01 Multi/Alpha.md', 'Redo Vault Move or Rename');
+	await wait(async () => await exists(path('01 Multi/Destination/Alpha.md')) && await exists(path('01 Multi/Destination/Beta.md'))
+		&& await readFile(path('01 Multi/Index.md'), 'utf8') === '[Alpha](Destination/Alpha.md) and [Beta](Destination/Beta.md)\n', 'dedicated Redo restores move and unopened links');
+	await exact('01 Multi/Destination/Alpha.md', alpha); await exact('01 Multi/Destination/Beta.md', beta);
+	report('Dedicated Vault Undo via Command Palette and Redo via context menu restore unopened links and exact file bytes');
 	// A fresh move back is the safe workaround for the native Undo limitation
 	// below: prove it through the same tree gestures and exact disk assertions.
 	await revealFixture('01 Multi/Destination');
@@ -139,6 +152,13 @@ export async function runVaultGestureQa({ page, workspace, modifier, onCheck, on
 	}
 	await exact('01 Multi/Alpha.md', alpha); await exact('01 Multi/Beta.md', beta);
 	report('Native multi-selection drag and fresh move back save exact paths, links, and bytes; file bytes survive filesystem Undo');
+	await revealFixture('01 Multi');
+	await row('File', '01 Multi/Alpha.md').click({ button: 'right' });
+	for (const action of ['Undo Vault Move or Rename', 'Redo Vault Move or Rename']) {
+		const item = page.getByRole('menuitem').filter({ hasText: action });
+		await wait(async () => await item.getAttribute('aria-disabled') === 'true', `${action} disabled after native history divergence`);
+	}
+	await page.keyboard.press('Escape');
 
 	// 2. Escape during a real drag must cancel it without poisoning the next drag.
 	const canceled = '# Canceled drag\nThis exact source must survive Escape.\n';

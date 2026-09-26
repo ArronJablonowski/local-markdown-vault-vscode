@@ -28,6 +28,8 @@ suite('Restricted Mode extension host', () => {
 		assert.ok(root, 'the restricted runner did not open its fixture workspace');
 		const before = (await vscode.workspace.fs.readDirectory(root)).map(([name]) => name).sort();
 		await vscode.commands.executeCommand('mdLivePreview.vault.newFolder');
+		assert.strictEqual(await vscode.commands.executeCommand('mdLivePreview.vault.undoMove'), false);
+		assert.strictEqual(await vscode.commands.executeCommand('mdLivePreview.vault.redoMove'), false);
 		const after = (await vscode.workspace.fs.readDirectory(root)).map(([name]) => name).sort();
 		assert.deepStrictEqual(after, before, 'a vault mutation escaped the Restricted Mode guard');
 	});

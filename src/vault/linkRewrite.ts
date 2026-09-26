@@ -8,6 +8,8 @@ export interface VaultMove {
 	isFolder: boolean;
 	/** Shortest unambiguous wikilink target after the transaction. */
 	wikiTarget?: string;
+	/** Whether a basename-only wikilink currently resolves to this note. */
+	wikiSourceBasename?: boolean;
 }
 
 export interface LinkReplacement {
@@ -213,6 +215,10 @@ function rewriteWikiTarget(target: string, move: VaultMove): string | undefined 
 		? oldPath.replace(/\.(?:md|markdown)$/i, '')
 		: oldPath;
 	const normalizedTarget = normalizePath(trimmed);
+	const basenameOnly = !normalizedTarget.includes('/');
+	// A later-created root note can shadow a moved note with the same basename.
+	// Replaying a move must not retarget links authored for that other note.
+	if (basenameOnly && move.wikiSourceBasename === false) return undefined;
 
 	let rewritten: string | undefined;
 	if (move.isFolder && isSameOrDescendant(normalizedTarget, oldPath)) {
@@ -224,15 +230,21 @@ function rewriteWikiTarget(target: string, move: VaultMove): string | undefined 
 		// A basename-only wikilink remains the shortest valid spelling when a
 		// note merely changes folders. When the file name itself changes, retain
 		// the basename-only form with the new name.
-		rewritten = trimmed.includes('/') ? movedTarget : (move.wikiTarget ?? posix.basename(movedTarget));
-	} else if (!move.isFolder && !trimmed.includes('/')) {
+		rewritten = basenameOnly ? plannedWikiTarget(move, omittedExtension, posix.basename(movedTarget)) : movedTarget;
+	} else if (!move.isFolder && basenameOnly) {
 		const oldName = oldComparable.split('/').pop();
 		if (oldName && samePath(trimmed, oldName)) {
-			rewritten = (omittedExtension ? stripMarkdownExtension(newPath) : newPath).split('/').pop();
+			rewritten = plannedWikiTarget(move, omittedExtension,
+				(omittedExtension ? stripMarkdownExtension(newPath) : newPath).split('/').pop()!);
 		}
 	}
 	if (!rewritten) return undefined;
 	return target.replace(trimmed, rewritten);
+}
+
+function plannedWikiTarget(move: VaultMove, omittedExtension: boolean, fallback: string): string {
+	if (move.wikiTarget === undefined) return fallback;
+	return move.wikiTarget + (omittedExtension ? '' : posix.extname(move.newPath));
 }
 
 function mapMovedPath(path: string, move: VaultMove): string {

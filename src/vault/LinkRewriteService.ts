@@ -1,10 +1,15 @@
 import * as vscode from 'vscode';
 import type { Stats } from 'node:fs';
+import { dirname } from 'node:path';
 import { rewriteLinksForMoves, type VaultMove } from './linkRewrite';
 import { VaultService } from './VaultService';
 import { assignWikiTargets, assertIndependentMoves, minimalTextReplacement } from './vaultMovePlan';
 import { MAX_DISCOVERED_MARKDOWN_FILES, MAX_INDEXED_VAULT_NOTES, selectIndexCandidates } from './vaultIndexSelection';
 import { CaseRenameCoordinator, caseRenameCoordinatorFor, type StagedCaseRename } from './CaseRenameCoordinator';
+import {
+	vaultMoveHistoryFor, type VaultEntryIdentity, type VaultMoveExecution,
+	type VaultMoveIdentity, type VaultMoveOutcome, type VaultMovePolicy, type VaultMoveRequest,
+} from './VaultMoveHistory';
 
 const MAX_REWRITE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_REWRITE_TOTAL_BYTES = 200 * 1024 * 1024;
@@ -78,11 +83,38 @@ export class LinkRewriteService {
 	}
 
 	async renameOrMoveMany(
-		requests: readonly { source: vscode.Uri; destination: vscode.Uri; isFolder: boolean }[],
+		requests: readonly VaultMoveRequest[],
 	): Promise<boolean> {
 		if (requests.length === 0) return true;
 		if (requests.length > 256) throw new Error('At most 256 vault items can be moved at once.');
-		this.assertCurrent();
+		return vaultMoveHistoryFor(this.vault).runMove(requests, (execution) => {
+			if (!execution.expectedSources) return this.executeMove(execution);
+			// A drag's CancellationToken only authorizes that original gesture.
+			// Replays use their own history-generation/trust/workspace guards, not
+			// a token that VS Code may have canceled after a successful drop.
+			return new LinkRewriteService(this.vault, {
+				caseRenames: this.caseRenames,
+				applyEdit: this.applyEdit,
+				beforePreconditionCheck: this.beforePreconditionCheck,
+				beforeCaseRenameStage: this.beforeCaseRenameStage,
+			}).executeMove(execution);
+		});
+	}
+
+	private async executeMove(execution: VaultMoveExecution): Promise<VaultMoveOutcome> {
+		const { requests } = execution;
+		const policy = this.movePolicy();
+		const assertCurrent = () => {
+			this.assertCurrent();
+			execution.assertCurrent();
+			if (!samePolicy(policy, this.movePolicy()) || (execution.expectedPolicy && !samePolicy(policy, execution.expectedPolicy))) {
+				throw new Error('Vault link-update settings changed. Move the items normally instead of using this history.');
+			}
+		};
+		assertCurrent();
+		if (execution.expectedSources && execution.expectedSources.length !== requests.length) {
+			throw new Error('Vault move history is incomplete. Move the items normally instead of using this history.');
+		}
 		const plans = requests.map(({ source, destination, isFolder }) => {
 			const oldPath = this.vault.relativePath(source);
 			const newPath = this.vault.relativePath(destination);
@@ -97,6 +129,32 @@ export class LinkRewriteService {
 		});
 		assertIndependentMoves(plans.map((plan) => plan.move));
 		const sourceStats = await Promise.all(plans.map((plan) => this.vault.statEntryInside(plan.source)));
+		if (execution.expectedSources && (await Promise.all(plans.map((plan) => this.vault.hasExactEntry(plan.source)))).some((exists) => !exists)) {
+			throw new Error('A vault move endpoint was replaced or changed. Move the items normally instead of using this history.');
+		}
+		const parents = await Promise.all(plans.map(async (plan, index) => {
+			const source = vscode.Uri.file(dirname(plan.source.fsPath));
+			const destination = vscode.Uri.file(dirname(plan.destination.fsPath));
+			const before = await this.vault.statEntryInside(source);
+			const after = await this.vault.statEntryInside(destination);
+			const expected = execution.expectedSources?.[index];
+			if (!ordinaryDirectory(before) || !ordinaryDirectory(after)
+				|| (!sourceStats[index].isSymbolicLink() && sourceStats[index].isDirectory() !== plan.move.isFolder)
+				|| (expected && (!samePersistentIdentity(sourceStats[index], expected)
+					|| !expected.destinationParent || !samePersistentIdentity(before, expected.destinationParent)
+					|| !expected.sourceParent || !samePersistentIdentity(after, expected.sourceParent)))) {
+				throw new Error('A vault move endpoint was replaced or changed. Move the items normally instead of using this history.');
+			}
+			return { source, destination, before, after };
+		}));
+		const assertParentsCurrent = async () => {
+			for (const parent of parents) {
+				if (!sameOperationIdentity(await this.vault.statEntryInside(parent.source), parent.before, Boolean(execution.expectedSources))
+					|| !sameOperationIdentity(await this.vault.statEntryInside(parent.destination), parent.after, Boolean(execution.expectedSources))) {
+					throw new Error('A vault move endpoint was replaced or changed. Move the items normally instead of using this history.');
+				}
+			}
+		};
 		const caseOnlyAliases = await Promise.all(plans.map((plan, index) =>
 			plan.caseSpelling
 				? this.vault.aliasesEntry(plan.destination, sourceStats[index])
@@ -114,14 +172,12 @@ export class LinkRewriteService {
 		const edit = new vscode.WorkspaceEdit();
 		const versions = new Map<string, number>();
 		const fileSnapshots = new Map<string, FileSnapshot>();
-		const updateLinks = vscode.workspace
-			.getConfiguration('mdLivePreview.vault', this.vault.rootUri)
-			.get<boolean>('updateLinksOnMove', true);
-		if (updateLinks) await this.addLinkEdits(
+		if (policy.updateLinks) await this.addLinkEdits(
 			edit,
 			resolvedPlans.map((plan) => plan.move),
 			versions,
 			fileSnapshots,
+			policy.exclusions,
 		);
 		await this.beforePreconditionCheck?.();
 		for (let index = 0; index < resolvedPlans.length; index++) {
@@ -150,18 +206,35 @@ export class LinkRewriteService {
 			}
 		}
 		const stagedCaseRenames: StagedCaseRename[] = [];
+		const assertSourceIdentitiesCurrent = async () => {
+			for (let index = 0; index < resolvedPlans.length; index++) {
+				const plan = resolvedPlans[index];
+				const endpoint = stagedCaseRenames.find((staged) => staged.source.toString() === plan.source.toString())?.temporary ?? plan.source;
+				const conflict = () => new VaultTransactionConflictError(
+					plan.caseOnly ? 'sourceOrDestination' : 'source',
+					plan.move.oldPath,
+					plan.caseOnly ? plan.move.newPath : undefined,
+				);
+				let current: Stats;
+				try { current = await this.vault.statEntryInside(endpoint); }
+				catch { throw conflict(); }
+				if (!sameOperationIdentity(current, sourceStats[index], Boolean(execution.expectedSources))) throw conflict();
+			}
+		};
 		try {
 			await this.saveDirtyCaseRenameSources(resolvedPlans);
 			if (resolvedPlans.some((plan) => plan.caseOnly)) await this.beforeCaseRenameStage?.();
 			// Saving can invoke formatters or other save participants. Do not stage
 			// a rename with text replacements computed against their older source.
 			this.assertDocumentVersionsCurrent(versions);
-			this.assertCurrent();
+			await assertParentsCurrent();
+			await assertSourceIdentitiesCurrent();
+			assertCurrent();
 			for (const plan of resolvedPlans) {
 				if (plan.caseOnly) {
 					let temporary: vscode.Uri;
 					try {
-						temporary = await this.vault.stageCaseOnlyRename(plan.source, plan.destination, this.isCurrent);
+						temporary = await this.vault.stageCaseOnlyRename(plan.source, plan.destination, () => { assertCurrent(); return true; });
 					} catch (error) {
 						if (error instanceof Error && error.message === 'A source or destination changed while the move was being prepared.') {
 							throw new VaultTransactionConflictError(
@@ -180,12 +253,26 @@ export class LinkRewriteService {
 			}
 			const replayRequests = requests.map((request) => ({ ...request }));
 			this.caseRenames.register(stagedCaseRenames, () => this.renameOrMoveMany(replayRequests));
-			this.assertCurrent();
+			await assertParentsCurrent();
+			await assertSourceIdentitiesCurrent();
+			assertCurrent();
 			// Staging awaits filesystem operations while the user can still type.
 			// Recheck synchronously at the final native-edit handoff, rolling any
 			// staged paths back if that invalidated the prepared text offsets.
 			this.assertDocumentVersionsCurrent(versions);
-			const applied = await this.applyEdit(edit);
+			const expectedRenames = execution.expectRenames(resolvedPlans.flatMap((plan) => {
+				const source = stagedCaseRenames.find((staged) => staged.source.toString() === plan.source.toString())?.temporary ?? plan.source;
+				const expected = [{ source, destination: plan.destination }];
+				// On case-insensitive providers VS Code may canonicalize the event
+				// destination to the already validated ORIGINAL spelling. Accept
+				// only these two exact spellings of this specific staged operation;
+				// enforceCaseRenamePostconditions still verifies requested casing.
+				if (plan.caseOnly) expected.push({ source, destination: plan.source });
+				return expected;
+			}));
+			let applied: boolean;
+			try { applied = await this.applyEdit(edit); }
+			finally { expectedRenames.dispose(); }
 			if (!applied) {
 				this.caseRenames.unregister(stagedCaseRenames);
 				await this.rollbackCaseRenames(stagedCaseRenames);
@@ -195,7 +282,24 @@ export class LinkRewriteService {
 					throw new Error('The workspace rejected the requested filename casing.');
 				}
 			}
-			return applied;
+			// Recording is best-effort after a committed operation. Never report
+			// an already successful move as failed because its history is unsafe.
+			let identities: VaultMoveIdentity[] | undefined;
+			if (applied) {
+				try {
+					identities = await Promise.all(resolvedPlans.map(async (plan, index) => {
+						const current = await this.vault.statEntryInside(plan.destination);
+						if (current.isSymbolicLink() || (!current.isFile() && !current.isDirectory())
+							|| !samePersistentIdentity(current, persistentIdentity(sourceStats[index]))) throw new Error('Unverifiable moved entry.');
+						return {
+							...persistentIdentity(current),
+							sourceParent: persistentIdentity(parents[index].before),
+							destinationParent: persistentIdentity(parents[index].after),
+						};
+					}));
+				} catch { identities = undefined; }
+			}
+			return { applied, policy, identities };
 		} catch (error) {
 			this.caseRenames.unregister(stagedCaseRenames);
 			await this.rollbackCaseRenames(stagedCaseRenames);
@@ -227,7 +331,16 @@ export class LinkRewriteService {
 
 	private assertCurrent(): void {
 		this.vault.assertWorkspaceCurrent();
+		if (vscode.workspace.isTrusted === false) throw new Error('Trust this workspace to move Document Vault files.');
 		if (!this.isCurrent()) throw new Error('The Document Vault changed before the move could be applied.');
+	}
+
+	private movePolicy(): VaultMovePolicy {
+		const configuration = vscode.workspace.getConfiguration('mdLivePreview.vault', this.vault.rootUri);
+		return {
+			updateLinks: configuration.get<boolean>('updateLinksOnMove', true),
+			exclusions: [...configuration.get<string[]>('exclude', [])],
+		};
 	}
 
 	private assertDocumentVersionsCurrent(versions: ReadonlyMap<string, number>): void {
@@ -294,13 +407,13 @@ export class LinkRewriteService {
 		moves: readonly VaultMove[],
 		versions: Map<string, number>,
 		fileSnapshots: Map<string, FileSnapshot>,
+		exclusions: readonly string[],
 	): Promise<void> {
 		const discovered = await vscode.workspace.findFiles(
 			new vscode.RelativePattern(this.vault.rootUri, '**/*.{md,markdown}'),
 			'{**/.git/**,**/node_modules/**}',
 			MAX_DISCOVERED_MARKDOWN_FILES + 1,
 		);
-		const exclusions = vscode.workspace.getConfiguration('mdLivePreview.vault', this.vault.rootUri).get<string[]>('exclude', []);
 		const selection = selectIndexCandidates(
 			discovered.slice(0, MAX_DISCOVERED_MARKDOWN_FILES).flatMap((uri) => {
 				const path = this.vault.relativePath(uri);
@@ -362,6 +475,36 @@ export class LinkRewriteService {
 		}
 	}
 
+}
+
+function samePolicy(actual: VaultMovePolicy, expected: VaultMovePolicy): boolean {
+	return actual.updateLinks === expected.updateLinks && JSON.stringify(actual.exclusions) === JSON.stringify(expected.exclusions);
+}
+
+function ordinaryDirectory(stat: Stats): boolean {
+	return stat.isDirectory() && !stat.isSymbolicLink();
+}
+
+function persistentIdentity(stat: Stats): VaultEntryIdentity {
+	return { dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, isFolder: stat.isDirectory() };
+}
+
+function sameOperationIdentity(actual: Stats, expected: Stats, replay: boolean): boolean {
+	return replay ? samePersistentIdentity(actual, persistentIdentity(expected))
+		: actual.isSymbolicLink() === expected.isSymbolicLink()
+			&& actual.isFile() === expected.isFile() && actual.isDirectory() === expected.isDirectory()
+			&& sameIdentity(actual, expected);
+}
+
+function samePersistentIdentity(actual: Stats, expected: VaultEntryIdentity): boolean {
+	if (actual.isSymbolicLink() || actual.isDirectory() !== expected.isFolder
+		|| (!actual.isDirectory() && !actual.isFile())) return false;
+	if (actual.dev !== 0 || actual.ino !== 0 || expected.dev !== 0 || expected.ino !== 0) {
+		return actual.dev === expected.dev && actual.ino === expected.ino && actual.birthtimeMs === expected.birthtimeMs;
+	}
+	// Birthtime alone is not a reliable unique capability on all providers.
+	// Refuse to replay rather than moving an unrelated replacement entry.
+	return false;
 }
 
 function sameFileSnapshot(actual: Stats, expected: FileSnapshot): boolean {

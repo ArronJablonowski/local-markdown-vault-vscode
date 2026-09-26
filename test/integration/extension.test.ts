@@ -39,6 +39,8 @@ suite('extension', () => {
 			'mdLivePreview.vault.collapseAll',
 			'mdLivePreview.vault.rename',
 			'mdLivePreview.vault.move',
+			'mdLivePreview.vault.undoMove',
+			'mdLivePreview.vault.redoMove',
 			'mdLivePreview.vault.delete',
 			'mdLivePreview.vault.copyRelativePath',
 			'mdLivePreview.vault.revealInOS',
@@ -86,6 +88,24 @@ suite('extension', () => {
 		assert.ok(move, 'the vault Move action is not contributed');
 		assert.match(move.when ?? '', /view == mdLivePreview\.vault/);
 		assert.match(move.when ?? '', /isWorkspaceTrusted/);
+	});
+
+	test('keeps dedicated vault history discoverable without replacing native typing shortcuts', () => {
+		const extension = vscode.extensions.getExtension(EXTENSION_ID);
+		assert.ok(extension);
+		const contributions = extension.packageJSON.contributes;
+		for (const id of ['mdLivePreview.vault.undoMove', 'mdLivePreview.vault.redoMove']) {
+			const command = contributions.commands.find((item: { command: string }) => item.command === id);
+			assert.ok(command);
+			assert.match(command.enablement, /isWorkspaceTrusted/);
+			assert.match(command.enablement, /mdLivePreview\.vaultMove(?:Undo|Redo)Available/);
+			for (const menu of ['view/title', 'view/item/context']) {
+				const item = contributions.menus[menu].find((item: { command: string }) => item.command === id);
+				assert.ok(item, `${id} missing from ${menu}`);
+				assert.match(item.when, /view == mdLivePreview\.vault/);
+			}
+			assert.ok(!contributions.keybindings.some((item: { command: string }) => item.command === id), 'vault history must not take over ordinary text Undo');
+		}
 	});
 
 	test('contributes its settings with the documented defaults', () => {

@@ -137,9 +137,13 @@ describe('host security boundaries', () => {
 		expect(service).toContain('isCurrentVaultWorkspace(current, root.toString())');
 		expect(service).toContain('assertWorkspaceCurrent(): void');
 		expect(rewrites).toContain('this.vault.assertWorkspaceCurrent();');
-		expect(rewrites.indexOf('this.assertCurrent();', rewrites.indexOf('const stagedCaseRenames'))).toBeLessThan(
-			rewrites.indexOf('const applied = await this.applyEdit(edit)'),
-		);
+		const finalGuard = rewrites.indexOf('assertCurrent();', rewrites.indexOf('const replayRequests'));
+		const commit = rewrites.indexOf('applied = await this.applyEdit(edit)');
+		expect(finalGuard).toBeGreaterThan(0);
+		expect(commit).toBeGreaterThan(finalGuard);
+		const combinedGuard = rewrites.slice(rewrites.indexOf('const assertCurrent = () =>'), rewrites.indexOf('\n\t\tassertCurrent();'));
+		expect(combinedGuard).toContain('this.assertCurrent();');
+		expect(combinedGuard).toContain('execution.assertCurrent();');
 		expect(rewrites).toContain('if (!this.isCurrent())');
 	});
 
@@ -352,8 +356,8 @@ describe('host security boundaries', () => {
 		expect(service.indexOf('await this.vault.assertMutationSource(')).toBeLessThan(
 			service.indexOf('const edit = new vscode.WorkspaceEdit()'),
 		);
-		expect(service).toContain('this.assertCurrent();\n\t\t\tfor (const plan of resolvedPlans)');
-		expect(service).toContain('stageCaseOnlyRename(plan.source, plan.destination, this.isCurrent)');
+		expect(service).toContain('assertCurrent();\n\t\t\tfor (const plan of resolvedPlans)');
+		expect(service).toContain('stageCaseOnlyRename(plan.source, plan.destination, () => { assertCurrent(); return true; })');
 		const vault = readFileSync(join(ROOT, 'src', 'vault', 'VaultService.ts'), 'utf8');
 		const stage = vault.slice(vault.indexOf('\tasync stageCaseOnlyRename('), vault.indexOf('\n\t/**', vault.indexOf('\tasync stageCaseOnlyRename(')));
 		expect(stage).toContain('isCurrent: () => boolean');

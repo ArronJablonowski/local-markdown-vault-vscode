@@ -53,13 +53,23 @@ export function minimalTextReplacement(
 export function assignWikiTargets(
 	moves: readonly VaultMove[],
 	markdownPaths: readonly string[],
-	caseInsensitive = process.platform !== 'linux',
+	_caseInsensitive = process.platform !== 'linux',
 ): VaultMove[] {
 	const finalPaths = markdownPaths.map((path) => moves.reduce((current, move) => mapMovedPath(current, move), path));
-	const key = (value: string) => {
-		const normalized = value.normalize('NFC');
-		return caseInsensitive ? normalized.toLocaleLowerCase() : normalized;
-	};
+	// Wikilink resolution is case-insensitive even on a case-sensitive volume.
+	const key = (value: string) => value.normalize('NFC').toLocaleLowerCase();
+	const originalPaths = new Map<string, string[]>();
+	const originalBasenames = new Map<string, string[]>();
+	for (const path of markdownPaths) {
+		const withoutExtension = stripMarkdownExtension(path);
+		const basename = withoutExtension.split('/').pop() ?? withoutExtension;
+		const pathMatches = originalPaths.get(key(withoutExtension)) ?? [];
+		pathMatches.push(path);
+		originalPaths.set(key(withoutExtension), pathMatches);
+		const basenameMatches = originalBasenames.get(key(basename)) ?? [];
+		basenameMatches.push(path);
+		originalBasenames.set(key(basename), basenameMatches);
+	}
 	const basenameCounts = new Map<string, number>();
 	for (const path of finalPaths) {
 		const basename = stripMarkdownExtension(path).split('/').pop() ?? path;
@@ -69,9 +79,13 @@ export function assignWikiTargets(
 		if (move.isFolder || !/\.(?:md|markdown)$/i.test(move.newPath)) return { ...move };
 		const withoutExtension = stripMarkdownExtension(move.newPath);
 		const basename = withoutExtension.split('/').pop() ?? withoutExtension;
+		const oldBasename = stripMarkdownExtension(move.oldPath).split('/').pop() ?? move.oldPath;
+		// Match LinkResolver's exact root-path precedence before basename lookup.
+		const sourceMatches = originalPaths.get(key(oldBasename)) ?? originalBasenames.get(key(oldBasename)) ?? [];
 		return {
 			...move,
 			wikiTarget: basenameCounts.get(key(basename)) === 1 ? basename : withoutExtension,
+			wikiSourceBasename: sourceMatches.length === 1 && key(sourceMatches[0]) === key(move.oldPath),
 		};
 	});
 }

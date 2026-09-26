@@ -169,5 +169,17 @@
   "Folder \"{0}\" created.": "Folder \"{0}\" created.",
   "Could not restore the exact casing while undoing the vault rename.": "Could not restore the exact casing while undoing the vault rename.",
   "{0} copy": "{0} copy",
-  "{0} vault item(s) moved.": "{0} vault item(s) moved."
+  "{0} vault item(s) moved.": "{0} vault item(s) moved.",
+  "There is no vault move or rename to undo in this window.": "There is no vault move or rename to undo in this window.",
+  "There is no vault move or rename to redo in this window.": "There is no vault move or rename to redo in this window.",
+  "Undoing vault move or rename": "Undoing vault move or rename",
+  "Redoing vault move or rename": "Redoing vault move or rename",
+  "Vault move or rename undone.": "Vault move or rename undone.",
+  "Vault move or rename redone.": "Vault move or rename redone.",
+  "Could not undo the vault move or rename. Review the vault before trying again.": "Could not undo the vault move or rename. Review the vault before trying again.",
+  "Could not redo the vault move or rename. Review the vault before trying again.": "Could not redo the vault move or rename. Review the vault before trying again.",
+  "Vault move history changed before the operation completed.": "Vault move history changed before the operation completed.",
+  "Vault move history is incomplete. Move the items normally instead of using this history.": "Vault move history is incomplete. Move the items normally instead of using this history.",
+  "Vault link-update settings changed. Move the items normally instead of using this history.": "Vault link-update settings changed. Move the items normally instead of using this history.",
+  "A vault move endpoint was replaced or changed. Move the items normally instead of using this history.": "A vault move endpoint was replaced or changed. Move the items normally instead of using this history."
 }

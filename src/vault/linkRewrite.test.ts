@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { linkReplacementsForMove, rewriteLinksForMoves, type VaultMove } from './linkRewrite';
+import { assignWikiTargets } from './vaultMovePlan';
 
 function apply(text: string, source: string, move: VaultMove): string {
 	let result = text;
@@ -161,6 +162,54 @@ describe('vault link rewriting', () => {
 			isFolder: false,
 			wikiTarget: 'Archive/New',
 		})).toBe('[[Archive/New]]');
+	});
+
+	it('preserves new root-note links when undoing a nested rename with the same basename', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'Docs/B.md', newPath: 'Docs/A.md', isFolder: false },
+		], ['Docs/B.md', 'B.md', 'Index.md']);
+		expect(rewriteLinksForMoves('[[B]] [[B.md|Root]] ![[B#Heading]] [[Docs/B]]', 'Index.md', moves).text)
+			.toBe('[[B]] [[B.md|Root]] ![[B#Heading]] [[Docs/A]]');
+	});
+
+	it('leaves ambiguous nested basename links untouched while updating qualified links', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'Docs/A.md', newPath: 'Docs/B.md', isFolder: false },
+		], ['Docs/A.md', 'Other/A.md']);
+		expect(rewriteLinksForMoves('[[A]] [[Docs/A]] [[Other/A]]', 'Index.md', moves).text)
+			.toBe('[[A]] [[Docs/B]] [[Other/A]]');
+	});
+
+	it('still rewrites an exact root wikilink when a nested duplicate exists', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'A.md', newPath: 'Archive/B.md', isFolder: false },
+		], ['A.md', 'Other/A.md']);
+		expect(rewriteLinksForMoves('[[A]] [[A.md]] [[Other/A]]', 'Index.md', moves).text)
+			.toBe('[[B]] [[B.md]] [[Other/A]]');
+	});
+
+	it('uses the disambiguated destination for nested basename links and preserves explicit extensions', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'Docs/A.markdown', newPath: 'Docs/B.markdown', isFolder: false },
+		], ['Docs/A.markdown', 'B.md']);
+		expect(rewriteLinksForMoves('[[A]] [[A.markdown|Label]] ![[A#Heading|320]]', 'Index.md', moves).text)
+			.toBe('[[Docs/B]] [[Docs/B.markdown|Label]] ![[Docs/B#Heading|320]]');
+	});
+
+	it('does not assign ambiguous extensionless root links to one of two Markdown extensions', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'A.md', newPath: 'B.md', isFolder: false },
+		], ['A.md', 'A.markdown']);
+		expect(rewriteLinksForMoves('[[A]]', 'Index.md', moves).text).toBe('[[A]]');
+	});
+
+	it('respects case-insensitive wikilink resolution on case-sensitive filesystems', () => {
+		const moves = assignWikiTargets([
+			{ oldPath: 'Docs/B.md', newPath: 'Docs/A.md', isFolder: false },
+		], ['Docs/B.md', 'b.md', 'a.md'], false);
+		expect(rewriteLinksForMoves('[[B]] [[Docs/B]]', 'Index.md', moves).text)
+			.toBe('[[B]] [[Docs/A]]');
+		expect(moves[0].wikiTarget).toBe('Docs/A');
 	});
 
 	it('preserves extensionless wikilinks for .markdown notes', () => {

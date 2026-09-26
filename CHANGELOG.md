@@ -1,5 +1,7 @@
 # Changelog
 
+- Add dedicated Undo/Redo Vault Move or Rename commands to the Command Palette and Vault menus. Recalculate links from current content instead of relying on VS Code's disposed-model undo history. Keep bounded, memory-only history with collision, identity, policy, and workspace guards; preserve ordinary text Undo shortcuts.
+
 - Fix a close-during-save race that could discard the final accepted characters. Wait for in-progress native writes even after document tracking closes; recheck the reopened document and retry once only over the exact original baseline. Preserve conflicting text separately. Document a remaining VS Code native Undo limitation for moves that update an unopened note; reversing the move through the Vault is the tested workaround.
 
 - Keep locked YAML properties read-only, preserve direct clicks between unfinished edits in different tables, and keep tables rendered after adding rows or columns at the end of a note. Reveal regular-expression Find results and expand collapsed callout ancestors without changing saved Markdown. Suppress note autocomplete in literal code and HTML while retaining ordinary note and fragment suggestions. Add fresh native keyboard/mouse, clipboard, mode-switch, file-tree gesture, and browser interaction regression coverage.

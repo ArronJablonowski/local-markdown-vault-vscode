@@ -139,6 +139,8 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const commands = new Set(await vscode.commands.getCommands(true));
 		for (const command of [
 			'mdLivePreview.vault.refresh',
+			'mdLivePreview.vault.undoMove',
+			'mdLivePreview.vault.redoMove',
 			'mdLivePreview.quickSwitcher',
 			'mdLivePreview.vaultSearch',
 			'mdLivePreview.vault.rebuildIndex',

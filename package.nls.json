@@ -26,6 +26,8 @@
   "command.vault.delete": "Move to Trash",
   "command.vault.rename": "Rename Vault Item",
   "command.vault.move": "Move Vault Item…",
+  "command.vault.undoMove": "Undo Vault Move or Rename",
+  "command.vault.redoMove": "Redo Vault Move or Rename",
   "command.vault.copyRelativePath": "Copy Vault-Relative Path",
   "command.vault.copyAbsolutePath": "Copy Absolute Path",
   "command.vault.revealInOS": "Reveal in File Manager",

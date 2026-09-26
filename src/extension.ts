@@ -7,6 +7,7 @@ import { getCodeTokenizationRunCount, setGrammarRoot } from './editor/shikiHost'
 import { registerVault, VaultDragAndDropController } from './vault/registerVault';
 import { VaultEntry, VaultTreeProvider } from './vault/VaultTreeProvider';
 import { LinkRewriteService } from './vault/LinkRewriteService';
+import { vaultMoveHistoryFor } from './vault/VaultMoveHistory';
 import type { VaultIndexRecord } from './vault/VaultIndex';
 import { searchVaultWithContext, type VaultSearchResult } from './vault/VaultSearchService';
 import { diagnosticEvent, initializeDiagnostics } from './diagnostics';
@@ -44,6 +45,7 @@ interface DevelopmentApi extends MarkdownPreviewApi {
 	): Promise<boolean>;
 	renameOrMoveManyWithStaleCaseStage(requests: Parameters<LinkRewriteService['renameOrMoveMany']>[0]): Promise<boolean>;
 	settleCaseRenameTransactions(): Promise<void>;
+	clearVaultMoveHistory(): void;
 }
 
 function getActiveMarkdownUri(): vscode.Uri | undefined {
@@ -230,6 +232,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 					const service = vaultRegistration.getService();
 					if (!service) throw new Error('Document Vault is unavailable.');
 					return new LinkRewriteService(service).renameOrMoveMany(requests);
+				},
+				clearVaultMoveHistory: () => {
+					const service = vaultRegistration.getService();
+					if (service) vaultMoveHistoryFor(service).clear();
 				},
 				renameOrMoveManyWithRejectedCommit: async (requests) => {
 					const service = vaultRegistration.getService();

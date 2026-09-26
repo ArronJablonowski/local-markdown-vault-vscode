@@ -62,4 +62,29 @@ describe('multi-item vault move planning', () => {
 			{ oldPath: 'Old.md', newPath: 'Archive/New.md', isFolder: false },
 		], ['Old.md', 'Elsewhere/New.md'], false)[0].wikiTarget).toBe('Archive/New');
 	});
+
+	it('records current root-path precedence before nested basename ownership', () => {
+		const nested = { oldPath: 'Docs/A.md', newPath: 'Docs/B.md', isFolder: false };
+		expect(assignWikiTargets([nested], ['Docs/A.md'])[0].wikiSourceBasename).toBe(true);
+		expect(assignWikiTargets([nested], ['Docs/A.md', 'A.md'])[0].wikiSourceBasename).toBe(false);
+		expect(assignWikiTargets([nested], ['Docs/A.md', 'Other/A.md'])[0].wikiSourceBasename).toBe(false);
+		expect(assignWikiTargets([
+			{ oldPath: 'A.md', newPath: 'B.md', isFolder: false },
+		], ['Docs/A.md', 'A.md'])[0].wikiSourceBasename).toBe(true);
+	});
+
+	it('computes source ownership before simultaneous moves remove a root shadow', () => {
+		const planned = assignWikiTargets([
+			{ oldPath: 'A.md', newPath: 'Archive/C.md', isFolder: false },
+			{ oldPath: 'Docs/A.md', newPath: 'Docs/B.md', isFolder: false },
+		], ['A.md', 'Docs/A.md']);
+		expect(planned[0].wikiSourceBasename).toBe(true);
+		expect(planned[1].wikiSourceBasename).toBe(false);
+	});
+
+	it('refuses uncertain source ownership when a moved note is absent from the scan', () => {
+		expect(assignWikiTargets([
+			{ oldPath: 'Excluded/A.md', newPath: 'Archive/B.md', isFolder: false },
+		], ['A.md'])[0].wikiSourceBasename).toBe(false);
+	});
 });

@@ -87,6 +87,12 @@ jobs:
       - name: Save durability integration tests (macOS and Windows)
         if: runner.os != 'Linux'
         run: npm run test:integration:saves
+      - name: Dedicated vault move history (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration:vault-history
+      - name: Dedicated vault move history (Windows and macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:integration:vault-history
       - run: npm run package
       - name: Packaged VSIX smoke tests (Linux)
         if: runner.os == 'Linux'

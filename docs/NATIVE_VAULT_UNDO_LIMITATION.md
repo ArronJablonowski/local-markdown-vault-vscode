@@ -1,6 +1,6 @@
 # Native Undo limitation for vault moves
 
-Status: **unresolved; blocks claiming fully atomic native Undo for vault moves.**
+Status: **native VS Code limitation remains; use the dedicated Vault Undo/Redo commands.**
 
 Confirmed on macOS with VS Code 1.139.1 during September 25, 2026 QA:
 
@@ -15,7 +15,13 @@ The native editor disposes Index's saved, never-displayed text model. VS Code's 
 
 ## Safe workflow
 
-To reverse a move, **move the files back through the Document Vault tree or Move Vault Item command**, with automatic link updates enabled. This plans a fresh validated move and updates links against current note contents. Do not rely on native Undo for the scenario above.
+Use **Local Markdown Vault: Undo Vault Move or Rename** or **Redo Vault Move or Rename** in the Command Palette. The same commands appear in the Vault's **…** menu and item context menu. They operate on the most recent vault transaction, not the selected item's editing history. A multi-item drag is one transaction.
+
+Each command plans a fresh inverse or forward move and recalculates affected links against current note contents. Later writing is preserved; no stored note snapshots overwrite files. Collision, entry identity, parent identity, trust, policy, and vault lifecycle checks remain in force.
+
+History is limited to 50 operations and stays in memory in the current window. It is cleared when the extension reloads or the vault changes. A new successful move clears Redo; unexpected native/external renames invalidate history. Changing automatic link updates or exclusions can make replay unsafe and is rejected. File replacement (including an external editor's atomic replacement) can invalidate an entry even when its displayed name has not changed.
+
+If history is unavailable, **move the files back through the Document Vault tree or Move Vault Item command**, with automatic link updates enabled. Do not rely on native Undo for the scenario above, and do not mix native file-operation Undo with dedicated Vault history. The dedicated commands do not replace ordinary text Undo/Redo shortcuts.
 
 ## Reproduce
 

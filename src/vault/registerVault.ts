@@ -16,6 +16,7 @@ import { validateOpenIndexedPathArguments, validateSearchTagArgument } from './k
 import { openConfiguredVaultResource } from '../editor/configuredDocumentOpen';
 import { topLevelSelection } from './topLevelSelection';
 import { PassiveTreeReveal } from './PassiveTreeReveal';
+import { vaultMoveHistoryFor, type VaultMoveHistory } from './VaultMoveHistory';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -54,6 +55,22 @@ export async function registerVault(
 	let exclusionRefresh: Promise<void> = Promise.resolve();
 	let workspaceRefresh: Promise<void> = Promise.resolve();
 	let vaultGeneration = 0;
+	let moveHistory: VaultMoveHistory | undefined;
+	let moveHistoryListener: vscode.Disposable | undefined;
+	const updateMoveHistoryContext = async (): Promise<void> => {
+		await Promise.all([
+			vscode.commands.executeCommand('setContext', 'mdLivePreview.vaultMoveUndoAvailable', Boolean(moveHistory?.canUndo)),
+			vscode.commands.executeCommand('setContext', 'mdLivePreview.vaultMoveRedoAvailable', Boolean(moveHistory?.canRedo)),
+		]);
+	};
+	const replaceMoveHistory = (service: VaultService | undefined): void => {
+		moveHistoryListener?.dispose();
+		moveHistory?.dispose();
+		moveHistory = service ? vaultMoveHistoryFor(service) : undefined;
+		moveHistoryListener = moveHistory?.onDidChange(() => { void updateMoveHistoryContext(); });
+		void updateMoveHistoryContext();
+	};
+	replaceMoveHistory(provider.service);
 	const activeVaultPickers = new Set<vscode.QuickPick<vscode.QuickPickItem>>();
 	const trackVaultPicker = <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>): (() => void) => {
 		const tracked = picker as vscode.QuickPick<vscode.QuickPickItem>;
@@ -70,6 +87,7 @@ export async function registerVault(
 	context.subscriptions.push({
 		dispose: () => {
 			vaultGeneration++;
+			replaceMoveHistory(undefined);
 			closeVaultPickers();
 		},
 	});
@@ -145,8 +163,42 @@ export async function registerVault(
 		void vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to change Document Vault files.'));
 		return false;
 	};
+	const replayVaultMove = async (direction: 'undo' | 'redo'): Promise<boolean> => {
+		if (!requireTrusted()) return false;
+		const service = provider.service;
+		const history = moveHistory;
+		if (!service || !history || history.isBusy) return false;
+		if (!(direction === 'undo' ? history.canUndo : history.canRedo)) {
+			void vscode.window.showInformationMessage(direction === 'undo'
+				? vscode.l10n.t('There is no vault move or rename to undo in this window.')
+				: vscode.l10n.t('There is no vault move or rename to redo in this window.'));
+			return false;
+		}
+		try {
+			const applied = await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: direction === 'undo' ? vscode.l10n.t('Undoing vault move or rename') : vscode.l10n.t('Redoing vault move or rename'),
+			}, () => history[direction]());
+			if (provider.service !== service || moveHistory !== history || !vscode.workspace.isTrusted) return false;
+			if (applied) {
+				provider.refresh();
+				announceVaultCompletion(direction === 'undo'
+					? vscode.l10n.t('Vault move or rename undone.')
+					: vscode.l10n.t('Vault move or rename redone.'));
+			}
+			return applied;
+		} catch (error) {
+			if (provider.service === service && moveHistory === history) void vscode.window.showErrorMessage(safeError(error,
+				direction === 'undo' ? vscode.l10n.t('Could not undo the vault move or rename. Review the vault before trying again.')
+					: vscode.l10n.t('Could not redo the vault move or rename. Review the vault before trying again.')));
+			return false;
+		}
+	};
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('mdLivePreview.vault.undoMove', () => replayVaultMove('undo')),
+		vscode.commands.registerCommand('mdLivePreview.vault.redoMove', () => replayVaultMove('redo')),
+		vscode.workspace.onDidRenameFiles(event => moveHistory?.observeRenames(event.files)),
 		vscode.commands.registerCommand('mdLivePreview.quickSwitcher', async () => {
 			// A workspace transition can replace the index while the command is
 			// flushing unsaved document metadata. Never show results from that stale
@@ -516,6 +568,7 @@ export async function registerVault(
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
 			activeReveal.invalidate();
 			const generation = ++vaultGeneration;
+			replaceMoveHistory(undefined);
 			closeVaultPickers();
 			indexListener?.dispose();
 			indexFailureListener?.dispose();
@@ -573,6 +626,7 @@ export async function registerVault(
 				tagsProvider.setIndex(index);
 				brokenLinksProvider.setIndex(index);
 				backlinksProvider.setActiveUri(activeFileUri());
+				replaceMoveHistory(provider.service);
 				await updateContext();
 				queueActiveNote();
 				void revealActive();
@@ -1178,6 +1232,10 @@ function localizeVaultError(message: string): string | undefined {
 		case 'A folder cannot be moved into itself.': return vscode.l10n.t('A folder cannot be moved into itself.');
 		case 'The workspace rejected the rename.': return vscode.l10n.t('The workspace rejected the rename.');
 		case 'The workspace rejected the move.': return vscode.l10n.t('The workspace rejected the move.');
+		case 'Vault move history changed before the operation completed.': return vscode.l10n.t('Vault move history changed before the operation completed.');
+		case 'Vault move history is incomplete. Move the items normally instead of using this history.': return vscode.l10n.t('Vault move history is incomplete. Move the items normally instead of using this history.');
+		case 'Vault link-update settings changed. Move the items normally instead of using this history.': return vscode.l10n.t('Vault link-update settings changed. Move the items normally instead of using this history.');
+		case 'A vault move endpoint was replaced or changed. Move the items normally instead of using this history.': return vscode.l10n.t('A vault move endpoint was replaced or changed. Move the items normally instead of using this history.');
 		case 'The vault contains too many items to build a destination list.': return vscode.l10n.t('The vault contains too many items to build a destination list.');
 		default: return undefined;
 	}
