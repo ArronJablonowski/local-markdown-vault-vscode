@@ -1,5 +1,6 @@
 import { parser as baseMarkdownParser, Table, TaskList, Strikethrough, Autolink } from '@lezer/markdown';
 import type { SyntaxNode, Tree } from '@lezer/common';
+import { markdownDestination } from '../shared/markdownDestination';
 
 // A table cell's content is plain text as far as CodeMirror is concerned — the
 // rich TableWidget builds its own DOM outside the editor, so the live-preview
@@ -58,7 +59,7 @@ function readLinkParts(node: SyntaxNode, src: string): { label: string; url: str
 	let title = '';
 	const marks: SyntaxNode[] = [];
 	for (let c = node.firstChild; c; c = c.nextSibling) {
-		if (c.name === 'URL') url = unescapePunctuation(src.slice(c.from, c.to));
+		if (c.name === 'URL') url = markdownDestination(src.slice(c.from, c.to));
 		else if (c.name === 'LinkTitle') title = src.slice(c.from + 1, c.to - 1);
 		else if (c.name === 'LinkMark') marks.push(c);
 	}

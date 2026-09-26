@@ -80,7 +80,7 @@ try {
 	await wait(async () => !await exists(join(workspace, 'Trash folder')), 'nonempty folder trash');
 	check('Nonempty folder confirmation includes the child count and trashes its contents');
 
-	for (const key of ['autoSave', 'vault.updateLinksOnMove', 'vault.openDefaultOnStartup', 'vault.autoReveal', 'diagnostics.enabled']) {
+	for (const key of ['autoSave', 'stickyTableHeaders', 'vault.updateLinksOnMove', 'vault.openDefaultOnStartup', 'vault.autoReveal', 'diagnostics.enabled']) {
 		const item = await setting(key);
 		const checkbox = item.getByRole('checkbox');
 		const original = await checkbox.isChecked();

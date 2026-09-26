@@ -1,5 +1,8 @@
 # Changelog
 
+- Correct Markdown link/image destinations with angle wrappers and escaped punctuation, and preserve escaped pipes and columns in embedded tables. Keep renamed-note links valid when filenames contain spaces, parentheses, or URL delimiters. Refuse prepared rename edits if a save participant or concurrent edit changes their document positions.
+- Keep nested callout controls visible after an unfinished table edit and restore Cmd/Ctrl-click table links. Prevent long malformed bracket sequences from stalling vault indexing or link rewriting. Add fresh note-taking workflows and post-outage production-build verification.
+
 - Make sticky table headers optional and off by default. Add a Sticky table headers control to CSS Themes settings and VS Code Settings, with live updates that preserve table edits and horizontal scrolling.
 
 - Temporarily route Markdown Editor choices to Markdown Live Preview after save QA found intermittent typed-character loss in VS Code's built-in editor. Keep plain Text Editor available and suppress extension autosave while a native view remains open. Open Live Preview alongside existing or explicitly requested native tabs until they are safely saved and closed by the user; automatic closure reproduced a shared-document revert and could race new typing.

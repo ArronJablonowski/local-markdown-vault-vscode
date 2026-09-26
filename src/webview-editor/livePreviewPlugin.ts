@@ -36,6 +36,7 @@ import { calloutIcon, createCalloutOutlineIcon, parseCalloutHeader } from './cal
 import type { RemoteMediaPolicy } from '../shared/messages';
 import { resolveLocalImage } from './localImageClient';
 import { referenceLinkTarget } from './referenceLinks';
+import { markdownDestination } from '../shared/markdownDestination';
 import { isAbsoluteWebUrl } from '../shared/linkTarget';
 import {
 	findInlineHighlightRanges,
@@ -333,6 +334,11 @@ class CalloutHeaderWidget extends WidgetType {
 		chevron.textContent = this.initiallyCollapsed ? '›' : '⌄';
 		button.append(icon, label, chevron);
 		const toggle = () => {
+			// Folding is a widget action, not a request to edit the callout source.
+			// Removing a focused nested table commits its draft on blur and parks
+			// CodeMirror's caret inside this callout. Keep the header rendered while
+			// that commit runs so its unfold button does not disappear into markup.
+			protectRenderedBlockFromCaret();
 			const focused = document.activeElement === button;
 			view.dispatch({ effects: toggleCallout.of({ from: this.from, collapsed: !this.initiallyCollapsed }) });
 			view.requestMeasure();
@@ -2371,7 +2377,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const labelFrom = marks[0].to;
 						const labelTo = marks[1].from;
 						const urlNode = node.node.getChild('URL');
-						const href = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : reference!;
+						const href = urlNode ? markdownDestination(state.sliceDoc(urlNode.from, urlNode.to)) : reference!;
 						if (!cursorTouchesRange(state, node.from, node.to)) {
 							const label = state.sliceDoc(labelFrom, labelTo);
 							if (labelFrom > node.from) pushReplace(node.from, labelFrom, hiddenMarkerDeco);
@@ -2391,7 +2397,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const altFrom = marks[0].to;
 						const altTo = marks[1].from;
 						const urlNode = node.node.getChild('URL');
-						const src = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : referenceLinkTarget(state, node.node);
+						const src = urlNode ? markdownDestination(state.sliceDoc(urlNode.from, urlNode.to)) : referenceLinkTarget(state, node.node);
 						if (src === undefined) return false;
 						const alt = state.sliceDoc(altFrom, altTo);
 						if (isDrawioPath(src) && !isDiagramRenderingAllowed()) return false;
@@ -2461,6 +2467,20 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
  */
 export function createLinkClickHandler(onOpen: (href: string) => void) {
 	const keyboardActivation = ViewPlugin.fromClass(class {
+		private readonly tableMousedown = (event: MouseEvent) => {
+			if (event.button !== 0 || (!event.ctrlKey && !event.metaKey)) return;
+			const target = event.target as HTMLElement | null;
+			const link = target?.closest('.mlp-table .mlp-link');
+			const href = link?.getAttribute('data-href');
+			if (!href) return;
+			// Table widgets intentionally ignore CodeMirror events to preserve
+			// native text selection and cell editing. Their modified link clicks
+			// therefore need the same capture path as keyboard activation.
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			protectRenderedBlockFromCaret();
+			onOpen(href);
+		};
 		private readonly keydown = (event: KeyboardEvent) => {
 			if (event.key !== 'Enter') return;
 			const target = event.target as HTMLElement | null;
@@ -2476,8 +2496,12 @@ export function createLinkClickHandler(onOpen: (href: string) => void) {
 			// callback when focus is on a marked text range. Capture at the editor
 			// root so a tabindex-enabled rendered link remains keyboard-operable.
 			view.dom.addEventListener('keydown', this.keydown, true);
+			view.dom.addEventListener('mousedown', this.tableMousedown, true);
 		}
-		destroy() { this.view.dom.removeEventListener('keydown', this.keydown, true); }
+		destroy() {
+			this.view.dom.removeEventListener('keydown', this.keydown, true);
+			this.view.dom.removeEventListener('mousedown', this.tableMousedown, true);
+		}
 	});
 	const handle = (event: MouseEvent): boolean => {
 		// Only the primary button; a right-click belongs to the context menu.

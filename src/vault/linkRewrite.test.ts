@@ -16,6 +16,81 @@ describe('vault link rewriting', () => {
 		})).toBe('[Roadmap](../Plans/New.md#next)');
 	});
 
+	it('keeps bare Markdown links valid when the new filename contains spaces and URL delimiters', () => {
+		expect(apply('[target](Old.md#heading "Keep title")', 'Index.md', {
+			oldPath: 'Old.md', newPath: 'Plans/New note #1? (draft) 100%.md', isFolder: false,
+		})).toBe('[target](Plans/New%20note%20%231%3F%20%28draft%29%20100%25.md#heading "Keep title")');
+	});
+
+	it('escapes filename delimiters without changing readable angle-wrapped link spaces or Unicode', () => {
+		expect(apply('![image](<Old image.png#caption>)', 'Index.md', {
+			oldPath: 'Old image.png', newPath: 'Café image #2? 50%.png', isFolder: false,
+		})).toBe('![image](<Café image %232%3F 50%25.png#caption>)');
+	});
+
+	it('keeps reference definitions valid when a containing directory gains whitespace', () => {
+		expect(apply('[reference][id]\n[id]: Old/Note.md "Keep title"', 'Index.md', {
+			oldPath: 'Old', newPath: 'New folder', isFolder: true,
+		})).toBe('[reference][id]\n[id]: New%20folder/Note.md "Keep title"');
+	});
+
+	it.each(['Report (draft).md', 'Report (draft (review)).md'])('rewrites balanced-parenthesis destinations: %s', name => {
+		const authored = name.replace(/ /g, '%20');
+		expect(apply(`[target](${authored}#next "Keep title")`, 'Index.md', {
+			oldPath: name, newPath: 'Archive/Final (review).md', isFolder: false,
+		})).toBe('[target](Archive/Final%20%28review%29.md#next "Keep title")');
+	});
+
+	it('rewrites escaped parentheses and punctuation using the actual filesystem name', () => {
+		expect(apply('[target](Report\\(draft\\)\\!.md#next)', 'Index.md', {
+			oldPath: 'Report(draft)!.md', newPath: 'Final (approved).md', isFolder: false,
+		})).toBe('[target](Final%20%28approved%29.md#next)');
+	});
+
+	it('normalizes escaped punctuation in reference definitions without changing their title', () => {
+		expect(apply('[target][id]\n[id]: Report\\(draft\\).md "Keep title"', 'Index.md', {
+			oldPath: 'Report(draft).md', newPath: 'Final (approved).md', isFolder: false,
+		})).toBe('[target][id]\n[id]: Final%20%28approved%29.md "Keep title"');
+	});
+
+	it('leaves malformed or excessively nested destinations untouched', () => {
+		const move = { oldPath: 'Old.md', newPath: 'New.md', isFolder: false };
+		for (const input of ['[x](Old.md unexpected words)', '[x](Old.md "unclosed title)', '[x](Old.md', '[x](<Old.md)', '[x](Old.md(foo)']) {
+			expect(apply(input, 'Index.md', move)).toBe(input);
+		}
+		const name = `${'('.repeat(33)}Old${')'.repeat(33)}.md`;
+		expect(apply(`[x](${name})`, 'Index.md', { oldPath: name, newPath: 'New.md', isFolder: false })).toBe(`[x](${name})`);
+	});
+
+	it('preserves parenthesized link examples in fenced blocks and inline code', () => {
+		const input = '`[inline](Report(draft).md)`\n```md\n[fenced](Report\\(draft\\).md)\n```\n[real](Report(draft).md)';
+		expect(apply(input, 'Index.md', {
+			oldPath: 'Report(draft).md', newPath: 'Final.md', isFolder: false,
+		})).toBe('`[inline](Report(draft).md)`\n```md\n[fenced](Report\\(draft\\).md)\n```\n[real](Final.md)');
+	});
+
+	it('bounds long destinations and does not repeatedly scan unmatched opening brackets', () => {
+		const longName = `${'x'.repeat(8192)}.md`;
+		const longLink = `[x](${longName})`;
+		expect(apply(longLink, 'Index.md', { oldPath: longName, newPath: 'New.md', isFolder: false })).toBe(longLink);
+		const unmatched = '['.repeat(100_000);
+		expect(apply(unmatched, 'Index.md', { oldPath: 'Old.md', newPath: 'New.md', isFolder: false })).toBe(unmatched);
+	});
+
+	it.each(['"Title"', "'Title'", '(Title)'])('preserves supported link title delimiters: %s', title => {
+		expect(apply(`[target](Report(draft).md ${title})`, 'Index.md', {
+			oldPath: 'Report(draft).md', newPath: 'Final.md', isFolder: false,
+		})).toBe(`[target](Final.md ${title})`);
+	});
+
+	it('does not treat link titles or destinations as independently nested links', () => {
+		const move = { oldPath: 'Old.md', newPath: 'New.md', isFolder: false };
+		for (const input of [
+			'[external](https://example.invalid "[example](Old.md)")',
+			'[external](https://example.invalid/[example](Old.md))',
+		]) expect(apply(input, 'Index.md', move)).toBe(input);
+	});
+
 	it('never rewrites Markdown destinations that escape above the vault root', () => {
 		const move = { oldPath: 'Old.md', newPath: 'New.md', isFolder: false } as const;
 		for (const destination of ['../Old.md', '%2e%2e/Old.md', '..\\Old.md', '%2f%2fserver/Old.md']) {

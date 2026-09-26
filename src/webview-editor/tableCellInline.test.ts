@@ -148,6 +148,20 @@ describe('renderInlineInto', () => {
 	});
 
 	describe('links', () => {
+		it('normalizes angle-wrapped and punctuation-escaped link destinations', () => {
+			expect(render('[Notes](<Notes/Meeting notes.md>)')).toContain('data-href="Notes/Meeting notes.md"');
+			expect(render('[Draft](Notes/Topic\\(draft\\).md)')).toContain('data-href="Notes/Topic(draft).md"');
+		});
+
+		it('normalizes image destinations before calling the authorization hook', () => {
+			const cell = createElement('td');
+			const requested: string[] = [];
+			renderInlineInto(cell, '![Chart](<Assets/Chart \\(draft\\).png>)', {
+				resolveImageSrc: src => { requested.push(src); return 'authorized-image'; },
+			});
+			expect(requested).toEqual(['Assets/Chart (draft).png']);
+		});
+
 		it('marks a link with data-href so the editor\'s ctrl-click handler finds it', () => {
 			const cell = createElement('td');
 			renderInlineInto(cell, '[t](http://x.com)', hooks);

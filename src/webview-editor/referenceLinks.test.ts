@@ -27,4 +27,7 @@ describe('reference link lookup', () => {
 		expect(targets('[id]\n\n[id]: one.md')).toEqual(['one.md']);
 		expect(targets('[id]\n\n[id]: two.md')).toEqual(['two.md']);
 	});
+	it('normalizes punctuation escapes only once, consistently with inline destinations', () => {
+		expect(targets('[id]\n\n[id]: <Notes/Meeting \\(draft\\).md>')).toEqual(['Notes/Meeting (draft).md']);
+	});
 });

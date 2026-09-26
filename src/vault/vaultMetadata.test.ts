@@ -11,6 +11,14 @@ import {
 } from './vaultMetadata';
 
 describe('vault metadata extraction', () => {
+	it('does not stall indexing on long unmatched bracket sequences', () => {
+		const source = '['.repeat(100_000) + '\n[real](Target.md)\n[[Note]]';
+		const started = performance.now();
+		const metadata = extractVaultMetadata('Unmatched.md', source, { timeBudgetMs: 10_000 });
+		expect(metadata.links.map(link => link.target).sort()).toEqual(['Note', 'Target.md']);
+		expect(performance.now() - started).toBeLessThan(1000);
+	});
+
 	it('indexes Obsidian-compatible metadata without storing note content', () => {
 		const metadata = extractVaultMetadata('Notes/Project.md', `---
 aliases: [Launch, "Project X"]

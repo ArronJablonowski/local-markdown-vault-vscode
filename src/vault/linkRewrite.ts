@@ -1,5 +1,6 @@
 import { posix } from 'node:path';
 import { markdownCodeRanges } from '../shared/markdownCodeRanges';
+import { markdownDestination } from '../shared/markdownDestination';
 
 export interface VaultMove {
 	oldPath: string;
@@ -32,14 +33,19 @@ export function linkReplacementsForMove(
 
 	// Inline Markdown links and images. Reference definitions use the same
 	// destination form but are handled separately below.
-	const markdownLink = /(!?\[[^\]\n]*\]\(\s*)(<[^>\n]+>|[^\s)]+)([^)\n]*\))/g;
-	for (const match of text.matchAll(markdownLink)) {
-		const start = (match.index ?? 0) + match[1].length;
+	const markdownLink = /!?\[[^\[\]\n]*\]\([ \t]*/g;
+	let match: RegExpExecArray | null;
+	while ((match = markdownLink.exec(text))) {
+		const start = (match.index ?? 0) + match[0].length;
 		if (isIgnored(start, ignored) || isEscaped(text, match.index ?? 0)) continue;
-		const destination = match[2];
+		const parsed = inlineDestinationRange(text, start);
+		if (!parsed) continue;
+		// Titles and URL text are not independent nested Markdown links.
+		markdownLink.lastIndex = parsed.linkEnd;
+		const destination = text.slice(start, parsed.destinationEnd);
 		const wrapped = destination.startsWith('<') && destination.endsWith('>');
-		const raw = wrapped ? destination.slice(1, -1) : destination;
-		const rewritten = rewriteMarkdownDestination(raw, oldSource, newSource, move);
+		const raw = markdownDestination(destination);
+		const rewritten = rewriteMarkdownDestination(raw, oldSource, newSource, move, wrapped);
 		if (rewritten && rewritten !== raw) {
 			replacements.push({ from: start, to: start + destination.length, text: wrapped ? `<${rewritten}>` : rewritten });
 		}
@@ -51,14 +57,14 @@ export function linkReplacementsForMove(
 		if (isIgnored(start, ignored)) continue;
 		const destination = match[2];
 		const wrapped = destination.startsWith('<') && destination.endsWith('>');
-		const raw = wrapped ? destination.slice(1, -1) : destination;
-		const rewritten = rewriteMarkdownDestination(raw, oldSource, newSource, move);
+		const raw = markdownDestination(destination);
+		const rewritten = rewriteMarkdownDestination(raw, oldSource, newSource, move, wrapped);
 		if (rewritten && rewritten !== raw) {
 			replacements.push({ from: start, to: start + destination.length, text: wrapped ? `<${rewritten}>` : rewritten });
 		}
 	}
 
-	const wikiLink = /!?\[\[([^\]\n]+)\]\]/g;
+	const wikiLink = /!?\[\[([^\[\]\n]+)\]\]/g;
 	for (const match of text.matchAll(wikiLink)) {
 		const start = (match.index ?? 0) + match[0].indexOf(match[1]);
 		if (isIgnored(start, ignored) || isEscaped(text, match.index ?? 0)) continue;
@@ -73,6 +79,53 @@ export function linkReplacementsForMove(
 	}
 
 	return replacements.sort((a, b) => b.from - a.from);
+}
+
+/** Scan only the destination, with bounded nesting/work; never rewrite malformed link-shaped text. */
+function inlineDestinationRange(text: string, from: number): { destinationEnd: number; linkEnd: number } | undefined {
+	const limit = Math.min(text.length, from + 8192);
+	const wrapped = text[from] === '<';
+	let cursor = from + (wrapped ? 1 : 0);
+	let depth = 0;
+	let closedWrapper = false;
+	for (; cursor < limit; cursor++) {
+		const character = text[cursor];
+		if (character === '\\' && /[!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~]/.test(text[cursor + 1] ?? '')) {
+			cursor++;
+			continue;
+		}
+		if (character === '\n' || character === '\r' || character === '<') return undefined;
+		if (wrapped) {
+			if (character === '>') { cursor++; closedWrapper = true; break; }
+		} else {
+			if (/\s/.test(character)) break;
+			if (character === '(' && ++depth > 32) return undefined;
+			if (character === ')') {
+				if (depth === 0) break;
+				depth--;
+			}
+		}
+	}
+	if (cursor === from || depth !== 0 || (wrapped && !closedWrapper) || cursor >= limit) return undefined;
+	const end = cursor;
+	while (cursor < limit && /[ \t]/.test(text[cursor])) cursor++;
+	if (text[cursor] === ')') return { destinationEnd: end, linkEnd: cursor + 1 };
+	// Optional titles must be separated from the destination by whitespace and
+	// completely closed, rather than treating arbitrary following text as one.
+	if (cursor === end) return undefined;
+	const opening = text[cursor++];
+	const closing = opening === '(' ? ')' : opening;
+	if (opening !== '"' && opening !== "'" && opening !== '(') return undefined;
+	let titleClosed = false;
+	for (; cursor < limit; cursor++) {
+		if (text[cursor] === '\\' && text[cursor + 1] !== '\n' && text[cursor + 1] !== '\r') { cursor++; continue; }
+		if (text[cursor] === '\n' || text[cursor] === '\r') return undefined;
+		if (text[cursor] === closing) { cursor++; titleClosed = true; break; }
+		if (opening === '(' && text[cursor] === '(') return undefined;
+	}
+	if (!titleClosed) return undefined;
+	while (cursor < limit && /[ \t]/.test(text[cursor])) cursor++;
+	return text[cursor] === ')' ? { destinationEnd: end, linkEnd: cursor + 1 } : undefined;
 }
 
 /**
@@ -105,6 +158,7 @@ function rewriteMarkdownDestination(
 	oldSource: string,
 	newSource: string,
 	move: VaultMove,
+	wrapped: boolean,
 ): string | undefined {
 	const splitAt = firstSeparator(destination, '#', '?');
 	const pathPart = splitAt < 0 ? destination : destination.slice(0, splitAt);
@@ -119,8 +173,19 @@ function rewriteMarkdownDestination(
 	if (newTarget === oldTarget && newSource === oldSource) return undefined;
 	let output = rootRelative ? `/${newTarget}` : normalizePath(posix.relative(posix.dirname(newSource), newTarget));
 	if (!rootRelative && !output) output = `.${posix.extname(newTarget)}`;
-	if (pathPart.includes('%')) output = encodeURI(output).replace(/#/g, '%23').replace(/\?/g, '%3F');
+	// Filesystem names are not already URL-safe. A rename can introduce spaces,
+	// Markdown delimiters, or literal fragment/query/percent characters even
+	// when the original destination needed no escaping. Keep readable wrapped
+	// names, but never let filename bytes acquire Markdown or URL semantics.
+	output = pathPart.includes('%')
+		? encodeURI(output).replace(/[?#()]/g, encodeDestinationCharacter)
+		: output.replace(wrapped ? /[%#?<>\r\n]/g : /[%#?()<>\s]/gu, encodeDestinationCharacter);
 	return output + suffix;
+}
+
+function encodeDestinationCharacter(character: string): string {
+	// encodeURIComponent intentionally leaves parentheses unescaped.
+	return character === '(' ? '%28' : character === ')' ? '%29' : encodeURIComponent(character);
 }
 
 function resolveAuthoredVaultPath(sourcePath: string, authoredPath: string, rootRelative: boolean): string | undefined {

@@ -1967,6 +1967,91 @@ suite('focused cross-platform desktop transactions', () => {
 		await waitFor(async () => await exists(destination) && !(await exists(source)) && indexDocument.getText() === '[[Moved Target]]\n', 'one redo did not restore the move and link');
 	});
 
+	test('special filename rename keeps authored links navigable and supports one-step undo', async () => {
+		const fixture = await makeFixture('special-links');
+		const target = await service.createNote(fixture, 'Target');
+		const source = await service.createNote(fixture, 'Review index');
+		const original = '# Link review\n\n[Open reviewed note](Target.md)\n\n[Wrapped note](<Target.md>)\n';
+		await vscode.workspace.fs.writeFile(target, bytes('# Reviewed target\n'));
+		await vscode.workspace.fs.writeFile(source, bytes(original));
+		const sourceDocument = await vscode.workspace.openTextDocument(source);
+		await vscode.window.showTextDocument(sourceDocument);
+		const destination = vscode.Uri.joinPath(fixture, 'Reviewed #1 (final).md');
+		assert.strictEqual(await api.renameOrMoveMany([{ source: target, destination, isFolder: false }]), true);
+		await waitFor(async () => await exists(destination) && !await exists(target), 'special filename rename did not commit');
+		const rewritten = sourceDocument.getText();
+		assert.notStrictEqual(rewritten, original);
+		assert.ok(rewritten.includes('%23'), 'filename hash must not turn into a heading fragment');
+		await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		await vscode.commands.executeCommand('undo');
+		await waitFor(async () => await exists(target) && !await exists(destination) && sourceDocument.getText() === original,
+			'one undo did not restore filename and both link spellings');
+		await vscode.commands.executeCommand('redo');
+		await waitFor(async () => await exists(destination) && sourceDocument.getText() === rewritten,
+			'one redo did not restore the valid renamed links');
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const priorDefault = config.inspect<string>('defaultEditor')?.globalValue;
+		try {
+			await config.update('defaultEditor', 'livePreview', vscode.ConfigurationTarget.Global);
+			for (const label of ['Open reviewed note', 'Wrapped note']) {
+				await vscode.commands.executeCommand('vscode.openWith', source, 'mdLivePreview.editor');
+				const frame = await connectToLivePreviewFrame('Link review');
+				const link = frame.locator('.mlp-link').filter({ hasText: label });
+				await link.waitFor({ state: 'visible' });
+				assert.strictEqual(decodeURIComponent((await link.getAttribute('data-href'))!), 'Reviewed #1 (final).md');
+				await link.click();
+				await waitFor(() => {
+					const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+					return input instanceof vscode.TabInputCustom && input.uri.toString() === destination.toString();
+				}, `rewritten ${label} did not open the exact filename`);
+			}
+		} finally {
+			await config.update('defaultEditor', priorDefault, vscode.ConfigurationTarget.Global);
+		}
+	});
+
+	test('case-only rename refuses stale link offsets after an actual save participant edits the note', async function () {
+		// The staged workaround is used on case-insensitive filesystems. Linux's
+		// usual case-sensitive rename path does not save/stage the source first.
+		if (process.platform === 'linux') this.skip();
+		const fixture = await makeFixture('rename-save-participant');
+		const source = await service.createNote(fixture, 'CaseRace');
+		const destination = vscode.Uri.joinPath(fixture, 'caserace.md');
+		const initial = '[self](CaseRace.md)\n';
+		await vscode.workspace.fs.writeFile(source, bytes(initial));
+		const config = vscode.workspace.getConfiguration('mdLivePreview');
+		const previousAutoSave = config.inspect<boolean>('autoSave')?.globalValue;
+		const prefix = 'Formatter-added prefix\n';
+		let participantCalls = 0;
+		const participant = vscode.workspace.onWillSaveTextDocument(event => {
+			if (event.document.uri.toString() === source.toString() && participantCalls++ === 0) {
+				event.waitUntil(Promise.resolve([vscode.TextEdit.insert(new vscode.Position(0, 0), prefix)]));
+			}
+		});
+		try {
+			await config.update('autoSave', false, vscode.ConfigurationTarget.Global);
+			const document = await vscode.workspace.openTextDocument(source);
+			await vscode.window.showTextDocument(document);
+			await insert(document, document.getText().length, 'Unsaved draft\n');
+			assert.ok(document.isDirty, 'the rename must exercise a dirty source');
+			await assert.rejects(() => api.renameOrMoveMany([{ source, destination, isFolder: false }]),
+				(error: unknown) => error instanceof Error && error.name === 'VaultTransactionConflictError');
+			assert.ok(participantCalls > 0, 'the real save participant did not execute');
+			assert.ok((await entryNames(fixture)).includes('CaseRace.md'));
+			assert.ok(!(await entryNames(fixture)).includes('caserace.md'));
+			assert.strictEqual(document.getText(), prefix + initial + 'Unsaved draft\n');
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(source)).toString('utf8'), document.getText());
+			participant.dispose();
+			assert.strictEqual(await api.renameOrMoveMany([{ source, destination, isFolder: false }]), true);
+			await waitFor(async () => (await entryNames(fixture)).includes('caserace.md'), 'retry after formatter conflict did not rename');
+			const renamed = await vscode.workspace.openTextDocument(destination);
+			assert.strictEqual(renamed.getText(), prefix + '[self](caserace.md)\nUnsaved draft\n');
+		} finally {
+			participant.dispose();
+			await config.update('autoSave', previousAutoSave, vscode.ConfigurationTarget.Global);
+		}
+	});
+
 	test('replays a case-only rename after undo and keeps one-step inverse behavior', async () => {
 		const fixture = await makeFixture('case');
 		const source = await service.createNote(fixture, 'FocusedCase');

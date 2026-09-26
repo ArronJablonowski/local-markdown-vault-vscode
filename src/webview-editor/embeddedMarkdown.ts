@@ -103,7 +103,7 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks): void {
 	const lines = source.split('\n').filter((line) => line.trim());
 	if (lines.length < 2) return;
-	const rows = lines.map(splitRow);
+	const rows = lines.map(splitEmbeddedTableRow);
 	const table = document.createElement('table');
 	table.className = 'mlp-table mlp-embed-table';
 	const head = document.createElement('thead');
@@ -133,13 +133,21 @@ function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks
 	parent.appendChild(viewport);
 }
 
-function splitRow(line: string): string[] {
-	const value = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+/** Preserve escaped pipes and count backslash parity, just like GFM. */
+export function splitEmbeddedTableRow(line: string): string[] {
+	const value = line.trim();
 	const cells: string[] = [];
 	let current = '';
-	for (let i = 0; i < value.length; i++) {
-		if (value[i] === '|' && value[i - 1] !== '\\') { cells.push(current); current = ''; }
-		else current += value[i];
+	let backslashes = 0;
+	const first = value.startsWith('|') ? 1 : 0;
+	for (let i = first; i < value.length; i++) {
+		const char = value[i];
+		if (char === '|' && backslashes % 2 === 0) {
+			cells.push(current);
+			current = '';
+			if (i === value.length - 1) return cells;
+		} else current += char;
+		backslashes = char === '\\' ? backslashes + 1 : 0;
 	}
 	cells.push(current);
 	return cells;

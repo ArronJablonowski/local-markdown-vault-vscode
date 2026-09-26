@@ -131,12 +131,7 @@ export class LinkRewriteService {
 				throw new VaultTransactionConflictError('source', resolvedPlans[index].move.oldPath);
 			}
 		}
-		for (const [uriString, version] of versions) {
-			const document = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === uriString);
-			if (!document || document.version !== version) {
-				throw new VaultTransactionConflictError('linkedDocument', this.relativeConflictPath(vscode.Uri.parse(uriString)));
-			}
-		}
+		this.assertDocumentVersionsCurrent(versions);
 		for (const [uriString, snapshot] of fileSnapshots) {
 			const document = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === uriString);
 			if (document && !versions.has(uriString)) {
@@ -158,6 +153,9 @@ export class LinkRewriteService {
 		try {
 			await this.saveDirtyCaseRenameSources(resolvedPlans);
 			if (resolvedPlans.some((plan) => plan.caseOnly)) await this.beforeCaseRenameStage?.();
+			// Saving can invoke formatters or other save participants. Do not stage
+			// a rename with text replacements computed against their older source.
+			this.assertDocumentVersionsCurrent(versions);
 			this.assertCurrent();
 			for (const plan of resolvedPlans) {
 				if (plan.caseOnly) {
@@ -183,6 +181,10 @@ export class LinkRewriteService {
 			const replayRequests = requests.map((request) => ({ ...request }));
 			this.caseRenames.register(stagedCaseRenames, () => this.renameOrMoveMany(replayRequests));
 			this.assertCurrent();
+			// Staging awaits filesystem operations while the user can still type.
+			// Recheck synchronously at the final native-edit handoff, rolling any
+			// staged paths back if that invalidated the prepared text offsets.
+			this.assertDocumentVersionsCurrent(versions);
 			const applied = await this.applyEdit(edit);
 			if (!applied) {
 				this.caseRenames.unregister(stagedCaseRenames);
@@ -226,6 +228,15 @@ export class LinkRewriteService {
 	private assertCurrent(): void {
 		this.vault.assertWorkspaceCurrent();
 		if (!this.isCurrent()) throw new Error('The Document Vault changed before the move could be applied.');
+	}
+
+	private assertDocumentVersionsCurrent(versions: ReadonlyMap<string, number>): void {
+		for (const [uriString, version] of versions) {
+			const document = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === uriString);
+			if (!document || document.version !== version) {
+				throw new VaultTransactionConflictError('linkedDocument', this.relativeConflictPath(vscode.Uri.parse(uriString)));
+			}
+		}
 	}
 
 	/**

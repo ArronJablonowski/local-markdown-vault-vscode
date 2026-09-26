@@ -109,7 +109,10 @@ export function extractVaultMetadata(path: string, text: string, options: Metada
 		}
 	}
 
-	for (const match of searchable.matchAll(/(!?)\[\[([^\]\n]+)\]\]/g)) {
+	// A new opening bracket cannot belong to these simple link forms. Exclude
+	// it so long unmatched bracket runs cannot trigger quadratic backtracking
+	// before the cooperative parsing budget gets a chance to run.
+	for (const match of searchable.matchAll(/(!?)\[\[([^\[\]\n]+)\]\]/g)) {
 		checkBudget();
 		if (links.length >= MAX_INDEX_ENTRIES_PER_FIELD) break;
 		const body = match[2];
@@ -126,7 +129,7 @@ export function extractVaultMetadata(path: string, text: string, options: Metada
 			...(fragment === undefined ? {} : { fragment }),
 		});
 	}
-	for (const match of searchable.matchAll(/!?\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))/g)) {
+	for (const match of searchable.matchAll(/!?\[[^\[\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))/g)) {
 		checkBudget();
 		if (links.length >= MAX_INDEX_ENTRIES_PER_FIELD) break;
 		const raw = (match[1] ?? match[2] ?? '').trim();

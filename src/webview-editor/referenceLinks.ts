@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState } from '@codemirror/state';
 import type { SyntaxNode, Tree } from '@lezer/common';
+import { markdownDestination } from '../shared/markdownDestination';
 
 const cache = new WeakMap<Tree, Map<string, string>>();
 const normalize = (label: string) => label.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -27,7 +28,7 @@ export function referenceLinkTarget(state: EditorState, node: SyntaxNode): strin
 			const name = normalize(state.sliceDoc(id.from + 1, id.to - 1));
 			if (!definitions.has(name)) {
 				const raw = state.sliceDoc(url.from, url.to);
-				definitions.set(name, (raw.startsWith('<') && raw.endsWith('>') ? raw.slice(1, -1) : raw).replace(/\\([!-/:-@[-`{-~])/g, '$1'));
+				definitions.set(name, markdownDestination(raw));
 			}
 		} while (--remaining > 0 && cursor.next());
 		cache.set(tree, definitions);
