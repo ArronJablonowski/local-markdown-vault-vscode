@@ -30,6 +30,7 @@ const extensionConfig = {
 	platform: 'node',
 	target: 'node18',
 	format: 'cjs',
+	// VS Code supplies this module at runtime; it must not enter the host bundle.
 	external: ['vscode'],
 	sourcemap: !production,
 	minify: production,

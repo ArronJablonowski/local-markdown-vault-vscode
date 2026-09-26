@@ -61,6 +61,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	private scheduleRefresh(): void {
+		// Coalesce typing and tab events without revealing a sidebar the user hid.
 		if (this.refreshTimer) clearTimeout(this.refreshTimer);
 		this.refreshTimer = setTimeout(() => {
 			this.refreshTimer = undefined;
@@ -71,6 +72,7 @@ export class OutlineViewProvider implements vscode.WebviewViewProvider {
 	private refresh(): void {
 		if (!this.view) return;
 		const headings = this.editorProvider.getActiveHeadings();
+		// Clear stale headings when focus leaves a supported document.
 		const message: HostToOutlineMessage = headings ? { type: 'update', headings } : { type: 'noDocument' };
 		void this.view.webview.postMessage(message);
 	}

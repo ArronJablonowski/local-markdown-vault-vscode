@@ -87,6 +87,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async handleMessage(message: SidebarToHostMessage): Promise<void> {
+		// Valid message shape does not grant permission to mutate custom CSS.
 		if (!vscode.workspace.isTrusted && message.type !== 'ready' && message.type !== 'setSetting') {
 			diagnosticEventRateLimited('protocol.restrictedMutationRejected', { surface: 'sidebar' });
 			return;
@@ -143,6 +144,7 @@ export class StyleManagerViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	private getSettings(): SidebarSettings {
+		// Normalize hand-edited settings before sending values to fixed-choice controls.
 		const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 		const defaultEditor = config.get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);
 		const defaultEditingMode = config.get<string>('defaultEditingMode', 'editing');

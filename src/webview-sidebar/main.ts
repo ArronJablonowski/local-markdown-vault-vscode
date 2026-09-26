@@ -256,6 +256,7 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 }
 
 function render(styles: StyleEntry[], settings: SidebarSettings, themeKind: ThemeKind, workspaceTrusted: boolean): void {
+	// Host refreshes replace the controls; stable keys preserve keyboard focus across that redraw.
 	const active = document.activeElement;
 	const focusKey = active instanceof HTMLElement && root.contains(active) ? active.dataset.focusKey : undefined;
 	const scrollTop = document.scrollingElement?.scrollTop ?? 0;

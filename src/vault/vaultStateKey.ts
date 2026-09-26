@@ -12,6 +12,7 @@ export function vaultStateKey(rootHash: string, kind: VaultStateKind): string {
 
 /** Treat extension storage as an untrusted runtime boundary. */
 export function validatedRecentPaths(value: unknown): string[] {
+	// This bounds stored history only; callers must resolve every returned path in the live index.
 	if (!Array.isArray(value)) return [];
 	const seen = new Set<string>();
 	const paths: string[] = [];

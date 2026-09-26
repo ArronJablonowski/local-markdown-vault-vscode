@@ -50,6 +50,7 @@ function inlineCodeRanges(line: string): MarkdownSourceRange[] {
 		while (cursor < line.length && line[cursor] === '`') cursor++;
 		runs.push({ from, to: cursor, length: cursor - from });
 	}
+	// Precompute closers once instead of rescanning every unmatched opening run.
 	const nextSameLength = new Array<number | undefined>(runs.length);
 	const nextByLength = new Map<number, number>();
 	for (let index = runs.length - 1; index >= 0; index--) {

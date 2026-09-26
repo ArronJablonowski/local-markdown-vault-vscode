@@ -15,6 +15,7 @@ export interface VaultIndexRecord extends VaultMetadata {
 	size: number;
 }
 
+/** Rebuildable metadata only; authoritative note text is read on demand through VaultService. */
 export class VaultIndex implements vscode.Disposable {
 	private readonly records = new Map<string, VaultIndexRecord>();
 	private readonly recordIdentityKeys = new Map<string, string>();
@@ -178,6 +179,7 @@ export class VaultIndex implements vscode.Disposable {
 		const record = this.get(relativePath);
 		if (!record) return undefined;
 		const generation = this.rebuildGeneration;
+		// Exclusions or a rebuild can revoke this result while its filesystem read is pending.
 		const isCurrent = () => !this.disposed && !this.indexingDisabled
 			&& generation === this.rebuildGeneration && this.get(record.path) !== undefined
 			&& !this.isExcluded(record.path);
@@ -513,6 +515,7 @@ export class VaultIndex implements vscode.Disposable {
 	}
 
 	private queueDocumentOperation(key: string, run: () => Promise<void>): Promise<void> {
+		// Serialize each document independently so a late read cannot overwrite its newer metadata.
 		const prior = this.documentUpdates.get(key) ?? Promise.resolve();
 		const operation = prior.catch(() => undefined).then(run);
 		this.documentUpdates.set(key, operation);
@@ -720,6 +723,7 @@ export class VaultIndex implements vscode.Disposable {
 			);
 			let committed = false;
 			try {
+				// Publish only complete cache files; a failed write leaves the previous cache intact.
 				await vscode.workspace.fs.writeFile(temporary, encoded);
 				await vscode.workspace.fs.rename(temporary, this.storageUri, { overwrite: true });
 				committed = true;

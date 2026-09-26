@@ -168,8 +168,7 @@ export class MermaidWidget extends WidgetType {
 			{ passive: false },
 		);
 
-		// ── Drag to pan (native mode only); a click without dragging enters the
-		// source for editing ──────────────────────────────────────────────────────
+		// Drag pans in native mode; only the source button enters code editing.
 		let dragging = false;
 		let moved = false;
 		let startX = 0;
@@ -300,9 +299,7 @@ export class MermaidWidget extends WidgetType {
 		return 240;
 	}
 
-	// Return true so CodeMirror leaves this widget's mouse/pointer/wheel events
-	// alone — the pan/zoom handlers above own them, and a plain click is turned
-	// into a cursor move explicitly in endDrag.
+	// Keep pointer and wheel gestures in the widget instead of revealing source.
 	ignoreEvent(): boolean {
 		return true;
 	}

@@ -6,6 +6,7 @@ export async function readBoundedFile(handle: Pick<FileHandle, 'read'>, maxBytes
 	if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes >= bufferConstants.MAX_LENGTH) {
 		throw new Error('The file size limit is invalid.');
 	}
+	// One extra byte distinguishes a full authorized read from growth beyond the snapshot.
 	const buffer = Buffer.alloc(maxBytes + 1);
 	let length = 0;
 	while (length <= maxBytes) {

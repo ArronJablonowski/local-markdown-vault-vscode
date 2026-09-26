@@ -37,7 +37,7 @@ export interface AwsShapeGeometry {
  * Passed in rather than imported so this module stays DOM-free and unit-testable
  * under Node: the table is fetched by the webview, which owns that plumbing.
  * Returning `null` — including while the table is still loading — makes the
- * caller fall back to the plain coloured tile.
+ * caller fall back to the plain colored tile.
  */
 export type AwsShapeLookup = (key: string) => AwsShapeGeometry | null;
 
@@ -75,7 +75,7 @@ export function escapeXml(value: string): string {
  *
  * draw.io writes `#rrggbb` or a CSS color name, and `none`. Anything else — a
  * `url(...)` reference to a gradient that isn't there, or an attempted attribute
- * break-out — is rejected in favour of the caller's default, so a hand-edited
+ * break-out — is rejected in favor of the caller's default, so a hand-edited
  * file cannot steer the rendered markup.
  */
 export function sanitizeColor(value: string | undefined, fallback: string): string {
@@ -559,7 +559,7 @@ function markerId(uid: string, color: string): string {
  * Trims an edge's last segment so the arrowhead stops at the shape's boundary
  * instead of at its center.
  *
- * Endpoints resolved from `source`/`target` are centres (see drawio.ts), so an
+ * Endpoints resolved from `source`/`target` are centers (see drawio.ts), so an
  * untrimmed arrow is drawn *underneath* the target box and its head disappears.
  * The exact intersection depends on the shape's outline; backing off along the
  * final segment by the box's half-extent in the direction of travel is a close
@@ -592,7 +592,7 @@ function trimToBoundary(
  * `exitX`/`exitY` and `entryX`/`entryY` are *fractions of the shape's box* —
  * `exitX=1;exitY=0.5` means "leave from the middle of the right edge". Authors
  * set these deliberately, to say which side of a box a relationship belongs to,
- * so honouring them is worth a lot when the point is to read the diagram: it is
+ * so honoring them is worth a lot when the point is to read the diagram: it is
  * the difference between "the reply goes back out the top" and a line leaving
  * from wherever the geometry happened to fall.
  *
@@ -904,7 +904,7 @@ function resolvedFill(vertex: DrawioVertex, theme: DrawioTheme): string {
 }
 
 /**
- * Draws the AWS architecture symbol for a shape, over the coloured tile.
+ * Draws the AWS architecture symbol for a shape, over the colored tile.
  *
  * draw.io names the symbol in one of three places depending on the shape:
  * `resIcon=` for a service tile, `grIcon=` for a group/container frame, and
@@ -927,7 +927,7 @@ function resolvedFill(vertex: DrawioVertex, theme: DrawioTheme): string {
  *
  * The stencils carry no colors. A service tile's symbol is drawn in the tile's
  * stroke color — which is what the diagram's own `strokeColor` says, normally
- * white on the service-coloured tile — and a frame's symbol in the frame's
+ * white on the service-colored tile — and a frame's symbol in the frame's
  * stroke color. Nothing here picks a color of its own, in either theme.
  */
 function renderAwsGlyph(
@@ -1111,6 +1111,7 @@ export function renderPageSvg(page: DrawioPage, theme: DrawioTheme, uid: string,
 		.map((e) => renderEdge(e, vertices, theme, uid, markerColors, obstacles))
 		.join('');
 
+	// Edge rendering collects only marker colors actually used by this page.
 	const defs = [...markerColors]
 		.map(
 			(color) =>

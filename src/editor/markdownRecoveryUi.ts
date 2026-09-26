@@ -23,6 +23,7 @@ export function registerMarkdownRecovery(store?: MarkdownRecoveryStore, emergenc
 		picker.title = vscode.l10n.t('Recovered Markdown Drafts');
 		picker.placeholder = vscode.l10n.t('Open a draft as an unsaved copy. Recovery copies remain until you delete them.');
 		const refresh = () => {
+			// Memory-only drafts come first because closing VS Code would discard them.
 			picker.items = [...(emergency?.list() ?? []).map(entry => ({
 				label: basename(vscode.Uri.parse(entry.sourceUri).path),
 				description: vscode.l10n.t('Emergency copy — memory only; Save As now'),

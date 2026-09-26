@@ -127,6 +127,7 @@ export class StylePreviewController {
 	}
 
 	private invalidatePush(): void {
+		// Invalidate both delayed callbacks and reads already awaiting filesystem results.
 		this.pushGeneration++;
 		if (this.pushTimer) clearTimeout(this.pushTimer);
 		this.pushTimer = undefined;
@@ -177,6 +178,7 @@ export class StylePreviewController {
 		}
 		if (this.panel !== panel || this.currentUri !== uri || generation !== this.pushGeneration) return;
 		if (!vscode.workspace.isTrusted) return this.clearPreviewCss();
+		// Bound encoded bytes too; non-ASCII CSS can exceed its character count.
 		if (content.length > MAX_STYLE_BYTES || new TextEncoder().encode(content).byteLength > MAX_STYLE_BYTES) {
 			content = '';
 			if (!this.sizeWarningShown) {

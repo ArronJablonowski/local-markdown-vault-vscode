@@ -3,6 +3,7 @@ import type { EditorState } from '@codemirror/state';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { markdownDestination } from '../shared/markdownDestination';
 
+// Syntax-tree identity invalidates definitions after edits without retaining old documents.
 const cache = new WeakMap<Tree, Map<string, string>>();
 const normalize = (label: string) => label.trim().replace(/\s+/g, ' ').toLowerCase();
 

@@ -65,6 +65,7 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 		if (!active) return [];
 		const records = index.all();
 		const resolver = new BacklinkResolver(records);
+		// Tokens only shortlist unlinked mentions; the body read below verifies literal word edges.
 		const mentionTokens = collectBoundedSearchTokens([active.basename, ...active.aliases]);
 		const matches: Array<{ record: VaultIndexRecord; linked: boolean }> = [];
 		let processedLinks = 0;
@@ -86,6 +87,7 @@ export class VaultBacklinksProvider implements vscode.TreeDataProvider<BacklinkI
 			if (generation !== this.generation) return [];
 		}
 		if (generation !== this.generation) return [];
+		// Bound snippet reads after prioritizing real links; backlink lists are not full-vault search.
 		matches
 			.sort((a, b) => Number(b.linked) - Number(a.linked) || a.record.path.localeCompare(b.record.path))
 			.splice(200);
@@ -196,6 +198,7 @@ export class VaultBrokenLinksProvider implements vscode.TreeDataProvider<BrokenL
 	getTreeItem(item: BrokenLinkItem): vscode.TreeItem { return item; }
 	async getChildren(): Promise<BrokenLinkItem[]> {
 		const index = this.index;
+		// Index changes invalidate the whole asynchronous result, including already checked links.
 		const generation = this.generation;
 		const links = await findBrokenVaultLinksAsync(
 			index?.all() ?? [],

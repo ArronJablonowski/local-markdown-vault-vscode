@@ -80,6 +80,7 @@ export function linkReplacementsForMove(
 		}
 	}
 
+	// Apply edits from the end so earlier source offsets remain valid after length changes.
 	return replacements.sort((a, b) => b.from - a.from);
 }
 
@@ -173,6 +174,7 @@ function rewriteMarkdownDestination(
 	if (oldTarget === undefined) return undefined;
 	const newTarget = mapMovedPath(oldTarget, move);
 	if (newTarget === oldTarget && newSource === oldSource) return undefined;
+	// Moving the source note changes relative links even when their targets stay in place.
 	let output = rootRelative ? `/${newTarget}` : normalizePath(posix.relative(posix.dirname(newSource), newTarget));
 	if (!rootRelative && !output) output = `.${posix.extname(newTarget)}`;
 	// Filesystem names are not already URL-safe. A rename can introduce spaces,

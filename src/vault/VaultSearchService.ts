@@ -51,6 +51,7 @@ export async function searchVaultDocuments(
 		: { groups: keyword ? [[{ kind: 'text', value: keyword.toLocaleLowerCase(), exact: true, negated: false }]] : [] };
 	if (!parsed) return report('invalid');
 	if (!parsed.groups.length) return report('empty');
+	// Both barriers matter: flushing dirty notes can overlap a newly requested rebuild.
 	if (!await index.waitForRebuild(signal)) return report(signal?.aborted ? 'canceled' : 'unavailable');
 	if (signal?.aborted) return report('canceled');
 	await index.flushDocumentUpdates();
@@ -61,6 +62,7 @@ export async function searchVaultDocuments(
 	progress.total = candidates.length;
 	onProgress?.({ ...progress });
 	const results: VaultSearchResult[] = [];
+	// Workers claim positions before awaiting, keeping reads bounded without duplicating notes.
 	let cursor = 0;
 	const worker = async (): Promise<void> => {
 		let processed = 0;
@@ -106,6 +108,7 @@ function scoreTitle(record: VaultIndexRecord, query: ParsedVaultQuery): number {
 	return score;
 }
 
+/** Bounded candidate-search compatibility API; the search picker uses the full-scan API above. */
 export async function searchVaultWithContext(
 	index: VaultIndex,
 	query: string,

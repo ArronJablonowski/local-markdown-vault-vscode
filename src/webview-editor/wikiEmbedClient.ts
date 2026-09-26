@@ -14,6 +14,7 @@ const EMBED_REQUEST_TIMEOUT_MS = 10_000;
 export function setWikiEmbedPoster(poster: (message: unknown) => void): void { post = poster; }
 
 export function readWikiEmbed(body: string, contextPath: string): Promise<WikiEmbedResult> {
+	// Relative links are resolved from the containing note, not just their visible label.
 	const key = `${contextPath}\0${body}`;
 	const existing = cache.get(key);
 	if (existing) return existing;
@@ -47,6 +48,7 @@ export function handleWikiEmbedMessage(message: HostToEditorMessage): boolean {
 
 export function clearWikiEmbedCache(): void {
 	cache.clear();
+	// Reject old promises as well as cached results when switching document context.
 	for (const request of pending.values()) {
 		clearTimeout(request.timer);
 		request.reject(new Error(t('embed.readFailed')));

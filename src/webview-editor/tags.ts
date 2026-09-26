@@ -13,6 +13,7 @@ export function findInlineTags(state: EditorState, from: number, to: number): Ar
 		if (/^\s{0,3}#{1,6}(?:\s|$)/.test(line.text)) continue;
 		for (const match of line.text.matchAll(TAG_RE)) {
 			const tag = match[2];
+			// Keep numeric fragments such as #123 as plain text rather than tags.
 			if (!/[\p{L}_-]/u.test(tag)) continue;
 			const hashOffset = (match.index ?? 0) + match[1].length;
 			const tagFrom = line.from + hashOffset;

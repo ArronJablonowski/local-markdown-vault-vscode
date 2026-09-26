@@ -7,5 +7,6 @@ export function normalizeVaultOpenBehavior(value: string | undefined): VaultOpen
 }
 
 export function shouldUsePreviewTab(value: string | undefined): boolean {
+	// Request VS Code's reusable preview slot; pinned and dirty tabs remain native decisions.
 	return normalizeVaultOpenBehavior(value) === 'reuseTab';
 }

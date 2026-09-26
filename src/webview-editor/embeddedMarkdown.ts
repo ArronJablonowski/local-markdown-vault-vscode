@@ -80,6 +80,7 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				renderTable(container, raw, hooks);
 				return;
 			case 'HTMLBlock': {
+				// Embedded notes get no HTML execution privilege beyond the parent document.
 				const literal = document.createElement('pre');
 				literal.className = 'mlp-embed-raw-html';
 				literal.textContent = raw;

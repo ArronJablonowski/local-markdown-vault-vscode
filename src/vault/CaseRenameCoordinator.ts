@@ -235,6 +235,7 @@ export class CaseRenameCoordinator implements vscode.Disposable {
 	}
 
 	private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+		// Undo events and tab retargeting share a queue; one failure must not block later work.
 		const result = this.pending.catch(() => undefined).then(operation);
 		this.pending = result.then(() => undefined, () => undefined);
 		return result;
@@ -288,6 +289,7 @@ async function retargetOpenTabs(from: readonly vscode.Uri[], destination: vscode
 		const caseFoldedSamePath = item.uri.scheme === destination.scheme &&
 			item.uri.fsPath.toLowerCase() === destination.fsPath.toLowerCase();
 		if (caseFoldedSamePath) {
+			// Close the old spelling first or VS Code may reuse its existing case-insensitive tab.
 			await closeTab(item, 'The old editor tab could not be closed safely.');
 			await openRetargetedTab(item, destination);
 		} else {

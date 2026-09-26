@@ -460,6 +460,7 @@ export class FrontmatterWidget extends WidgetType {
 		table.className = 'mlp-frontmatter';
 		const tbody = document.createElement('tbody');
 		const propertyReplacement = (key: string, value: unknown): string | undefined => {
+			// A field from an older render cannot overwrite YAML that changed underneath it.
 			if (this.range.to > view.state.doc.length ||
 				view.state.sliceDoc(this.range.from, this.range.to) !== this.range.rawText) return;
 			let insert: string;

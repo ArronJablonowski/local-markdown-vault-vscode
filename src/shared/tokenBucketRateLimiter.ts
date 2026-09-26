@@ -16,6 +16,7 @@ export class TokenBucketRateLimiter {
 
 	tryTake(): boolean {
 		const current = this.safeNow();
+		// Refill continuously; moving the clock backward must never mint extra tokens.
 		const elapsed = Math.max(0, current - this.lastRefillMs);
 		if (elapsed > 0) {
 			this.tokens = Math.min(this.capacity, this.tokens + elapsed / this.refillIntervalMs);

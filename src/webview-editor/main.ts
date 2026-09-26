@@ -77,6 +77,7 @@ const continueMarkdownMarkup = insertNewlineContinueMarkupCommand({ nonTightList
 let view: EditorView | undefined;
 let baseVersion = 0;
 const pending = new PendingEdits();
+// The host acknowledges one batch at a time; later typing stays ahead of this baseline.
 let editInFlight = false;
 let baselineText = '';
 let inFlightText: string | undefined;
@@ -662,6 +663,7 @@ onHostMessage((message) => {
 			if (view) view.dispatch({ effects: refreshPreview.of(null), annotations: remoteChange.of(true) });
 			break;
 		case 'ackEdit':
+			// Stale acknowledgments must not release a newer batch or replace its baseline.
 			if (awaitingResync || !editInFlight || message.version <= baseVersion) break;
 			baseVersion = message.version;
 			if (inFlightText !== undefined) baselineText = inFlightText;
@@ -747,6 +749,7 @@ onHostMessage((message) => {
 			if (view) view.dispatch({ effects: refreshPreview.of(null) });
 			break;
 		case 'vaultNotesChunk': {
+			// Publish only a complete, ordered generation so completions never see a partial vault.
 			if (message.offset === 0) {
 				vaultNotesChunkGeneration = message.generation;
 				pendingVaultNoteChunks = [];

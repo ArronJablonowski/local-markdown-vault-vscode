@@ -180,6 +180,7 @@ export class StyleStore {
 		const files = (await this.listAllStyleFiles()).slice(0, MAX_STYLE_FILES);
 		const enabled = new Set(this.getEnabledIds());
 		const entries: StyleEntry[] = [];
+		// Share one preview budget across the gallery, not one budget per theme.
 		let remainingBytes = MAX_STYLE_BYTES;
 		for (const f of files) {
 			let css = '';
@@ -301,6 +302,7 @@ export class StyleStore {
 
 	/** Resolve a style id to its file URI, or undefined if it no longer exists. */
 	async resolveStyleUri(id: string): Promise<vscode.Uri | undefined> {
+		// Resolve only enumerated files; a webview-supplied ID is never a path.
 		const files = await this.listAllStyleFiles();
 		return files.find((f) => f.id === id)?.uri;
 	}
@@ -327,6 +329,7 @@ export class StyleStore {
 	}
 
 	private async refresh(): Promise<void> {
+		// A slower filesystem read must not replace a newer theme selection.
 		const generation = ++this.refreshGeneration;
 		const css = await this.computeCombinedCss();
 		if (generation !== this.refreshGeneration) return;

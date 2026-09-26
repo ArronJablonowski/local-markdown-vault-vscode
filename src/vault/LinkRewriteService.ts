@@ -60,6 +60,7 @@ export class VaultTransactionConflictError extends Error {
 	}
 }
 
+/** Plans link edits against snapshots, then hands one combined move to VS Code. */
 export class LinkRewriteService {
 	private readonly caseRenames: CaseRenameCoordinator;
 	private readonly applyEdit: (edit: vscode.WorkspaceEdit) => Thenable<boolean>;
@@ -170,6 +171,7 @@ export class LinkRewriteService {
 			if (!plan.caseOnly && await this.existsInside(plan.destination)) throw new Error('An item already exists at a destination.');
 		}
 		const edit = new vscode.WorkspaceEdit();
+		// Open buffers use document versions; closed files use identity, size, and modification time.
 		const versions = new Map<string, number>();
 		const fileSnapshots = new Map<string, FileSnapshot>();
 		if (policy.updateLinks) await this.addLinkEdits(
@@ -429,6 +431,7 @@ export class LinkRewriteService {
 		}
 		const files = selection.candidates.map(({ item }) => item);
 		const visiblePaths = selection.candidates.map(({ path }) => path);
+		// Resolve shortest wikilinks against the final namespace, not each move in isolation.
 		const plannedMoves = assignWikiTargets(moves, visiblePaths);
 		let totalBytes = 0;
 		for (const uri of files) {

@@ -18,6 +18,7 @@ function inspectValue(value: unknown, depth: number, visiting: Set<unknown>, cou
 	if (value === null || typeof value !== 'object') return;
 	if (depth > MAX_YAML_DEPTH) throw new FrontmatterLimitError(t('yaml.depthLimit'));
 	if (visiting.has(value)) throw new FrontmatterLimitError(t('yaml.circularReference'));
+	// Track the active traversal path: shared aliases are allowed, reference cycles are not.
 	visiting.add(value);
 	if (Array.isArray(value)) {
 		for (const item of value) inspectValue(item, depth + 1, visiting, counter);

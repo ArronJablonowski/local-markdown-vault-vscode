@@ -4,6 +4,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { parseCalloutHeader } from './callouts';
 
 export const toggleCallout = StateEffect.define<{ from: number; collapsed: boolean }>();
+// Fold overrides are editor state; clicking a callout never rewrites its saved marker.
 export const calloutState = StateField.define<ReadonlyMap<number, boolean>>({
 	create: () => new Map(),
 	update(value, tr) {

@@ -5,6 +5,7 @@ const MAX_VALUE_LENGTH = 200;
 
 export type DiagnosticFields = Readonly<Record<string, unknown>>;
 
+/** Bound both repeated events and distinct event keys so diagnostics cannot grow without limit. */
 export class DiagnosticRateLimiter {
 	private readonly lastAccepted = new Map<string, number>();
 
@@ -30,6 +31,7 @@ export class DiagnosticRateLimiter {
 	clear(): void { this.lastAccepted.clear(); }
 }
 
+/** Keeps recent, already-sanitized lines; this storage bound does not redact their contents. */
 export class BoundedDiagnosticBuffer {
 	private readonly entries: string[] = [];
 	private characters = 0;

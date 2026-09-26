@@ -154,6 +154,7 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			a.className = 'mlp-link';
 			const href = hooks.resolveLinkHref ? hooks.resolveLinkHref(url) : url;
 			if (href) {
+				// Store an inert target; the host authorizes navigation through the shared click handler.
 				a.setAttribute('data-href', href);
 				a.setAttribute('role', 'link');
 				a.setAttribute('tabindex', '0');

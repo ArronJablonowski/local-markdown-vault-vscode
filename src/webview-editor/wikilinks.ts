@@ -106,6 +106,7 @@ export function noteCompletionOptions(body: string, notes: readonly VaultNoteSum
 	};
 	for (const note of notes) {
 		const pathWithoutExtension = note.path.replace(/\.(?:md|markdown)$/i, '');
+		// Duplicate filenames need a path-qualified target to avoid linking to the wrong note.
 		const shortestTarget = basenameCounts.get(note.basename.toLocaleLowerCase()) === 1
 			? note.basename
 			: pathWithoutExtension;
@@ -272,6 +273,7 @@ async function mountNoteEmbed(container: HTMLElement, body: string, depth: numbe
 	container.appendChild(status);
 	try {
 		const result = await readWikiEmbed(body, ancestors.at(-1) ?? currentVaultPath);
+		// An asynchronous read may finish after editing has replaced this embed's DOM.
 		if (!container.isConnected) return;
 		const key = result.sourcePath.toLocaleLowerCase();
 		if (ancestors.some((path) => path.toLocaleLowerCase() === key)) {

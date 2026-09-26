@@ -46,6 +46,7 @@ interface AutomaticTracking {
  */
 export class MarkdownAutoSaveController implements vscode.Disposable {
 	private readonly tracked = new Map<string, TrackedDocument>();
+	// URI-scoped writes outlive tracked document objects during close/reopen races.
 	private readonly operations = new Map<string, Promise<void>>();
 	private readonly automaticallyTracked = new Map<string, AutomaticTracking>();
 	private readonly disposables: vscode.Disposable[];
@@ -136,6 +137,7 @@ export class MarkdownAutoSaveController implements vscode.Disposable {
 		this.tracked.set(key, state);
 		if (state !== existing && document.isDirty) this.schedule(document);
 
+		// Native tracking and multiple custom editors can share one working copy.
 		let released = false;
 		return new vscode.Disposable(() => {
 			if (released) return;

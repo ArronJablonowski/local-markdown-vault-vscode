@@ -27,6 +27,7 @@ try {
 	}, null, 2));
 	const executable = await downloadAndUnzipVSCode('stable');
 	const runner = resolve(root, 'node_modules/@vscode/test-cli/out/runner.cjs');
+	// Share launch isolation while allowing a focused cross-window Undo regression run.
 	const testFile = resolve(root, process.env.MDLP_VAULT_UNDO_LIFETIME_TEST === '1'
 		? 'out-test/integration/vaultUndoLifetime.test.js'
 		: 'out-test/integration/focusedDesktop.test.js');

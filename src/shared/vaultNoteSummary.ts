@@ -21,6 +21,7 @@ interface SummarySource {
 	blockIds: readonly string[];
 }
 
+/** Bind displayed names to their relative Markdown paths before crossing the webview boundary. */
 export function isCanonicalVaultNoteIdentity(path: unknown, basename: unknown): path is string {
 	if (typeof path !== 'string' || typeof basename !== 'string' || path.length === 0 || path.length > 4096 || basename.length === 0 || basename.length > 512) return false;
 	if (path.includes('\\') || /[\u0000-\u001f\u007f]/.test(path) || path.startsWith('/') || /^[a-z]:/i.test(path)) return false;
@@ -44,6 +45,7 @@ export function createVaultNoteSummary(source: SummarySource): VaultNoteSummary 
 		let bytes = 0;
 		for (const value of values) {
 			if (!accept(value)) continue;
+			// Count JSON escapes too; authored backslashes can expand the transmitted payload.
 			const size = utf8Length(JSON.stringify(value));
 			if (bytes + size > FIELD_SERIALIZED_BYTE_BUDGET) break;
 			selected.push(value);

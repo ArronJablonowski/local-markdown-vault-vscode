@@ -33,6 +33,7 @@ export interface VaultRegistrationOptions {
 	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean;
 }
 
+/** Owns window-scoped commands, views, and the replaceable current-vault lifecycle. */
 export async function registerVault(
 	context: vscode.ExtensionContext,
 	options: VaultRegistrationOptions = {},
@@ -72,6 +73,7 @@ export async function registerVault(
 	};
 	replaceMoveHistory(provider.service);
 	const activeVaultPickers = new Set<vscode.QuickPick<vscode.QuickPickItem>>();
+	// Pickers retain result records, so close them whenever their vault authority is replaced.
 	const trackVaultPicker = <T extends vscode.QuickPickItem>(picker: vscode.QuickPick<T>): (() => void) => {
 		const tracked = picker as vscode.QuickPick<vscode.QuickPickItem>;
 		activeVaultPickers.add(tracked);
@@ -571,6 +573,7 @@ export async function registerVault(
 		activeReveal,
 		tree.onDidChangeVisibility(() => { void revealActive(); }),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
+			// Revoke old capabilities synchronously before queued replacement work can yield.
 			activeReveal.invalidate();
 			const generation = ++vaultGeneration;
 			replaceMoveHistory(undefined);
@@ -826,6 +829,7 @@ async function showVaultSearch(
 		picker.items = [];
 		const query = picker.value;
 		const queryMode = mode;
+		// A canceled scan may finish a disk read, but it must never publish into a newer query.
 		const isActive = () => !closed && isCurrent() && !controller.signal.aborted && current === generation;
 		if (!query.trim()) {
 			picker.busy = false;
@@ -897,6 +901,7 @@ async function showVaultSearch(
 		if (picker.busy) return;
 		const selected = picker.selectedItems[0];
 		const record = selected?.record;
+		// Instruction and error rows deliberately have no record and cannot navigate.
 		if (!record) return;
 		picker.hide();
 		await openIndexedRecord(index, record, context, selected.matchLine, isCurrent, revealOpenedLine);
@@ -1140,6 +1145,7 @@ export class VaultDragAndDropController implements vscode.TreeDragAndDropControl
 		if (!item) return;
 		let values: unknown;
 		try {
+			// Drag payloads cross a serialized boundary; a tree MIME type is not authorization.
 			const serialized = await item.asString();
 			if (serialized.length > 1_048_576) return;
 			values = JSON.parse(serialized);
@@ -1188,6 +1194,7 @@ async function resolveCommandEntries(
 	return resolved as VaultEntry[];
 }
 
+/** Rebuilds command arguments from current disk metadata instead of trusting stale TreeItems. */
 async function resolveCommandEntry(provider: VaultTreeProvider, value: unknown): Promise<VaultEntry | undefined> {
 	const uri = value instanceof VaultEntry
 		? value.uri

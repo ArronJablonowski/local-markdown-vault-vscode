@@ -518,16 +518,14 @@ function processRules(css: string): string {
 	return out;
 }
 
+/** Maps preview selectors to CodeMirror lines; sanitization and scoping are separate steps. */
 export function adaptMarkdownCss(css: string): string {
 	return processRules(css);
 }
 
 /**
- * Rejects a theme that could initiate its own network request. The editor CSP
- * may allow HTTPS images after an explicit user opt-in, but that permission is
- * for authored Markdown images only—not for CSS imports, fonts, cursors, or
- * background tracking pixels. CSS escapes are decoded before checking so
- * `u\72l(...)` and similar spellings cannot bypass the policy.
+ * Normalizes CSS spellings for policy checks; this does not sanitize the result.
+ * Decode escapes such as `u\72l(...)` before testing for network-loading syntax.
  */
 export function decodeCssForSecurity(css: string): string {
 	const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -579,6 +577,7 @@ function sanitizeRuleList(
 	state: { rules: number; rejected: boolean },
 	depth: number,
 ): string {
+	// Nested containers share one rule budget instead of receiving a fresh allowance.
 	if (depth > MAX_PREVIEW_CSS_NESTING) {
 		state.rejected = true;
 		return '';

@@ -55,6 +55,7 @@ function overlapsIgnoredRange(from: number, to: number, ranges: readonly (readon
 }
 
 function hasWordEdges(line: string, index: number, match: string): boolean {
+	// Check Unicode neighbors rather than ASCII \b so short and non-English note names stay precise.
 	const first = codePointAt(match, 0);
 	const last = codePointBefore(match, match.length);
 	const previous = codePointBefore(line, index);

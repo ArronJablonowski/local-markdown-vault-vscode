@@ -115,6 +115,7 @@ function webpDimensions(bytes: Uint8Array): { width: number; height: number } | 
 		if (chunk === 'VP8 ' && size >= 10 && bytes[data + 3] === 0x9d && bytes[data + 4] === 0x01 && bytes[data + 5] === 0x2a) {
 			return { width: readU16LE(bytes, data + 6) & 0x3fff, height: readU16LE(bytes, data + 8) & 0x3fff };
 		}
+		// RIFF pads odd-length chunks; skipping that byte keeps later headers aligned.
 		offset = data + size + (size & 1);
 	}
 	return undefined;
@@ -180,6 +181,7 @@ function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
 /**
  * Picks a file name that isn't already in `existingNames`: `image-<timestamp>.<ext>`,
  * falling back to `image-<timestamp>-1.<ext>`, `-2`, … on collision.
+ * This does not reserve the name; the host must still create the file exclusively.
  */
 export function generateImageFileName(existingNames: ReadonlySet<string>, timestampMs: number, ext: string): string {
 	const base = `image-${timestampMs}`;

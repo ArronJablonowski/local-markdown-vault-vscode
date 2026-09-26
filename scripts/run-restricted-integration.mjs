@@ -13,6 +13,7 @@ const settingsDir = join(userDataDir, 'User');
 
 try {
 	await Promise.all([mkdir(settingsDir, { recursive: true }), mkdir(extensionsDir, { recursive: true })]);
+	// Keep real Workspace Trust enabled; skipping its prompt must not grant trust.
 	await writeFile(join(settingsDir, 'settings.json'), JSON.stringify({
 		'security.workspace.trust.enabled': true,
 		'security.workspace.trust.startupPrompt': 'never',

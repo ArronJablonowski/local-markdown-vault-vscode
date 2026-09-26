@@ -9,6 +9,7 @@ import type { Page } from '@playwright/test';
  * bundle's own `${...}` sequences and this file's template literal would
  * otherwise fight over the same syntax.
  */
+// Acknowledgments model editor messaging, not disk durability; native tests cover saves.
 const HOST_STUB = [
 	'window.__posted = [];',
 	'window.acquireVsCodeApi = function () {',

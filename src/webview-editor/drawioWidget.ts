@@ -336,6 +336,7 @@ export class DrawioFileWidget extends WidgetType {
 		host.className = 'mlp-block';
 		const visibility = new DiagramVisibilityGate(document, () => showReadError());
 		let child: { widget: DrawioWidget; dom: HTMLElement } | undefined;
+		// The file wrapper owns the nested renderer's deferred work and must dispose both together.
 		trackDiagramVisibility(host, visibility, () => {
 			if (child) child.widget.destroy(child.dom);
 		});

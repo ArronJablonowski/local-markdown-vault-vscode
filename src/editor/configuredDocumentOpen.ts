@@ -4,6 +4,7 @@ import { DEFAULT_VAULT_OPEN_BEHAVIOR, shouldUsePreviewTab } from '../shared/vaul
 
 /** Opens an already-authorized local resource using the user's editor policy. */
 export async function openConfiguredVaultResource(uri: vscode.Uri): Promise<void> {
+	// Read per-resource settings at navigation time so existing tabs do not pin old preferences.
 	const configuredEditor = vscode.workspace
 		.getConfiguration('mdLivePreview', uri)
 		.get<string>('defaultEditor', DEFAULT_EDITOR_SETTING);

@@ -17,6 +17,7 @@ export function extractWikiEmbedContent(text: string, fragment: string): string 
 				level = heading[1].length;
 				continue;
 			}
+			// Keep nested subsections, stopping only at the next peer or ancestor heading.
 			if (start >= 0 && heading[1].length <= level) return lines.slice(start, index).join('\n').trim();
 		}
 		return start >= 0 ? lines.slice(start).join('\n').trim() : undefined;

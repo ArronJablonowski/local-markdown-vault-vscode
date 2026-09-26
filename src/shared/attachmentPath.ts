@@ -16,6 +16,7 @@ export function validateAttachmentFolder(value: string): string | undefined {
 	return undefined;
 }
 
+/** Lexical path validation only; callers must authorize symlinks before filesystem access. */
 export function resolveAttachmentFolder(vaultRoot: string, noteDirectory: string, value: string): string {
 	const error = validateAttachmentFolder(value);
 	if (error) throw new Error(error);

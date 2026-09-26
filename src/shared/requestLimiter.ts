@@ -6,7 +6,7 @@ export class RequestLimiter {
 		if (!Number.isSafeInteger(limit) || limit < 1) throw new Error('Request limit must be a positive integer.');
 	}
 
-	/** Returns an idempotent release callback, or `undefined` when saturated. */
+	/** Returns an idempotent callback to call in `finally`, or `undefined` when saturated. */
 	tryAcquire(): (() => void) | undefined {
 		if (this.active >= this.limit) return undefined;
 		this.active++;

@@ -16,6 +16,7 @@ const reversedNonUsSpellings = [
 ];
 const nonUsSpellings = new RegExp(`\\b(?:${reversedNonUsSpellings.map((word) => [...word].reverse().join('')).join('|')})\\b`, 'iu');
 
+// Include untracked release-bound files, but leave ignored dependencies and artifacts alone.
 const listed = execFileSync('git', [
 	'ls-files', '--cached', '--others', '--exclude-standard', '-z',
 ], { encoding: 'utf8' });

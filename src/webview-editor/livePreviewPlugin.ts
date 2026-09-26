@@ -135,6 +135,7 @@ const cellInlineHooks: CellInlineHooks = {
 	resolveImageSrcAsync: requestLocalImage,
 };
 
+// Equal widgets may reuse DOM, so observers belong to the mounted table rather than an instance.
 const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
 
 // A click on a different table can blur/commit the old table between mouse
@@ -287,6 +288,7 @@ class CheckboxWidget extends WidgetType {
 			// The marker is "[ ]" / "[x]"; the state character sits at markerFrom + 1.
 			const stateChar = view.state.sliceDoc(this.markerFrom + 1, this.markerFrom + 2);
 			const insert = stateChar === ' ' ? 'x' : ' ';
+			// Use the normal document transaction so checkbox clicks follow autosave and Undo.
 			view.dispatch({ changes: { from: this.markerFrom + 1, to: this.markerFrom + 2, insert } });
 		};
 		box.addEventListener('pointerdown', (event) => event.preventDefault());
@@ -729,6 +731,7 @@ class TableWidget extends WidgetType {
 			const widths = originalCells.map(cell => cell.getBoundingClientRect().width);
 			const tableWidth = table.getBoundingClientRect().width;
 			if (!tableWidth || !widths.length || widths.some(width => width <= 0)) return;
+			// The mirrored header is visual only; its cloned cells must not become a second editor.
 			const clone = header.cloneNode(true) as HTMLTableSectionElement;
 			clone.querySelectorAll<HTMLElement>('[tabindex], [contenteditable]').forEach((cell) => {
 				cell.removeAttribute('tabindex');

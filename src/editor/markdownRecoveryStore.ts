@@ -131,6 +131,7 @@ export class MarkdownRecoveryStore {
 		const stored: RecoveryState = { version: 1, entries };
 		try { await this.state.update(MARKDOWN_RECOVERY_STATE_KEY, stored); }
 		catch { throw new Error('The Markdown recovery draft could not be stored locally. Keep the original document open and save a copy manually.'); }
+		// Publish the new list only after persistence succeeds; failures retain the old snapshots.
 		this.entries = entries;
 	}
 
@@ -142,6 +143,7 @@ export class MarkdownRecoveryStore {
 		this.queuedBytes += bytes;
 		const operation = this.queue.then(action);
 		const settled = operation.finally(() => { this.queuedOperations--; this.queuedBytes -= bytes; });
+		// Keep failures visible to this caller without blocking later recovery operations.
 		this.queue = settled.then(() => {}, () => {});
 		return settled;
 	}

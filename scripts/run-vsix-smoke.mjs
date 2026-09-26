@@ -21,6 +21,7 @@ const executable = await downloadAndUnzipVSCode('stable');
 const cli = resolveCliPathFromVSCodeExecutablePath(executable);
 await access(cli);
 
+// Separate profiles prevent trust decisions or installed state leaking between modes.
 for (const mode of ['trusted', 'restricted', 'disabled']) {
 	await runMode(mode);
 }
@@ -146,6 +147,7 @@ async function runMode(mode) {
 			MDLP_VSIX_VERSION: manifest.version,
 			MDLP_VSCODE_DEBUG_PORT: String(debugPort),
 		});
+		// Rendering-only smoke tests must preserve note, attachment, and Obsidian bytes.
 		if (await readFile(join(workspaceDir, 'README.md'), 'utf8') !== noteSource) {
 			throw new Error(`${mode} VSIX smoke changed the Markdown note bytes.`);
 		}

@@ -72,6 +72,7 @@ class FootnoteDefinitionWidget extends WidgetType {
 function buildFootnoteDecorations(view: EditorView): DecorationSet {
 	const state = view.state;
 	const text = state.doc.toString();
+	// Resolve definitions first so forward references can navigate to later source.
 	const definitions = new Map<string, FootnoteDefinition>();
 	for (const match of text.matchAll(/^[ \t]{0,3}\[\^([A-Za-z0-9_-]{1,64})\]:[ \t]*/gm)) {
 		if (definitions.size >= MAX_FOOTNOTES) break;
@@ -96,6 +97,7 @@ function buildFootnoteDecorations(view: EditorView): DecorationSet {
 	}
 	for (const [id, positions] of references) {
 		const definition = definitions.get(id);
+		// Leave unresolved references as editable source instead of creating a dead navigation button.
 		if (!definition) continue;
 		const target = Math.min(definition.markerTo + 1, state.doc.lineAt(definition.from).to);
 		for (const from of positions) {

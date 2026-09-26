@@ -95,6 +95,7 @@ export function applyNormalizedTextChanges(
 		previousEnd = change.to;
 	}
 	let result = text;
+	// Apply from the end so earlier offsets still refer to the original snapshot.
 	for (let index = ordered.length - 1; index >= 0; index--) {
 		const change = ordered[index];
 		result = result.slice(0, change.from) + change.insert + result.slice(change.to);

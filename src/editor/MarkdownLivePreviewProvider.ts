@@ -23,6 +23,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 	static readonly viewType = 'mdLivePreview.editor';
 
 	private readonly sessions = new Set<DocumentSyncSession>();
+	// Closing panels leave the visible session set before their final writes settle.
 	private readonly closingSaves = new Set<Promise<void>>();
 	private readonly autoSave = new MarkdownAutoSaveController();
 	private readonly recovery?: MarkdownRecoveryStore;
@@ -206,6 +207,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 		const remoteImageSource = remoteMedia === 'https' ? ' https:' : '';
 		const documentTitle = vscode.l10n.t('Markdown Live Preview');
 
+		// CodeMirror measures and styles elements inline; scripts still require a fresh nonce.
 		return `<!DOCTYPE html>
 <html lang="en-US">
 <head>

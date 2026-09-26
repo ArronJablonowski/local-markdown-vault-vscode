@@ -74,6 +74,7 @@ function matchesPath(pathSegments: readonly string[], patternSegments: readonly 
 	const effectivePattern = rootAnchored || patternSegments[0] === '**'
 		? patternSegments
 		: ['**', ...patternSegments];
+	// Cache each segment pair so repeated globstars do not multiply the same recursive work.
 	const memo = new Map<string, boolean>();
 
 	const visit = (pathIndex: number, patternIndex: number): boolean => {

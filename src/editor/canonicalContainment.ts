@@ -7,6 +7,7 @@ export async function isCanonicalPathInside(rootPath: string, targetPath: string
 		const [realRoot, realTarget] = await Promise.all([realpath(rootPath), realpath(targetPath)]);
 		return isPathInside(realRoot, realTarget, process.platform === 'win32');
 	} catch {
+		// Missing or unreadable paths are not evidence of containment.
 		return false;
 	}
 }

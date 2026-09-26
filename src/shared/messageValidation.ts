@@ -84,6 +84,7 @@ function validCodeBlocks(value: unknown, documentLength: number): boolean {
 }
 
 function validCodeTokenStyle(style: string): boolean {
+	// Highlighting needs only these text styles, never arbitrary CSS from an IPC payload.
 	if (style.length === 0 || style.length > 128) return false;
 	const seen = new Set<string>();
 	for (const rawDeclaration of style.split(';')) {
@@ -265,6 +266,7 @@ function isNonNegativeInteger(value: unknown): value is number {
 }
 
 function validChanges(value: unknown, documentLength: number): value is TextChange[] {
+	// Ordered, non-overlapping ranges all address one pre-edit, LF-normalized snapshot.
 	if (!Array.isArray(value) || value.length === 0 || value.length > MAX_EDIT_CHANGES) return false;
 	let previousTo = -1;
 	let insertedBytes = 0;
@@ -307,6 +309,7 @@ function validBase64(value: unknown): value is string {
  * Runtime validation for the privileged webview-to-extension boundary.
  * TypeScript types disappear at runtime, and a compromised webview can forge
  * any object, so callers must parse `unknown` before dispatching a message.
+ * Shape validation does not grant file access; handlers still enforce trust and containment.
  */
 export function validateEditorToHostMessage(
 	value: unknown,

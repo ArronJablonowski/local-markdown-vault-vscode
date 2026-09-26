@@ -271,6 +271,7 @@ function sanitizeSvgStylesheet(css: string): string {
 }
 
 function sanitizeSvgViewport(root: Element): void {
+	// Safe markup can still request extreme geometry; constrain the browser's layout workload.
 	for (const name of ['width', 'height']) {
 		const value = root.getAttribute(name);
 		if (value !== null && !safeSvgLength(value)) root.removeAttribute(name);

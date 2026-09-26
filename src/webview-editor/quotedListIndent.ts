@@ -6,6 +6,7 @@ import type { ChangeSpec } from '@codemirror/state';
 export function indentQuotedList(view: EditorView, outdent = false): boolean {
 	const { state } = view;
 	if (state.readOnly || !state.facet(EditorView.editable)) return false;
+	// Overlapping selections must indent each physical line only once.
 	const lines = new Set<number>();
 	for (const range of state.selection.ranges) {
 		const first = state.doc.lineAt(range.from).number;

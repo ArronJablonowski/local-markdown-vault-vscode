@@ -92,6 +92,7 @@ async function createFixture(vaultRoot) {
 	if (attachmentBytes <= 0) throw new Error('Note fixture exceeded the 1 GiB logical-size budget.');
 	const baseSize = Math.floor(attachmentBytes / attachmentCount);
 	const remainder = attachmentBytes % attachmentCount;
+	// Sparse attachments exercise logical size without writing 1 GiB of payload data.
 	await runBounded(Array.from({ length: attachmentCount }, (_, index) => index), 64, async (index) => {
 		const handle = await open(join(attachmentsRoot, `Attachment-${String(index).padStart(4, '0')}.bin`), 'w');
 		try { await handle.truncate(baseSize + (index < remainder ? 1 : 0)); }

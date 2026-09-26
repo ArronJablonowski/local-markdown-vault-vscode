@@ -8,6 +8,7 @@ import type {
 } from './messages';
 import type { ValidationResult } from './messageValidation';
 
+// Sidebar, outline, and preview frames need the same runtime checks as the main editor.
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -54,6 +55,7 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 	if (['openStyle', 'duplicateStyle', 'renameStyle', 'deleteStyle'].includes(value.type) && exact(value, ['type', 'id']) && safeId(value.id)) {
 		return { ok: true, value: value as unknown as SidebarToHostMessage };
 	}
+	// This is an explicit setting allowlist, not a general configuration-write channel.
 	if (
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
 		((value.key === 'defaultEditor' && oneOf(value.value, ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'])) ||

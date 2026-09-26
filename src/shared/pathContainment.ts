@@ -13,6 +13,7 @@
  *
  * Kept apart from the `vscode` API and expressed over plain path strings so the
  * boundary cases can be unit-tested directly.
+ * This is lexical only; filesystem callers must resolve symlinks separately.
  */
 
 /**

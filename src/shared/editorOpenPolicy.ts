@@ -38,6 +38,7 @@ export function configuredEditorViewTypeForPath(
 	path: string,
 	defaultEditor: DefaultEditorSetting | string | undefined,
 ): string | undefined {
+	// Undefined delegates attachments and unknown modes to VS Code's normal editor selection.
 	return /\.(?:md|markdown)$/i.test(path) ? editorViewType(defaultEditor) : undefined;
 }
 

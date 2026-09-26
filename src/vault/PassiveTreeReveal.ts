@@ -86,5 +86,6 @@ export class PassiveTreeReveal<T> {
 }
 
 function sameTarget(a: RevealTarget | undefined, b: RevealTarget | undefined): boolean {
+	// An identical file URI in a replacement vault service still needs fresh authorization.
 	return a !== undefined && b !== undefined && a.key === b.key && a.scope === b.scope;
 }

@@ -38,6 +38,7 @@ export function minimalTextReplacement(
 	rewritten: string,
 ): { from: number; to: number; text: string } | undefined {
 	if (original === rewritten) return undefined;
+	// Preserve unchanged edges so the workspace edit does not replace an entire open note.
 	let from = 0;
 	while (from < original.length && from < rewritten.length && original[from] === rewritten[from]) from++;
 	let originalEnd = original.length;

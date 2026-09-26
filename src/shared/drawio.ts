@@ -13,7 +13,7 @@ import { t } from './i18n';
  * diagram rather than an error if ignored:
  *
  *  - A `<diagram>`'s text is often not XML at all but a compressed payload
- *    (deflate + base64, historically URI-encoded on top). `decodeDiagramBody`
+ *    (deflate + base64, historically URI-encoded on top). `isCompressedDiagramBody`
  *    detects and rejects that case explicitly so the caller can say so, rather
  *    than the parser silently finding no cells in a base64 blob.
  *  - Geometry is relative for a child of a non-root cell: a shape inside a
@@ -385,7 +385,7 @@ function collectCells(root: XmlElement): RawCell[] {
  * naive walk would loop forever on a document the user merely opened.
  *
  * Edges are resolved after vertices, since an edge's endpoints are usually the
- * *centres* of cells that must already have absolute positions.
+ * *centers* of cells that must already have absolute positions.
  */
 export function flattenCells(cells: readonly RawCell[]): DrawioShape[] {
 	const byId = new Map<string, RawCell>();
@@ -454,7 +454,7 @@ export function flattenCells(cells: readonly RawCell[]): DrawioShape[] {
 		if (!cell.isEdge) continue;
 		// An edge attached to a shape wins over its own recorded endpoint: draw.io
 		// keeps a stale `sourcePoint` from before the connection was made, and
-		// honouring that would leave the line detached from the box it now joins.
+		// honoring that would leave the line detached from the box it now joins.
 		const from = centreOf(cell.source) ?? cell.sourcePoint;
 		const to = centreOf(cell.target) ?? cell.targetPoint;
 		if (!from && !to) continue; // nothing anchors this line; drawing it is guesswork
@@ -528,14 +528,6 @@ export function computeBounds(shapes: readonly DrawioShape[]): DrawioGeometry {
 }
 
 /**
- * Builds the diagram model from a parsed `<mxfile>` (or a bare `<mxGraphModel>`,
- * which is what a code fence usually contains).
- *
- * Throws `DrawioUnsupportedError` for a compressed document — that is a real
- * limitation worth telling the user about, and it is indistinguishable from a
- * corrupt file if it silently yields an empty diagram instead.
- */
-/**
  * Whether an element can stand in for an `<mxGraphModel>`.
  *
  * A fence may hold just the `<root>` list of cells, with no model wrapper. That
@@ -550,6 +542,7 @@ function isModelRoot(el: XmlElement): boolean {
 	return findAll(el, 'mxCell').length > 0;
 }
 
+/** Builds bounded pages from parsed XML; compressed input fails explicitly instead of rendering blank. */
 export function buildDiagram(root: XmlElement): DrawioDiagram {
 	const diagramEls = findAll(root, 'diagram');
 	if (diagramEls.length > MAX_DRAWIO_PAGES) {

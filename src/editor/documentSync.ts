@@ -378,6 +378,7 @@ export class DocumentSyncSession {
 	}
 
 	private async trySaveSnapshot(draft: { text: string; baselineText: string; requiresSeparatePreservation?: true }): Promise<boolean> {
+		// Only replay over an unchanged baseline; divergent drafts belong in recovery, not the file.
 		if (draft.requiresSeparatePreservation) return false;
 		try {
 			await this.settleAutoSave?.();
@@ -524,13 +525,9 @@ export class DocumentSyncSession {
 	 * The webview cannot touch the filesystem, and an `<img>` cannot render
 	 * mxGraph XML, so a `![](diagram.drawio)` reference has to come through here.
 	 *
-	 * The path is confined to the document's own folder tree. `src` comes
-	 * straight out of the Markdown, so it can say `../../../../etc/passwd`, and
-	 * this handler would otherwise happily read it and hand the contents to the
-	 * webview — turning "open a Markdown file someone sent you" into an arbitrary
-	 * file read. Resolving first and then checking that the result is still under
-	 * the document's directory is what closes that, and it is done on the
-	 * resolved path because `..` segments only cancel out after resolution.
+	 * Resolve authored paths from the note's directory, then require canonical
+	 * containment within the current vault. Relative syntax alone does not
+	 * authorize a read: traversal and symlink escapes must still fail closed.
 	 */
 	private async handleReadDrawioFile(requestId: number, src: string): Promise<void> {
 		const reply = (payload: { text?: string; error?: string }) => {
@@ -1284,6 +1281,7 @@ export class DocumentSyncSession {
 	}
 
 	private scheduleVaultNotesSync(): void {
+		// A new generation invalidates remaining chunks from an older metadata snapshot.
 		const generation = ++this.vaultNotesGeneration;
 		if (!this.visible) {
 			this.pendingVaultNotes = true;

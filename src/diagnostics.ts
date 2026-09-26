@@ -23,6 +23,7 @@ class LocalDiagnosticLog implements vscode.Disposable {
 
 	record(event: string, fields: DiagnosticFields = {}): void {
 		if (!this.enabled) return;
+		// Redact before buffering so hidden logs never retain raw note or path data.
 		const safeEvent = sanitizeDiagnosticEventName(event);
 		const safeFields = sanitizeDiagnosticFields(fields);
 		const details = Object.keys(safeFields).length ? ` ${JSON.stringify(safeFields)}` : '';
@@ -42,6 +43,7 @@ class LocalDiagnosticLog implements vscode.Disposable {
 		if (enabled === this.enabled) return;
 		this.enabled = enabled;
 		if (!enabled) {
+			// Turning diagnostics off also forgets this session's captured events.
 			this.entries.clear();
 			this.rateLimiter.clear();
 			this.channel?.clear();
@@ -55,6 +57,7 @@ class LocalDiagnosticLog implements vscode.Disposable {
 	}
 
 	private render(): void {
+		// Recording stays headless until the user explicitly opens the output channel.
 		if (!this.channel) return;
 		const header = this.enabled
 			? vscode.l10n.t('Local diagnostics are enabled. Markdown, URLs, clipboard data, secrets, and absolute paths are redacted.')

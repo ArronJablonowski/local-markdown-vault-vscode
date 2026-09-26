@@ -33,6 +33,7 @@ function renderHeadings(headings: Array<{ level: number; text: string; line: num
 	for (const heading of headings) {
 		const item = document.createElement('li');
 		item.className = `mlp-outline-item mlp-outline-level-${heading.level}`;
+		// Headings are untrusted note text, not HTML for the navigation pane.
 		item.textContent = heading.text || t('outline.untitled');
 		item.setAttribute('role', 'button');
 		item.setAttribute('tabindex', '0');

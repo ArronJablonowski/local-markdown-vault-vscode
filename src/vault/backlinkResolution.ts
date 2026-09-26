@@ -33,6 +33,7 @@ export class BacklinkResolver {
 		if (link.kind === 'wikilink' || link.kind === 'wikiEmbed') {
 			const active = wikiKey(stripExtension(normalize(activePath)));
 			const wanted = wikiKey(stripExtension(normalize(decoded.replace(/^\//, ''))));
+			// Explicit folder paths must not fall back to an unrelated basename or alias.
 			const exactPaths = this.paths.get(wanted);
 			const candidates = exactPaths?.size
 				? new Set(exactPaths)

@@ -9,6 +9,7 @@ interface VsCodeApi {
 
 declare function acquireVsCodeApi(): VsCodeApi;
 
+// Share one private bridge; widgets receive callbacks instead of the privileged API object.
 const api = acquireVsCodeApi();
 let documentLength = 0;
 

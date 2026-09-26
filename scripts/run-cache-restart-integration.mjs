@@ -41,6 +41,7 @@ try {
 	]);
 
 	const executable = await downloadAndUnzipVSCode('stable');
+	// Reuse disk state across fresh hosts so recovery cannot pass from warm memory.
 	for (const phase of ['seed', 'recover']) await runPhase(executable, phase);
 } finally {
 	await rm(profileRoot, {

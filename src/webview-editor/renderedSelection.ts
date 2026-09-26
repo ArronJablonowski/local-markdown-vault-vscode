@@ -59,6 +59,7 @@ export const renderedSelection = ViewPlugin.fromClass(class {
 	private end = (): void => { this.anchor = undefined; };
 	update(update: ViewUpdate): void {
 		if (update.docChanged) {
+			// A document edit can replace widget DOM and invalidate both ends of the drag.
 			this.end();
 			this.crossed = false;
 		}

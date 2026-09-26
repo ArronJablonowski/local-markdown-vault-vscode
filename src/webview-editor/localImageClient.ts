@@ -17,6 +17,7 @@ export function setLocalImagePoster(poster: (message: unknown) => void): void { 
 export function setLocalImageContext(contextPath: string): void { currentContextPath = contextPath; }
 
 export function resolveLocalImage(src: string, contextPath = currentContextPath): Promise<string> {
+	// The same relative image name can identify different files in embedded notes.
 	const key = `${contextPath}\0${src}`;
 	const existing = cache.get(key);
 	if (existing) return existing;
@@ -44,6 +45,7 @@ export function handleLocalImageMessage(message: HostToEditorMessage): boolean {
 	clearTimeout(request.timer);
 	if (typeof message.dataBase64 === 'string' && typeof message.mimeType === 'string') {
 		try {
+			// Validate decoded bytes again before giving the browser an image-decoding workload.
 			const decoded = atob(message.dataBase64);
 			const bytes = new Uint8Array(decoded.length);
 			for (let index = 0; index < decoded.length; index++) bytes[index] = decoded.charCodeAt(index);
@@ -62,6 +64,7 @@ export function handleLocalImageMessage(message: HostToEditorMessage): boolean {
 
 export function clearLocalImageCache(): void {
 	cache.clear();
+	// Blob URLs retain their backing bytes until revoked, even after image DOM is removed.
 	for (const uri of objectUrls) URL.revokeObjectURL(uri);
 	objectUrls.clear();
 	for (const request of pending.values()) {

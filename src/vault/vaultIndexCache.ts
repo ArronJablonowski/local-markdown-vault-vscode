@@ -95,6 +95,7 @@ const RECORD_KEYS = new Set([
 
 /** Returns a completely validated cache or rejects the entire envelope. */
 export function validateVaultIndexCache(value: unknown, identity: VaultIndexCacheIdentity): VaultIndexRecord[] | undefined {
+	// Cache shape and identity are untrusted even though this file lives in extension storage.
 	if (!isPlainObject(value) || !hasExactKeys(value, ['schema', 'rootHash', 'extensionVersion', 'exclusions', 'records'])) return undefined;
 	if (value.schema !== identity.schema || value.rootHash !== identity.rootHash || value.extensionVersion !== identity.extensionVersion) return undefined;
 	if (!isStringArray(value.exclusions, 256, 512) || !sameStrings(value.exclusions, identity.exclusions)) return undefined;
@@ -163,6 +164,7 @@ function isStringArray(value: unknown, maxItems: number, maxLength: number): val
 function isPersistedPropertyMap(value: unknown): value is Record<string, null> {
 	if (!isPlainObject(value)) return false;
 	const entries = Object.entries(value);
+	// Null placeholders enforce the writer's no-property-values-on-disk contract on reads too.
 	return entries.length <= MAX_PROPERTY_NODES
 		&& entries.every(([key, item]) => key.length <= 512 && !key.includes('\0') && item === null);
 }

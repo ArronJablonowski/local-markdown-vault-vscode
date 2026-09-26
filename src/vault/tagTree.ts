@@ -21,6 +21,7 @@ export function buildTagTree(records: ReadonlyArray<{ tags: readonly string[] }>
 					node = { segment, path, notes: new Set(), children: new Map() };
 					children.set(segment, node);
 				}
+				// A note tagged with multiple descendants still contributes only once to each parent.
 				node.notes.add(note);
 				children = node.children;
 			}

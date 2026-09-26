@@ -111,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 	// shikiHost.ts); this is the only place that knows where the extension was
 	// installed to.
 	setGrammarRoot(context.extensionPath);
+	// Register Vault navigation first; resolve its editor callback only when a note opens.
 	let livePreviewProvider: MarkdownLivePreviewProvider | undefined;
 	const vaultRegistration = await registerVault(context, {
 		revealOpenedLine: (uri, line) => livePreviewProvider?.jumpToDocument(uri, line) ?? false,
@@ -130,6 +131,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 	flushPendingSaves = () => provider.flushPendingSaves();
 	context.subscriptions.push(providerDisposable);
 	context.subscriptions.push(registerNativeMarkdownCompatibility());
+	// Push shared state to existing webviews instead of recreating their editing sessions.
 	context.subscriptions.push(styleStore.onDidChange(() => provider.broadcastCssChanged()));
 	context.subscriptions.push(vaultRegistration.onDidChangeIndex(() => provider.broadcastVaultNotesChanged()));
 

@@ -1,5 +1,6 @@
 import type { HeadingItem } from './headings';
 
+/** Half-open UTF-16 ranges in LF-normalized text, not byte or native CRLF offsets. */
 export interface TextChange {
 	from: number;
 	to: number;
@@ -19,6 +20,7 @@ export interface CodeBlockTokens {
 }
 
 export type RemoteMediaPolicy = 'block' | 'https';
+// Update validators and both endpoints together when changing this wire contract.
 export const EDITOR_PROTOCOL_VERSION = 1;
 
 export interface VaultNoteSummary {
@@ -71,6 +73,7 @@ export type HostToEditorMessage =
 	| { type: 'vaultNotes'; notes: VaultNoteSummary[] }
 	| { type: 'vaultNotesChunk'; generation: number; offset: number; total: number; notes: VaultNoteSummary[] };
 
+// Paths in these messages are requests, not authority; the host reauthorizes each operation.
 export type EditorToHostMessage =
 	| { type: 'draftSnapshot'; text: string; baselineText: string; requiresSeparatePreservation?: true }
 	| { type: 'checkpoint'; requestId: number; text: string; baselineText: string }

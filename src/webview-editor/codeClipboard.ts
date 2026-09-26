@@ -8,6 +8,7 @@ let post: ((message: EditorToHostMessage) => void) | undefined;
 export function setCodeClipboardPoster(poster: (message: EditorToHostMessage) => void): void { post = poster; }
 
 export function handleCodeClipboardResult(requestId: number, ok: boolean): void {
+	// A late reply from an expired copy cannot confirm a newer clipboard request.
 	if (pending?.id === requestId) pending.finish(ok);
 }
 

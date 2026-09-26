@@ -31,6 +31,7 @@ export function parseWikiLinkBody(body: string): ParsedWikiLink | undefined {
 	};
 }
 
+/** Resolve path, then basename, then alias; ambiguity at a higher tier never falls through. */
 export function resolveWikiLinkSummary(target: string, notes: readonly VaultNoteSummary[]): WikiLinkResolution {
 	if (!target) return { kind: 'unresolved' };
 	const normalized = normalizeTarget(target);

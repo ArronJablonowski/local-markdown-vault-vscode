@@ -28,6 +28,7 @@ export interface MarkdownPreviewApi {
 }
 
 export function createMarkdownPreviewSupport(): MarkdownPreviewApi & vscode.Disposable {
+	// VS Code may reuse a parser; wrapping its rule twice would duplicate our marker.
 	const installed = new WeakSet<MarkdownItPreview>();
 	let disposed = false;
 	let refreshing = false;

@@ -61,6 +61,7 @@ async function verifyVsix(archivePath) {
 	let totalUncompressedBytes = 0;
 	const names = new Set();
 	for (const entry of files) {
+		// Inspect the original ZIP path so parser normalization cannot hide traversal.
 		const originalName = entry.unsafeOriginalName ?? entry.name;
 		assertSafeArchivePath(originalName);
 		if (entry.name !== originalName) fail(`path was rewritten by ZIP parser: ${JSON.stringify(originalName)}`);

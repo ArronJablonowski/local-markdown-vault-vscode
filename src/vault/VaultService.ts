@@ -38,6 +38,7 @@ interface CreatedVaultDirectory {
 	readonly identity: Stats;
 }
 
+/** Filesystem authority for one local workspace; callers must revalidate after awaits. */
 export class VaultService {
 	readonly canonicalRootUri: vscode.Uri;
 	private readonly createdFileLeases = new Map<string, { uri: vscode.Uri; handle: FileHandle }>();
@@ -81,6 +82,7 @@ export class VaultService {
 		if (!isCurrent()) throw new Error('The Document Vault changed before the operation completed.');
 	}
 
+	/** Lexical membership only; use the authorization helpers before filesystem access. */
 	relativePath(uri: vscode.Uri): string | undefined {
 		if (uri.scheme !== 'file') return undefined;
 		const value = relative(this.rootUri.fsPath, uri.fsPath).replace(/\\/g, '/');
@@ -734,6 +736,7 @@ export class VaultService {
 		return { count, truncated: false };
 	}
 
+	/** Constructs a confined path without asserting that its current disk target is safe. */
 	uriForRelative(relativePath: string): vscode.Uri {
 		const target = resolveVaultRelativePath(this.rootUri.fsPath, relativePath, process.platform === 'win32');
 		if (target === undefined) throw new Error('The item is outside the Document Vault.');

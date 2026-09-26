@@ -10,6 +10,7 @@ export type VaultQueryClause =
 	| { kind: 'filter'; field: FilterField; value: string; negated: boolean };
 
 export interface ParsedVaultQuery {
+	/** Clauses within a group are ANDed; any successful group satisfies OR. */
 	groups: VaultQueryClause[][];
 }
 
@@ -40,6 +41,7 @@ export function parseVaultQuery(query: string): ParsedVaultQuery | undefined {
 			const flags = value.slice(slash + 1);
 			if (!source || source.length > 128 || !isSupportedRegexFlags(flags)) return undefined;
 			try {
+				// RE2 avoids backtracking attacks; the program cap also bounds compiled query size.
 				const expression = RE2JS.compile(source, flags.includes('i') ? RE2JS.CASE_INSENSITIVE : 0);
 				if (expression.programSize() > 1_000) return undefined;
 				groups.at(-1)!.push({ kind: 'regex', value: expression, negated });
@@ -167,6 +169,7 @@ export function findParsedVaultContentMatch(record: VaultIndexRecord, text: stri
 		...record.tags, ...Object.entries(record.properties).flatMap(([key, value]) => [key, propertyText(value)]),
 	];
 	const foldedMetadata = metadataFields.map((value) => value.toLocaleLowerCase());
+	// Keep this memo per note, never across edits or searches with different content.
 	const textMatches = new Map<string, { bodyMatch?: VaultContentMatch; metadataMatched: boolean }>();
 	let authoritativeProperties: Readonly<Record<string, unknown>> | undefined;
 	for (const group of parsed.groups) {

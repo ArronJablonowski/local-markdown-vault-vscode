@@ -164,6 +164,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 
 	async getChildren(element?: VaultNode): Promise<VaultNode[]> {
 		const resolution = this.resolution;
+		// A refreshed tree must not publish children returned by an older directory read.
 		const generation = this.generation;
 		if (!resolution.available) return element ? [] : [new VaultUnavailableItem(resolution.reason)];
 		if (element instanceof VaultUnavailableItem) return [];
@@ -230,6 +231,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 			return nodes.sort((a, b) => folderFirst(a, b) || direction * basename(a.uri.fsPath).localeCompare(basename(b.uri.fsPath), undefined, { numeric: true, sensitivity: 'base' }));
 		}
 		const stats = new Map<string, { created: number; modified: number }>();
+		// Name sorting avoids disk metadata reads; date sorting still uses confined entry checks.
 		await Promise.all(nodes.map(async (node) => {
 			try {
 				const stat = await service.statEntryInside(node.uri);

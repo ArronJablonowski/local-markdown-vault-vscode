@@ -103,9 +103,7 @@ async function ensureLang(highlighter: HighlighterCore, lang: string): Promise<b
 	})();
 
 	loadedLangs.set(lang, load);
-	// A failed read shouldn't be cached forever, but retrying per fence would
-	// hammer the disk for a genuinely absent file; the entry is dropped only if
-	// the load rejected outright, which the catch above already prevents.
+	// Cache failures for this host session too, avoiding a disk retry for every fence.
 	return load;
 }
 
@@ -199,6 +197,7 @@ export async function tokenizeDocument(document: vscode.TextDocument): Promise<C
 		}
 
 		const tokens: CodeBlockTokens['tokens'] = [];
+		// Return native document offsets; DocumentSync converts CRLF coordinates for CodeMirror.
 		for (let li = 0; li < tokenLines.length; li++) {
 			let col = 0;
 			for (const token of tokenLines[li]) {

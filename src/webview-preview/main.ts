@@ -126,6 +126,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
 	if (!parsed.ok) return;
 	const message = parsed.value;
 	if (message.type === 'update') {
+		// The CSS authoring preview is local too; styles must not introduce background requests.
 		themeStyle.textContent = stripNetworkedCss(message.css);
 		// The theme's `body.vscode-dark` / `.vscode-light` gates key off this class.
 		setThemeKind(message.themeKind);

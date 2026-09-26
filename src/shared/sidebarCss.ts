@@ -11,6 +11,7 @@ export function prepareSidebarPreviewCss(css: string): string {
 	let out = '';
 	let depth = 0;
 	let prelude = '';
+	// Each thumbnail owns a shadow root, so page-level theme selectors target its host.
 	const remap = (selector: string) => selector.replace(
 		/\bbody\b((?:\.[-\w]+)*)/g,
 		(_match, classes: string) => classes ? `:host(${classes})` : ':host',

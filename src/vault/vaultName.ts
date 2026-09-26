@@ -1,5 +1,6 @@
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
+/** Apply portable filename rules on every host so a vault can later move between systems. */
 export function validateVaultEntryName(name: string): string | undefined {
 	if (!name || name.trim() !== name) return 'Enter a name without leading or trailing whitespace.';
 	if (name === '.' || name === '..' || /[\\/]/.test(name)) return 'The name must not contain path separators.';

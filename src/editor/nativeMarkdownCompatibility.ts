@@ -22,6 +22,7 @@ export function hasUnsafeNativeMarkdownTab(uri: vscode.Uri): boolean {
  * another extension's files/settings to work around that upstream behavior.
  */
 export function registerNativeMarkdownCompatibility(): vscode.Disposable {
+	// Opening a companion raises tab events; remember attempts to prevent a handoff loop.
 	const attempted = new WeakMap<vscode.Tab, string>();
 	let disposed = false;
 	let scanQueued = false;

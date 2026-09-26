@@ -31,6 +31,7 @@ const productionLicenseExceptions = new Map([
 		license: 'MIT',
 	}],
 ]);
+// Approvals bind both version and integrity; package upgrades require a fresh review.
 const approvedInstallScriptPackages = new Map([
 	['node_modules/@vscode/vsce-sign', ['2.0.9', 'sha512-8IvaRvtFyzUnGGl3f5+1Cnor3LqaUWvhaUjAYO8Y39OUYlOf3cRd+dowuQYLpZcP3uwSG+mURwjEBOSq4SOJ0g==']],
 	['node_modules/esbuild', ['0.28.2', 'sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==']],

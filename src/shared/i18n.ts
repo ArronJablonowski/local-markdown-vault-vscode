@@ -178,9 +178,7 @@ const en = {
 	'sidebar.newStyle': '+ New style',
 	'css.unsafeIgnored': 'Unsafe CSS theme rules were ignored. Remove network, positioning, or extension-control rules to apply this theme.',
 
-	// Sample copy shown inside the CSS-theme previews. It is translated so the
-	// preview reads naturally, and because line height and letter spacing look
-	// different in a script the reader actually uses.
+	// Keep thumbnail sample text in this catalog alongside the US English UI labels.
 	'sample.h1': 'Heading 1',
 	'sample.h2': 'Heading 2',
 	'sample.h3': 'Heading 3',

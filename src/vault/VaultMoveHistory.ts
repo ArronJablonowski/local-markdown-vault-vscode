@@ -164,6 +164,7 @@ export class VaultMoveHistory implements vscode.Disposable {
 	}
 
 	private enqueue(operation: (assertCurrent: () => void) => Promise<boolean>): Promise<boolean> {
+		// Capture at enqueue time so clearing history also cancels work not yet started.
 		const generation = this.generation;
 		const assertCurrent = () => {
 			if (this.disposed || generation !== this.generation) {
@@ -188,6 +189,7 @@ export class VaultMoveHistory implements vscode.Disposable {
 	}
 
 	private readonly expectRenames = (moves: readonly { source: vscode.Uri; destination: vscode.Uri }[]): vscode.Disposable => {
+		// Reference counts keep overlapping exact event exemptions alive until every owner exits.
 		const keys = moves.map(({ source, destination }) => renameKey(source, destination));
 		for (const key of keys) this.expectedRenames.set(key, (this.expectedRenames.get(key) ?? 0) + 1);
 		return { dispose: () => {

@@ -98,6 +98,7 @@ function resolveCandidates(
 	const decoded = safeDecode(link.target.split('?')[0]).replace(/\\/g, '/').trim();
 	if (!decoded) return [source];
 	const extension = posix.extname(decoded).toLocaleLowerCase();
+	// The note index cannot prove whether a non-Markdown attachment exists.
 	if (extension && extension !== '.md' && extension !== '.markdown') return undefined;
 	if (link.kind === 'wikilink' || link.kind === 'wikiEmbed') {
 		// Match the editor's Obsidian-style resolver: exact vault paths take

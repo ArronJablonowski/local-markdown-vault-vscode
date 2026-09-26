@@ -30,6 +30,7 @@ export async function migrateVaultScopedState(
 	];
 	for (const migration of migrations) {
 		const legacy = state.get<unknown>(migration.legacy);
+		// Preserve any newer choice before removing the obsolete key, making reruns harmless.
 		if (state.get<unknown>(migration.current) === undefined && migration.accept(legacy)) {
 			await state.update(migration.current, legacy);
 		}

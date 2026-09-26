@@ -19,6 +19,7 @@ const port = await reservePort();
 try {
 	await Promise.all([mkdir(workspace), mkdir(join(profile, 'User'), { recursive: true }), mkdir(extensions), mkdir(artifacts, { recursive: true })]);
 	await writeFile(join(profile, 'User/settings.json'), JSON.stringify({
+		// Keep edits dirty so search must read open buffers without saving them.
 		'files.autoSave': 'off', 'files.hotExit': 'off',
 		'mdLivePreview.autoSave': false,
 		'mdLivePreview.defaultEditor': 'textEditor',

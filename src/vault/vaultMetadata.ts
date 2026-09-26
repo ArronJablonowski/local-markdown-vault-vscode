@@ -51,6 +51,7 @@ export interface VaultMetadata {
 	searchTokens: string[];
 }
 
+/** Bounded structural hints for navigation; this is not a full Markdown rendering parse. */
 export function extractVaultMetadata(path: string, text: string, options: MetadataParseOptions = {}): VaultMetadata {
 	if (new TextEncoder().encode(text).byteLength > MAX_INDEX_FILE_BYTES) {
 		throw new Error('Markdown file exceeds the metadata indexing limit.');
@@ -74,6 +75,7 @@ export function extractVaultMetadata(path: string, text: string, options: Metada
 	const propertyTags = stringValues(propertyValues.tags ?? propertyValues.tag)
 		.map(normalizeTag)
 		.filter(isBoundedTag);
+	// Blanking ignored syntax preserves line/offset positions for links, headings, and tasks.
 	const searchable = maskCode(text, frontmatter?.end ?? 0, checkBudget);
 	const lineStarts = buildLineStarts(searchable);
 	const headings: VaultHeading[] = [];

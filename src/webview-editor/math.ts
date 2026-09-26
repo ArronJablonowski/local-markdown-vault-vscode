@@ -112,6 +112,7 @@ class MathWidget extends WidgetType {
 		container.className = this.display ? 'mlp-math mlp-math-block' : 'mlp-math mlp-math-inline';
 		if (this.display && this.calloutType) container.classList.add('mlp-callout-block', 'mlp-line-callout', `mlp-callout-${this.calloutType}`);
 		try {
+			// Disable trusted TeX features, then independently sanitize the generated MathML.
 			const generated = katex.renderToString(this.source, {
 				displayMode: this.display,
 				output: 'mathml',

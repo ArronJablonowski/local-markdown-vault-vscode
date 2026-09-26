@@ -23,6 +23,7 @@ try {
 		mkdir(extensions, { recursive: true }), mkdir(artifacts, { recursive: true }),
 	]);
 	await writeFile(join(profile, 'User/settings.json'), JSON.stringify({
+		// Isolate extension saves from VS Code autosave, hot exit, and format-on-save.
 		'files.autoSave': 'off',
 		'files.hotExit': 'off',
 		'files.trimTrailingWhitespace': false,

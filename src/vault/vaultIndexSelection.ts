@@ -20,6 +20,7 @@ export function selectIndexCandidates<T>(
 	discoveryTruncated: boolean,
 	caseInsensitive = process.platform !== 'linux',
 ): IndexCandidateSelection<T> {
+	// A truncated discovery cannot establish completeness, even if its visible subset is small.
 	if (discoveryTruncated) return { kind: 'scanLimit' };
 	const isExcluded = compileVaultExclusions(exclusions, caseInsensitive);
 	const included = candidates.filter(({ path }) => !isExcluded(path));

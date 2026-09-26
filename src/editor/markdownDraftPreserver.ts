@@ -65,6 +65,7 @@ export class MarkdownDraftPreserver {
 	}
 
 	private openDraft(draft: EmergencyDraft): Promise<void> {
+		// Checkpoint and close can request the same draft before its native editor opens.
 		if (draft.opening) return draft.opening;
 		if (this.openingCount >= MAX_MARKDOWN_RECOVERY_ENTRIES) {
 			this.warnFailure(draft);

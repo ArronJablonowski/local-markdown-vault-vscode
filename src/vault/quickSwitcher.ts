@@ -67,6 +67,7 @@ function normalize(value: string): string {
 }
 
 function exactPathKey(value: string): string {
+	// Creation checks retain separators that fuzzy ranking intentionally treats like spaces.
 	return value.normalize('NFKC').trim().replace(/\\/g, '/').replace(/^\.\//, '')
 		.replace(/\.(?:md|markdown)$/i, '').toLocaleLowerCase();
 }

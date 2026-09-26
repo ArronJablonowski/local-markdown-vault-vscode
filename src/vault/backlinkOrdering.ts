@@ -22,6 +22,7 @@ export function filterAndSortBacklinks<T extends BacklinkOrderItem>(
 				const modified = b.record.mtime - a.record.mtime;
 				if (modified) return modified;
 			}
+			// Path tie-breaking keeps equal-rank notes predictable across refreshes.
 			return a.record.path.localeCompare(b.record.path, undefined, { numeric: true, sensitivity: 'base' });
 		});
 }

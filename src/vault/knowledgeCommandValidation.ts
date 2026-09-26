@@ -4,6 +4,7 @@ const MAX_REVEAL_LINE = 10_000_000;
 
 export interface OpenIndexedPathArguments {
 	path: string;
+	/** One-based source line; native revealLine converts this to a zero-based position. */
 	line?: number;
 }
 

@@ -20,6 +20,7 @@ export class IndexMemoryBudget {
 
 	tryReplace(key: string, bytes: number): boolean {
 		if (!Number.isSafeInteger(bytes) || bytes < 0) return false;
+		// Charge the replacement's delta; a rejected update must leave the old accounting intact.
 		const next = this.used - (this.sizes.get(key) ?? 0) + bytes;
 		if (!Number.isSafeInteger(next) || next > this.limit) return false;
 		this.sizes.set(key, bytes);
