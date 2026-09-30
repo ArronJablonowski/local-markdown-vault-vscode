@@ -2,10 +2,11 @@ import { StateField, type EditorState, type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
-import { cursorTouchesRange } from './cmUtils';
+import { cursorTouchesRange, pointerSelectionInProgress } from './cmUtils';
 import { t } from '../shared/i18n';
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import { containingCallouts, toggleCallout } from './calloutState';
+import { refreshPreview } from './previewRefresh';
 
 const MAX_INLINE_MATH_CHARS = 8 * 1024;
 const MAX_BLOCK_MATH_CHARS = 64 * 1024;
@@ -140,9 +141,13 @@ const mathRangeCache = new WeakMap<EditorState, MathRange[]>();
 export function renderableMathRanges(state: EditorState): MathRange[] {
 	const cached = mathRangeCache.get(state);
 	if (cached) return cached;
+	const tree = syntaxTree(state);
 	const ranges = findMathRanges(state.doc.toString()).filter(range => {
+		// An incomplete tree cannot distinguish prose from a table, code, or a
+		// collapsed callout. Keep unparsed source literal until its tree arrives.
+		if (range.to > tree.length || !syntaxTreeAvailable(state, range.to)) return false;
 		if (cursorTouchesRange(state, range.from, range.to)) return false;
-		const node = syntaxTree(state).resolveInner(range.from, 1);
+		const node = tree.resolveInner(range.from, 1);
 		if (containingCallouts(state, node).some(callout => callout.collapsed)) return false;
 		for (let ancestor: typeof node | null = node; ancestor; ancestor = ancestor.parent) {
 			if (['FencedCode', 'CodeBlock', 'InlineCode', 'Table'].includes(ancestor.name)) return false;
@@ -168,7 +173,13 @@ function buildMathDecorations(state: EditorState): DecorationSet {
 export const mathDecorationsField = StateField.define<DecorationSet>({
 	create: buildMathDecorations,
 	update(value, transaction) {
-		return transaction.docChanged || transaction.selection || transaction.effects.some(effect => effect.is(toggleCallout)) ? buildMathDecorations(transaction.state) : value;
+		// Match the other preview layers: never move text under a held mouse,
+		// but apply real edits immediately and catch up on the release refresh.
+		if (!transaction.docChanged && pointerSelectionInProgress()) return value;
+		return transaction.docChanged || transaction.selection
+			|| syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
+			|| transaction.effects.some(effect => effect.is(toggleCallout) || effect.is(refreshPreview))
+			? buildMathDecorations(transaction.state) : value;
 	},
 	provide: (field) => EditorView.decorations.from(field),
 });

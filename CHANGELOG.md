@@ -1,5 +1,6 @@
 # Changelog
 
+- Wait for confirmed Markdown structure before rendering math in large notes, and refresh math when background parsing advances. Keep dollar text literal inside code, rich table cells, and collapsed callouts; defer presentation changes during mouse selection.
 - Keep initial large-note parsing from moving text under an active mouse selection; refresh deferred presentation after release or cancellation while continuing to accept real edits. Add repeated deletion, reconstruction, and mouse-rewrite tests around large Markdown objects.
 - Render indented code with code-block styling and copy controls, including single-line blocks, and allow folding at eight lines. Copy parser-owned code text without Markdown indentation or quote/list prefixes.
 - Resolve fenced-code escape against a current, time-bounded syntax tree so jumping to the end of a large note does not make Command/Ctrl+Enter insert a blank line inside the fence instead of exiting it.
