@@ -3,9 +3,10 @@ import { notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft
 import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
 import type { Range, EditorState, Transaction } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
-import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
+import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret, onPointerRelease, pointerSelectionInProgress, cancelPointerSelection } from './cmUtils';
 import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
 import { diagramFenceRange, diagramFenceText } from './diagramFence';
+import { indentedCodeText } from './indentedCode';
 import { calloutForNode, calloutState, containingCallouts, toggleCallout } from './calloutState';
 import { renderableMathRanges } from './math';
 import { isDrawioPath } from './drawioFileClient';
@@ -368,7 +369,7 @@ class CalloutHeaderWidget extends WidgetType {
 }
 
 /**
- * Floats a copy button over a fenced code block's top-right corner.
+ * Floats code controls over a code block's top-right corner.
  *
  * Attached as a zero-width widget at the start of the block's first content
  * line, so it rides along with that line — no separate positioning root is
@@ -416,11 +417,8 @@ class CopyCodeWidget extends WidgetType {
 		// Code-mode first, so the button order matches every other block: the
 		// `</>` control sits leftmost in the group.
 		//
-		// A code block already shows its text, so what this reveals is the part
-		// that is hidden — the ``` fence lines, with the language tag on them.
-		// Editing those is how the language is changed or the block is unwrapped,
-		// and there is otherwise no way to reach them by mouse: clicking a content
-		// line places the caret without bringing the fences back.
+		// Fenced code reveals its hidden opener/language; indented code focuses
+		// its first content line. Both routes expand a folded block first.
 		host.appendChild(
 			createCodeModeButton(view, {
 				anchor: host,
@@ -428,12 +426,8 @@ class CopyCodeWidget extends WidgetType {
 					if (collapsed) setCollapsed(false);
 					return null;
 				},
-				// The opening ``` line, not the first line of code. Each fence hides
-				// itself based on whether the caret is on *that* line (see the
-				// `FencedCode` case in buildDecorations), so parking inside the body
-				// leaves both fences blank and nothing appears to happen. Landing on
-				// the opening fence puts the caret on the language tag, which is the
-				// thing this button exists to let you edit.
+				// Fences hide per line, so their target must be the opener rather
+				// than the body. Indented blocks have no opener to reveal.
 				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
@@ -464,9 +458,9 @@ class CopyCodeWidget extends WidgetType {
 		// widget is built, and the offsets are re-derived on every rebuild.
 		host.appendChild(
 			createCopyCodeButton(() => {
-				let node: SyntaxNode | null = syntaxTree(view.state).resolveInner(Math.min(this.revealPos, view.state.doc.length), -1);
-				while (node && node.name !== 'FencedCode') node = node.parent;
-				return node ? diagramFenceText(view.state, node)
+				let node: SyntaxNode | null = syntaxTree(view.state).resolveInner(Math.min(this.revealPos, view.state.doc.length), 1);
+				while (node && node.name !== 'FencedCode' && node.name !== 'CodeBlock') node = node.parent;
+				return node ? (node.name === 'CodeBlock' ? indentedCodeText(view.state, node) : diagramFenceText(view.state, node))
 					: view.state.sliceDoc(Math.min(this.from, view.state.doc.length), Math.min(this.to, view.state.doc.length));
 			}),
 		);
@@ -2313,6 +2307,26 @@ function buildDecorations(view: EditorView): DecorationSet {
 					case 'HorizontalRule':
 						decorations.push(Decoration.mark({ class: 'mlp-hr' }).range(node.from, node.to));
 						return;
+					case 'CodeBlock': {
+						// Indented code has no fence or language tag, but needs the same
+						// measured code box and copy/fold controls as fenced code.
+						const first = doc.lineAt(node.from);
+						const last = doc.lineAt(Math.max(node.from, node.to - 1));
+						addLineRange(first.from, last.to, (_n, isFirst, isLast) =>
+							'mlp-line-code' + (isFirst ? ' mlp-line-code-first' : '') + (isLast ? ' mlp-line-code-last' : ''));
+						if (!seenCodeControls.has(node.from)) {
+							seenCodeControls.add(node.from);
+							let collapsed = false;
+							foldedRanges(state).between(first.to, last.to, (from, to) => {
+								if (from === first.to && to === last.to) collapsed = true;
+							});
+							decorations.push(Decoration.widget({
+								widget: new CopyCodeWidget(node.from, last.to, node.from, last.number - first.number + 1, collapsed, ''),
+								side: -1,
+							}).range(node.from));
+						}
+						return;
+					}
 					case 'FencedCode': {
 						const infoNode = node.node.getChild('CodeInfo');
 						const lang = infoNode ? state.sliceDoc(infoNode.from, infoNode.to).trim().toLowerCase() : '';
@@ -2465,15 +2479,46 @@ function buildDecorations(view: EditorView): DecorationSet {
 export const livePreviewPlugin = ViewPlugin.fromClass(
 	class {
 		decorations: DecorationSet;
+		private deferred = false;
+		private readonly offRelease: () => void;
+		private refreshFrame: number | undefined;
+		private readonly flushDeferred = (): void => {
+			if (!this.deferred || pointerSelectionInProgress()) return;
+			if (this.refreshFrame !== undefined) cancelAnimationFrame(this.refreshFrame);
+			this.refreshFrame = undefined;
+			this.view.dispatch({ effects: refreshPreview.of(null) });
+		};
 
-		constructor(view: EditorView) {
+		constructor(private readonly view: EditorView) {
 			this.decorations = buildDecorations(view);
+			this.offRelease = onPointerRelease(() => {
+				if (!this.deferred || this.refreshFrame !== undefined) return;
+				// Complete the mouse event before rebuilding, but do not paint stale markup.
+				this.refreshFrame = requestAnimationFrame(() => {
+					this.refreshFrame = undefined;
+					if (view.dom.isConnected) this.flushDeferred();
+				});
+			});
+			// Home/Delete can arrive before the next frame. Reveal the clicked source
+			// before CodeMirror interprets a key against hidden Markdown delimiters.
+			view.dom.addEventListener('keydown', this.flushDeferred, true);
 		}
 
 		update(update: ViewUpdate) {
-			if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(effect => effect.is(refreshPreview))) || foldedRanges(update.startState) !== foldedRanges(update.state) || update.startState.field(calloutState, false) !== update.state.field(calloutState, false)) {
+			if (update.docChanged || update.viewportChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some(tr => tr.effects.some(effect => effect.is(refreshPreview))) || foldedRanges(update.startState) !== foldedRanges(update.state) || update.startState.field(calloutState, false) !== update.state.field(calloutState, false)) {
+				if (!update.docChanged && pointerSelectionInProgress()) {
+					this.deferred = true;
+					return;
+				}
+				this.deferred = false;
 				this.decorations = buildDecorations(update.view);
 			}
+		}
+		destroy(): void {
+			this.offRelease();
+			this.view.dom.removeEventListener('keydown', this.flushDeferred, true);
+			if (this.refreshFrame !== undefined) cancelAnimationFrame(this.refreshFrame);
+			cancelPointerSelection(this.view.dom);
 		}
 	},
 	{ decorations: (v) => v.decorations },

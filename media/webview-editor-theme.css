@@ -505,7 +505,8 @@ html, body {
 }
 
 #mlp-image-paste-warning,
-#mlp-spreadsheet-paste-warning {
+#mlp-spreadsheet-paste-warning,
+.mlp-code-escape-warning {
 	position: fixed;
 	right: 12px;
 	bottom: 12px;
@@ -517,6 +518,11 @@ html, body {
 	color: var(--vscode-inputValidation-warningForeground, var(--vscode-editor-foreground));
 	background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background, #252526));
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+}
+
+.mlp-code-escape-warning {
+	top: 48px;
+	bottom: auto;
 }
 
 .mlp-wikilink {

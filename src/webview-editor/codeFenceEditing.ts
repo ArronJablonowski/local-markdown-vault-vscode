@@ -1,6 +1,7 @@
-import { syntaxTree } from '@codemirror/language';
-import type { SyntaxNode } from '@lezer/common';
+import { ensureSyntaxTree } from '@codemirror/language';
+import type { SyntaxNode, Tree } from '@lezer/common';
 import type { Command } from '@codemirror/view';
+import { setCodeFenceParseWarning } from './codeFenceParseWarning';
 
 interface FenceRange {
 	closingLineNumber: number;
@@ -8,6 +9,14 @@ interface FenceRange {
 
 const MAX_FENCE_SCAN_LINES = 10_000;
 const MAX_FENCE_CANDIDATES = 128;
+// A cold 1.9 MB note needs about 100 ms on the reference Mac. Keep explicit
+// escape synchronous so immediately queued typing cannot precede the caret move.
+const MAX_FENCE_PARSE_MS = 250;
+
+/** A Find/EOF jump can precede background parsing; never mistake that for plain text. */
+function fenceEditingTree(state: Parameters<Command>[0]['state']): Tree | null {
+	return ensureSyntaxTree(state, state.doc.length, MAX_FENCE_PARSE_MS);
+}
 
 /** Close only a parser-confirmed, top-level unfinished fence at EOF. */
 function closeUnfinishedFence(view: Parameters<Command>[0], node: SyntaxNode): boolean {
@@ -41,7 +50,7 @@ function fencedCodeAncestor(node: SyntaxNode | null): SyntaxNode | null {
  * Bounded textual fallback for caret positions where Lezer resolves an edge
  * of a decorated code line outside `FencedCode`.
  */
-function textualFenceAroundLine(state: Parameters<Command>[0]['state'], lineNumber: number): FenceRange | undefined {
+function textualFenceAroundLine(state: Parameters<Command>[0]['state'], lineNumber: number, tree: Tree): FenceRange | undefined {
 	const first = Math.max(1, lineNumber - MAX_FENCE_SCAN_LINES);
 	let candidates = 0;
 	for (let candidate = lineNumber; candidate >= first; candidate--) {
@@ -51,8 +60,8 @@ function textualFenceAroundLine(state: Parameters<Command>[0]['state'], lineNumb
 		if (opener[1][0] === '`' && opener[2].includes('`')) continue;
 		if (++candidates > MAX_FENCE_CANDIDATES) return undefined;
 		const markFrom = candidateLine.from + candidateLine.text.indexOf(opener[1]);
-		const parsed = fencedCodeAncestor(syntaxTree(state).resolveInner(markFrom, 1))
-			?? fencedCodeAncestor(syntaxTree(state).resolveInner(markFrom, -1));
+		const parsed = fencedCodeAncestor(tree.resolveInner(markFrom, 1))
+			?? fencedCodeAncestor(tree.resolveInner(markFrom, -1));
 		// A previous block's closing fence looks exactly like an opener in plain
 		// text. Never pair it with the next block and jump from unrelated prose.
 		if (parsed?.getChildren('CodeMark')[0]?.from !== markFrom) continue;
@@ -109,12 +118,20 @@ function moveAfterClosingLine(view: Parameters<Command>[0], closingLineNumber: n
 /** Moves an empty caret out of a fenced code block without changing its code. */
 export const escapeFencedCode: Command = (view) => {
 	const { state } = view;
-	if (state.selection.ranges.length !== 1 || !state.selection.main.empty) return false;
+	if (state.readOnly || state.selection.ranges.length !== 1 || !state.selection.main.empty) return false;
 	const cursor = state.selection.main.head;
-	const node = fencedCodeAncestor(syntaxTree(state).resolveInner(cursor, 1))
-		?? fencedCodeAncestor(syntaxTree(state).resolveInner(cursor, -1));
+	const tree = fenceEditingTree(state);
+	if (!tree) {
+		// Never fall through to insertBlankLine or guess a fence from an incomplete
+		// parse. Leave ordinary typing intact, with an explicit failure notice.
+		setCodeFenceParseWarning(view, true);
+		return true;
+	}
+	setCodeFenceParseWarning(view, false);
+	const node = fencedCodeAncestor(tree.resolveInner(cursor, 1))
+		?? fencedCodeAncestor(tree.resolveInner(cursor, -1));
 	if (node) return moveAfterFencedCode(view, node);
-	const textual = textualFenceAroundLine(state, state.doc.lineAt(cursor).number);
+	const textual = textualFenceAroundLine(state, state.doc.lineAt(cursor).number, tree);
 	return textual ? moveAfterClosingLine(view, textual.closingLineNumber) : false;
 };
 
@@ -128,13 +145,16 @@ export const escapeFencedCode: Command = (view) => {
 export const exitFencedCodeOnBlankLine: Command = (view) => {
 	const { state } = view;
 	const selection = state.selection;
-	if (selection.ranges.length !== 1 || !selection.main.empty) return false;
+	if (state.readOnly || selection.ranges.length !== 1 || !selection.main.empty) return false;
 
 	const cursor = selection.main.head;
 	const line = state.doc.lineAt(cursor);
 	if (line.text.trim().length !== 0) return false;
 	if (line.number === state.doc.lines) {
-		const unfinished = fencedCodeAncestor(syntaxTree(state).resolveInner(cursor, -1));
+		const tree = fenceEditingTree(state);
+		if (!tree) return false; // Normal Enter remains available while parsing catches up.
+		setCodeFenceParseWarning(view, false);
+		const unfinished = fencedCodeAncestor(tree.resolveInner(cursor, -1));
 		return unfinished ? closeUnfinishedFence(view, unfinished) : false;
 	}
 
@@ -145,9 +165,14 @@ export const exitFencedCodeOnBlankLine: Command = (view) => {
 	while (closingNumber < state.doc.lines && closingNumber - line.number < MAX_FENCE_SCAN_LINES
 		&& state.doc.line(closingNumber).text.trim().length === 0) closingNumber++;
 	const closingLine = state.doc.line(closingNumber);
-	const node = fencedCodeAncestor(syntaxTree(state).resolveInner(line.from, 1));
+	// Ordinary blank prose needs no full-document parse and must retain Enter.
+	if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*$/.test(closingLine.text)) return false;
+	const tree = fenceEditingTree(state);
+	if (!tree) return false;
+	setCodeFenceParseWarning(view, false);
+	const node = fencedCodeAncestor(tree.resolveInner(line.from, 1));
 	if (!node || state.doc.lineAt(node.to).number !== closingLine.number) {
-		const textual = textualFenceAroundLine(state, line.number);
+		const textual = textualFenceAroundLine(state, line.number, tree);
 		return textual?.closingLineNumber === closingLine.number
 			? moveAfterClosingLine(view, closingLine.number)
 			: false;

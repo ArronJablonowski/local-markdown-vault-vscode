@@ -22,6 +22,7 @@ const en = {
 	'code.toggle.aria': 'Switch to code mode',
 	'code.copy.title': 'Copy this code block',
 	'code.copy.aria': 'Copy code block',
+	'code.escape.parsing': 'Markdown parsing is not finished. The cursor has not moved. Wait a moment and try leaving this block again before typing.',
 	'code.collapse.title': 'Collapse this code block ({0} lines)',
 	'code.collapse.aria': 'Collapse code block',
 	'code.expand.title': 'Expand this code block ({0} lines)',

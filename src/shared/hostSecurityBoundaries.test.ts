@@ -133,7 +133,10 @@ describe('host security boundaries', () => {
 		expect(registration).toContain('provider.invalidate(');
 		expect(registration).toContain('generation === vaultGeneration && targetIndex === index');
 		expect(tree).toContain('async initialize(isCurrent: () => boolean');
-		expect(tree).toContain('if (!isCurrent()) return;');
+		const initialize = tree.slice(tree.indexOf('async initialize('), tree.indexOf('\n\tinvalidate('));
+		const initializeGuard = initialize.indexOf('if (this.disposed || !isCurrent()) return;');
+		expect(initializeGuard).toBeGreaterThan(initialize.indexOf('await VaultService.resolve()'));
+		expect(initializeGuard).toBeLessThan(initialize.indexOf('this.resolution = resolution;'));
 		expect(service).toContain('isCurrentVaultWorkspace(current, root.toString())');
 		expect(service).toContain('assertWorkspaceCurrent(): void');
 		expect(rewrites).toContain('this.vault.assertWorkspaceCurrent();');
@@ -422,7 +425,19 @@ describe('host security boundaries', () => {
 		expect(tree).toContain('const resolution = this.resolution');
 		expect(tree).toContain('const service = resolution.service');
 		expect(tree.match(/generation !== this\.generation \|\| this\.service !== service/g)?.length).toBeGreaterThanOrEqual(3);
-		expect(tree).toContain('return this.sort(nodes, service, generation)');
+		const children = tree.slice(tree.indexOf('async getChildren('), tree.indexOf('\n\tgetParent('));
+		expect(tree).toContain('MAX_READ_ATTEMPTS = 3;');
+		expect(children).toContain('attempt < VaultTreeProvider.MAX_READ_ATTEMPTS && !this.disposed && this.service === service; attempt++');
+		expect(children).toContain('if (element instanceof VaultEntry && (element.fileType & vscode.FileType.SymbolicLink)) return [];');
+		const afterRead = children.slice(children.indexOf('entries = await service.readDirectoryInside(parent);'));
+		const readGuard = afterRead.indexOf('if (this.disposed || this.service !== service) return [];');
+		expect(readGuard).toBeGreaterThan(0);
+		expect(readGuard).toBeLessThan(afterRead.indexOf('if (generation !== this.generation) continue;'));
+		expect(afterRead.indexOf('if (generation !== this.generation) continue;')).toBeLessThan(afterRead.indexOf('const exclude ='));
+		expect(afterRead).toContain('const isExcluded = compileVaultExclusions(exclude);');
+		const afterSort = children.slice(children.indexOf('const sorted = await this.sort(nodes, service, generation);'));
+		expect(afterSort).toContain('if (this.disposed || this.service !== service) return [];\n\t\t\tif (generation === this.generation) return sorted;');
+		expect(afterSort).toContain('if (!this.disposed && this.service === service) this.scheduleSettledRefresh();\n\t\treturn [];');
 		expect(tree).not.toContain('return this.sort(nodes);');
 	});
 

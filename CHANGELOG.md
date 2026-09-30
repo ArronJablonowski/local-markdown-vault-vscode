@@ -1,5 +1,10 @@
 # Changelog
 
+- Keep initial large-note parsing from moving text under an active mouse selection; refresh deferred presentation after release or cancellation while continuing to accept real edits. Add repeated deletion, reconstruction, and mouse-rewrite tests around large Markdown objects.
+- Render indented code with code-block styling and copy controls, including single-line blocks, and allow folding at eight lines. Copy parser-owned code text without Markdown indentation or quote/list prefixes.
+- Resolve fenced-code escape against a current, time-bounded syntax tree so jumping to the end of a large note does not make Command/Ctrl+Enter insert a blank line inside the fence instead of exiting it.
+- Coalesce autosave-driven Vault refreshes and safely retry superseded directory reads so rapid typing does not briefly replace the file tree with an empty list. Keep retries bounded and preserve filesystem authorization checks.
+
 - Stabilize large-note scrolling while typing short styled lines, navigating to the end, and folding callouts. Keep collapsed callout quote markers hidden instead of creating an extra visible row.
 - Preserve Find focus, typed queries, and selected source during immediate redrafts. Contain handled Find and editor Select All shortcuts so VS Code does not replay them asynchronously after typing has begun and overwrite the first replacement characters.
 - Keep native copy, cut, and paste gestures inside the webview so copying followed immediately by deletion preserves the original selection. Handle property-field Select All synchronously. Preserve ordinary copied code and quoted prose instead of rejecting it as malformed CSV; retain strict explicit spreadsheet validation and clear obsolete paste warnings.

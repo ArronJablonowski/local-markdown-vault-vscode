@@ -20,6 +20,21 @@ import { selectionIsSearchMatch } from './searchReveal';
  * plain Node).
  */
 let pointerDown = false;
+let selectingWithPointer = false;
+let pointerSelectionOwner: Element | null = null;
+
+/** Presentation must not move the text under an active primary-button selection. */
+export function pointerSelectionInProgress(): boolean { return selectingWithPointer; }
+
+/** A removed editor cannot wait for a mouse release that may never reach it. */
+export function cancelPointerSelection(owner: Element): void {
+	if (pointerSelectionOwner !== owner) return;
+	pointerSelectionOwner = null;
+	selectingWithPointer = false;
+	pointerDown = false;
+	pressTouchedBlock = false;
+	suppressUntilNextPress = false;
+}
 // Set when a mouse gesture ends with the caret somewhere it was dragged into
 // rather than aimed at. Cleared by the next press, and never set by keyboard
 // motion, so it suppresses exactly that one stray reveal.
@@ -82,6 +97,10 @@ if (typeof document !== 'undefined') {
 		'mousedown',
 		(event) => {
 			pointerDown = true;
+			const target = event.target instanceof Element ? event.target : null;
+			selectingWithPointer = event.button === 0 && !!target?.closest('.cm-content')
+				&& !target.closest('button, input, textarea, select, [contenteditable="true"]:not(.cm-content)');
+			pointerSelectionOwner = selectingWithPointer ? target!.closest('.cm-editor') : null;
 			// Decided from the pointer's coordinates, not from `event.target`.
 			// The target is unreliable here: starting a cell edit re-renders that
 			// cell, so a press arriving while the DOM is being swapped can carry a
@@ -102,11 +121,13 @@ if (typeof document !== 'undefined') {
 		},
 		true,
 	);
-	// `mouseup` can land outside the window; `blur` and `mouseleave` on the
-	// document keep the flag from sticking in that case.
+	// A release outside the window is recovered on blur/cancel or the next
+	// mousemove with no buttons held.
 	const release = () => {
 		if (!pointerDown) return;
 		pointerDown = false;
+		selectingWithPointer = false;
+		pointerSelectionOwner = null;
 		// No mouse gesture that touched a rendered block should leave that block
 		// showing its source. Whether the press started inside the block (a click
 		// on a cell) or outside it (a drag that swept in), the reveal is never what
@@ -129,6 +150,8 @@ if (typeof document !== 'undefined') {
 	document.addEventListener(
 		'mousemove',
 		(event) => {
+			// A release outside the webview may have no corresponding mouseup here.
+			if (pointerDown && event.buttons === 0) { release(); return; }
 			if (!pointerDown || pressTouchedBlock) return;
 			if (pointIsInsideRenderedBlock(event.clientX, event.clientY)) pressTouchedBlock = true;
 		},
@@ -148,6 +171,7 @@ if (typeof document !== 'undefined') {
 	}, true);
 	document.addEventListener('mouseup', release, true);
 	document.addEventListener('dragend', release, true);
+	document.addEventListener('pointercancel', release, true);
 	window.addEventListener('blur', release, true);
 }
 

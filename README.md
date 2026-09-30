@@ -654,6 +654,7 @@ npm run test:integration
 npm run test:integration:cache-restart
 npm run test:integration:focused # requires a desktop session; use xvfb-run on headless Linux
 npm run test:ui:large-redraft    # isolated desktop QA with large notes and typed redrafts
+npm run test:ui:object-boundary  # keyboard/mouse edits above and below large-note objects
 npm run package        # verify and create the VSIX
 ```
 
@@ -668,6 +669,7 @@ Additional references:
 - [Accessibility](docs/ACCESSIBILITY.md)
 - [Code and adversarial UI QA](docs/CODE_AND_UI_QA_2026-09-24.md)
 - [Large-note editing and redraft QA](docs/LARGE_REDRAFT_QA_2026-09-30.md)
+- [Large-note object-boundary QA](docs/OBJECT_BOUNDARY_QA_2026-09-30.md)
 - [Latest active security assessment](docs/SECURITY_ASSESSMENT_2026-09-21.md)
 - [Security policy](SECURITY.md)
 

@@ -123,9 +123,28 @@ test('photo regression: table, heading, three bullet levels, and a new empty bul
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Shift+Tab');
 	await page.keyboard.type('Second-level sibling');
+	// Check the first painted frame, not a DOM snapshot in the mouseup event turn.
+	// A stale bullet in that first frame is a real visible regression.
+	await page.evaluate(() => {
+		(window as any).__listReleaseFrames = new Promise(resolve => {
+			document.addEventListener('mouseup', () => {
+				const frames: Array<{ time: number; positions: number[] }> = [];
+				const sample = (time: number) => {
+					frames.push({ time, positions: Array.from(document.querySelectorAll('.mlp-bullet')).map(el => el.getBoundingClientRect().left) });
+					if (frames.length < 4) requestAnimationFrame(sample);
+					else resolve(frames);
+				};
+				requestAnimationFrame(sample);
+			}, { once: true, capture: true });
+		});
+	});
 	await page.locator('.cm-line', { hasText: 'This is a heading' }).click();
-	const positions = await page.locator('.mlp-bullet').evaluateAll(nodes => nodes.map(el => el.getBoundingClientRect().left));
-	expect(positions[1]).toBeCloseTo(positions[3], 1);
+	const frames = await page.evaluate(() => (window as any).__listReleaseFrames) as Array<{ time: number; positions: number[] }>;
+	await info.attach('bullet-release-frames.json', { body: JSON.stringify(frames), contentType: 'application/json' });
+	for (const frame of frames) {
+		expect(frame.positions).toHaveLength(4);
+		expect(frame.positions[1]).toBeCloseTo(frame.positions[3], 1);
+	}
 	await page.screenshot({ path: info.outputPath('photo-regression.png') });
 	expect(await source(page)).toBe(initial + '\n  - Second-level sibling');
 });

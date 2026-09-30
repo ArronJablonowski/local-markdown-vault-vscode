@@ -49,12 +49,14 @@ interface RevealGuard {
 
 export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vscode.Disposable {
 	private static readonly SETTLED_REFRESH_DELAY_MS = 50;
+	private static readonly MAX_READ_ATTEMPTS = 3;
 	private readonly changeEmitter = new vscode.EventEmitter<VaultNode | undefined | null>();
 	readonly onDidChangeTreeData = this.changeEmitter.event;
 	private resolution: VaultResolution = { available: false, reason: 'noWorkspace' };
 	private watcher: vscode.FileSystemWatcher | undefined;
 	private settledRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
+	private disposed = false;
 	private readonly revealGuards = new WeakMap<VaultEntry, RevealGuard>();
 
 	/** Guard request-only clones while VS Code waits for its tree refresh. */
@@ -84,7 +86,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 
 	async initialize(isCurrent: () => boolean = () => true): Promise<void> {
 		const resolution = await VaultService.resolve();
-		if (!isCurrent()) return;
+		if (this.disposed || !isCurrent()) return;
 		this.resolution = resolution;
 		this.watcher?.dispose();
 		this.watcher = undefined;
@@ -94,7 +96,9 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 				new vscode.RelativePattern(this.resolution.service.rootUri, '**/*'),
 			);
 			this.watcher.onDidCreate((uri) => this.refreshParent(uri));
-			this.watcher.onDidChange((uri) => this.refreshParent(uri));
+			// Autosave changes content, not the tree's shape. Coalesce its bursts,
+			// but still refresh date sorting and provider-reported type changes.
+			this.watcher.onDidChange(() => this.scheduleSettledRefresh());
 			this.watcher.onDidDelete((uri) => this.refreshParent(uri));
 		}
 		this.refresh();
@@ -117,6 +121,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	refresh(element?: VaultNode): void {
+		if (this.disposed) return;
 		this.generation++;
 		this.changeEmitter.fire(element);
 	}
@@ -145,6 +150,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	 * one inexpensive full-tree refresh after the event burst has settled.
 	 */
 	private scheduleSettledRefresh(): void {
+		if (this.disposed) return;
 		this.clearSettledRefresh();
 		this.settledRefreshTimer = setTimeout(() => {
 			this.settledRefreshTimer = undefined;
@@ -163,31 +169,41 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	async getChildren(element?: VaultNode): Promise<VaultNode[]> {
+		if (this.disposed) return [];
 		const resolution = this.resolution;
-		// A refreshed tree must not publish children returned by an older directory read.
-		const generation = this.generation;
 		if (!resolution.available) return element ? [] : [new VaultUnavailableItem(resolution.reason)];
 		if (element instanceof VaultUnavailableItem) return [];
 		const service = resolution.service;
 		const parent = element instanceof VaultEntry ? element.uri : service.rootUri;
 		if (element instanceof VaultEntry && (element.fileType & vscode.FileType.SymbolicLink)) return [];
-		let entries: readonly (readonly [string, vscode.FileType])[];
-		try {
-			entries = await service.readDirectoryInside(parent);
-		} catch {
-			return [];
+		for (let attempt = 0; attempt < VaultTreeProvider.MAX_READ_ATTEMPTS && !this.disposed && this.service === service; attempt++) {
+			// A refresh supersedes the read, not the folder's contents. Retry with
+			// current authority instead of publishing [] and flashing an empty tree.
+			const generation = this.generation;
+			let entries: readonly (readonly [string, vscode.FileType])[];
+			try {
+				entries = await service.readDirectoryInside(parent);
+			} catch {
+				return [];
+			}
+			if (this.disposed || this.service !== service) return [];
+			if (generation !== this.generation) continue;
+			const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<string[]>('exclude', []);
+			const parentPath = service.relativePath(parent);
+			if (parentPath === undefined) return [];
+			const isExcluded = compileVaultExclusions(exclude);
+			const visible = entries.filter(([name]) => !isExcluded(parentPath ? `${parentPath}/${name}` : name));
+			const nodes = visible.map(([name, type]) => {
+				const path = parentPath ? `${parentPath}/${name}` : name;
+				return new VaultEntry(vscode.Uri.joinPath(parent, name), type, parent, path);
+			});
+			const sorted = await this.sort(nodes, service, generation);
+			if (this.disposed || this.service !== service) return [];
+			if (generation === this.generation) return sorted;
 		}
-		if (generation !== this.generation || this.service !== service) return [];
-		const exclude = vscode.workspace.getConfiguration('mdLivePreview.vault', service.rootUri).get<string[]>('exclude', []);
-		const parentPath = service.relativePath(parent);
-		if (parentPath === undefined) return [];
-		const isExcluded = compileVaultExclusions(exclude);
-		const visible = entries.filter(([name]) => !isExcluded(parentPath ? `${parentPath}/${name}` : name));
-		const nodes = visible.map(([name, type]) => {
-			const path = parentPath ? `${parentPath}/${name}` : name;
-			return new VaultEntry(vscode.Uri.joinPath(parent, name), type, parent, path);
-		});
-		return this.sort(nodes, service, generation);
+		// Continuous external changes must not keep a tree request alive forever.
+		if (!this.disposed && this.service === service) this.scheduleSettledRefresh();
+		return [];
 	}
 
 	getParent(element: VaultNode): VaultNode | undefined {
@@ -244,6 +260,7 @@ export class VaultTreeProvider implements vscode.TreeDataProvider<VaultNode>, vs
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		this.generation++;
 		this.clearSettledRefresh();
 		this.watcher?.dispose();

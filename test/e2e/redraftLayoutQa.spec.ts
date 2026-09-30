@@ -238,6 +238,7 @@ test('repeated heading and inline delimiter edits do not leave stale formatting 
 		await target.click();
 		await page.keyboard.press('Home');
 		for (let i = 0; i <= level; i++) await page.keyboard.press('Delete');
+		await expect.poll(() => documentText(page, initial)).toBe(initial);
 		await expect(target).not.toHaveClass(/mlp-line-h[1-6]/);
 	}
 	for (const delimiter of ['**', '*', '~~', '==', '`']) {

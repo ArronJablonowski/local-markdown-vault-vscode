@@ -116,7 +116,8 @@ test.describe('100-note Obsidian comparison vault', () => {
 					break;
 				case 'code-and-literals':
 					await expect(page.locator('.mlp-inline-code')).not.toHaveCount(0);
-					await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(2);
+					// Both fenced blocks and the indented block expose copy controls.
+					await expect(page.getByRole('button', { name: 'Copy code block' })).toHaveCount(3);
 					break;
 				case 'math-and-footnotes':
 					await expect(page.locator('.mlp-math-inline math')).not.toHaveCount(0);

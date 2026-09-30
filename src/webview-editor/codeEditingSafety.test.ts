@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EditorState, EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
+import { syntaxTree } from '@codemirror/language';
 import { escapeFencedCode, exitFencedCodeOnBlankLine } from './codeFenceEditing';
 import { exitEmptyMarkdownSection } from './sectionEditing';
 import { deleteFullySelectedFencedCode } from './blockSelection';
@@ -11,6 +12,48 @@ function view(doc: string, cursor = doc.length): EditorView {
 }
 
 describe('code editing safety', () => {
+	it('escapes a final closed fence immediately after a jump beyond the parsed viewport', () => {
+		const prefix = '# Retained context\n\nA paragraph with **formatting**.\n\n'.repeat(1800);
+		const doc = `${prefix}\`\`\`text\nEOF_ANCHOR\n\`\`\``;
+		const editor = view(doc, doc.indexOf('EOF_ANCHOR') + 'EOF_ANCHOR'.length);
+		expect(syntaxTree(editor.state).length).toBeLessThan(doc.length);
+		expect(escapeFencedCode(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: doc.length, insert: '\n' },
+			selection: { anchor: doc.length + 1 },
+		}));
+	});
+
+	it('exits a trailing blank code line beyond the initial parse without adding more code whitespace', () => {
+		const prefix = 'Retained paragraph with **formatting**.\n\n'.repeat(1200);
+		const doc = `${prefix}\`\`\`text\nkeep\n\n\`\`\``;
+		const editor = view(doc, doc.lastIndexOf('\n```'));
+		expect(syntaxTree(editor.state).length).toBeLessThan(doc.length);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: doc.length, insert: '\n' },
+			selection: { anchor: doc.length + 1 },
+		}));
+	});
+
+	it('closes a confirmed unfinished EOF fence beyond the initial parse', () => {
+		const prefix = 'Retained paragraph with **formatting**.\n\n'.repeat(1200);
+		const doc = `${prefix}\`\`\`text\nkeep\n`;
+		const editor = view(doc);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+			changes: { from: doc.length, insert: '```\n' },
+		}));
+	});
+
+	it('does not misclassify distant prose between two fences while completing the parse', () => {
+		const prefix = 'Retained paragraph with **formatting**.\n\n'.repeat(1200);
+		const doc = `${prefix}\`\`\`text\nfirst\n\`\`\`\n\nProse\n\n\`\`\`text\nsecond\n\`\`\``;
+		const editor = view(doc, doc.indexOf('Prose') + 5);
+		expect(escapeFencedCode(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
 	it('adds a real closing fence without mistaking the opener for the closing fence', () => {
 		const editor = view('```text\none\ntwo');
 		expect(escapeFencedCode(editor)).toBe(true);

@@ -6,7 +6,7 @@ import { DrawioWidget } from './drawioWidget';
 import { isDiagramLang } from './diagramLang';
 import { buildTableWidget, alignedBlockRange } from './livePreviewPlugin';
 import { diagramFenceRange, diagramFenceText } from './diagramFence';
-import { blockCursorTouchesRange, noteRevealed, onPointerRelease } from './cmUtils';
+import { blockCursorTouchesRange, noteRevealed, onPointerRelease, pointerSelectionInProgress } from './cmUtils';
 import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, FrontmatterErrorWidget } from './frontmatterWidget';
 import { parseFrontmatterYaml } from './frontmatterSecurity';
 import { calloutForNode, containingCallouts, toggleCallout } from './calloutState';
@@ -169,6 +169,9 @@ export const blockDecorationsField = StateField.define<DecorationSet>({
 		return buildBlockDecorations(state);
 	},
 	update(value, tr) {
+		// Background parsing must not replace source under a held mouse selection.
+		// Real edits still rebuild immediately so no widget keeps stale offsets.
+		if (!tr.docChanged && pointerSelectionInProgress()) return value;
 		// Rebuild on edits, on selection moves (a cursor entering a block reveals
 		// its raw source), and when background parsing advances the syntax tree —
 		// the latter matters because blocks near the end of a long document aren't
