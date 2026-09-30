@@ -667,6 +667,7 @@ Additional references:
 - [Windows and Linux testing](docs/PLATFORM_TESTING.md)
 - [Accessibility](docs/ACCESSIBILITY.md)
 - [Code and adversarial UI QA](docs/CODE_AND_UI_QA_2026-09-24.md)
+- [Large-note editing and redraft QA](docs/LARGE_REDRAFT_QA_2026-09-30.md)
 - [Latest active security assessment](docs/SECURITY_ASSESSMENT_2026-09-21.md)
 - [Security policy](SECURITY.md)
 
