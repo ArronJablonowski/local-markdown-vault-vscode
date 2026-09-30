@@ -65,7 +65,7 @@ a bullet, three after `1.`, and six after `- [ ]`.
 | PDF and audio wikilinks | Open only | Valid local files open through VS Code. They are not rendered as active inline viewers. |
 | YAML properties | Core typed values | Text, homogeneous lists, numbers, booleans, dates, date-times, tags, and quoted wikilinks have typed presentation and editing. Complex nested YAML remains source text. |
 | Callouts | Supported | Standard callout markers, titles, aliases, nesting, fold state, distinct icons, and Obsidian-style color families render from the authoritative source. |
-| Math | Supported with limits | Inline and block math use the bundled renderer with HTML and unsafe commands disabled. Rich table cells currently display math as literal source. Rendering is bounded to 1,000 candidate expressions per document, 8 KiB per inline expression, and 64 KiB per block expression; content beyond these limits remains source text. |
+| Math | Supported with limits | Inline and block math use the bundled renderer with HTML and unsafe commands disabled. Rich table cells currently display math as literal source. Rendering is bounded to 1,000 candidate expressions per document, 8,192 UTF-16 code units per inline expression, and 65,536 per block expression; content beyond these limits remains source text. |
 | Footnotes | Supported | References and definitions navigate in both directions and remain editable as Markdown. |
 | Tags | Supported | Inline and YAML tags, including nested tags, feed the local Tags view. Code and headings are not interpreted as tags. |
 | Tasks | Supported | Checkboxes are keyboard and pointer operable and change only their source marker. As in Obsidian, every non-space task-state character is treated as completed. |

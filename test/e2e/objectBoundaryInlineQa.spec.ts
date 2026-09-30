@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mountEditor } from './harness';
 
@@ -9,6 +9,13 @@ const before = 'Boundary before: retained observations stay separate from the fo
 const after = 'Boundary after: rewrite this paragraph without changing neighboring evidence.';
 const rewritten = 'Boundary after: reviewed **evidence** with independent *follow-up*.';
 test.use({ screenshot: 'only-on-failure' });
+
+interface LayoutFrame {
+	top: number; height: number; width: number; overflow: number; className: string;
+	time: number; scrollTop: number; scrollHeight: number; contentTop: number;
+	caret?: { top: number; bottom: number }; head: number; cursorLine: string;
+	preMeasureTop?: number; active: string | null;
+}
 
 // Seed large notes once; every subsequent content change comes from real keys.
 function supportingText(minimumBytes: number): string {
@@ -67,18 +74,37 @@ async function mouseSelect(page: Page, line: Locator, text: string): Promise<voi
 
 async function watchLayout(page: Page): Promise<void> {
 	await page.evaluate(() => {
-		const frames: Array<{ top: number; height: number; width: number; overflow: number; className: string }> = [];
+		const frames: LayoutFrame[] = [];
 		(window as any).__boundaryFrames = frames;
-		const sample = () => {
+		const sample = (preMeasureTop?: number) => {
 			const line = Array.from(document.querySelectorAll('.cm-line')).find(el => el.textContent?.startsWith('Boundary before:'));
 			const scroller = document.querySelector('.cm-scroller')!;
 			if (line) {
 				const rect = line.getBoundingClientRect();
-				frames.push({ top: rect.top, height: rect.height, width: rect.width, overflow: scroller.scrollWidth - scroller.clientWidth, className: line.className });
+				const view = (document.querySelector('.cm-content') as any).cmTile.root.view;
+				const head = view.state.selection.main.head;
+				const selection = window.getSelection();
+				const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+				range?.collapse(false);
+				const caret = range?.getBoundingClientRect();
+				frames.push({
+					top: rect.top, height: rect.height, width: rect.width, overflow: scroller.scrollWidth - scroller.clientWidth, className: line.className,
+					time: performance.now(), scrollTop: scroller.scrollTop, scrollHeight: scroller.scrollHeight,
+					contentTop: view.contentDOM.getBoundingClientRect().top, caret: caret ? { top: caret.top, bottom: caret.bottom } : undefined,
+					head, cursorLine: view.state.doc.lineAt(head).text, preMeasureTop,
+					active: document.activeElement?.getAttribute('name') ?? document.activeElement?.getAttribute('class') ?? null,
+				});
 			}
-			if (frames.length < 1000) requestAnimationFrame(sample);
+			if (frames.length < 1000) next();
 		};
-		requestAnimationFrame(sample);
+		const next = () => requestAnimationFrame(() => {
+			const line = Array.from(document.querySelectorAll('.cm-line')).find(el => el.textContent?.startsWith('Boundary before:'));
+			const preMeasureTop = line?.getBoundingClientRect().top;
+			// Sample after CodeMirror's queued frame measurements, without forcing
+			// a measure with coordsAtPos or changing the editor's natural timing.
+			setTimeout(() => sample(preMeasureTop), 0);
+		});
+		next();
 	});
 }
 
@@ -185,11 +211,13 @@ for (const themed of [false, true]) for (const scenario of cases) {
 		await find(page, before);
 		await expect(page.locator('.cm-line', { hasText: 'Boundary after:' }).locator('.mlp-strong')).toHaveText('evidence');
 		await expect(page.locator('.cm-scroller')).toBeVisible();
-		const frames = await page.evaluate(() => (window as any).__boundaryFrames as Array<{ top: number; width: number; height: number; overflow: number }>);
+		const frames = await page.evaluate(() => (window as any).__boundaryFrames as LayoutFrame[]);
+		const framesPath = info.outputPath('boundary-frames.json');
+		writeFileSync(framesPath, JSON.stringify(frames));
+		await info.attach('boundary-frames.json', { path: framesPath, contentType: 'application/json' });
 		expect(frames.length).toBeGreaterThan(10);
 		expect(frames.every(frame => frame.width > 0 && frame.height > 0 && frame.overflow <= 2)).toBe(true);
-		expect(frames.every(frame => frame.top > -1100 && frame.top < 2200)).toBe(true);
-		await info.attach('boundary-frames.json', { body: JSON.stringify(frames), contentType: 'application/json' });
+		expect(frames.every(frame => frame.top > -1100 && frame.top < 2200), JSON.stringify(frames.filter(frame => frame.top <= -1100 || frame.top >= 2200))).toBe(true);
 		await page.screenshot({ path: info.outputPath('boundary-redraft.png') });
 		// Exercise host history routing; the browser harness records requests,
 		// while the native QA owns real disk-backed Undo/Redo restoration.
