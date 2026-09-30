@@ -443,7 +443,9 @@ suite('native Markdown save durability', () => {
 		// Opening a copy must not consume/delete the retained local snapshot.
 		await vscode.commands.executeCommand('mdLivePreview.openRecoveredDrafts');
 		await picker.waitFor({ state: 'visible' });
-		assert.ok(await picker.locator('.quick-input-list .monaco-list-row').filter({ hasText: filename }).count());
+		// Reopening resets the query; filter so virtualization cannot hide the retained draft.
+		await query.fill(filename);
+		await picker.locator('.quick-input-list .monaco-list-row.focused').filter({ hasText: filename }).first().waitFor({ state: 'visible', timeout: 10_000 });
 		await page.keyboard.press('Escape');
 	});
 
