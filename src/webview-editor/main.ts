@@ -1,6 +1,6 @@
 import { EditorState, Annotation, type Extension, Compartment, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { defaultKeymap, indentWithTab, temporarilySetTabFocusMode } from '@codemirror/commands';
+import { defaultKeymap, indentWithTab, selectAll, temporarilySetTabFocusMode } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import {
 	search,
@@ -56,6 +56,7 @@ import { deleteFullySelectedFencedCode } from './blockSelection';
 import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 import { renderedSelection } from './renderedSelection';
+import { clipboardShortcuts } from './clipboardShortcuts';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
 import { PendingEdits } from './pendingEdits';
@@ -420,6 +421,8 @@ function createExtensions(): Extension[] {
 			{ key: 'Mod-z', stopPropagation: true, run: () => requestHistory('undo') },
 			{ key: 'Mod-y', stopPropagation: true, run: () => requestHistory('redo') },
 			{ key: 'Mod-Shift-z', stopPropagation: true, run: () => requestHistory('redo') },
+			// A delayed native Select All can select newly typed replacement text.
+			{ key: 'Mod-a', stopPropagation: true, run: selectAll },
 			{ key: 'Mod-b', stopPropagation: true, run: toggleEmphasisCommand('**') },
 			{ key: 'Mod-i', stopPropagation: true, run: toggleEmphasisCommand('*') },
 			{ key: 'Tab', run: indentQuotedList, shift: view => indentQuotedList(view, true), stopPropagation: true },
@@ -458,6 +461,7 @@ function createExtensions(): Extension[] {
 			blur: () => { flushNow(); persistEditorUiState(); },
 		})),
 		renderedSelection,
+		clipboardShortcuts,
 		EditorView.lineWrapping,
 	];
 }

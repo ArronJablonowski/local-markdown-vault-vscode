@@ -1,28 +1,18 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import { wrapBlockWidget } from './blockWidgetWrap';
-import { loadMermaidModule, type MermaidApi } from './mermaidLoader';
+import { loadMermaidModule } from './mermaidLoader';
 import { createCodeModeButton } from './codeModeButton';
 import { t } from '../shared/i18n';
 import {
 	assertDiagramInputWithinLimits,
 	DiagramLimitError,
 	replaceWithIsolatedDiagramSvg,
+	replaceDiagramWithText,
 } from './diagramSecurity';
 import { renderMermaidBounded } from './mermaidRenderQueue';
 import { mermaidConfiguration } from './mermaidConfiguration';
 import { DiagramVisibilityGate, disposeDiagramVisibility, trackDiagramVisibility } from './diagramVisibility';
-
-// The module load is cached by `loadMermaidModule`, but `initialize()` is
-// re-applied on every call (it's cheap) so a diagram rendered after the user
-// switches VS Code's color theme picks up the new palette instead of being
-// stuck with whatever theme was active the first time any diagram rendered in
-// this webview.
-async function loadMermaid(): Promise<MermaidApi> {
-	const m = await loadMermaidModule();
-	const isDark = document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast');
-	m.initialize(mermaidConfiguration(isDark));
-	return m;
-}
+import { isDarkDiagramTheme, onDiagramThemeChange } from './diagramTheme';
 
 let renderCounter = 0;
 
@@ -53,7 +43,8 @@ export class MermaidWidget extends WidgetType {
 		wrap.className = 'mlp-mermaid-wrap';
 		const root = wrapBlockWidget(wrap);
 		const visibility = new DiagramVisibilityGate(document, error => displayError(error));
-		trackDiagramVisibility(root, visibility);
+		let stopTheme = () => {};
+		trackDiagramVisibility(root, visibility, () => stopTheme());
 
 		const container = document.createElement('div');
 		container.className = 'mlp-mermaid';
@@ -258,29 +249,51 @@ export class MermaidWidget extends WidgetType {
 			return root;
 		}
 		const displayError = (err: unknown): void => {
-			canvas.textContent = t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed'));
+			replaceDiagramWithText(canvas, t('diagram.error', err instanceof DiagramLimitError ? err.message : t('diagram.renderFailed')));
 			canvas.classList.add('mlp-mermaid-error');
 			canvas.setAttribute('role', 'alert');
 			view.requestMeasure();
 		};
 		const showError = (err: unknown): void => visibility.run(() => displayError(err));
-		const showSvg = (svg: string): void => visibility.run(() => {
+		let hasRendered = false;
+		const showSvg = (svg: string): void => {
 			const safeSvg = replaceWithIsolatedDiagramSvg(canvas, svg);
+			canvas.classList.remove('mlp-mermaid-error');
+			canvas.removeAttribute('role');
 			// Some diagram types still emit inline max-width even with the
 			// configured limit disabled. Native mode must keep its true size.
 			safeSvg.style.removeProperty('max-width');
-			if (mode === 'native') resetPanZoom();
+			if (!hasRendered && mode === 'native') resetPanZoom();
+			hasRendered = true;
 			// CodeMirror measured the placeholder; remeasure after the async swap.
 			view.requestMeasure();
-		});
-		visibility.run(() => {
-			void loadMermaid().then((m) => visibility.run(() => {
-				const id = `mlp-mermaid-${renderCounter++}`;
-				void renderMermaidBounded(() => visibility.isDisposed
-					? Promise.reject(new Error('Diagram widget was disposed.')) : m.render(id, code))
-					.then(({ svg }) => showSvg(svg)).catch(showError);
-			})).catch(showError);
-		});
+		};
+		let generation = 0;
+		let rendering = false;
+		const render = (): void => {
+			const current = ++generation;
+			visibility.run(() => {
+				if (rendering) return;
+				rendering = true;
+				void renderMermaidBounded(async () => {
+					if (visibility.isDisposed) throw new Error('Diagram widget was disposed.');
+					const m = await loadMermaidModule();
+					if (visibility.isDisposed) throw new Error('Diagram widget was disposed.');
+					// Initialize inside the render queue: Mermaid's configuration is shared mutable state.
+					m.initialize(mermaidConfiguration(isDarkDiagramTheme()));
+					return m.render(`mlp-mermaid-${renderCounter++}`, code);
+				}).then(({ svg }) => {
+					if (current !== generation) return;
+					visibility.run(() => { if (current === generation) showSvg(svg); });
+				}).catch(error => { if (current === generation) showError(error); }).finally(() => {
+					rendering = false;
+					// Coalesce rapid theme changes and keep the previous SVG until a replacement is ready.
+					if (current !== generation && !visibility.isDisposed) render();
+				});
+			});
+		};
+		stopTheme = onDiagramThemeChange(render);
+		render();
 
 		return root;
 	}

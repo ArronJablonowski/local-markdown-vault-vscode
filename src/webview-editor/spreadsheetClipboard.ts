@@ -82,6 +82,9 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 		delimiter = ',';
 		if (mime === 'auto' && (!classification.includes(',') || !/[\r\n]/.test(classification) || looksLikeMarkdown(classification))) return { kind: 'text' };
 	}
+	// Plain-text detection is only a guess: quotes in code or prose are not
+	// necessarily CSV syntax. Preserve the entire paste, never partial records.
+	const malformed = (): SpreadsheetClipboardResult => mime === 'auto' ? { kind: 'text' } : invalid('malformed');
 
 	const rows: string[][] = [];
 	let row: string[] = [];
@@ -95,20 +98,20 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 			const chunks: string[] = [];
 			for (;;) {
 				const closing = source.indexOf('"', position);
-				if (closing < 0) return invalid('malformed');
+				if (closing < 0) return malformed();
 				chunks.push(source.slice(position, closing));
 				position = closing + 1;
 				if (source[position] !== '"') break;
 				chunks.push('"'); position++;
 			}
 			value = chunks.join('');
-			if (position < source.length && source[position] !== delimiter && source[position] !== '\r' && source[position] !== '\n') return invalid('malformed');
+			if (position < source.length && source[position] !== delimiter && source[position] !== '\r' && source[position] !== '\n') return malformed();
 		} else {
 			const start = position;
 			while (position < source.length && source[position] !== delimiter && source[position] !== '\r' && source[position] !== '\n') {
 				// Excel plain-text TSV commonly contains literal quotes in values
 				// such as HTML or natural language. Only a leading quote is syntax.
-				if (source[position] === '"' && delimiter === ',') return invalid('malformed');
+				if (source[position] === '"' && delimiter === ',') return malformed();
 				position++;
 			}
 			value = source.slice(start, position);

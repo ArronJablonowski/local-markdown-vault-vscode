@@ -1,5 +1,11 @@
 # Changelog
 
+- Stabilize large-note scrolling while typing short styled lines, navigating to the end, and folding callouts. Keep collapsed callout quote markers hidden instead of creating an extra visible row.
+- Preserve Find focus, typed queries, and selected source during immediate redrafts. Contain handled Find and editor Select All shortcuts so VS Code does not replay them asynchronously after typing has begun and overwrite the first replacement characters.
+- Keep native copy, cut, and paste gestures inside the webview so copying followed immediately by deletion preserves the original selection. Handle property-field Select All synchronously. Preserve ordinary copied code and quoted prose instead of rejecting it as malformed CSV; retain strict explicit spreadsheet validation and clear obsolete paste warnings.
+- Repaint Mermaid and draw.io diagrams when the VS Code light/dark palette changes, preserving zoom, pan, and the selected draw.io page. Keep render work serialized and bounded, and show failed redraws visibly instead of leaving a stale SVG over the error.
+- Update DOMPurify to 3.4.16 and development-only brace-expansion and markdown-it dependencies to patched releases. Add large-file keyboard/mouse redraft, layout, theme, and failure-recovery regression coverage.
+
 - Add a visible Vault search button and context-menu action. Search every indexed document's title and full content with literal, case-insensitive keywords, paths, snippets, result counts, refresh, and click/keyboard navigation. Keep advanced query syntax behind an explicit toggle, remove the old UI result/candidate cutoffs, cancel obsolete scans, and recheck exclusions and index readiness without retaining note bodies.
 
 - Add dedicated Undo/Redo Vault Move or Rename commands to the Command Palette and Vault menus. Recalculate links from current content instead of relying on VS Code's disposed-model undo history. Keep bounded, memory-only history with collision, identity, policy, and workspace guards; preserve ordinary text Undo shortcuts.

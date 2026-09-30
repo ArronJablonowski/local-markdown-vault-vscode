@@ -13,6 +13,7 @@ type PasteWarning = 'malformed' | 'tooLarge' | 'textOnly' | 'stale' | 'busy';
 
 export function showSpreadsheetPasteWarning(reason?: PasteWarning): void {
 	let warning = document.getElementById('mlp-spreadsheet-paste-warning');
+	if (!warning && !reason) return;
 	if (!warning) {
 		warning = document.createElement('div');
 		warning.id = 'mlp-spreadsheet-paste-warning';
@@ -62,8 +63,12 @@ export function createSpreadsheetPasteHandler() {
 			const { state } = view;
 			const { from, to } = state.selection.main;
 			if (state.selection.ranges.length !== 1 || inSourceObject(state, from) || inSourceObject(state, to)) return false;
-			const { result } = readSpreadsheetClipboard(event.clipboardData);
-			if (result.kind === 'text') return false;
+			const { result, hasText } = readSpreadsheetClipboard(event.clipboardData);
+			if (result.kind === 'text') {
+				// A successful ordinary paste supersedes any earlier table warning.
+				if (hasText) showSpreadsheetPasteWarning();
+				return false;
+			}
 			event.preventDefault();
 			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return true; }
 			try {

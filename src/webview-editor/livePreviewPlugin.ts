@@ -2250,6 +2250,11 @@ function buildDecorations(view: EditorView): DecorationSet {
 										firstLine.to,
 										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, collapsed, firstLine.from) }),
 									);
+									// Collapsed bodies skip QuoteMark traversal below. Hide the
+									// header prefix here so it cannot wrap above the full-width title.
+									if (collapsed && callout.markerOffset > 0) {
+										pushReplace(firstLine.from, firstLine.from + callout.markerOffset, hiddenMarkerDeco);
+									}
 								}
 								// A callout is not an ordinary quote for styling purposes.
 								// User themes adapt blockquote rules to mlp-line-quote;
@@ -2444,6 +2449,14 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	for (const [lineFrom, cls] of seenLine) {
 		decorations.push(Decoration.line({ class: cls }).range(lineFrom));
+		// Source reveal can leave styled paragraphs, quotes, lists, or code as
+		// plain short text. Their padding is not a typical text height: sampling
+		// it makes large-note navigation jump when a later edit recalibrates it.
+		// Headings already carry this guard, including longer heading lines.
+		const line = doc.lineAt(lineFrom);
+		if (line.length > 0 && line.length <= 20 && !/\bmlp-line-h[1-6]\b/.test(cls)) {
+			decorations.push(Decoration.widget({ widget: hiddenMarker, side: 1 }).range(line.to));
+		}
 	}
 
 	return Decoration.set(decorations, true);

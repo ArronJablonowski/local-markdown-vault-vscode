@@ -179,17 +179,67 @@ test('ragged TSV pads absent values without dropping the trailing empty column',
 	await expect.poll(() => sourceAfterEdits(page, '')).toBe('| A | B | C |\n| --- | --- | --- |\n| One | Two |  |\n| Three |  |  |\n\n');
 });
 
-for (const clipboard of ['Name,Value\n"Unterminated,field', 'A\tB\n"Bad" tail\tOther']) {
-	test(`malformed quoted spreadsheet is refused without modifying the note: ${JSON.stringify(clipboard)}`, async ({ page }) => {
+for (const [mime, clipboard] of [
+	['text/csv', 'Name,Value\n"Unterminated,field'],
+	['text/tab-separated-values', 'A\tB\n"Bad" tail\tOther'],
+] as const) {
+	test(`malformed explicit ${mime} is refused without modifying the note`, async ({ page }) => {
 		const original = 'Keep this source';
 		await mountEditor(page, original);
 		await selectAll(page);
-		await paste(page, { 'text/plain': clipboard });
+		await paste(page, { 'text/plain': 'Do not silently use this fallback', [mime]: clipboard });
 		await expect(page.locator('#mlp-spreadsheet-paste-warning')).toBeVisible();
 		await expect(page.locator('#mlp-spreadsheet-paste-warning')).toHaveAttribute('role', 'alert');
 		expect(await sourceAfterEdits(page, original)).toBe(original);
 	});
 }
+
+for (const [name, clipboard] of [
+	['copied TypeScript', ['const status = "ready";', 'const retries = 3;', 'const records = [1, 2, 3];', 'let inspected = 0;', 'for (const record of records) {', '  inspected += record;', '}', 'console.log(status);', 'console.log(inspected);', 'export { inspected };'].join('\n')],
+	['quoted prose', 'Reviewer said "ready, pending approval".\nKeep the note, including "quoted speech".'],
+	['JSON', '{\n  "status": "ready",\n  "labels": ["local", "review"]\n}'],
+	['Python', 'labels = ["local", "review"]\nprint("ready", labels)'],
+	['raw HTML', 'Report, status\n<img src="https://paste-tracker.invalid/raw" onerror="window.__pasteExecuted=true">\nContinued, intact'],
+	['incomplete CSV-looking text', 'Name,Value\n"Unterminated,field'],
+	['incomplete TSV-looking text', 'A\tB\n"Bad" tail\tOther'],
+] as const) {
+	test(`plain ${name} can replace a paragraph and be redrafted without a spreadsheet error`, async ({ page }) => {
+		const requested: string[] = [];
+		page.on('request', request => { if (request.url().includes('paste-tracker.invalid')) requested.push(request.url()); });
+		const original = 'Replace this paragraph';
+		await mountEditor(page, original);
+		await selectAll(page);
+		await paste(page, { 'text/plain': clipboard, 'text/html': '<b>Never import this HTML</b>' });
+		await expect.poll(() => sourceAfterEdits(page, original)).toBe(clipboard);
+		await expect(page.locator('#mlp-spreadsheet-paste-warning')).toHaveCount(0);
+		await expect(page.locator('.mlp-table')).toHaveCount(0);
+		await page.keyboard.press(`${modifier}+End`);
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Revised note, "verified".', { delay: 15 });
+		await page.keyboard.press('Backspace');
+		await page.keyboard.type(' and retained.', { delay: 15 });
+		await expect.poll(() => sourceAfterEdits(page, original)).toBe(clipboard + '\nRevised note, "verified" and retained.');
+		await expect(page.locator('.cm-content')).not.toContainText('Never import this HTML');
+		// CodeMirror uses inert, source-less images as caret buffers around widgets.
+		await expect(page.locator('.cm-content img:not(.cm-widgetBuffer)')).toHaveCount(0);
+		await expect(page.locator('.cm-content img[src], .cm-content img[srcset], .cm-content [onerror]')).toHaveCount(0);
+		expect(await page.evaluate(() => (window as any).__pasteExecuted)).toBeUndefined();
+		expect(requested).toEqual([]);
+	});
+}
+
+test('a successful plain-text paste clears an earlier explicit spreadsheet warning', async ({ page }) => {
+	const original = 'Keep this source';
+	await mountEditor(page, original);
+	await selectAll(page);
+	await paste(page, { 'text/csv': 'Name,Value\n"Unterminated,field' });
+	await expect(page.locator('#mlp-spreadsheet-paste-warning')).toBeVisible();
+	expect(await sourceAfterEdits(page, original)).toBe(original);
+	const replacement = 'Reviewer said "ready, pending approval".\nKeep the note, including "quoted speech".';
+	await paste(page, { 'text/plain': replacement });
+	await expect.poll(() => sourceAfterEdits(page, original)).toBe(replacement);
+	await expect(page.locator('#mlp-spreadsheet-paste-warning')).not.toBeVisible();
+});
 
 for (const [name, original, line, expected] of [
 	['fenced code', 'Before\n\n```text\n\n```\n\nAfter', 4, 'Before\n\n```text\nA\tB\n1\t2\n```\n\nAfter'],

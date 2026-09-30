@@ -12,11 +12,14 @@ import {
 import { drawioFileGeneration, readDrawioFile } from './drawioFileClient';
 import type { DrawioDiagram } from '../shared/drawio';
 import { t } from '../shared/i18n';
-import { DiagramLimitError, replaceWithIsolatedDiagramSvg } from './diagramSecurity';
+import { DiagramLimitError, replaceWithIsolatedDiagramSvg, replaceDiagramWithText } from './diagramSecurity';
 import { DiagramVisibilityGate, disposeDiagramVisibility, trackDiagramVisibility } from './diagramVisibility';
+import { onDiagramThemeChange } from './diagramTheme';
 
 function replaceWithSafeSvg(container: HTMLElement, svg: string): void {
 	replaceWithIsolatedDiagramSvg(container, svg);
+	container.classList.remove('mlp-mermaid-error');
+	container.removeAttribute('role');
 }
 
 /**
@@ -61,7 +64,8 @@ export class DrawioWidget extends WidgetType {
 		wrap.className = 'mlp-mermaid-wrap mlp-drawio-wrap';
 		const root = wrapBlockWidget(wrap);
 		const visibility = new DiagramVisibilityGate(document, error => showRenderError(error));
-		trackDiagramVisibility(root, visibility);
+		let stopTheme = () => {};
+		trackDiagramVisibility(root, visibility, () => stopTheme());
 
 		const container = document.createElement('div');
 		container.className = 'mlp-mermaid';
@@ -134,7 +138,7 @@ export class DrawioWidget extends WidgetType {
 		wrap.appendChild(toolbar);
 
 		const showError = (message: string) => {
-			canvas.textContent = message;
+			replaceDiagramWithText(canvas, message);
 			canvas.classList.add('mlp-mermaid-error');
 			canvas.setAttribute('role', 'alert');
 			view.requestMeasure();
@@ -267,6 +271,15 @@ export class DrawioWidget extends WidgetType {
 		setMode('fit');
 
 		// ── Render ───────────────────────────────────────────────────────────────
+		stopTheme = onDiagramThemeChange(() => {
+			if (!diagram) return;
+			visibility.run(() => {
+				if (!diagram) return;
+				// Palette changes repaint the current page without resetting the user's pan or zoom.
+				replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, pageIndex));
+				view.requestMeasure();
+			});
+		});
 		visibility.run(() => {
 			diagram = parseDrawioPages(this.code);
 			replaceWithSafeSvg(canvas, renderParsedDiagram(diagram, 0));

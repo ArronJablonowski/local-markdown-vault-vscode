@@ -309,3 +309,9 @@ export function replaceWithIsolatedDiagramSvg(container: HTMLElement, svg: strin
 	shadow.replaceChildren(layout, safeSvg);
 	return safeSvg;
 }
+
+/** A prior SVG owns a shadow root; light-DOM errors would be invisible behind it. */
+export function replaceDiagramWithText(container: HTMLElement, message: string): void {
+	container.replaceChildren();
+	(container.shadowRoot ?? container).textContent = message;
+}

@@ -91,8 +91,25 @@ describe('parseSpreadsheetClipboard', () => {
 	it.each(['"unfinished', 'abc"def,x', '"closed"junk,x', '"closed" ,x', '"a""', '"a"\tb,c'])('rejects malformed explicit quoting: %j', value => {
 		expect(parseSpreadsheetClipboard(value, 'csv')).toEqual({ kind: 'invalid', reason: 'malformed' });
 	});
-	it('rejects a malformed automatic candidate instead of returning partial records', () => {
-		expect(parseSpreadsheetClipboard('a,b\n"unfinished,c')).toEqual({ kind: 'invalid', reason: 'malformed' });
+	it.each([
+		'a,b\n"unfinished,c',
+		'a,b\n"closed" suffix,c',
+		'a\tb\n"unfinished\tc',
+		'a\tb\n"closed" suffix\tc',
+		'const status = "ready";\nconst records = [1, 2, 3];\nconsole.log(status);',
+		'{\n  "status": "ready",\n  "labels": ["local", "review"]\n}',
+		'labels = ["local", "review"]\nprint("ready", labels)',
+		'Reviewer said "ready, pending approval".\nKeep the note, including "quoted speech".',
+		'She said "he called it \\"done\\"", then left.\nNext, verify the source.',
+	])('preserves ambiguous plain text instead of rejecting or partially converting it: %j', value => {
+		expect(parseSpreadsheetClipboard(value)).toEqual({ kind: 'text' });
+	});
+	it.each(['"unfinished\tx', '"closed" suffix\tx'])('still rejects malformed explicitly declared TSV: %j', value => {
+		expect(parseSpreadsheetClipboard(value, 'tsv')).toEqual({ kind: 'invalid', reason: 'malformed' });
+	});
+	it('bounds oversized auto input before falling back for malformed quotes', () => {
+		expect(parseSpreadsheetClipboard('a,b\n"' + 'x'.repeat(MAX_SPREADSHEET_INPUT_BYTES)))
+			.toEqual({ kind: 'invalid', reason: 'tooLarge' });
 	});
 	it('bounds actual UTF-8 input bytes, not UTF-16 string length', () => {
 		expect(parseSpreadsheetClipboard('é'.repeat(MAX_SPREADSHEET_INPUT_BYTES / 2), 'csv').kind).toBe('table');

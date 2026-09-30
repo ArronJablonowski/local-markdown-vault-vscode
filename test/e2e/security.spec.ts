@@ -188,11 +188,20 @@ test.describe('hostile Markdown boundaries', () => {
 	});
 
 	test('raw HTML remains text and cannot create active DOM', async ({ page }) => {
+		const networkRequests: string[] = [];
+		await page.route('https://tracker.invalid/**', async route => {
+			networkRequests.push(route.request().url());
+			await route.abort();
+		});
 		await mountEditor(
 			page,
 			'Intro\n\n<script>window.__rawHtmlRan = 1</script>\n<img src="https://tracker.invalid/x" onerror="window.__rawHtmlRan=2">\n',
 		);
-		await expect(page.locator('.cm-content script, .cm-content img')).toHaveCount(0);
+		// CodeMirror inserts inert, source-less images beside inline widgets as caret buffers.
+		await expect(page.locator('.cm-content script, .cm-content img:not(.cm-widgetBuffer)')).toHaveCount(0);
+		await expect(page.locator('.cm-content img[src], .cm-content img[onerror]')).toHaveCount(0);
+		await expect(page.locator('.cm-content')).toContainText('<img src="https://tracker.invalid/x" onerror="window.__rawHtmlRan=2">');
+		expect(networkRequests).toEqual([]);
 		expect(await page.evaluate(() => (window as unknown as { __rawHtmlRan?: number }).__rawHtmlRan)).toBeUndefined();
 	});
 

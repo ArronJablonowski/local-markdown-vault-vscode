@@ -394,8 +394,9 @@ on Windows/Linux:
 Tab-separated Excel-style data is recognized automatically. Plain CSV text must
 have at least two rows with the same number of columns (at least two); ordinary
 single-line comma-containing text and plain one-column text keep normal paste
-behavior. A clipboard explicitly labeled CSV or TSV can also contain a single
-row or column. Paste inside code, frontmatter, or raw table source stays ordinary
+behavior. Plain-text code or prose with non-spreadsheet quoting is also pasted
+unchanged rather than rejected. A clipboard explicitly labeled CSV or TSV can
+also contain a single row or column. Paste inside code, frontmatter, or raw table source stays ordinary
 text rather than creating a nested table.
 
 Empty cells, quoted commas, doubled quotes, Unicode/emoji, leading zeros, and
@@ -406,7 +407,8 @@ imported, and formulas are never executed. No cloud service is involved.
 
 Table paste is bounded to 256 KiB of copied text, 1,000 rows, 200 columns, 10,000
 cells in the expanded table, and 512 KiB of resulting table source. Invalid
-quoting or excessive size produces a warning without applying a partial table.
+quoting in explicitly labeled CSV/TSV or excessive size produces a warning
+without applying a partial table.
 Split larger data into smaller tables. A locked note never accepts a paste.
 
 In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
@@ -651,6 +653,7 @@ npm run test:e2e       # browser end-to-end tests
 npm run test:integration
 npm run test:integration:cache-restart
 npm run test:integration:focused # requires a desktop session; use xvfb-run on headless Linux
+npm run test:ui:large-redraft    # isolated desktop QA with large notes and typed redrafts
 npm run package        # verify and create the VSIX
 ```
 

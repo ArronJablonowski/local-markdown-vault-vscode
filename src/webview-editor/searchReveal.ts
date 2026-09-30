@@ -62,12 +62,10 @@ function markingSearchSelection(command: (view: EditorView) => boolean) {
 }
 
 /**
- * Keeps the flag honest when the panel closes.
- *
- * Closing the panel ends the search, so a still-selected match should go back
- * to behaving like any other selection rather than holding a block open.
+ * Keeps the selected source visible when the panel closes.
+ * The next selection-changing user action clears the search flag normally.
  */
-const clearOnPanelClose = EditorView.updateListener.of((update) => {
+const scrollOnPanelClose = EditorView.updateListener.of((update) => {
 	if (!update.startState.field(searchSelectionField, false)) return;
 	const wasOpen = searchPanelOpen(update.startState);
 	const isOpen = searchPanelOpen(update.state);
@@ -76,7 +74,9 @@ const clearOnPanelClose = EditorView.updateListener.of((update) => {
 		// measured heights of thousands of preview blocks. Keep the match in view
 		// after those decorations change instead of retaining an obsolete pixel
 		// scroll offset from before the panel closed.
-		update.view.dispatch({ effects: setSearchSelection.of(false), scrollIntoView: true });
+		// Do not hide selected syntax during the input-to-editor focus handoff:
+		// Chromium can remap that disappearing DOM selection onto another block.
+		update.view.dispatch({ scrollIntoView: true });
 	}
 });
 
@@ -116,29 +116,29 @@ export function preserveSearchPanel(view: EditorView): () => void {
 	};
 }
 
-/**
- * Opens the find panel and puts the caret in its field.
- *
- * `openSearchPanel` focuses the input only when the panel is *already* mounted:
- * on the first press it merely dispatches the effect that creates it, and
- * returns before the DOM exists. So Ctrl+F opened a panel that the user then had
- * to click into, and Escape — which the editor handles, not the panel — did not
- * reach it either. Focusing once the panel has been rendered fixes both.
- */
+/** Opens Find without deferring a focus change into the first typed query. */
 export function openSearchPanelFocused(view: EditorView): boolean {
 	const handled = openSearchPanel(view);
 	if (!handled) return false;
-	// The panel is created by the transaction above, so the field only exists
-	// after the view has updated.
+	const focusPanel = (): boolean => {
+		const panel = view.dom.querySelector<HTMLElement>('.cm-search');
+		if (!panel) return false;
+		// Finish the one-time DOM rearrangement before moving keyboard focus.
+		decorateSearchPanel(view, panel);
+		const input = panel.querySelector<HTMLInputElement>('input[name="search"]');
+		if (input && view.root.activeElement !== input) {
+			input.focus();
+			input.select();
+		}
+		return true;
+	};
+	if (focusPanel()) return true;
+	// Older panel implementations can mount asynchronously. Never refocus a
+	// field after the user has already started typing elsewhere in the panel.
 	view.requestMeasure({
-		read: () => {
-			const input = view.dom.querySelector(
-				'.cm-search input[name="search"]',
-			) as HTMLInputElement | null;
-			if (input && view.root.activeElement !== input) {
-				input.focus();
-				input.select();
-			}
+		read: () => view.root.activeElement === view.contentDOM,
+		write: shouldFocus => {
+			if (shouldFocus) focusPanel();
 		},
 	});
 	return true;
@@ -208,6 +208,9 @@ export function searchRowFor(
 function groupSearchRows(panel: HTMLElement): void {
 	const br = panel.querySelector('br');
 	if (!br) return;
+	const active = panel.ownerDocument.activeElement;
+	const focusedInput = active instanceof HTMLInputElement && panel.contains(active) ? active : null;
+	const selection = focusedInput && { start: focusedInput.selectionStart, end: focusedInput.selectionEnd, direction: focusedInput.selectionDirection };
 
 	const findRow = document.createElement('div');
 	findRow.className = 'mlp-search-row mlp-search-row-find';
@@ -239,6 +242,14 @@ function groupSearchRows(panel: HTMLElement): void {
 	br.remove();
 	panel.insertBefore(replaceRow, panel.firstChild);
 	panel.insertBefore(findRow, replaceRow);
+	// Reparenting an input can blur it. Preserve partially typed queries and
+	// their caret instead of letting a later focus callback select them all.
+	if (focusedInput) {
+		focusedInput.focus({ preventScroll: true });
+		if (selection?.start !== null && selection?.start !== undefined) {
+			focusedInput.setSelectionRange(selection.start, selection.end, selection.direction ?? undefined);
+		}
+	}
 }
 
 /**
@@ -273,6 +284,20 @@ function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 	iconifyToggles(panel);
 	groupSearchRows(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;
+	panel.addEventListener('keydown', event => {
+		const field = event.target;
+		if (!(field instanceof HTMLInputElement)) return;
+		if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'a') {
+			// VS Code forwards uncontained shortcuts back asynchronously. A late
+			// Select All would select the first newly typed query characters.
+			event.preventDefault();
+			event.stopPropagation();
+			field.select();
+		} else if (event.key === 'Escape' || event.key === 'Enter') {
+			// The panel already handled these keys; do not replay them in the host.
+			event.stopPropagation();
+		}
+	});
 	// Mouse paste, drag/drop, and assistive input do not necessarily emit keyup.
 	// Commit on input so the first Enter searches the newly entered query.
 	panel.addEventListener('input', event => {
@@ -334,6 +359,6 @@ const replaceToggle = EditorView.updateListener.of((update) => {
 
 export const searchRevealExtension: Extension = [
 	searchSelectionField,
-	clearOnPanelClose,
+	scrollOnPanelClose,
 	replaceToggle,
 ];
