@@ -22,11 +22,16 @@ const local = await mkdtemp(join(tmpdir(), 'mdlp-linux-clipboard-'));
 const unicode = 'Unicode clipboard fixture\nCaf\u00e9, na\u00efve, \u6771\u4eac, \ud83d\ude80\nFinal multiline record.';
 const code = 'const message = "Clipboard \u03a9 \ud83d\ude80";\nconsole.log(message);';
 const widgets = `Start mixed selection\n\n| Name | Value |\n| --- | --- |\n| Alpha bravo | Charlie delta |\n\nCODE_SECTION\n\n\`\`\`typescript\n${code}\n\`\`\`\n\n- [ ] Preserve task\n\n> [!note] Local note\n> Preserve the full callout.\n\nEnd mixed selection`;
+const tableTarget = 'Before\n\n| Item | Count |\n| --- | --- |\n| Keep original | 2 |\n\nAfter';
 const initial = new Map([
   ['Unicode clipboard.md', unicode],
   ['Mixed widgets.md', widgets],
   ['Paste target.md', '# Clipboard paste target\n\nPASTE_HERE\n\nTSV_HERE\n\nPLAIN_HERE\n\nCODE_HERE\n\nUNLOCK_HERE\n'],
   ['Spreadsheet seed.md', 'Item\tQuantity\nApples\t3\nPears\t7\n'],
+  ['External text seed.md', 'External'],
+  ['Consecutive table paste.md', tableTarget],
+  ['Immediate Tab paste.md', tableTarget],
+  ['Pasted table replacement.md', 'Replace this entire synthetic note.'],
 ]);
 const expected = new Map(initial);
 const report = { startedAt: new Date().toISOString(), platform: 'linux-arm64', completed: false, passed: false, checks: [], failures: [], samples: [], files: [], pageErrors: [], consoleErrors: [], keys: 0, clipboardReads: 0 };
@@ -196,6 +201,50 @@ try {
     await frame.locator('.cm-content').focus(); await press('Control+z');
     expected.set(current, before); await saved();
   });
+  await check('Consecutive native text pastes remain in the same rendered table cell', async () => {
+    await open('External text seed.md'); await press('Control+a'); await press('Control+c');
+    const text = initial.get(current); await copied(text); await saved();
+    await open('Consecutive table paste.md');
+    await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    // No refocus or locator wait between pastes: the live cell must keep ownership.
+    await press('Control+v'); await press('Control+v');
+    expected.set(current, tableTarget.replace('Keep original', text + text)); await saved();
+    assert.equal(await frame.locator('.mlp-table-cell-editing').evaluate(cell => document.activeElement === cell), true);
+    await delay(500); await unchanged('consecutive table paste has no delayed replay');
+    await screenshot('consecutive-table-paste');
+  });
+  await check('Immediate Tab then typing and native Paste preserve the next cell draft', async () => {
+    await open('External text seed.md'); await press('Control+a'); await press('Control+c');
+    const text = initial.get(current); await copied(text); await saved();
+    await open('Immediate Tab paste.md');
+    await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    await page.keyboard.type('Left');
+    // Deliberately no frame, locator, source, clipboard, or disk read after Tab.
+    await press('Tab'); await page.keyboard.type('Typed '); await press('Control+v');
+    expected.set(current, tableTarget.replace('| Keep original | 2 |', `| Left | Typed ${text} |`)); await saved();
+    const active = await frame.evaluate(() => ({ row: document.activeElement?.getAttribute('data-mlp-row'), col: document.activeElement?.getAttribute('data-mlp-col') }));
+    assert.deepEqual(active, { row: '1', col: '1' });
+    await delay(500); await unchanged('Tab typing and paste have no delayed replay');
+    await screenshot('immediate-tab-type-paste');
+  });
+  await check('Select All replacing a native-pasted TSV table keeps the first typed character', async () => {
+    await open('Spreadsheet seed.md'); await press('Control+a'); await press('Control+c');
+    await copied(initial.get(current)); await saved();
+    await open('Pasted table replacement.md');
+    const grid = '| Item | Quantity |\n| --- | --- |\n| Apples | 3 |\n| Pears | 7 |\n\n';
+    const replacement = 'External selection to replace';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await frame.locator('.cm-content').focus(); await press('Control+a'); await press('Control+v');
+      expected.set(current, grid); await saved();
+      assert.equal(await frame.locator('.mlp-table').count(), 1, 'TSV paste rendered a table');
+      await frame.locator('.cm-content').focus();
+      await press('Control+a'); await page.keyboard.type(replacement);
+      expected.set(current, replacement); await saved();
+    }
+    report.tableReplacementRounds = 5;
+    await delay(500); await unchanged('typed replacement has no delayed replay');
+    await screenshot('pasted-table-typed-replacement');
+  });
   for (const [name, text] of expected) {
     const actual = await disk(name);
     report.files.push({ name, initialSha256: hash(initial.get(name)), expectedSha256: hash(text), finalSha256: hash(actual), exactExpected: actual === text });
@@ -257,7 +306,11 @@ async function find(text) {
 }
 async function open(name) {
   current = name;
-  await page.getByRole('treeitem', { name: `File: ${name}`, exact: true }).dblclick();
+  // The native vault tree virtualizes rows when the fixture set grows. Open
+  // the exact synthetic path through Quick Open, independent of sidebar height.
+  await press('Control+p');
+  await page.locator('.quick-input-widget:visible .quick-input-box input').fill(`${remote}/Clipboard QA Vault/${name}`);
+  await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: name }).first().click();
   await wait(async () => {
     for (const candidate of page.frames()) {
       if (candidate.isDetached() || !await candidate.locator('.cm-content').count()) continue;
