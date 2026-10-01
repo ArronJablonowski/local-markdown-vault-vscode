@@ -3,7 +3,8 @@
 // Required: MDLP_LINUX_QA_HOST, MDLP_LINUX_QA_KEY, MDLP_LINUX_QA_EXTENSION.
 // Optional: MDLP_LINUX_QA_ARTIFACTS, MDLP_LINUX_QA_SIZES (comma-separated bytes),
 // MDLP_LINUX_QA_DIRECTIONS (down,up,right,left), MDLP_LINUX_QA_KINDS (object names),
-// MDLP_LINUX_QA_VSIX (remote archive path), MDLP_LINUX_QA_KEEP_REMOTE=1.
+// MDLP_LINUX_QA_VSIX (remote archive path), MDLP_LINUX_QA_KEEP_REMOTE=1,
+// MDLP_LINUX_QA_DOM_FIRST=1 (passive frame/DOM probes before CodeMirror geometry).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -86,10 +87,16 @@ try {
     await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Manage Workspace Trust' }).first().click();
     await page.getByRole('button', { name: 'Trust', exact: true }).click();
     if (await trust.isVisible()) await trust.click();
+    await page.getByText('You trust this folder', { exact: true }).waitFor({ state: 'visible' });
     await wait(async () => !await page.getByText('Restricted Mode', { exact: true }).count(), 'trust only the synthetic workspace');
   }
   report.syntheticWorkspaceTrusted = true;
   await press('Escape');
+  const modal = page.locator('.monaco-modal-editor-block');
+  if (await modal.isVisible()) {
+    await press('Control+w');
+    await modal.waitFor({ state: 'hidden' });
+  }
   await page.getByRole('tab', { name: /Local Markdown Vault/ }).click();
   for (const [index, current] of report.files.entries()) {
     file = current;
@@ -216,42 +223,82 @@ async function unchanged(label) {
   const actual = await frame.evaluate(() => document.querySelector('.cm-content').cmTile.root.view.state.doc.toString());
   assert.equal(hash(actual), file.initialSha256, `${label}: editor source changed`);
 }
-async function caretVisible(label) {
-  await delay(150);
-  const value = await frame.evaluate(() => {
-    const view = document.querySelector('.cm-content').cmTile.root.view;
-    const main = view.state.selection.main, head = main.head;
-    // Match CodeMirror's inward endpoint affinity for a nonempty selection.
-    // The opposite side can describe the next widget rather than the DOM focus.
-    const measuredSide = main.empty ? main.assoc || 1 : main.head > main.anchor ? -1 : 1;
-    const caret = view.coordsAtPos(head, measuredSide);
-    const scroller = view.scrollDOM.getBoundingClientRect();
-    const guard = view.plugins.map(plugin => plugin.value).find(value => typeof value?.remaining === 'number' && typeof value?.deadline === 'number');
-    const native = document.getSelection();
-    let nativeFocus;
-    if (native?.focusNode) {
-      const range = document.createRange();
-      range.setStart(native.focusNode, native.focusOffset); range.collapse(true);
-      const box = range.getBoundingClientRect();
-      nativeFocus = { node: native.focusNode.nodeName, offset: native.focusOffset, text: native.focusNode.textContent?.slice(0, 100),
-        geometry: { top: box.top, bottom: box.bottom, left: box.left, right: box.right, height: box.height },
+async function caretVisible(label, { delayMs = 150, observeOnly = false } = {}) {
+  await delay(delayMs);
+  const value = await frame.evaluate(async ({ domFirst }) => {
+    const completedFrame = () => new Promise(done => requestAnimationFrame(() => setTimeout(done, 0)));
+    const passive = () => {
+      const content = document.querySelector('.cm-content'), view = content.cmTile.root.view;
+      const scroller = document.querySelector('.cm-scroller');
+      const rect = element => { const box = element.getBoundingClientRect(); return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, height: box.height }; };
+      const native = document.getSelection(), focus = native?.focusNode;
+      const element = focus instanceof Element ? focus : focus?.parentElement;
+      let nativeFocus;
+      if (focus) { const range = document.createRange(); range.setStart(focus, native.focusOffset); range.collapse(true); nativeFocus = rect(range); }
+      const guard = view.plugins.map(plugin => plugin.value).find(value => typeof value?.remaining === 'number' && typeof value?.deadline === 'number');
+      return { sampledAt: performance.now(), head: view.state.selection.main.head,
+        viewport: rect(scroller), scrollTop: scroller.scrollTop,
+        cursors: [...document.querySelectorAll('.cm-cursor')].map(rect).filter(box => box.height > 0),
+        nativeFocus, focusLine: element?.closest('.cm-line') && rect(element.closest('.cm-line')),
+        collapsed: native?.isCollapsed, focused: document.activeElement === content,
+        measureScheduled: view.measureScheduled, measureRequests: view.measureRequests.length,
+        guard: guard && { remaining: guard.remaining, pending: guard.pending, millisecondsLeft: guard.deadline - Date.now() },
       };
-    }
-    return { head, caret, defaultCaret: view.coordsAtPos(head), measuredSide,
-      caretBySide: [-1, 0, 1].map(side => ({ side, coords: view.coordsAtPos(head, side) })), association: main.assoc,
-      viewport: { top: scroller.top, bottom: scroller.bottom, left: scroller.left, right: scroller.right },
-      focused: view.hasFocus, contentFocused: view.root.activeElement === view.contentDOM,
-      activeElement: view.root.activeElement?.className, clientHeight: view.scrollDOM.clientHeight,
-      clientWidth: view.scrollDOM.clientWidth, visibilityState: document.visibilityState, hidden: document.hidden,
-      scrollTop: view.scrollDOM.scrollTop, nativeFocus, guard: guard && { remaining: guard.remaining, pending: guard.pending, millisecondsLeft: guard.deadline - Date.now(), destroyed: guard.destroyed },
     };
-  });
+    const passiveBeforeMeasurement = [];
+    if (domFirst) {
+      await completedFrame(); passiveBeforeMeasurement.push({ label: 'completed frame', ...passive() });
+      await new Promise(done => setTimeout(done, 200)); await completedFrame(); passiveBeforeMeasurement.push({ label: 'after 200ms', ...passive() });
+      await new Promise(done => setTimeout(done, 300)); await completedFrame(); passiveBeforeMeasurement.push({ label: 'after 500ms', ...passive() });
+    }
+    const sample = () => {
+      const view = document.querySelector('.cm-content').cmTile.root.view;
+      const main = view.state.selection.main, head = main.head;
+      // Match CodeMirror's inward endpoint affinity for a nonempty selection.
+      // The opposite side can describe the next widget rather than the DOM focus.
+      const measuredSide = main.empty ? main.assoc || 1 : main.head > main.anchor ? -1 : 1;
+      const caret = view.coordsAtPos(head, measuredSide);
+      const scroller = view.scrollDOM.getBoundingClientRect();
+      const guard = view.plugins.map(plugin => plugin.value).find(value => typeof value?.remaining === 'number' && typeof value?.deadline === 'number');
+      const native = document.getSelection();
+      let nativeFocus;
+      if (native?.focusNode) {
+        const range = document.createRange();
+        range.setStart(native.focusNode, native.focusOffset); range.collapse(true);
+        const box = range.getBoundingClientRect();
+        nativeFocus = { node: native.focusNode.nodeName, offset: native.focusOffset, text: native.focusNode.textContent?.slice(0, 100),
+          geometry: { top: box.top, bottom: box.bottom, left: box.left, right: box.right, height: box.height },
+        };
+      }
+      return { head, caret, defaultCaret: view.coordsAtPos(head), measuredSide, sampledAt: performance.now(),
+        caretBySide: [-1, 0, 1].map(side => ({ side, coords: view.coordsAtPos(head, side) })), association: main.assoc,
+        viewport: { top: scroller.top, bottom: scroller.bottom, left: scroller.left, right: scroller.right },
+        focused: view.hasFocus, contentFocused: view.root.activeElement === view.contentDOM,
+        activeElement: view.root.activeElement?.className, clientHeight: view.scrollDOM.clientHeight,
+        clientWidth: view.scrollDOM.clientWidth, visibilityState: document.visibilityState, hidden: document.hidden,
+        scrollTop: view.scrollDOM.scrollTop, nativeFocus, guard: guard && { remaining: guard.remaining, pending: guard.pending, millisecondsLeft: guard.deadline - Date.now(), destroyed: guard.destroyed },
+      };
+    };
+    const rawBeforeFrame = sample();
+    // Let queued measurement microtasks complete, without dispatching a scroll
+    // or any selection change from this probe. Keep the raw timed sample too.
+    await completedFrame();
+    const settled = sample();
+    return { ...settled, rawBeforeFrame, passiveBeforeMeasurement, frameSettlementMs: settled.sampledAt - rawBeforeFrame.sampledAt };
+  }, { domFirst: process.env.MDLP_LINUX_QA_DOM_FIRST === '1' });
   report.caretSamples.push({ file: file.name, label, ...value });
+  if (observeOnly) return value;
   assert.ok(value.focused, `${label}: editor lost keyboard focus`);
   assert.ok(value.caret, `${label}: caret position has no geometry`);
   const { caret, viewport } = value;
+  for (const passive of value.passiveBeforeMeasurement) {
+    const boxes = passive.collapsed ? passive.cursors : passive.nativeFocus?.height > 0 ? [passive.nativeFocus] : [];
+    if (passive.collapsed) assert.ok(boxes.length > 0, `${label}: no painted DOM cursor at ${passive.label}`);
+    for (const box of boxes) assert.ok(box.top >= passive.viewport.top - 2 && box.bottom <= passive.viewport.bottom + 2 && box.left >= passive.viewport.left - 2 && box.right <= passive.viewport.right + 2,
+      `${label}: passive DOM caret outside viewport at ${passive.label}: ${JSON.stringify(passive)}`);
+  }
   assert.ok(caret.top >= viewport.top - 2 && caret.bottom <= viewport.bottom + 2 && caret.left >= viewport.left - 2 && caret.right <= viewport.right + 2,
-    `${label}: caret outside viewport after 150ms: ${JSON.stringify(value)}`);
+    `${label}: caret outside viewport after 150ms and a completed frame: ${JSON.stringify(value)}`);
 }
 async function screenshot(name) { if (page) await page.screenshot({ path: join(artifacts, `${name}.png`) }); }
 async function check(label, operation) {
@@ -259,6 +306,10 @@ async function check(label, operation) {
   catch (error) {
     report.failures.push({ label, error: String(error), stack: error.stack, selection: await selection().catch(() => undefined) });
     await screenshot(`failure-${report.failures.length}`).catch(() => {});
+    if (String(error).includes('caret outside viewport')) {
+      await caretVisible(`${label}: passive recovery after 200ms`, { delayMs: 200, observeOnly: true }).catch(() => {});
+      await caretVisible(`${label}: passive recovery after 500ms`, { delayMs: 300, observeOnly: true }).catch(() => {});
+    }
     console.error(`FAIL ${label}: ${error}`);
     await press('Escape');
   }
