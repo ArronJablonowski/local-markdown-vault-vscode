@@ -16,6 +16,13 @@ describe('pending Live Preview line navigation', () => {
 		expect(navigation.flush(true)).toBeUndefined();
 	});
 
+	it('does not replay an older queued jump after delivering a newer ready-state request', () => {
+		const navigation = new PendingLineNavigation();
+		navigation.request(2, 10, false);
+		expect(navigation.request(7, 10, true)).toBe(7);
+		expect(navigation.flush(true)).toBeUndefined();
+	});
+
 	it('does not release a pending line until delivery is possible', () => {
 		const navigation = new PendingLineNavigation();
 		navigation.request(3, 10, false);

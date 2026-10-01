@@ -7,7 +7,11 @@ export class PendingLineNavigation {
 
 	request(line: number, lineCount: number, canDeliver: boolean): number | undefined {
 		if (!Number.isSafeInteger(line) || line < 1 || line > lineCount) return undefined;
-		if (canDeliver) return line;
+		if (canDeliver) {
+			// A newer immediate jump supersedes any request queued before readiness.
+			this.pending = undefined;
+			return line;
+		}
 		this.pending = line;
 		return undefined;
 	}

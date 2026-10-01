@@ -98,6 +98,7 @@ export class DocumentSyncSession {
 	private pendingVaultNotes = false;
 	private readonly pendingLineNavigation = new PendingLineNavigation();
 	private readyReceived = false;
+	private initSent = false;
 	private vaultNotesGeneration = 0;
 	private disposed = false;
 	private closing = false;
@@ -996,6 +997,7 @@ export class DocumentSyncSession {
 			vaultNotes: [],
 			currentVaultPath,
 		});
+		this.initSent = true;
 		this.scheduleVaultNotesSync();
 		this.lastAppliedVersion = this.document.version;
 		this.sendWhitespaceSetting();
@@ -1248,6 +1250,7 @@ export class DocumentSyncSession {
 		this.rehighlightGeneration++;
 		this.queuePendingDraftFlush();
 		this.readyReceived = false;
+		this.initSent = false;
 		this.webviewPanel.webview.html = html;
 	}
 
@@ -1255,19 +1258,19 @@ export class DocumentSyncSession {
 		const deliver = this.pendingLineNavigation.request(
 			line,
 			this.document.lineCount,
-			this.readyReceived && this.visible,
+			this.readyReceived && this.initSent && this.visible,
 		);
 		if (deliver === undefined) {
 			// Opening a custom editor resolves before its webview necessarily sends
-			// `ready`. Retain only the newest local-navigation target so a search or
-			// Backlinks jump cannot be lost during startup, without creating a queue.
+			// `ready`, and pending saves can delay the init that creates its editor.
+			// Keep only the newest target until both steps finish so no jump is lost.
 			return;
 		}
 		this.post({ type: 'jumpToLine', line: deliver });
 	}
 
 	private flushPendingJump(): void {
-		const line = this.pendingLineNavigation.flush(this.readyReceived && this.visible);
+		const line = this.pendingLineNavigation.flush(this.readyReceived && this.initSent && this.visible);
 		if (line === undefined) return;
 		this.post({ type: 'jumpToLine', line });
 	}

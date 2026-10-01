@@ -12,6 +12,49 @@ function view(doc: string, cursor = doc.length): EditorView {
 }
 
 describe('code editing safety', () => {
+	it.each([escapeFencedCode, exitFencedCodeOnBlankLine])('preserves a locked code block without dispatching navigation or edits (%#)', command => {
+		const doc = '```text\nretained\n\n```';
+		const editor = {
+			state: EditorState.create({ doc, selection: { anchor: doc.lastIndexOf('\n```') }, extensions: [markdown(), EditorState.readOnly.of(true)] }),
+			dispatch: vi.fn(),
+		} as unknown as EditorView;
+		expect(command(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
+	it.each([false, true])('preserves an arrow-extended code selection in either direction (backward=%s)', backward => {
+		const doc = '```text\nretained\n\n```';
+		const from = doc.indexOf('retained');
+		const to = from + 'retained'.length;
+		const editor = {
+			state: EditorState.create({ doc, selection: { anchor: backward ? to : from, head: backward ? from : to }, extensions: [markdown()] }),
+			dispatch: vi.fn(),
+		} as unknown as EditorView;
+		expect(escapeFencedCode(editor)).toBe(false);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
+	it('preserves multiple carets when one is on a final blank code line', () => {
+		const doc = 'Above\n\n```text\nretained\n\n```';
+		const editor = {
+			state: EditorState.create({ doc, extensions: [markdown(), EditorState.allowMultipleSelections.of(true)],
+				selection: EditorSelection.create([EditorSelection.cursor(2), EditorSelection.cursor(doc.lastIndexOf('\n```'))]) }),
+			dispatch: vi.fn(),
+		} as unknown as EditorView;
+		expect(escapeFencedCode(editor)).toBe(false);
+		expect(exitFencedCodeOnBlankLine(editor)).toBe(false);
+		expect(editor.dispatch).not.toHaveBeenCalled();
+	});
+
+	it('moves explicit escape to the following prose without changing either block', () => {
+		const doc = '```text\nretained\n```\nFollowing paragraph';
+		const editor = view(doc, doc.indexOf('retained') + 4);
+		expect(escapeFencedCode(editor)).toBe(true);
+		expect(editor.dispatch).toHaveBeenCalledOnce();
+		expect(editor.dispatch).toHaveBeenCalledWith({ selection: { anchor: doc.indexOf('Following') }, scrollIntoView: true });
+	});
+
 	it('escapes a final closed fence immediately after a jump beyond the parsed viewport', () => {
 		const prefix = '# Retained context\n\nA paragraph with **formatting**.\n\n'.repeat(1800);
 		const doc = `${prefix}\`\`\`text\nEOF_ANCHOR\n\`\`\``;
