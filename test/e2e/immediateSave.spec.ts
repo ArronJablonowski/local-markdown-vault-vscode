@@ -34,13 +34,42 @@ for (const focused of ['search', 'replace', 'editor'] as const) {
 
 test('host undo ranges remain valid after local typing extends the original document', async ({ page }) => {
 	await mountEditor(page, 'Start ');
+	await page.evaluate(() => { (window as any).__holdEditAck = true; });
 	await page.locator('.cm-content').click();
 	await page.keyboard.press('End');
-	await page.keyboard.type('added text');
+	await page.keyboard.type('a');
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').length)).toBe(1);
+	await page.keyboard.type('dded text');
+	// A posted edit is not yet acknowledged. Drain both controlled batches so
+	// the simulated host undo uses the same baseline as the renderer.
+	await postToWebview(page, { type: 'ackEdit', version: 1 });
 	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').flatMap((m: any) => m.changes).map((c: any) => c.insert).join(''))).toBe('added text');
-	await postToWebview(page, { type: 'externalUpdate', version: 50, changes: [{ from: 6, to: 16, insert: '' }] });
-	await expect(page.locator('.cm-content')).not.toContainText('added text');
-	await expect(page.locator('.cm-content')).toContainText('Start');
+	const edits = await page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit'));
+	expect(edits).toHaveLength(2);
+	expect(edits.map((edit: any) => edit.baseVersion)).toEqual([0, 1]);
+	await postToWebview(page, { type: 'ackEdit', version: 2 });
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'undo').length)).toBe(1);
+	await postToWebview(page, { type: 'externalUpdate', version: 3, changes: [{ from: 6, to: 16, insert: '' }] });
+	expect(await page.locator('.cm-content').evaluate(el => (el as any).cmTile.root.view.state.doc.toString())).toBe('Start ');
+	expect(await page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'resync'))).toEqual([]);
+});
+
+test('host update before the final typing acknowledgment preserves text and requests a full snapshot', async ({ page }) => {
+	await mountEditor(page, 'Start ');
+	await page.evaluate(() => { (window as any).__holdEditAck = true; });
+	await page.locator('.cm-content').click();
+	await page.keyboard.press('End');
+	await page.keyboard.type('a');
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').length)).toBe(1);
+	await page.keyboard.type('dded text');
+	await postToWebview(page, { type: 'ackEdit', version: 1 });
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'edit').flatMap((m: any) => m.changes).map((c: any) => c.insert).join(''))).toBe('added text');
+	// Force the original test's race: all text was posted, but the final batch
+	// is still in flight, so host offsets must not be applied to this local draft.
+	await postToWebview(page, { type: 'externalUpdate', version: 3, changes: [{ from: 6, to: 16, insert: '' }] });
+	await expect.poll(() => page.evaluate(() => (window as any).__posted.filter((m: any) => m.type === 'resync').length)).toBe(1);
+	expect(await page.locator('.cm-content').evaluate(el => (el as any).cmTile.root.view.state.doc.toString())).toBe('Start added text');
 });
 
 test('large Unicode paste is batched within protocol limits and later typing still saves', async ({ page }) => {

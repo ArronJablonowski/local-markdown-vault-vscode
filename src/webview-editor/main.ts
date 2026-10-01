@@ -61,6 +61,7 @@ import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
 import { PendingEdits } from './pendingEdits';
 import { listHangingIndent } from './listHangingIndent';
+import { navigationScrollGuard } from './navigationScrollGuard';
 import { commitActiveDraft, readActiveDraftSnapshot, setActiveDraftInputHandler, setUncommittedDraftHandler } from './activeDraft';
 import { classifyDraftRecovery, makeDraftRecovery, parseDraftRecovery, mergeDraftRecovery, readPersistedDraftRecovery, stripDraftRecovery, type DraftRecovery } from './draftRecovery';
 import { applyNormalizedTextChanges } from '../shared/lineEndings';
@@ -321,6 +322,7 @@ function createExtensions(): Extension[] {
 		calloutState,
 		livePreviewPlugin,
 		listHangingIndent,
+		navigationScrollGuard,
 		wikilinkDecorations,
 		wikilinkCompletionExtension,
 		tagDecorations,

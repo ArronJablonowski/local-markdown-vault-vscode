@@ -1,5 +1,8 @@
 # Changelog
 
+- Keep the caret visible after arrow, page, and line navigation while large-note preview heights settle. Bound corrective scrolling and cancel it on typing, pointer input, manual scrolling, focus loss, or hidden editors. Preserve selections and Markdown content.
+- Retain only the latest requested line jump while a webview initializes, and deliver it after the initial document so opening or revealing a note cannot replay an older destination.
+
 - Wait for confirmed Markdown structure before rendering math in large notes, and refresh math when background parsing advances. Keep dollar text literal inside code, rich table cells, and collapsed callouts; defer presentation changes during mouse selection.
 - Keep initial large-note parsing from moving text under an active mouse selection; refresh deferred presentation after release or cancellation while continuing to accept real edits. Add repeated deletion, reconstruction, and mouse-rewrite tests around large Markdown objects.
 - Render indented code with code-block styling and copy controls, including single-line blocks, and allow folding at eight lines. Copy parser-owned code text without Markdown indentation or quote/list prefixes.
