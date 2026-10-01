@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { CodeBlockTokens } from '../../src/shared/messages';
 import { mountEditor, postToWebview } from './harness';
+
+type CodeBlockTokens = { from: number; to: number; tokens: Array<{ from: number; to: number; style: string }> };
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const objects = '\n\n# Clipboard report\n\n**Strong**, *emphasis*, `code`, $x^2$ and :smile:.\n\n'

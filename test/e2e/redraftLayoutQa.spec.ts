@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mountEditor } from './harness';
 import { largeMixedDocument } from '../fixtures/largeMixedDocument';
@@ -103,6 +103,13 @@ for (const anchor of ['Final anchor', 'Final viewport anchor']) test(`large ${th
 	expect(box).not.toBeNull();
 	expect(box!.y).toBeGreaterThanOrEqual(0);
 	expect(box!.y + box!.height).toBeLessThanOrEqual(1100);
+	if (anchor.length <= 20) {
+		// Protect height calibration without placing a moving noneditable widget
+		// beside the native insertion point on short, actively edited prose.
+		const lastLine = page.locator('.cm-line', { hasText: anchor });
+		await expect(lastLine.locator('.mlp-line-measure-guard')).toHaveCount(1);
+		await expect(lastLine.locator('[contenteditable="false"]')).toHaveCount(0);
+	}
 });
 }
 
@@ -147,10 +154,22 @@ for (const theme of ['', obsidian]) {
 
 test('typing a callout and nested tasks at a large note end remains editable through rewrite and escape', async ({ page }, info) => {
 	test.setTimeout(120000);
+	if (process.env.MDLP_CALLOUT_DIAGNOSTIC) {
+		const session = await page.context().newCDPSession(page);
+		await session.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+	}
 	await page.setViewportSize({ width: 660, height: 950 });
 	const initial = largeMixedDocument(60) + '\n';
 	await mountEditor(page, initial, { css: obsidian });
 	await goToEnd(page);
+	await page.locator('.cm-content').evaluate((element: any) => {
+		const trace: unknown[] = [];
+		(window as any).__calloutKeyTrace = trace;
+		element.addEventListener('keydown', (event: KeyboardEvent) => {
+			const state = element.cmTile.root.view.state;
+			trace.push({ key: event.key, head: state.selection.main.head, length: state.doc.length, tail: state.doc.sliceString(Math.max(0, state.doc.length - 650)) });
+		}, true);
+	});
 	for (const [index, text] of ['> [!warning]+ Draft review', 'Introductory **review**.', '- Parent item', 'Child item'].entries()) {
 		if (index === 3) await page.keyboard.press('Tab');
 		await page.keyboard.type(text, { delay: 4 });
@@ -162,6 +181,9 @@ test('typing a callout and nested tasks at a large note end remains editable thr
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Enter');
 	await page.keyboard.type('Independent closing paragraph.', { delay: 4 });
+	const keyTracePath = info.outputPath('callout-key-trace.json');
+	writeFileSync(keyTracePath, JSON.stringify(await page.evaluate(() => (window as any).__calloutKeyTrace)));
+	await info.attach('callout-key-trace', { path: keyTracePath, contentType: 'application/json' });
 	const close = page.locator('.cm-line', { hasText: 'Independent closing paragraph.' });
 	await expect(close).not.toHaveClass(/mlp-line-callout|mlp-line-list|mlp-line-quote/);
 	await page.screenshot({ path: info.outputPath('before-fold.png') });
@@ -181,6 +203,36 @@ test('typing a callout and nested tasks at a large note end remains editable thr
 	await expect.poll(() => documentText(page, initial)).toContain('> - [x] Confirm draft');
 	await expect.poll(() => documentText(page, initial)).toContain('>   - Child item with **extra details** and ==attention==.');
 	await page.screenshot({ path: info.outputPath('typed-callout-redraft.png') });
+});
+
+test('typing and deleting across the short-line guard threshold preserves source and caret at large EOF', async ({ page }) => {
+	test.setTimeout(120000);
+	const prefix = largeMixedDocument(60) + '\n';
+	const originalLine = '**bold** boundary!';
+	expect(originalLine.length).toBe(18);
+	await mountEditor(page, prefix + originalLine, { css: obsidian });
+	await goToEnd(page);
+	let lineText = originalLine;
+	const check = async () => {
+		await expect.poll(() => page.locator('.cm-content').evaluate((element: any) => {
+			const state = element.cmTile.root.view.state;
+			return { source: state.doc.toString(), head: state.selection.main.head, empty: state.selection.main.empty };
+		})).toEqual({ source: prefix + lineText, head: prefix.length + lineText.length, empty: true });
+		await expect(page.locator('.cm-line', { hasText: 'boundary!' }).locator('.mlp-line-measure-guard')).toHaveCount(lineText.length <= 20 ? 1 : 0);
+	};
+	await check();
+	for (let cycle = 0; cycle < 4; cycle++) {
+		for (const character of 'ABC') {
+			await page.keyboard.type(character);
+			lineText += character;
+			await check();
+		}
+		for (let deleted = 0; deleted < 3; deleted++) {
+			await page.keyboard.press('Backspace');
+			lineText = lineText.slice(0, -1);
+			await check();
+		}
+	}
 });
 
 test('mouse paragraph replacement between mixed objects retains layout and exact surrounding Markdown', async ({ page }, info) => {

@@ -197,11 +197,27 @@ suite('Installed VSIX clean-profile smoke', () => {
 			'the packaged Document Vault did not open its created note with Enter');
 		await selectWorkbenchTreeItemWithKeyboard(page, `Folder: ${folderName}`);
 		await page.keyboard.press('ArrowRight');
-		assert.strictEqual(
-			await page.getByRole('treeitem', { name: `Folder: ${folderName}`, exact: true }).getAttribute('aria-expanded'),
-			'true',
-			'the packaged Document Vault did not expand its created folder with ArrowRight',
-		);
+		// Expansion crosses the extension-host/filesystem boundary. Observe the
+		// result of this one gesture, rather than sampling its initial collapsed
+		// state or sending another key that could hide a lost expansion request.
+		const expansionTrace: unknown[] = [];
+		const expansionStarted = Date.now();
+		try {
+			await waitFor(async () => {
+				const snapshot = await page.getByRole('treeitem', { name: `Folder: ${folderName}`, exact: true }).evaluateAll(items => {
+					const row = items[0];
+					const tree = row?.closest('[role="tree"]');
+					return {
+						rowCount: items.length, rowId: row?.id, expanded: row?.getAttribute('aria-expanded'),
+						activeDescendant: tree?.getAttribute('aria-activedescendant'), busy: tree?.getAttribute('aria-busy'),
+					};
+				});
+				expansionTrace.push({ elapsedMs: Date.now() - expansionStarted, ...snapshot });
+				return snapshot.expanded === 'true';
+			}, 'the packaged Document Vault did not expand its created folder with ArrowRight');
+		} catch (error) {
+			assert.fail(`${error instanceof Error ? error.message : String(error)}\nTree expansion observations: ${JSON.stringify(expansionTrace)}`);
+		}
 		await vscode.workspace.fs.stat(folder);
 
 		// Exercise native selection and prompts, not direct VaultService calls.

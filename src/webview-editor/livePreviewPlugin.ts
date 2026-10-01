@@ -2473,7 +2473,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 		// Headings already carry this guard, including longer heading lines.
 		const line = doc.lineAt(lineFrom);
 		if (line.length > 0 && line.length <= 20 && !/\bmlp-line-h[1-6]\b/.test(cls)) {
-			decorations.push(Decoration.widget({ widget: hiddenMarker, side: 1 }).range(line.to));
+			// A mark also excludes this row from the plain-text height sampler,
+			// without a moving noneditable widget at the insertion point. Such an
+			// end widget can move the native caret backward during rapid typing.
+			decorations.push(Decoration.mark({ class: 'mlp-line-measure-guard' }).range(line.from, line.to));
 		}
 	}
 

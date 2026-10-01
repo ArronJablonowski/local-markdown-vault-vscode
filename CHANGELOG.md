@@ -1,5 +1,6 @@
 # Changelog
 
+- Keep the caret stable while typing short formatted lines by using a nonmoving height-measurement guard. Preserve the existing large-note layout protection without inserting a trailing noneditable widget at the typing position.
 - Discard stale code highlighting in edited blocks instead of collapsing thousands of old tokens onto replacement text. Preserve typing after large selections, prevent stale colors during code rewrites, and emit visible highlighting tokens only once across folded regions.
 - Preserve copied Markdown containing tab-indented code instead of misclassifying it as spreadsheet data, including large notes. Keep HTML-only, empty, and unsupported clipboard content from deleting selected Markdown.
 - Handle trusted Command/Ctrl+Shift+V synchronously inside the editor without delayed host replay. Keep copy, cut, and paste on the existing validated clipboard paths.

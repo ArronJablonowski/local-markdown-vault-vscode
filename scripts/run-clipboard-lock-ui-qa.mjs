@@ -96,6 +96,21 @@ try {
     await open('Large.md'); await selectAll(); await press('Meta+c'); await pasteSink(fixtures['Large.md']);
     report.largeBytes = Buffer.byteLength(fixtures['Large.md']);
   });
+  await check('Typing a callout and nested tasks at a large note end preserves source and exits cleanly', async () => {
+    await open('Large.md'); await frame.locator('.cm-content').focus();
+    await press('Meta+ArrowDown'); await press('Enter'); await press('Enter');
+    for (const [index, text] of ['> [!warning]+ Draft review', 'Introductory **review**.', '- Parent item', 'Child item'].entries()) {
+      if (index === 3) await press('Tab');
+      await page.keyboard.type(text, { delay: 4 }); await press('Enter');
+    }
+    await press('Shift+Tab'); await page.keyboard.type('[ ] Confirm draft', { delay: 4 });
+    await press('Enter'); await press('Enter'); await press('Enter');
+    await page.keyboard.type('Independent closing paragraph.', { delay: 4 });
+    const suffix = '\n\n> [!warning]+ Draft review\n> Introductory **review**.\n> - Parent item\n>   - Child item\n> - [ ] Confirm draft\n\n\nIndependent closing paragraph.';
+    await saved(fixtures['Large.md'] + suffix);
+    const line = frame.locator('.cm-line').filter({ hasText: 'Independent closing paragraph.' });
+    assert.ok(!/mlp-line-callout|mlp-line-list|mlp-line-quote/.test(await line.getAttribute('class')));
+  });
   await check('Replacing a large pasted note preserves each subsequent typed character', async () => {
     await open('Sink.md'); await selectAll();
     await page.keyboard.type('Replacement stays intact', { delay: 3 });
