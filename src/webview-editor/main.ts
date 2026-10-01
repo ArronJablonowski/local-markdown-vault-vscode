@@ -20,6 +20,7 @@ import {
 } from './livePreviewPlugin';
 import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
+import { createBlockReplacementSelectionGuard } from './blockReplacementSelection';
 import { calloutState } from './calloutState';
 import { indentQuotedList } from './quotedListIndent';
 import { detectFrontmatter } from './frontmatterWidget';
@@ -330,6 +331,7 @@ function createExtensions(): Extension[] {
 		wikilinkCompletionExtension,
 		tagDecorations,
 		blockDecorationsField,
+		createBlockReplacementSelectionGuard(remoteChange),
 		mathDecorationsField,
 		footnoteDecorations,
 		dragReleaseRefresh,

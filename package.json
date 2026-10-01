@@ -672,6 +672,7 @@
     "test:ui:object-boundary": "npm run compile && node scripts/run-object-boundary-ui-qa.mjs",
     "test:ui:arrow-navigation": "npm run compile && node scripts/run-arrow-navigation-ui-qa.mjs",
     "test:ui:clipboard-lock": "npm run compile && node scripts/run-clipboard-lock-ui-qa.mjs",
+    "test:ui:external-paste": "npm run compile && node scripts/run-clipboard-lock-ui-qa.mjs --external",
     "test:integration:restricted": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-restricted-integration.mjs",
     "test:e2e": "npm run compile && playwright test",
     "test:performance:filesystem": "npm run compile && tsc -p tsconfig.test.json && node scripts/run-filesystem-performance.mjs",

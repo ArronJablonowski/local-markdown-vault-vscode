@@ -44,12 +44,32 @@ function harness(doc = 'Anchor\nTail', editable = true, readOnly = false) {
 	const start = (pos = 7, count = 1) => controller.start({ kind: 'valid',
 		files: Array.from({ length: count }, () => ({ type: 'image/png', size: 3 })) }, pos);
 	return { view, controller, onImages, onRejected, update, start,
+		paste: (event: unknown) => plugin.domEventHandlers.paste.call(controller, event, view),
 		setEditable: (enabled: boolean) => update({ effects: mode.reconfigure(EditorView.editable.of(enabled)) }) };
 }
 
 async function settleRead() { for (let n = 0; n < 4; n++) await Promise.resolve(); }
 
 describe('asynchronous image paste lifecycle', () => {
+	it.each(['image/png', 'image/svg+xml'])('leaves readable external text with an alternate %s to the text handler', mime => {
+		const h = harness();
+		const event = { preventDefault: vi.fn(), clipboardData: { types: ['text/plain', 'Files'],
+			getData: () => 'Exact external text', items: [{ kind: 'file', type: mime, getAsFile: () => ({ type: mime, size: 3 }) }] } };
+		expect(h.paste(event)).toBe(false);
+		expect(event.preventDefault).not.toHaveBeenCalled();
+		expect(readers).toHaveLength(0);
+		expect(h.onRejected).not.toHaveBeenCalled();
+	});
+
+	it('keeps image-only paste when external text metadata is empty', () => {
+		const h = harness();
+		const event = { preventDefault: vi.fn(), clipboardData: { types: ['text/plain', 'text/csv', 'Files'],
+			getData: () => '', items: [{ kind: 'file', type: 'image/png', getAsFile: () => ({ type: 'image/png', size: 3 }) }] } };
+		expect(h.paste(event)).toBe(true);
+		expect(event.preventDefault).toHaveBeenCalledOnce();
+		expect(readers).toHaveLength(1);
+	});
+
 	it('maps a pending insertion through typing before its original position', async () => {
 		const h = harness(); h.start();
 		h.update({ changes: { from: 0, insert: 'PREFIX ' } });

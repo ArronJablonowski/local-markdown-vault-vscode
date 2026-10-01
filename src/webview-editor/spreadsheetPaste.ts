@@ -6,6 +6,7 @@ import { renderTableMarkdown } from './tableEdit';
 import { parseSpreadsheetClipboard, pasteSpreadsheetCells, MAX_SPREADSHEET_OUTPUT_BYTES } from './spreadsheetClipboard';
 import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 import { t } from '../shared/i18n';
+import { readClipboardText } from './clipboardText';
 
 /** Keep a spreadsheet paste separate from neighboring typing in host undo. */
 export const isolatedSpreadsheetPaste = Annotation.define<boolean>();
@@ -59,11 +60,8 @@ export function showSpreadsheetPasteWarning(reason?: PasteWarning): void {
 
 /** Never read, parse, or insert clipboard HTML (Excel also supplies text). */
 export function readSpreadsheetClipboard(data: DataTransfer) {
-	const type = data.types.includes('text/tab-separated-values') ? 'text/tab-separated-values'
-		: data.types.includes('text/csv') ? 'text/csv' : 'text/plain';
-	const hasText = data.types.includes(type);
-	const text = hasText ? data.getData(type) : '';
-	return { hasText, text, result: hasText
+	const { type, hasText, text } = readClipboardText(data);
+	return { hasText, text, result: hasText && type !== 'text/uri-list'
 		? parseSpreadsheetClipboard(text, type === 'text/csv' ? 'csv' : type === 'text/tab-separated-values' ? 'tsv' : 'auto')
 		: { kind: 'text' as const } };
 }
@@ -94,12 +92,14 @@ export function createSpreadsheetPasteHandler() {
 				|| target.closest('[contenteditable]') !== view.contentDOM
 				|| !view.state.facet(EditorView.editable) || !event.clipboardData) return false;
 			const data = event.clipboardData;
-			const hasText = !!(data.getData('text/plain') || data.getData('text/uri-list'));
+			const preferred = readClipboardText(data);
+			const hasText = readClipboardText(data, 'plain').text.length > 0;
 			const hasGrid = data.types.includes('text/csv') || data.types.includes('text/tab-separated-values');
+			const hasImage = Array.from(data.items).some(item => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'));
+			if (!preferred.text && hasImage) return false;
 			if (!hasText && !hasGrid) {
-				// Let image validation run next, but do not let CodeMirror interpret
-				// an HTML-only, unsupported, or empty clipboard as deletion of a selection.
-				if (Array.from(data.items).some(item => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'))) return false;
+				// Never interpret HTML-only, unsupported, or empty clipboard data
+				// as deletion of the selected source.
 				event.preventDefault(); showSpreadsheetPasteWarning('textOnly'); return true;
 			}
 			const { state } = view;

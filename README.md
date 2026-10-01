@@ -403,6 +403,14 @@ text rather than creating a nested table, provided the clipboard contains plain
 text. Unsupported or empty clipboard content shows a warning and leaves the
 selected Markdown intact.
 
+External apps can place both text and an image snapshot on the clipboard.
+When readable text is available, Live Preview pastes that text instead of the
+alternate image. Empty CSV/TSV metadata does not hide a usable text fallback.
+Image-only data still uses the validated attachment workflow in the document
+body; a rendered table cell rejects image-only data without erasing its contents.
+Consecutive text pastes stay in the same table cell, including after moving
+between cells with Tab.
+
 Use **Command+Shift+V** on macOS or **Ctrl+Shift+V** on Windows/Linux to paste
 plain text without automatic table conversion. In a rendered table cell, this
 keeps the pasted text in that cell instead of expanding it into a rectangle.

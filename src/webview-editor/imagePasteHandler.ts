@@ -3,6 +3,7 @@ import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { MapMode, type EditorState } from '@codemirror/state';
 import type { PastedImagePayload } from '../shared/messages';
+import { readClipboardText } from './clipboardText';
 import {
 	MAX_PASTED_IMAGE_BYTES,
 	MAX_PASTED_IMAGE_COUNT,
@@ -225,6 +226,9 @@ export function createImagePasteHandler(
 	return ViewPlugin.define(view => new ImagePasteController(view, onImages, onRejected), {
 		eventHandlers: {
 			paste(event, view) {
+				// Rich sources often offer an image snapshot alongside their text.
+				// Preserve editable text instead of swallowing it as an attachment.
+				if (readClipboardText(event.clipboardData).text.length > 0) return false;
 				const selection = selectImageItems(event.clipboardData?.items);
 				if (selection.kind === 'none') return false;
 				event.preventDefault();

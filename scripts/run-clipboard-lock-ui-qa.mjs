@@ -12,13 +12,15 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 import { pasteboard, restorePasteboard } from './macos-pasteboard.mjs';
+import { runExternalPasteCases } from './external-paste-ui-cases.mjs';
 
 assert.equal(process.platform, 'darwin', 'This runner preserves the macOS pasteboard; use the Linux runner on Spark.');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = await mkdtemp(join(tmpdir(), 'mdlp-clipboard-lock-'));
 const workspace = join(temporary, 'Clipboard Lock QA');
 const profile = join(temporary, 'profile');
-const artifacts = join(root, '.vscode-test', process.env.MDLP_CLIPBOARD_ARTIFACTS ?? 'clipboard-lock-ui');
+const externalOnly = process.argv.includes('--external');
+const artifacts = join(root, '.vscode-test', process.env.MDLP_CLIPBOARD_ARTIFACTS ?? (externalOnly ? 'external-paste-ui' : 'clipboard-lock-ui'));
 const version = process.env.MDLP_QA_VSCODE_VERSION ?? '1.139.1';
 const report = { startedAt: new Date().toISOString(), version, checks: [], failures: [], pageErrors: [], editorErrors: [], completed: false, passed: false, keyPresses: 0, clipboardRestored: false, savedChecks: 0 };
 const unicode = 'Caf\u00e9 \u{1F642} \u{1F469}\u200d\u{1F4BB} e\u0301 \u4e2d\u6587';
@@ -34,6 +36,9 @@ const fixtures = {
   'Images.md': 'IMAGE_BEGIN\n\nIMAGE_END',
   'Lock.md': 'LOCK_BEGIN\n\n---\n\n- [ ] Pending task\n\n| Item | State |\n| --- | --- |\n| Original | Keep |\n\n```text\nLocked code remains copyable.\n```\n\nLOCK_END',
   'Sink.md': 'PASTE_TARGET',
+  'TablePaste.md': '# Consecutive external paste\n\n| Item | State |\n| --- | --- |\n| Original | Keep |\n\nEnd.',
+  'TabPaste.md': '# External paste after Tab\n\n| Item | State |\n| --- | --- |\n| Original | Keep |\n\nEnd.',
+  'AppPaste.md': '# External paste after app switch\n\n| Item | State |\n| --- | --- |\n| Original | Keep |\n\nEnd.',
 };
 let browser, child, page, frame, current, clipboardSnapshot;
 try {
@@ -185,6 +190,8 @@ try {
     await toggle().click(); await locked(false); await saved(expected);
     await page.screenshot({ path: join(artifacts, 'unlocked-controls.png') });
   });
+  if (externalOnly) await runExternalPasteCases({ page, frame: () => frame, open, press, source, selectAll, saved,
+    check, find, traceClipboard, workspace, artifacts, report, png });
   report.completed = true; report.passed = !report.failures.length && !report.pageErrors.length && !report.editorErrors.length;
 } catch (error) { report.failures.push({ error: String(error), stack: error.stack }); console.error(error); }
 finally {
@@ -248,8 +255,14 @@ async function traceClipboard() {
     window.__clipboardQaEvents = [];
     if (window.__clipboardQaListener) return;
     window.__clipboardQaListener = true;
-    for (const type of ['keydown', 'paste', 'copy', 'cut']) document.addEventListener(type, event => {
+    for (const type of ['keydown', 'beforeinput', 'input', 'paste', 'copy', 'cut']) document.addEventListener(type, event => {
+      const state = document.querySelector('.cm-content')?.cmTile?.root?.view?.state;
+      const active = document.activeElement;
       window.__clipboardQaEvents.push({ type, key: event.key, code: event.code, shift: event.shiftKey, meta: event.metaKey,
+        data: event.data, inputType: event.inputType, target: event.target?.className,
+        head: state?.selection.main.head, anchor: state?.selection.main.anchor, length: state?.doc.length,
+        sourceStart: state?.doc.sliceString(0, 180), active: active?.className,
+        cellText: active?.classList.contains('mlp-table-cell') ? active.textContent : undefined,
         types: event.clipboardData && [...event.clipboardData.types], files: event.clipboardData && [...event.clipboardData.files].map(file => ({ type: file.type, size: file.size })) });
     }, true);
     if (execPaste) document.addEventListener('keydown', event => {
@@ -286,11 +299,13 @@ async function mousePrefix(prefix) {
   assert.equal((await selection()).text, prefix);
 }
 async function check(label, operation) {
+  if (externalOnly && !label.startsWith('External:')) return;
   if (process.env.MDLP_CLIPBOARD_CHECKS && !new RegExp(process.env.MDLP_CLIPBOARD_CHECKS).test(label)) return;
   report.activeCheck = label;
   try { await operation(); report.checks.push(label); console.log(`PASS ${label}`); }
   catch (error) {
-    report.failures.push({ label, error: String(error), source: await source().then(text => text.slice(0, 1500)).catch(() => undefined) });
+    report.failures.push({ label, error: String(error), source: await source().then(text => text.slice(0, 1500)).catch(() => undefined),
+      stage: report.activeStage, events: await frame?.evaluate(() => window.__clipboardQaEvents).catch(() => undefined) });
     await page.screenshot({ path: join(artifacts, `failure-${report.failures.length}.png`) }).catch(() => {});
     console.error(`FAIL ${label}: ${error}`); await press('Escape');
   }

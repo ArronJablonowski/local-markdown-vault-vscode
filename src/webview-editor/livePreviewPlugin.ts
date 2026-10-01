@@ -138,6 +138,9 @@ const cellInlineHooks: CellInlineHooks = {
 
 // Equal widgets may reuse DOM, so observers belong to the mounted table rather than an instance.
 const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
+// A committed cell replaces its widget. Resume through the live widget's
+// handlers, never a closure that still owns the previous table source.
+const tableCellEditors = new WeakMap<HTMLElement, (cell: HTMLElement, caret: 'all' | 'end' | number) => void>();
 
 // A click on a different table can blur/commit the old table between mouse
 // down and up. Keep its destination outside either replaceable widget DOM.
@@ -1006,7 +1009,7 @@ class TableWidget extends WidgetType {
 		};
 
 		/** Swaps a cell to its raw Markdown and puts the caret in it. */
-		const beginEditing = (cell: HTMLElement, caret: 'all' | 'end'): void => {
+		const beginEditing = (cell: HTMLElement, caret: 'all' | 'end' | number): void => {
 			// Widget contenteditable attributes bypass the parent editor's DOM
 			// editability. Keep locked cells inert as well as rejecting transactions.
 			if (!view.state.facet(EditorView.editable)) {
@@ -1058,10 +1061,14 @@ class TableWidget extends WidgetType {
 			if (!selection) return;
 			const range = document.createRange();
 			range.selectNodeContents(cell);
-			if (caret === 'end') range.collapse(false);
+			if (typeof caret === 'number') {
+				if (cell.firstChild) range.setStart(cell.firstChild, Math.min(Math.max(0, caret), cell.textContent?.length ?? 0));
+				range.collapse(true);
+			} else if (caret === 'end') range.collapse(false);
 			selection.removeAllRanges();
 			selection.addRange(range);
 		};
+		tableCellEditors.set(wrap, beginEditing);
 
 		const cellAt = (row: number, col: number): HTMLElement | null =>
 			table.querySelector('[data-mlp-row="' + row + '"][data-mlp-col="' + col + '"]');
@@ -1085,7 +1092,7 @@ class TableWidget extends WidgetType {
 			// again afterwards, in the table that is on screen by then.
 			if (editing) commit(editing);
 			if (editing) return false;
-			const finish = (): void => {
+			const finish = (): boolean => {
 				// Scoped to *this* table's replacement, not the first one in the
 				// document: a file with several tables would otherwise start editing
 				// the wrong one. Match the source position and exclude the decorative
@@ -1096,12 +1103,21 @@ class TableWidget extends WidgetType {
 				);
 				// Tab selects the whole cell it lands on, the way a spreadsheet does,
 				// so typing straight away replaces the old value.
-				if (live) beginEditing(live, 'all');
+				const enter = scope && tableCellEditors.get(scope);
+				if (!live || !enter) return false;
+				enter(live, 'all');
+				return true;
 			};
-			// The rebuild lands in a measure/update cycle, so the new element does not
-			// exist yet; `requestAnimationFrame` runs after it has been mounted.
-			if (typeof requestAnimationFrame === 'function') requestAnimationFrame(finish);
-			else finish();
+			// Dispatch normally mounts the replacement synchronously. Waiting a
+			// frame drops rapid keystrokes on body before the next cell owns focus.
+			if (!finish() && typeof requestAnimationFrame === 'function') {
+				const expectedDocument = view.state.doc;
+				requestAnimationFrame(() => {
+					// A delayed mount must not steal focus after another user action.
+					if (view.dom.isConnected && view.state.doc === expectedDocument && document.hasFocus()
+						&& document.activeElement === document.body && view.state.facet(EditorView.editable)) finish();
+				});
+			}
 			return true;
 		};
 
@@ -1315,6 +1331,11 @@ class TableWidget extends WidgetType {
 				showSpreadsheetPasteWarning('stale'); return;
 			}
 			const clipboard = readSpreadsheetClipboard(event.clipboardData);
+			// Image clipboards may advertise empty text formats. They are not an
+			// instruction to erase the selected cell; table image paste is unsupported.
+			if (!clipboard.text && Array.from(event.clipboardData.items).some(item => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'))) {
+				showSpreadsheetPasteWarning('textOnly'); return;
+			}
 			const plain = isPlainTextPaste(event);
 			const text = plain ? event.clipboardData.getData('text/plain') || event.clipboardData.getData('text/uri-list') : clipboard.text;
 			const hasText = plain ? text.length > 0 : clipboard.hasText;
@@ -1337,7 +1358,8 @@ class TableWidget extends WidgetType {
 				const before = document.createRange(), after = document.createRange();
 				before.selectNodeContents(cell); before.setEnd(range.startContainer, range.startOffset);
 				after.selectNodeContents(cell); after.setStart(range.endContainer, range.endOffset);
-				const candidate = sanitizeCellInput(before.toString() + text + after.toString());
+				const prefix = before.toString();
+				const candidate = sanitizeCellInput(prefix + text + after.toString());
 				if (!spreadsheetReplacementFits(view.state, ref.from, ref.to, candidate)) {
 					showSpreadsheetPasteWarning('tooLarge'); return;
 				}
@@ -1347,7 +1369,14 @@ class TableWidget extends WidgetType {
 				selection.removeAllRanges(); selection.addRange(range);
 				showSpreadsheetPasteWarning();
 				notifyActiveDraftChanged();
-				commit(cell);
+				const caret = Math.min(candidate.length, escapeTableCellSource(prefix + text).trimStart().length);
+				if (commit(cell) !== null) {
+					// Saving a paste removes the focused cell DOM. Keep the next paste
+					// or keystroke in this same cell, at the end of the inserted text.
+					const scope = view.dom.querySelector<HTMLElement>(`.mlp-table-wrap[data-mlp-table-from="${this.tableFrom}"]`);
+					const live = scope?.querySelector<HTMLElement>(`.mlp-table .mlp-table-cell[data-mlp-row="${ref.row}"][data-mlp-col="${ref.col}"]`);
+					if (scope && live) tableCellEditors.get(scope)?.(live, caret);
+				}
 				return;
 			}
 			const row = Number(cell.dataset.mlpRow), col = Number(cell.dataset.mlpCol);

@@ -1,5 +1,7 @@
 # Changelog
 
+- Prefer usable external clipboard text over alternate images, skip empty spreadsheet metadata when a text fallback exists, and accept URI-only text in table cells without importing HTML. Keep consecutive cell pastes and post-Tab drafts at their intended target; image-only clipboard metadata cannot clear a table cell.
+- Hand off table-cell focus synchronously after Tab so immediate typing is not lost. Collapse an accidentally selected typed replacement of a rendered block to a caret, preventing the next character from overwriting the first; leave composition, paste, history, formatting, and remote selections unchanged.
 - Keep the caret stable while typing short formatted lines by using a nonmoving height-measurement guard. Preserve the existing large-note layout protection without inserting a trailing noneditable widget at the typing position.
 - Discard stale code highlighting in edited blocks instead of collapsing thousands of old tokens onto replacement text. Preserve typing after large selections, prevent stale colors during code rewrites, and emit visible highlighting tokens only once across folded regions.
 - Preserve copied Markdown containing tab-indented code instead of misclassifying it as spreadsheet data, including large notes. Keep HTML-only, empty, and unsupported clipboard content from deleting selected Markdown.
