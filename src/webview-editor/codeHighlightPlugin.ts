@@ -1,6 +1,6 @@
 import { StateEffect, StateField, Range } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
-import type { CodeBlockTokens, CodeToken } from '../shared/messages';
+import type { CodeBlockTokens } from '../shared/messages';
 
 export const setCodeTokens = StateEffect.define<CodeBlockTokens[]>();
 
@@ -17,21 +17,20 @@ export const codeTokensField = StateField.define<CodeBlockTokens[]>({
 		if (!tr.docChanged) {
 			return value;
 		}
-		// Re-map existing token ranges through the edit so highlighting stays roughly
-		// aligned until the debounced re-tokenization result arrives from the host.
+		// An edit invalidates that block's syntax until the host tokenizes it again.
+		// Mapping deleted tokens onto replacement text can nest thousands of marks
+		// on one character, overflowing CodeMirror's renderer during Select All/type.
 		return value
 			.map((block): CodeBlockTokens | null => {
+				if (tr.changes.touchesRange(block.from, block.to)) return null;
 				const from = tr.changes.mapPos(block.from, -1);
 				const to = tr.changes.mapPos(block.to, 1);
-				if (from >= to) return null;
-				const tokens = block.tokens
-					.map((t): CodeToken | null => {
-						const tf = tr.changes.mapPos(t.from, -1);
-						const tt = tr.changes.mapPos(t.to, 1);
-						if (tf >= tt) return null;
-						return { from: tf, to: tt, style: t.style };
-					})
-					.filter((t): t is CodeToken => t !== null);
+				// Untouched blocks only shift; their token boundaries remain distinct.
+				const tokens = block.tokens.map(token => ({
+					from: tr.changes.mapPos(token.from, -1),
+					to: tr.changes.mapPos(token.to, 1),
+					style: token.style,
+				}));
 				return { from, to, tokens };
 			})
 			.filter((b): b is CodeBlockTokens => b !== null);
@@ -41,13 +40,14 @@ export const codeTokensField = StateField.define<CodeBlockTokens[]>({
 function buildDecorations(view: EditorView): DecorationSet {
 	const blocks = view.state.field(codeTokensField);
 	const decorations: Range<Decoration>[] = [];
-	for (const { from: viewFrom, to: viewTo } of view.visibleRanges) {
-		for (const block of blocks) {
-			if (block.to < viewFrom || block.from > viewTo) continue;
-			for (const token of block.tokens) {
-				if (token.to <= token.from) continue;
-				decorations.push(Decoration.mark({ attributes: { style: token.style } }).range(token.from, token.to));
-			}
+	const visible = (from: number, to: number): boolean => view.visibleRanges.some(range => from < range.to && to > range.from);
+	for (const block of blocks) {
+		if (!visible(block.from, block.to)) continue;
+		for (const token of block.tokens) {
+			if (token.to <= token.from || !visible(token.from, token.to)) continue;
+			// Folded/replaced content splits visibleRanges. Emit a token once, not
+			// once per visible fragment of its surrounding code block.
+			decorations.push(Decoration.mark({ attributes: { style: token.style } }).range(token.from, token.to));
 		}
 	}
 	return Decoration.set(decorations, true);

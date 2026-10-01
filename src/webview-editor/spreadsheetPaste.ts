@@ -1,5 +1,5 @@
 import { Annotation, type EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, ViewPlugin } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { detectFrontmatter } from './frontmatterWidget';
 import { renderTableMarkdown } from './tableEdit';
@@ -10,6 +10,39 @@ import { t } from '../shared/i18n';
 /** Keep a spreadsheet paste separate from neighboring typing in host undo. */
 export const isolatedSpreadsheetPaste = Annotation.define<boolean>();
 type PasteWarning = 'malformed' | 'tooLarge' | 'textOnly' | 'stale' | 'busy';
+const plainTextPasteEvents = new WeakSet<ClipboardEvent>();
+
+/** Shared with rendered table cells, whose events bypass CodeMirror handlers. */
+export function isPlainTextPaste(event: ClipboardEvent): boolean { return plainTextPasteEvents.has(event); }
+
+const plainTextPasteIntent = ViewPlugin.fromClass(class {
+	private requested = false;
+	constructor(private readonly view: EditorView) {
+		view.dom.addEventListener('keydown', this.keydown, true);
+		view.dom.addEventListener('keyup', this.reset, true);
+		view.dom.addEventListener('focusout', this.reset, true);
+		view.dom.addEventListener('paste', this.paste, true);
+		window.addEventListener('blur', this.reset);
+	}
+	private keydown = (event: KeyboardEvent): void => {
+		this.requested = !event.isComposing && !event.altKey && event.shiftKey
+			&& (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v';
+	};
+	private reset = (): void => { this.requested = false; };
+	private paste = (event: ClipboardEvent): void => {
+		// Consume only this gesture; later menu/ordinary pastes must not inherit it.
+		if (this.requested) plainTextPasteEvents.add(event);
+		this.reset();
+	};
+	destroy(): void {
+		this.reset();
+		this.view.dom.removeEventListener('keydown', this.keydown, true);
+		this.view.dom.removeEventListener('keyup', this.reset, true);
+		this.view.dom.removeEventListener('focusout', this.reset, true);
+		this.view.dom.removeEventListener('paste', this.paste, true);
+		window.removeEventListener('blur', this.reset);
+	}
+});
 
 export function showSpreadsheetPasteWarning(reason?: PasteWarning): void {
 	let warning = document.getElementById('mlp-spreadsheet-paste-warning');
@@ -52,7 +85,7 @@ function inSourceObject(state: EditorState, position: number): boolean {
 
 /** Convert an unambiguous clipboard grid in the document body, not inside code. */
 export function createSpreadsheetPasteHandler() {
-	return EditorView.domEventHandlers({
+	return [plainTextPasteIntent, EditorView.domEventHandlers({
 		paste(event, view) {
 			const target = event.target instanceof Element ? event.target : null;
 			// Table widgets have their own cell-aware handler. Other widget inputs
@@ -60,13 +93,27 @@ export function createSpreadsheetPasteHandler() {
 			if (!target || target.closest('.mlp-table-wrap, input, textarea')
 				|| target.closest('[contenteditable]') !== view.contentDOM
 				|| !view.state.facet(EditorView.editable) || !event.clipboardData) return false;
+			const data = event.clipboardData;
+			const hasText = !!(data.getData('text/plain') || data.getData('text/uri-list'));
+			const hasGrid = data.types.includes('text/csv') || data.types.includes('text/tab-separated-values');
+			if (!hasText && !hasGrid) {
+				// Let image validation run next, but do not let CodeMirror interpret
+				// an HTML-only, unsupported, or empty clipboard as deletion of a selection.
+				if (Array.from(data.items).some(item => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'))) return false;
+				event.preventDefault(); showSpreadsheetPasteWarning('textOnly'); return true;
+			}
 			const { state } = view;
 			const { from, to } = state.selection.main;
-			if (state.selection.ranges.length !== 1 || inSourceObject(state, from) || inSourceObject(state, to)) return false;
-			const { result, hasText } = readSpreadsheetClipboard(event.clipboardData);
+			if (isPlainTextPaste(event) || state.selection.ranges.length !== 1 || inSourceObject(state, from) || inSourceObject(state, to)) {
+				// CodeMirror only reads plain text/URI data. Explicit grid-only MIME
+				// cannot fall through here as an empty replacement of selected code.
+				if (hasText) { showSpreadsheetPasteWarning(); return false; }
+				event.preventDefault(); showSpreadsheetPasteWarning('textOnly'); return true;
+			}
+			const { result, hasText: hasPlainText } = readSpreadsheetClipboard(event.clipboardData);
 			if (result.kind === 'text') {
 				// A successful ordinary paste supersedes any earlier table warning.
-				if (hasText) showSpreadsheetPasteWarning();
+				if (hasPlainText || hasText) showSpreadsheetPasteWarning();
 				return false;
 			}
 			event.preventDefault();
@@ -97,5 +144,5 @@ export function createSpreadsheetPasteHandler() {
 				return true;
 			}
 		},
-	});
+	})];
 }

@@ -126,8 +126,6 @@ async function runMode(mode) {
 		});
 		const launchArguments = [
 			workspaceDir,
-			'--no-sandbox',
-			'--disable-gpu-sandbox',
 			'--disable-updates',
 			'--disable-telemetry',
 			'--skip-welcome',

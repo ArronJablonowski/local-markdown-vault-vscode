@@ -88,6 +88,30 @@ describe('parseSpreadsheetClipboard', () => {
 		expect(parseSpreadsheetClipboard('a,b,c\nd,e', 'csv')).toEqual(table([['a', 'b', 'c'], ['d', 'e', '']]));
 		expect(parseSpreadsheetClipboard('a,b,c\nd,e')).toEqual({ kind: 'text' });
 	});
+	it.each([
+		'# Report\n\n```ts\n\tconst label = "value";\n```\n\nSummary.',
+		'Paragraph before code.\n\n\tindented code\n\nParagraph after code.',
+		'Heading\nName\tValue\nEnd of copied note.',
+	])('preserves mixed Markdown containing incidental tabs: %j', source => {
+		expect(parseSpreadsheetClipboard(source)).toEqual({ kind: 'text' });
+	});
+	it('retains empty TSV records but requires an explicit MIME for nonempty single-field records', () => {
+		expect(parseSpreadsheetClipboard('a\tb\n\nc\td')).toEqual(table([['a', 'b'], ['', ''], ['c', 'd']]));
+		expect(parseSpreadsheetClipboard('a\tb\nstandalone')).toEqual({ kind: 'text' });
+		expect(parseSpreadsheetClipboard('a\tb\nstandalone', 'tsv')).toEqual(table([['a', 'b'], ['standalone', '']]));
+	});
+	it('keeps large Markdown notes with incidental tabs outside the spreadsheet input budget', () => {
+		const note = '# Large note\n\n' + 'Paragraph without separators.\n'.repeat(12_000) + '\n```ts\n\tconst value = 1;\n```';
+		expect(note.length).toBeGreaterThan(MAX_SPREADSHEET_INPUT_BYTES);
+		expect(parseSpreadsheetClipboard(note)).toEqual({ kind: 'text' });
+		for (const mime of ['csv', 'tsv'] as const) expect(parseSpreadsheetClipboard(note, mime)).toEqual({ kind: 'invalid', reason: 'tooLarge' });
+		expect(parseSpreadsheetClipboard('Name\tValue\n' + 'x\ty\n'.repeat(70_000))).toEqual({ kind: 'invalid', reason: 'tooLarge' });
+	});
+	it('does not infer a plain first record from a truncated bounded prefix', () => {
+		const first = 'x'.repeat(4_100);
+		expect(parseSpreadsheetClipboard(`${first}\tValue\nnext\trow`)).toEqual(table([[first, 'Value'], ['next', 'row']]));
+		expect(parseSpreadsheetClipboard(`"${first}\nquoted"\tValue\nnext\trow`)).toEqual(table([[`${first}\nquoted`, 'Value'], ['next', 'row']]));
+	});
 	it.each(['"unfinished', 'abc"def,x', '"closed"junk,x', '"closed" ,x', '"a""', '"a"\tb,c'])('rejects malformed explicit quoting: %j', value => {
 		expect(parseSpreadsheetClipboard(value, 'csv')).toEqual({ kind: 'invalid', reason: 'malformed' });
 	});

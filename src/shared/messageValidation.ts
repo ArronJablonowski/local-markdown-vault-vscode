@@ -379,11 +379,14 @@ export function validateEditorToHostMessage(
 			}
 			return { ok: true, value: value as unknown as EditorToHostMessage };
 		case 'pasteImages': {
-			if (!hasExactKeys(value, ['type', 'atPos', 'images', 'needsOwnParagraph'])) {
+			const fields = ['type', 'atPos', 'images', 'needsOwnParagraph'];
+			if ('baseVersion' in value) fields.push('baseVersion');
+			if (!hasExactKeys(value, fields)) {
 				return { ok: false, reason: 'Unexpected paste fields.' };
 			}
 			if (
 				!isNonNegativeInteger(value.atPos) || value.atPos > documentLength ||
+				('baseVersion' in value && !isNonNegativeInteger(value.baseVersion)) ||
 				typeof value.needsOwnParagraph !== 'boolean' ||
 				!Array.isArray(value.images) || value.images.length === 0 || value.images.length > MAX_PASTED_IMAGE_COUNT
 			) return { ok: false, reason: 'Invalid pasted images.' };

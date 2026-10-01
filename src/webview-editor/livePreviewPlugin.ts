@@ -17,7 +17,7 @@ import { detectFrontmatter } from './frontmatterWidget';
 import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
 import { escapeTableCellSource } from './tableCellSource';
 import { pasteSpreadsheetCells, MAX_SPREADSHEET_INPUT_BYTES } from './spreadsheetClipboard';
-import { isolatedSpreadsheetPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
+import { isolatedSpreadsheetPaste, isPlainTextPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
 import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHeaderSettings';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import {
@@ -1314,7 +1314,11 @@ class TableWidget extends WidgetType {
 			if (!table.isConnected || view.state.sliceDoc(this.tableFrom, this.tableTo) !== originalTableSource) {
 				showSpreadsheetPasteWarning('stale'); return;
 			}
-			const { result, hasText, text } = readSpreadsheetClipboard(event.clipboardData);
+			const clipboard = readSpreadsheetClipboard(event.clipboardData);
+			const plain = isPlainTextPaste(event);
+			const text = plain ? event.clipboardData.getData('text/plain') || event.clipboardData.getData('text/uri-list') : clipboard.text;
+			const hasText = plain ? text.length > 0 : clipboard.hasText;
+			const result = plain ? { kind: 'text' as const } : clipboard.result;
 			if (!hasText) { showSpreadsheetPasteWarning('textOnly'); return; }
 			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return; }
 			if (result.kind === 'text') {
@@ -1510,7 +1514,7 @@ class TableWidget extends WidgetType {
 		const tableActionButtons: HTMLButtonElement[] = [];
 		const makeActionButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
 			const button = makeAddButton(label, title, onClick);
-			button.className = 'mlp-table-action-btn';
+			button.className = 'mlp-table-action-btn mlp-table-mutation-btn';
 			button.textContent = title;
 			button.disabled = true;
 			tableActionButtons.push(button);

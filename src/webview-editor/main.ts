@@ -26,7 +26,7 @@ import { detectFrontmatter } from './frontmatterWidget';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
 import { toggleEmphasisCommand } from './emphasisShortcuts';
-import { createImagePasteHandler, type ImagePasteRejection } from './imagePasteHandler';
+import { createImagePasteHandler, flushPendingImagePastes, type ImagePasteRejection } from './imagePasteHandler';
 import { getWebviewState, postToHost, onHostMessage, setWebviewState } from './vscodeApi';
 import { setDrawioFilePoster, handleDrawioFileMessage, clearDrawioFileCache } from './drawioFileClient';
 import {
@@ -109,6 +109,7 @@ function flush() {
 		pending.clear();
 		for (const type of pendingHistory.splice(0)) postToHost({ type });
 		if (pendingSave) { pendingSave = false; postToHost({ type: 'save' }); }
+		if (view) flushPendingImagePastes(view);
 		return;
 	}
 	const { changes } = pending.takeBatch()!;
@@ -179,6 +180,8 @@ function setImagePasteDiagnostic(reason?: ImagePasteRejection): void {
 		tooMany: 'imagePaste.tooMany',
 		tooLarge: 'imagePaste.tooLarge',
 		unreadable: 'imagePaste.unreadable',
+		busy: 'imagePaste.busy',
+		stale: 'imagePaste.stale',
 	};
 	warning.textContent = t(messages[reason]);
 	warning.hidden = false;
@@ -335,9 +338,10 @@ function createExtensions(): Extension[] {
 		createSpreadsheetPasteHandler(),
 		createImagePasteHandler(
 			(atPos, images, needsOwnParagraph) => {
-				if (!editingAllowed) return;
+				if (!editingAllowed || recoveryBlocked || editInFlight || !pending.empty || awaitingResync || processingHostSnapshot) return false;
 				setImagePasteDiagnostic();
-				postToHost({ type: 'pasteImages', atPos, images, needsOwnParagraph });
+				postToHost({ type: 'pasteImages', atPos, images, needsOwnParagraph, baseVersion });
+				return true;
 			},
 			setImagePasteDiagnostic,
 		),

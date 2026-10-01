@@ -112,6 +112,8 @@ const en = {
 	'imagePaste.tooMany': 'At most 32 images can be added in one operation.',
 	'imagePaste.tooLarge': 'Images are limited to 20 MiB each and 40 MiB per operation.',
 	'imagePaste.unreadable': 'The image data could not be read safely.',
+	'imagePaste.busy': 'An image paste or drop is still being prepared. Wait for it to finish and try again.',
+	'imagePaste.stale': 'The image insertion could not finish at its original location. Paste or drop it again.',
 
 	'table.addRow': 'Add a row',
 	'table.addColumn': 'Add a column',

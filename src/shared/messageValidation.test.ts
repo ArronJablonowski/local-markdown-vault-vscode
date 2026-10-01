@@ -157,6 +157,10 @@ describe('validateEditorToHostMessage', () => {
 	it('accepts bounded image batches and rejects malformed, excessive, or oversized operations', () => {
 		const base = { type: 'pasteImages', atPos: 2, needsOwnParagraph: false };
 		const small = { mimeType: 'image/png', dataBase64: 'YWJj' };
+		expect(validateEditorToHostMessage({ ...base, baseVersion: 7, images: [small] }, 5).ok).toBe(true);
+		for (const baseVersion of [-1, 0.5, '7', NaN, Number.MAX_SAFE_INTEGER + 1, undefined, null]) {
+			expect(validateEditorToHostMessage({ ...base, baseVersion, images: [small] }, 5).ok).toBe(false);
+		}
 		expect(validateEditorToHostMessage({ ...base, images: [small, { mimeType: 'image/jpeg', dataBase64: 'ZGVm' }] }, 5).ok).toBe(true);
 		expect(validateEditorToHostMessage({ ...base, images: [] }, 5).ok).toBe(false);
 		expect(validateEditorToHostMessage({ ...base, images: Array.from({ length: MAX_PASTED_IMAGE_COUNT + 1 }, () => small) }, 5).ok).toBe(false);

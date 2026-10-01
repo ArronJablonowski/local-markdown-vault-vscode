@@ -311,7 +311,7 @@ export class DocumentSyncSession {
 				break;
 			case 'pasteImages':
 				if (!vscode.workspace.isTrusted) return;
-				this.enqueuePastedImages(message.atPos, message.images, message.needsOwnParagraph);
+				this.enqueuePastedImages(message.atPos, message.images, message.needsOwnParagraph, message.baseVersion);
 				break;
 			case 'readDrawioFile':
 				if (!vscode.workspace.isTrusted) return;
@@ -795,16 +795,26 @@ export class DocumentSyncSession {
 	 * `handleDocumentChanged` → `externalUpdate` path deliver it to the
 	 * webview exactly as if it were an edit from another tab.
 	 */
-	private enqueuePastedImages(atPos: number, images: PastedImagePayload[], needsOwnParagraph: boolean): void {
-		this.enqueueMutation(() => this.handlePasteImages(atPos, images, needsOwnParagraph));
+	private enqueuePastedImages(atPos: number, images: PastedImagePayload[], needsOwnParagraph: boolean, baseVersion = this.document.version): void {
+		// A numeric paste anchor belongs to one snapshot, not whichever text exists
+		// after queued edits or attachment I/O complete. Legacy messages use receipt time.
+		const baseline = { version: baseVersion, text: this.document.getText() };
+		this.enqueueMutation(() => this.handlePasteImages(atPos, images, needsOwnParagraph, baseline));
 	}
 
 	private async handlePasteImages(
 		atPos: number,
 		images: PastedImagePayload[],
 		needsOwnParagraph: boolean,
+		baseline: { version: number; text: string },
 	): Promise<void> {
 		if (!vscode.workspace.isTrusted) return;
+		const unchanged = () => !this.disposed && !this.document.isClosed
+			&& this.document.version === baseline.version && this.document.getText() === baseline.text;
+		const warnChanged = () => {
+			void vscode.window.showWarningMessage(vscode.l10n.t('The document changed while the image was being pasted. Please paste the image again at the desired location.'));
+		};
+		if (!unchanged()) { warnChanged(); return; }
 		if (images.length === 0 || images.length > MAX_PASTED_IMAGE_COUNT) return;
 		const validatedImages: Array<{ ext: string; bytes: Buffer }> = [];
 		let totalBytes = 0;
@@ -938,8 +948,9 @@ export class DocumentSyncSession {
 		);
 		const edit = new vscode.WorkspaceEdit();
 		edit.insert(this.document.uri, position, insertText);
-		if (!vscode.workspace.isTrusted) {
+		if (!vscode.workspace.isTrusted || !unchanged()) {
 			await rollback();
+			if (!unchanged()) warnChanged();
 			return;
 		}
 		let applied = false;
@@ -947,10 +958,12 @@ export class DocumentSyncSession {
 			applied = await vscode.workspace.applyEdit(edit);
 		} catch {
 			await rollback();
+			void vscode.window.showWarningMessage(vscode.l10n.t('The pasted image could not be inserted. Please paste it again.'));
 			return;
 		}
 		if (!applied) {
 			await rollback();
+			void vscode.window.showWarningMessage(vscode.l10n.t('The pasted image could not be inserted. Please paste it again.'));
 			return;
 		}
 		for (const createdFile of createdFiles) await vaultService.releaseCreatedFile(createdFile);

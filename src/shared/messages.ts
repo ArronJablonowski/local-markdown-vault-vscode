@@ -87,7 +87,7 @@ export type EditorToHostMessage =
 	| { type: 'redo' }
 	| { type: 'openLink'; href: string }
 	| { type: 'pasteImage'; atPos: number; mimeType: string; dataBase64: string; needsOwnParagraph: boolean }
-	| { type: 'pasteImages'; atPos: number; images: PastedImagePayload[]; needsOwnParagraph: boolean }
+	| { type: 'pasteImages'; atPos: number; images: PastedImagePayload[]; needsOwnParagraph: boolean; baseVersion?: number }
 	// A `![](diagram.drawio)` reference: the webview cannot read workspace files
 	// itself, and an <img> cannot render mxGraph XML, so the host reads the file
 	// and sends its text back for the widget to parse. `src` is the raw, relative

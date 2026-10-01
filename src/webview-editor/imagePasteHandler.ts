@@ -1,7 +1,7 @@
-import { EditorView } from '@codemirror/view';
+import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import type { EditorState } from '@codemirror/state';
+import { MapMode, type EditorState } from '@codemirror/state';
 import type { PastedImagePayload } from '../shared/messages';
 import {
 	MAX_PASTED_IMAGE_BYTES,
@@ -13,9 +13,9 @@ export type ImagePasteCallback = (
 	atPos: number,
 	images: PastedImagePayload[],
 	needsOwnParagraph: boolean,
-) => void;
+) => boolean | void;
 
-export type ImagePasteRejection = 'unsupported' | 'empty' | 'tooMany' | 'tooLarge' | 'unreadable';
+export type ImagePasteRejection = 'unsupported' | 'empty' | 'tooMany' | 'tooLarge' | 'unreadable' | 'busy' | 'stale';
 
 export interface InsertionPoint {
 	pos: number;
@@ -99,25 +99,122 @@ export function selectDroppedImageFiles(files: FileList | undefined | null): Ima
 // `arrayBuffer()`) because the browser implements the encoding natively —
 // cheaper than building a giant string via `String.fromCharCode` per byte for
 // a multi-megabyte screenshot.
-function readAsBase64(file: File): Promise<string> {
+function readAsBase64(file: File, signal: AbortSignal): Promise<string> {
 	return new Promise((resolve, reject) => {
+		if (signal.aborted) { reject(new Error('Image operation canceled')); return; }
 		const reader = new FileReader();
+		const cleanup = () => signal.removeEventListener('abort', abort);
+		const abort = () => {
+			cleanup();
+			reader.onload = null;
+			reader.onerror = null;
+			if (reader.readyState === FileReader.LOADING) reader.abort();
+			reject(new Error('Image operation canceled'));
+		};
+		signal.addEventListener('abort', abort, { once: true });
 		reader.onload = () => {
+			cleanup();
 			const result = reader.result as string;
 			const comma = result.indexOf(',');
 			resolve(comma === -1 ? result : result.slice(comma + 1));
 		};
-		reader.onerror = () => reject(reader.error);
+		reader.onerror = () => { cleanup(); reject(reader.error); };
 		reader.readAsDataURL(file);
 	});
 }
 
-async function readImages(files: File[]): Promise<PastedImagePayload[]> {
+async function readImages(files: File[], signal: AbortSignal): Promise<PastedImagePayload[]> {
 	const images: PastedImagePayload[] = [];
 	// Read sequentially so a maximum-sized operation never creates several
 	// simultaneous FileReader buffers on the webview's UI thread.
-	for (const file of files) images.push({ mimeType: file.type, dataBase64: await readAsBase64(file) });
+	for (const file of files) images.push({ mimeType: file.type, dataBase64: await readAsBase64(file, signal) });
 	return images;
+}
+
+interface PendingImagePaste extends InsertionPoint {
+	controller: AbortController;
+	timer: ReturnType<typeof setTimeout>;
+	images?: PastedImagePayload[];
+}
+
+// One bounded operation per editor also keeps successive large file reads from
+// multiplying memory use while the host is saving or unavailable.
+const MAX_IMAGE_PASTE_WAIT_MS = 30_000;
+const imagePasteControllers = new WeakMap<EditorView, ImagePasteController>();
+
+/** Called when the text channel becomes idle after its final acknowledgment. */
+export function flushPendingImagePastes(view: EditorView): void {
+	imagePasteControllers.get(view)?.flush();
+}
+
+class ImagePasteController {
+	private pending: PendingImagePaste | undefined;
+	private destroyed = false;
+
+	constructor(
+		private readonly view: EditorView,
+		private readonly onImages: ImagePasteCallback,
+		private readonly onRejected: (reason: ImagePasteRejection) => void,
+	) { imagePasteControllers.set(view, this); }
+
+	private editable(): boolean {
+		return !this.destroyed && !this.view.state.readOnly && this.view.state.facet(EditorView.editable);
+	}
+
+	private cancel(reason?: ImagePasteRejection): void {
+		const pending = this.pending;
+		this.pending = undefined;
+		if (!pending) return;
+		clearTimeout(pending.timer);
+		pending.controller.abort();
+		if (reason) this.onRejected(reason);
+	}
+
+	start(selection: ImageFileSelection, pos: number): boolean {
+		if (selection.kind === 'none') return false;
+		if (!this.editable()) return true;
+		if (selection.kind === 'invalid') { this.onRejected(selection.reason); return true; }
+		if (this.pending) { this.onRejected('busy'); return true; }
+		const pending: PendingImagePaste = {
+			...escapeTable(this.view.state, pos), controller: new AbortController(),
+			timer: setTimeout(() => { if (this.pending === pending) this.cancel('stale'); }, MAX_IMAGE_PASTE_WAIT_MS),
+		};
+		this.pending = pending;
+		void readImages(selection.files, pending.controller.signal).then(images => {
+			if (this.pending !== pending || !this.editable()) return;
+			pending.images = images;
+			this.flush();
+		}).catch(() => { if (this.pending === pending) this.cancel('unreadable'); });
+		return true;
+	}
+
+	flush(): void {
+		const pending = this.pending;
+		if (!pending?.images) return;
+		if (!this.editable()) { this.cancel(); return; }
+		// A table may have been added while decoding; recheck its current extent.
+		const point = escapeTable(this.view.state, pending.pos);
+		try {
+			if (this.onImages(point.pos, pending.images, pending.needsOwnParagraph || point.needsOwnParagraph) === false) return;
+			this.cancel();
+		} catch { this.cancel('unreadable'); }
+	}
+
+	update(update: ViewUpdate): void {
+		if (!this.editable()) { this.cancel(); return; }
+		if (!this.pending || !update.docChanged) return;
+		// Preserve paste-before-subsequent-typing order at the exact insertion
+		// point, but cancel if a replacement deletes the intended destination.
+		const mapped = update.changes.mapPos(this.pending.pos, -1, MapMode.TrackDel);
+		if (mapped === null) this.cancel('stale');
+		else this.pending.pos = mapped;
+	}
+
+	destroy(): void {
+		this.destroyed = true;
+		this.cancel();
+		if (imagePasteControllers.get(this.view) === this) imagePasteControllers.delete(this.view);
+	}
 }
 
 /** Intercepts a bounded image batch and hands one atomic operation to the host. */
@@ -125,35 +222,21 @@ export function createImagePasteHandler(
 	onImages: ImagePasteCallback,
 	onRejected: (reason: ImagePasteRejection) => void = () => undefined,
 ) {
-	return EditorView.domEventHandlers({
-		paste(event, view) {
-			const selection = selectImageItems(event.clipboardData?.items);
-			if (selection.kind === 'none') return false; // not an image — let normal text paste proceed untouched
-			event.preventDefault();
-			if (selection.kind === 'invalid') {
-				onRejected(selection.reason);
-				return true;
-			}
-			const { pos, needsOwnParagraph } = escapeTable(view.state, view.state.selection.main.from);
-			void readImages(selection.files)
-				.then((images) => onImages(pos, images, needsOwnParagraph))
-				.catch(() => onRejected('unreadable'));
-			return true;
-		},
-		drop(event, view) {
-			const selection = selectDroppedImageFiles(event.dataTransfer?.files);
-			if (selection.kind === 'none') return false;
-			event.preventDefault();
-			if (selection.kind === 'invalid') {
-				onRejected(selection.reason);
-				return true;
-			}
-			const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
-			const { pos, needsOwnParagraph } = escapeTable(view.state, dropPos);
-			void readImages(selection.files)
-				.then((images) => onImages(pos, images, needsOwnParagraph))
-				.catch(() => onRejected('unreadable'));
-			return true;
+	return ViewPlugin.define(view => new ImagePasteController(view, onImages, onRejected), {
+		eventHandlers: {
+			paste(event, view) {
+				const selection = selectImageItems(event.clipboardData?.items);
+				if (selection.kind === 'none') return false;
+				event.preventDefault();
+				return this.start(selection, view.state.selection.main.from);
+			},
+			drop(event, view) {
+				const selection = selectDroppedImageFiles(event.dataTransfer?.files);
+				if (selection.kind === 'none') return false;
+				event.preventDefault();
+				const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
+				return this.start(selection, pos);
+			},
 		},
 	});
 }

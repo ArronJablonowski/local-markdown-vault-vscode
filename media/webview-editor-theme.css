@@ -112,6 +112,14 @@ html, body {
 	display: none;
 }
 
+/* Locked tables retain selection/source controls, but cannot change structure.
+   Scope to the live root so equal table widgets update immediately on toggles. */
+.mlp-editor-locked .mlp-table-mutation-btn,
+.mlp-editor-locked .mlp-table-add-btn,
+.mlp-editor-locked .mlp-table-options-hint {
+	display: none;
+}
+
 .cm-editor {
 	height: 100%;
 	/* Clips the floating search/replace panel (see the `.cm-panel.cm-search`

@@ -52,7 +52,7 @@ try {
 	});
 	await new Promise((resolveRun, rejectRun) => {
 		const child = spawn(executable, [
-			workspace, '--no-sandbox', '--disable-gpu-sandbox', '--disable-updates', '--disable-telemetry',
+			workspace, '--disable-updates', '--disable-telemetry',
 			'--disable-workspace-trust', '--skip-welcome', '--skip-release-notes', '--no-cached-data',
 			`--user-data-dir=${profile}`, `--extensions-dir=${extensions}`, `--remote-debugging-port=${port}`,
 			`--extensionTestsPath=${resolve(root, 'node_modules/@vscode/test-cli/out/runner.cjs')}`,

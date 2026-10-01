@@ -391,13 +391,21 @@ on Windows/Linux:
   One Undo reverses the table paste, separately from
   preceding and following typing.
 
-Tab-separated Excel-style data is recognized automatically. Plain CSV text must
+Tab-separated Excel-style data is recognized automatically when every nonempty
+record has at least two fields. Mixed Markdown with incidental indentation tabs
+stays Markdown. Plain CSV text must
 have at least two rows with the same number of columns (at least two); ordinary
 single-line comma-containing text and plain one-column text keep normal paste
 behavior. Plain-text code or prose with non-spreadsheet quoting is also pasted
 unchanged rather than rejected. A clipboard explicitly labeled CSV or TSV can
 also contain a single row or column. Paste inside code, frontmatter, or raw table source stays ordinary
-text rather than creating a nested table.
+text rather than creating a nested table, provided the clipboard contains plain
+text. Unsupported or empty clipboard content shows a warning and leaves the
+selected Markdown intact.
+
+Use **Command+Shift+V** on macOS or **Ctrl+Shift+V** on Windows/Linux to paste
+plain text without automatic table conversion. In a rendered table cell, this
+keeps the pasted text in that cell instead of expanding it into a rectangle.
 
 Empty cells, quoted commas, doubled quotes, Unicode/emoji, leading zeros, and
 multiline quoted values are supported. Real cell line breaks become `<br>`;
@@ -417,6 +425,12 @@ table cell, drag across paragraphs and rendered blocks, or keep selecting while
 scrolling. Selections spanning blocks copy the underlying Markdown; selections
 inside a rendered table copy its displayed text. Locked mode permits copying
 without modifying the document.
+
+Lock prevents new edits in that Live Preview tab; it is not a filesystem lock.
+Edits already accepted for saving, including an image insertion already handed
+to VS Code, may finish. Changes made by another editor or application still
+appear in the locked view. Image reads that have not yet been handed to VS Code
+are canceled when the view locks.
 
 Clicking or attempting to type in a locked Live Preview briefly glimmers the
 Lock/Edit switch as a reminder to unlock. The effect stops when unlocked and

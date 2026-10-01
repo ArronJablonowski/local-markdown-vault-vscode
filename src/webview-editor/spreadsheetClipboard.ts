@@ -64,6 +64,20 @@ function outsideQuotedFields(source: string): string {
 	return pieces.join('');
 }
 
+/** Recognize a complete plain first record without scanning a large note. */
+function startsWithPlainRecord(source: string): boolean {
+	// Do this before spreadsheet size checks: a large Markdown note with one
+	// incidental indentation tab must not be rejected as an oversized grid.
+	const prefix = source.slice(0, 4_096);
+	const records = prefix.split(/\r\n?|\n/);
+	for (let index = 0; index < records.length; index++) {
+		if (index === records.length - 1 && prefix.length < source.length) return false;
+		const record = records[index];
+		if (record.trim()) return !record.includes('\t') && !record.includes(',') && !record.trimStart().startsWith('"');
+	}
+	return false;
+}
+
 /**
  * Parses bounded RFC-style quoted CSV/TSV. Auto CSV recognition is deliberately
  * conservative; an ordinary single comma, prose line, or Markdown is not a table.
@@ -73,6 +87,7 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 	if (typeof text !== 'string' || !['auto', 'csv', 'tsv'].includes(mime)) return invalid('malformed');
 	const source = text.startsWith('\ufeff') ? text.slice(1) : text;
 	if (mime === 'auto' && /^(?:[ \t]*\r?\n)*[ \t]{0,3}(?:`{3,}|~{3,})/.test(source)) return { kind: 'text' };
+	if (mime === 'auto' && startsWithPlainRecord(source)) return { kind: 'text' };
 	if (mime === 'auto' && !source.includes('\t') && (!source.includes(',') || !/[\r\n]/.test(source))) return { kind: 'text' };
 	if (text.length > MAX_SPREADSHEET_INPUT_BYTES || utf8Bytes(text) > MAX_SPREADSHEET_INPUT_BYTES) return invalid('tooLarge');
 	const classification = mime === 'auto' ? outsideQuotedFields(source) : source;
@@ -126,6 +141,10 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 		if (position >= source.length) break;
 	}
 	if (mime === 'auto' && delimiter === ',' && (rows.length < 2 || widest < 2 || rows.some(cells => cells.length !== widest))) return { kind: 'text' };
+	// A tab in an indented code line is not enough to turn surrounding prose
+	// or Markdown into a spreadsheet. Declared TSV may still contain one-cell
+	// records; auto detection requires every nonempty record to have a separator.
+	if (mime === 'auto' && delimiter === '\t' && rows.some(cells => cells.length === 1 && cells[0].trim() !== '')) return { kind: 'text' };
 	for (const cells of rows) while (cells.length < widest) cells.push('');
 	return { kind: 'table', rows };
 }

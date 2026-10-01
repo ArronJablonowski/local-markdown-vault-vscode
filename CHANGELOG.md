@@ -1,5 +1,11 @@
 # Changelog
 
+- Discard stale code highlighting in edited blocks instead of collapsing thousands of old tokens onto replacement text. Preserve typing after large selections, prevent stale colors during code rewrites, and emit visible highlighting tokens only once across folded regions.
+- Preserve copied Markdown containing tab-indented code instead of misclassifying it as spreadsheet data, including large notes. Keep HTML-only, empty, and unsupported clipboard content from deleting selected Markdown.
+- Handle trusted Command/Ctrl+Shift+V synchronously inside the editor without delayed host replay. Keep copy, cut, and paste on the existing validated clipboard paths.
+- Map pending image paste/drop locations through edits, cancel unfinished reads when locked or disposed, bound concurrent work, and wait for text acknowledgments. Reject stale host insertion positions and roll back attachments if the document changes during image writes.
+- Hide table mutation controls while locked, preserving selection, copying, source viewing, and scrolling. Add native macOS/Linux clipboard and lock QA plus browser and host-ordering regressions.
+
 - Keep the caret visible after arrow, page, and line navigation while large-note preview heights settle. Bound corrective scrolling and cancel it on typing, pointer input, manual scrolling, focus loss, or hidden editors. Preserve selections and Markdown content.
 - Retain only the latest requested line jump while a webview initializes, and deliver it after the initial document so opening or revealing a note cannot replay an older destination.
 
