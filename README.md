@@ -69,7 +69,8 @@ policies; the extension cannot guarantee its remote-image or inert-HTML policy
 in those views. Vault filesystem protections apply to extension vault actions.
 
 - Remote images are blocked by default
-- Raw HTML is rendered as inert text, except bare `<br>` line breaks in table cells
+- Raw HTML stays inert except bare `<br>` line breaks and bounded, attribute-free
+  `<ul>`, `<ol>`, and `<li>` lists in table cells; these use safe DOM construction
 - Dangerous protocols and paths outside the vault are rejected
 - Filesystem paths are canonicalized and checked after symlink resolution
 - Webview messages, pasted images, YAML, diagrams, SVG, XML, and queued work are bounded and validated

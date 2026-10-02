@@ -23,6 +23,8 @@ const unicode = 'Unicode clipboard fixture\nCaf\u00e9, na\u00efve, \u6771\u4eac,
 const code = 'const message = "Clipboard \u03a9 \ud83d\ude80";\nconsole.log(message);';
 const widgets = `Start mixed selection\n\n| Name | Value |\n| --- | --- |\n| Alpha bravo | Charlie delta |\n\nCODE_SECTION\n\n\`\`\`typescript\n${code}\n\`\`\`\n\n- [ ] Preserve task\n\n> [!note] Local note\n> Preserve the full callout.\n\nEnd mixed selection`;
 const tableTarget = 'Before\n\n| Item | Count |\n| --- | --- |\n| Keep original | 2 |\n\nAfter';
+const tableList = '<ul><li>Confirm **scope**.<ul><li>Review evidence.</li><li>Check gaps.</li></ul></li><li>Record decision.</li></ul>';
+const tableListNote = `Before list table\n\n| Actions | Status |\n| --- | --- |\n| ${tableList} | Preserve neighbor |\n\nAfter list table`;
 const initial = new Map([
   ['Unicode clipboard.md', unicode],
   ['Mixed widgets.md', widgets],
@@ -32,6 +34,7 @@ const initial = new Map([
   ['Consecutive table paste.md', tableTarget],
   ['Immediate Tab paste.md', tableTarget],
   ['Pasted table replacement.md', 'Replace this entire synthetic note.'],
+  ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
 const report = { startedAt: new Date().toISOString(), platform: 'linux-arm64', completed: false, passed: false, checks: [], failures: [], samples: [], files: [], pageErrors: [], consoleErrors: [], keys: 0, clipboardReads: 0 };
@@ -244,6 +247,39 @@ try {
     report.tableReplacementRounds = 5;
     await delay(500); await unchanged('typed replacement has no delayed replay');
     await screenshot('pasted-table-typed-replacement');
+  });
+  await check('Nested table lists render and no-op F2 Enter returns to bullets without changing source', async () => {
+    await open('Nested table lists.md');
+    const cell = frame.locator('.mlp-table td').first();
+    assert.equal(await cell.locator('ul.mlp-cell-list').count(), 2);
+    assert.equal(await cell.locator('li.mlp-cell-list-item').count(), 4);
+    assert.equal(await cell.locator('strong').innerText(), 'scope');
+    assert.deepEqual(await cell.locator('ul').evaluateAll(lists => lists.map(list => getComputedStyle(list).listStyleType)), ['disc', 'circle']);
+    await cell.focus(); await press('F2');
+    assert.equal(await cell.innerText(), tableList);
+    await press('Enter');
+    await wait(async () => await cell.locator('li.mlp-cell-list-item').count() === 4
+      && await cell.getAttribute('contenteditable') !== 'true', 'list cell returns to rendered bullets');
+    await saved();
+    await screenshot('nested-table-list-no-op');
+  });
+  await check('Editing a nested table list item preserves every other source byte and saves immediately', async () => {
+    await open('Nested table lists.md');
+    const cell = frame.locator('.mlp-table td').first();
+    await cell.focus(); await press('F2');
+    // Collapse the cell-wide selection and select one item's text using only keys.
+    await press('ArrowLeft');
+    const original = 'Review evidence.', replacement = 'Review verified evidence.';
+    for (let index = 0; index < tableList.indexOf(original); index++) await press('ArrowRight');
+    for (let index = 0; index < original.length; index++) await press('Shift+ArrowRight');
+    assert.equal(await frame.evaluate(() => window.getSelection().toString()), original);
+    await page.keyboard.type(replacement); await press('Enter');
+    expected.set(current, tableListNote.replace(original, replacement));
+    await saved();
+    assert.equal(await cell.locator('li.mlp-cell-list-item').count(), 4);
+    assert.equal(await cell.locator('ul ul > li').first().innerText(), replacement);
+    assert.equal(await frame.locator('.mlp-table td').last().innerText(), 'Preserve neighbor');
+    await screenshot('nested-table-list-edited');
   });
   for (const [name, text] of expected) {
     const actual = await disk(name);
