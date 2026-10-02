@@ -26,6 +26,10 @@ class StubElement implements StubNode {
 	// not part of the markup these tests assert on.
 	readonly dataset: Record<string, string> = {};
 	className = '';
+	readonly classList = {
+		add: (...names: string[]) => { this.className = [...new Set([...this.className.split(/\s+/).filter(Boolean), ...names])].join(' '); },
+		remove: (...names: string[]) => { this.className = this.className.split(/\s+/).filter(name => name && !names.includes(name)).join(' '); },
+	};
 	title = '';
 	src = '';
 	alt = '';

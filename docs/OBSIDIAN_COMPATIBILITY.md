@@ -69,11 +69,11 @@ a bullet, three after `1.`, and six after `- [ ]`.
 | Footnotes | Supported | References and definitions navigate in both directions and remain editable as Markdown. |
 | Tags | Supported | Inline and YAML tags, including nested tags, feed the local Tags view. Code and headings are not interpreted as tags. |
 | Tasks | Supported | Checkboxes are keyboard and pointer operable and change only their source marker. As in Obsidian, every non-space task-state character is treated as completed. |
-| Tables | Supported | Cells can be edited in place; row and column insertion, deletion, movement, sorting, and alignment preserve Markdown source where possible. |
+| Tables | Supported | Cells can be edited in place; row and column insertion, deletion, movement, sorting, and alignment preserve Markdown source where possible. Balanced, attribute-free `ul`, `ol`, and `li` render lists inside Live Preview and embedded table cells without changing source. |
 | Editing interactions | Supported | Shift+Enter creates an aligned soft continuation line. Mouse-highlighted text can be copied or deleted; complete rendered tables and fenced code blocks support safe whole-block copy or deletion. |
 | Mermaid | Supported with security differences | Diagrams are bounded and sanitized. HTML labels, click callbacks, external resources, and document attempts to weaken strict mode are disabled. |
 | draw.io file embeds | Supported with security differences | Local uncompressed diagram files are parsed with explicit limits and sanitized before display. Compressed draw.io input and active external content are not supported. |
-| Raw HTML | Displayed as inert source | Raw HTML is never executed. No setting enables arbitrary HTML execution. |
+| Raw HTML | Restricted structural subset | Raw HTML is never executed. Live Preview constructs bare line breaks and bounded, attribute-free lists in table cells. Other HTML stays inert source; no setting enables arbitrary HTML execution. |
 
 Malformed or incomplete syntax remains visible and editable as source instead
 of disappearing or producing an empty document.
@@ -106,7 +106,7 @@ of disappearing or producing an empty document.
 | Remote images | Blocked by default. A workspace may explicitly allow note-authored HTTPS images; redirects to a non-HTTPS destination remain blocked. |
 | External links | HTTPS and `mailto:` may be opened. HTTP requires confirmation. Executable, local-file, ambiguous, and unknown schemes are rejected. |
 | Local files | Reads, writes, embeds, navigation, and mutations must remain inside the canonical vault and may not traverse a symlink target outside it. |
-| HTML and SVG | Markdown HTML is inert. Renderer-produced SVG passes a restrictive verifier that removes scripts, event handlers, external references, animation, and `foreignObject`. |
+| HTML and SVG | Live Preview HTML stays inert except explicitly constructed line breaks and bounded table-cell lists. Renderer-produced SVG passes a restrictive verifier that removes scripts, event handlers, external references, animation, and `foreignObject`. |
 | CSS snippets | Safe rules are scoped to preview content. Imports, network URLs, and rules capable of obscuring or impersonating extension controls are ignored. |
 | Restricted Mode | Plain Markdown editing remains available, while diagrams, custom CSS, remote media, attachment writes, and vault-wide mutations are disabled. |
 

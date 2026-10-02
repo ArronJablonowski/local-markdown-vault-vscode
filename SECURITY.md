@@ -26,6 +26,16 @@ Untrusted workspaces run in restricted mode. Diagram execution, custom CSS, atta
 
 ## Webview policy notes
 
+Live Preview table cells recognize a narrow structural subset: bare `br` and
+balanced, attribute-free `ul`, `ol`, and `li` tags. The extension creates those
+elements directly rather than parsing source with `innerHTML` or `DOMParser`.
+List recognition is limited to 65,536 UTF-16 code units per cell, 1,000 list/item
+elements, and 32 simultaneously open elements. Malformed, attributed, or
+over-limit lists remain source text. Code spans, escaped tags, link labels, and
+clipboard-escaped spreadsheet values do not become list structure. Scripts,
+event handlers, HTML resource elements, and other raw HTML remain inert. This
+does not enable general HTML rendering or weaken link/image authorization.
+
 Every executable script is a packaged extension resource authorized by a per-document nonce. The webview HTML contains no inline executable script. `default-src 'none'` is the baseline; HTTPS is added to the editor's `img-src` only for the explicit workspace remote-image opt-in. `connect-src` is limited to the extension webview origin for one packaged JSON asset and never permits HTTPS. The editor, Outline, and CSS-theme surfaces expose only their required extension `dist` and `media` directories through `localResourceRoots`; the live style preview exposes only `dist`. A workspace, note directory, vault, or arbitrary local folder is never a webview resource root. Local note content crosses validated host message boundaries instead.
 
 Two surfaces retain `style-src 'unsafe-inline'`. The editor needs it because CodeMirror positions selections, widgets, panels, tables, and measured content with runtime `style` attributes. The CSS-theme manager needs it for paint-contained thumbnail host properties and sanitized user-theme styles inside shadow roots. These exceptions authorize CSS only, not scripts. Outline needs only its packaged stylesheet, and the separate live style preview authorizes its three host-created style elements with the same cryptographic nonce used by its packaged script. User themes are independently scoped to document or thumbnail content, sanitized rule by rule after CSS escape decoding, stripped of network and control-obscuring constructs, and disabled in Restricted Mode. The extension reads and displays at most 1,000 theme files and applies at most 1 MiB of combined CSS; the sanitizer additionally caps input at 1 MiB, 10,000 rules, and 32 conditional-rule nesting levels. Unsafe rules are ignored with a protected, localized warning while safe sibling rules remain active; the same fail-closed policy applies to the document editor, theme cards, and the live CSS preview. Removing the remaining style exceptions would require replacing or isolating CodeMirror's runtime positioning model and the theme-card shadow preview and is tracked as defense-in-depth work rather than being silently omitted.

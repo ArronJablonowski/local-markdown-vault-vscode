@@ -362,8 +362,22 @@ scrolling, and you can scroll sideways over either the header or the table body.
 Wide tables scroll horizontally within the note instead
 of squeezing their columns; use Shift+mouse wheel, a trackpad gesture, or focus
 the table scroll region and use the horizontal scrollbar. To put multiple lines
-inside one cell, use a bare `<br>` (or `<br/>`); tags with attributes and other
-raw HTML remain inert text.
+inside one cell, use a bare `<br>` (or `<br/>`).
+
+For bullet lists inside a cell, use balanced `<ul>` and `<li>` tags:
+
+```markdown
+| Status | Next steps |
+| --- | --- |
+| In progress | <ul><li>Confirm the scope.</li><li>Review **findings**.</li></ul> |
+```
+
+Each item appears on its own line. Nested lists are supported; use `<ol>` instead
+of `<ul>` for numbered items. These lists render in Live Preview and embedded
+note tables. Editing a cell shows its original tags so changes do not flatten
+the list. Only attribute-free, balanced list tags are supported; malformed lists,
+tags with attributes, and other raw HTML remain inert text. Backtick code spans
+and escaped tags remain literal examples.
 
 Drag across rendered text to highlight and copy it. Use **Select entire table**
 in **Table options** to highlight the complete table; Copy places its Markdown

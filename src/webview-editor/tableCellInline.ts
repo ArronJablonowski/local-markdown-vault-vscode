@@ -1,6 +1,7 @@
 import { parser as baseMarkdownParser, Table, TaskList, Strikethrough, Autolink } from '@lezer/markdown';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { markdownDestination } from '../shared/markdownDestination';
+import { parseTableCellLists, type CellListPart } from './tableCellLists';
 
 // A table cell's content is plain text as far as CodeMirror is concerned — the
 // rich TableWidget builds its own DOM outside the editor, so the live-preview
@@ -222,4 +223,26 @@ function inlineRoot(tree: Tree): SyntaxNode {
 export function renderInlineInto(parent: HTMLElement, text: string, hooks: CellInlineHooks): void {
 	if (!text) return;
 	renderChildren(parent, inlineRoot(cellParser.parse(text)), text, hooks);
+}
+
+/** Render safe list structure only at a table-cell root, never in link labels. */
+export function renderTableCellInto(parent: HTMLElement, text: string, hooks: CellInlineHooks): void {
+	const cellHooks = { ...hooks, inTableCell: true };
+	const parts = parseTableCellLists(text);
+	if (!parts) { renderInlineInto(parent, text, cellHooks); return; }
+	const append = (container: HTMLElement, part: CellListPart): void => {
+		if (typeof part === 'string') {
+			// A fragment following a list is still inline content, not paragraph
+			// indentation. Preserve its whitespace before parsing the remainder.
+			const leading = /^[\t\n\r ]*/.exec(part)![0];
+			appendText(container, leading);
+			renderInlineInto(container, part.slice(leading.length), cellHooks);
+			return;
+		}
+		const element = document.createElement(part.tag);
+		element.className = part.tag === 'li' ? 'mlp-cell-list-item' : 'mlp-cell-list';
+		for (const child of part.children) append(element, child);
+		container.appendChild(element);
+	};
+	for (const part of parts) append(parent, part);
 }

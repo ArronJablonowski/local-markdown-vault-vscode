@@ -1,5 +1,7 @@
 # Changelog
 
+- Render balanced, attribute-free unordered and ordered lists inside Live Preview and embedded table cells with compact spacing and nested bullet markers. Preserve original list source during editing and copying; keep malformed lists, attributes, code examples, and unrelated HTML inert, with bounded list parsing.
+- Keep Enter from reopening a table cell's raw source after an unchanged edit; finishing the edit returns to the rendered cell without adding an undo entry.
 - Prefer usable external clipboard text over alternate images, skip empty spreadsheet metadata when a text fallback exists, and accept URI-only text in table cells without importing HTML. Keep consecutive cell pastes and post-Tab drafts at their intended target; image-only clipboard metadata cannot clear a table cell.
 - Hand off table-cell focus synchronously after Tab so immediate typing is not lost. Collapse an accidentally selected typed replacement of a rendered block to a caret, preventing the next character from overwriting the first; leave composition, paste, history, formatting, and remote selections unchanged.
 - Keep the caret stable while typing short formatted lines by using a nonmoving height-measurement guard. Preserve the existing large-note layout protection without inserting a trailing noneditable widget at the typing position.

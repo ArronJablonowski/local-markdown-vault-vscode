@@ -90,6 +90,13 @@ describe('renderTableElement', () => {
 		);
 	});
 
+	it('renders safe list structure in header and body cells without changing the table model', () => {
+		const html = rowsOf(renderTable('| <ul><li>Header</li></ul> | Status |\n|---|---|\n| <ul><li>First</li><li>Second</li></ul> | In progress |'));
+		expect(html).toContain('<th><ul class="mlp-cell-list"><li class="mlp-cell-list-item">Header</li></ul></th>');
+		expect(html).toContain('<td><ul class="mlp-cell-list"><li class="mlp-cell-list-item">First</li><li class="mlp-cell-list-item">Second</li></ul></td>');
+		expect(html).toContain('<td>In progress</td>');
+	});
+
 	it('renders a table nested in a list item, markup and alignment intact', () => {
 		// The nested case goes through the patched GFM parser (gfmTableFix.ts);
 		// this checks the rendering path end-to-end for it too.

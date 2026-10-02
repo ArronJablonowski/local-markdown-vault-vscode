@@ -1147,6 +1147,23 @@ table.mlp-table img.mlp-table-image {
 	margin: 0;
 	vertical-align: middle;
 }
+/* Table lists are real DOM, not CodeMirror list lines. Keep their markers
+   inside the cell padding and avoid the browser's paragraph-sized margins. */
+:is(table.mlp-table, table.mlp-sticky-table) .mlp-cell-list {
+	margin: 0;
+	padding: 0 0 0 1.4em;
+	list-style-position: outside;
+}
+:is(table.mlp-table, table.mlp-sticky-table) ul.mlp-cell-list { list-style-type: disc; }
+:is(table.mlp-table, table.mlp-sticky-table) ol.mlp-cell-list { list-style-type: decimal; }
+:is(table.mlp-table, table.mlp-sticky-table) .mlp-cell-list ul.mlp-cell-list { list-style-type: circle; }
+:is(table.mlp-table, table.mlp-sticky-table) .mlp-cell-list .mlp-cell-list ul.mlp-cell-list { list-style-type: square; }
+:is(table.mlp-table, table.mlp-sticky-table) .mlp-cell-list-item {
+	display: list-item;
+	margin: 0;
+	padding: 0;
+	line-height: inherit;
+}
 
 /* ── Frontmatter ─────────────────────────────────────────────────────────
    Fixed app-chrome styling, like table.mlp-table above — not part of the

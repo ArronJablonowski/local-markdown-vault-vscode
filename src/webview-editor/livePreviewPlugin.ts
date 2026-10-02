@@ -14,7 +14,7 @@ import { refreshPreview } from './previewRefresh';
 import { DrawioFileWidget } from './drawioWidget';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { detectFrontmatter } from './frontmatterWidget';
-import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
+import { renderInlineInto, renderTableCellInto, type CellInlineHooks } from './tableCellInline';
 import { escapeTableCellSource } from './tableCellSource';
 import { pasteSpreadsheetCells, MAX_SPREADSHEET_INPUT_BYTES } from './spreadsheetClipboard';
 import { isolatedSpreadsheetPaste, isPlainTextPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
@@ -515,7 +515,7 @@ export function renderTableElement(model: TableModel, hooks: CellInlineHooks): H
 				// instead of collapsing to `bold` and losing its markup on save.
 				cell.dataset.mlpSrc = span.text;
 			}
-			renderInlineInto(cell, cellText, { ...hooks, inTableCell: true });
+			renderTableCellInto(cell, cellText, hooks);
 			tr.appendChild(cell);
 		});
 		(rowIndex < model.headerRowCount ? thead : tbody).appendChild(tr);
@@ -940,7 +940,7 @@ class TableWidget extends WidgetType {
 				// a no-op onto the undo history, but the DOM currently holds the raw
 				// source text, so it still has to be restored.
 				cell.textContent = '';
-				renderInlineInto(cell, ref.source, { ...cellInlineHooks, inTableCell: true });
+				renderTableCellInto(cell, ref.source, cellInlineHooks);
 				notifyActiveDraftChanged();
 				return ref.to;
 			}
@@ -1245,7 +1245,9 @@ class TableWidget extends WidgetType {
 		});
 		table.addEventListener('keydown', (event) => {
 			if (!view.state.facet(EditorView.editable)) protectRenderedBlockFromCaret();
-			if (editing || event.altKey || event.ctrlKey || event.metaKey) return;
+			// An unchanged cell commit keeps its DOM. Do not reinterpret the same
+			// handled Enter as a fresh request to edit that cell again.
+			if (event.defaultPrevented || editing || event.altKey || event.ctrlKey || event.metaKey) return;
 			const target = event.target as HTMLElement | null;
 			const cell = target?.closest('.mlp-table-cell') as HTMLElement | null;
 			// Links and other focusable content inside a cell keep their own keys.

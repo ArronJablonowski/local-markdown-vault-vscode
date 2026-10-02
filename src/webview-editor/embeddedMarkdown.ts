@@ -1,6 +1,6 @@
 import { parser as baseMarkdownParser, Autolink, Strikethrough, Table, TaskList } from '@lezer/markdown';
 import type { SyntaxNode } from '@lezer/common';
-import { renderInlineInto, type CellInlineHooks } from './tableCellInline';
+import { renderInlineInto, renderTableCellInto, type CellInlineHooks } from './tableCellInline';
 import { t } from '../shared/i18n';
 
 const parser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink]);
@@ -119,7 +119,7 @@ function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks
 			const separator = rows[1][column]?.trim() ?? '';
 			if (separator.endsWith(':')) cell.style.textAlign = separator.startsWith(':') ? 'center' : 'right';
 			else if (separator.startsWith(':')) cell.style.textAlign = 'left';
-			renderInlineInto(cell, (rows[row][column] ?? '').trim(), { ...hooks, inTableCell: true });
+			renderTableCellInto(cell, (rows[row][column] ?? '').trim(), hooks);
 			tr.appendChild(cell);
 		}
 		(row === 0 ? head : body).appendChild(tr);
