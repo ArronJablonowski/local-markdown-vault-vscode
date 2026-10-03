@@ -117,7 +117,10 @@ suite('Installed VSIX clean-profile smoke', () => {
 		assert.strictEqual(config.get('stickyTableHeaders'), false, 'sticky headers were not off in the clean profile');
 		const before = await vscode.workspace.fs.readFile(note);
 		try {
-			await vscode.commands.executeCommand('markdown.showPreview', note);
+			// This checks configuration refresh of one fixed fixture, not the
+			// unlocked preview's follow-active-editor behavior. A delayed editor
+			// activation from the preceding test must not change this resource.
+			await vscode.commands.executeCommand('markdown.showPreview', note, undefined, { locked: true });
 			await assertBuiltInPreviewStickyState(false);
 			await config.update('stickyTableHeaders', true, vscode.ConfigurationTarget.Workspace);
 			await assertBuiltInPreviewStickyState(true);
@@ -590,16 +593,21 @@ suite('Installed VSIX clean-profile smoke', () => {
 async function assertBuiltInPreviewStickyState(enabled: boolean): Promise<void> {
 	const browser = await connectToDebugBrowser();
 	let lastTables: unknown[] = [];
+	let lastPreviews: unknown[] = [];
 	try {
 		await waitFor(async () => {
+			lastPreviews = [];
 			for (const context of browser.contexts()) {
 				for (const page of context.pages()) {
 					for (const frame of page.frames()) {
 						if (frame.isDetached()) continue;
 						try {
 							// Exclude our editor and find only the built-in read-only preview.
-							const heading = frame.locator('body.vscode-body h1');
-							if (!await heading.count() || !((await heading.first().textContent()) ?? '').includes('Packaged accessibility')) continue;
+							const body = frame.locator('body.vscode-body');
+							if (!await body.count()) continue;
+							const headings = await body.locator('h1').allTextContents();
+							lastPreviews.push({ url: frame.url(), headings, tableCount: await body.locator('table').count() });
+							if (!headings[0]?.includes('Packaged accessibility')) continue;
 							lastTables = await frame.locator('table').evaluateAll(tables => tables.map(table => ({
 								classes: table.className,
 								headings: Array.from(table.querySelectorAll('thead th')).map(header => ({ text: header.textContent, position: getComputedStyle(header).position })),
@@ -623,7 +631,7 @@ async function assertBuiltInPreviewStickyState(enabled: boolean): Promise<void> 
 			return false;
 		}, `the packaged built-in Markdown Preview did not render sticky headers ${enabled ? 'on' : 'off'}`, 20_000);
 	} catch (error) {
-		throw new Error(`${String(error)}; rendered table state: ${JSON.stringify(lastTables)}`);
+		throw new Error(`${String(error)}; observed built-in previews: ${JSON.stringify(lastPreviews)}; rendered table state: ${JSON.stringify(lastTables)}`);
 	}
 }
 

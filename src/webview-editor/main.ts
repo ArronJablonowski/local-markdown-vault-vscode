@@ -70,6 +70,7 @@ import { isEditorDocumentWithinLimit } from '../shared/messageValidation';
 import { createSpreadsheetPasteHandler, isolatedSpreadsheetPaste, showSpreadsheetPasteWarning } from './spreadsheetPaste';
 import { setDiagramHostVisibility } from './diagramVisibility';
 import { setStickyTableHeaders } from './tableHeaderSettings';
+import { typingIntegrity } from './typingIntegrity';
 
 const remoteChange = Annotation.define<boolean>();
 // Match Obsidian's list editing: continue list and task markers on Enter, but
@@ -323,6 +324,7 @@ function createExtensions(): Extension[] {
 		closeBrackets(),
 		headingSpaceInputHandler,
 		backtickInputHandler,
+		typingIntegrity,
 		calloutState,
 		livePreviewPlugin,
 		listHangingIndent,

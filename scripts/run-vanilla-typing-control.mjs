@@ -1,5 +1,6 @@
 // Independent headless diagnostic: installed CodeMirror versus a native textarea.
 // No app bundle, preview widgets, host bridge, native app, or OS clipboard is used.
+// --guarded adds only the shipped ordinary-typing guard for a matched comparison.
 // Synthetic rapid typing can expose the CodeMirror/browser/automation interaction;
 // this does not establish behavior at human typing speed or blame Playwright alone.
 // Both controls use identical text and keystrokes. Textarea positions are selected
@@ -7,7 +8,7 @@
 // A clean run is not proof of absence. Every mismatch gets a 500ms settled recheck.
 //
 // Usage: node scripts/run-vanilla-typing-control.mjs [--rounds 200] [--delay 0]
-//        [--markdown] [--view-package /absolute/path/to/extracted/package]
+//        [--markdown] [--guarded] [--view-package /absolute/path/to/extracted/package]
 // Environment defaults: MDLP_CONTROL_ROUNDS=200, MDLP_CONTROL_DELAY_MS=0.
 // Optional --view-package loads that package only in this in-memory test bundle;
 // it never installs packages or updates project dependencies. Reports and exact
@@ -29,6 +30,7 @@ const { values } = parseArgs({ options: {
 	rounds: { type: 'string', default: process.env.MDLP_CONTROL_ROUNDS ?? '200' },
 	delay: { type: 'string', default: process.env.MDLP_CONTROL_DELAY_MS ?? '0' },
 	markdown: { type: 'boolean', default: false },
+	guarded: { type: 'boolean', default: false },
 	'view-package': { type: 'string' },
 } });
 const rounds = boundedInteger(values.rounds, 'rounds', 1, 5000);
@@ -46,7 +48,7 @@ const report = {
 	viewVersion: viewPackage.version, viewPackageDirectory: viewDirectory,
 	playwrightVersion: JSON.parse(await readFile(join(root, 'node_modules/playwright/package.json'), 'utf8')).version,
 	nodeVersion: process.version, platform: process.platform, browserVersion: '',
-	rounds, typingDelay, markdown: values.markdown, settleTimeoutMs: 500,
+	rounds, typingDelay, markdown: values.markdown, guarded: values.guarded, settleTimeoutMs: 500,
 	input: { file: 'input.md', bytes: Buffer.byteLength(initial), sha256: createHash('sha256').update(initial).digest('hex') },
 	limitations: [
 		'Headless synthetic typing is not a human or native VS Code reproduction.',
@@ -172,13 +174,14 @@ function browserSource() {
 	return `
 		import { EditorState } from '@codemirror/state';
 		import { EditorView, keymap } from '@codemirror/view';
+		${values.guarded ? "import { typingIntegrity } from './src/webview-editor/typingIntegrity.ts';" : ''}
 		${values.markdown ? "import { markdown } from '@codemirror/lang-markdown';" : ''}
 		import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 		import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 		window.mountControl = doc => {
 			window.controlView?.destroy();
 			window.controlView = new EditorView({ parent: document.querySelector('#editor'), state: EditorState.create({ doc,
-				extensions: [${values.markdown ? 'markdown(),' : ''} history(), search(), EditorView.lineWrapping,
+				extensions: [${values.guarded ? 'typingIntegrity,' : ''} ${values.markdown ? 'markdown(),' : ''} history(), search(), EditorView.lineWrapping,
 					EditorView.theme({ '&': { height: '720px' }, '.cm-scroller': { overflow: 'auto' } }),
 					keymap.of([{ key: 'Mod-f', run: openSearchPanel }, ...searchKeymap, ...defaultKeymap, ...historyKeymap])]
 			}) });

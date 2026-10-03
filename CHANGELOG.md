@@ -1,5 +1,9 @@
 # Changelog
 
+- Prevent a scroll/typing race after Find from reordering ordinary keystrokes. Commit matched physical-key input through normal editor transactions before native DOM insertion; retain pairing, multiple selections, locking, autosave, and Undo/Redo. Leave composition, paste, and other native input paths unchanged.
+- Reveal distant Find matches inside nested folded callouts before editing, preserve search selections through background parsing, and allow Find from table/property fields without losing drafts.
+- Preserve multiline, null, and list property values during editing; support Space on property controls. Validate new-note names consistently, wait for the Vault index before navigation, and correct rename selection and singular search-result wording.
+
 - Fix ordinary Command/Ctrl+V when Electron omits its default paste event. Use a synchronous trusted native paste command, prevent duplicate delivery, and keep existing lock and payload checks.
 - Keep large plain-text reports from being rejected as oversized spreadsheets. Automatic conversion falls back to original text when grid limits are exceeded; explicit CSV/TSV remains strictly bounded. Empty clipboard text cannot erase a selected table-cell draft.
 - Return keyboard focus to the retained editor selection after explicitly unlocking, so pasting and typing a space cannot accidentally lock the document again.
