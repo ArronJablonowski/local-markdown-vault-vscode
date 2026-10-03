@@ -59,6 +59,13 @@ covered by browser regression fixtures rather than claimed as those apps.
   zero known vulnerabilities; this is not a guarantee against unknown issues.
 - Independent runtime review found no additional actionable security or
   data-loss issue; 230 related unit checks passed.
+- The production build passed another 324 focused browser checks, all 20
+  native save-durability integration cases, and all 16 installed-package smoke
+  cases across trusted, restricted, and disabled profiles.
+- Four native production source/disk checks passed: ordinary paste over a
+  verified selection, three consecutive Select All/Paste cycles, unlocking and
+  immediately pasting/typing, and the 331,120-byte report. No page/editor errors
+  were recorded in the completed final native reports.
 
 The changes add no dependency, network access, clipboard permission, or HTML
 import. Existing locked-document, image, document-size, and host-message
@@ -91,12 +98,16 @@ Regression tests are in `externalPasteAdversarialQa.spec.ts`,
 Local evidence includes:
 
 - `.vscode-test/external-app-final-2026-10-02/report.json`
+- `.vscode-test/external-app-production-2026-10-02/report.json`
 - `.vscode-test/external-app-verified-2026-10-02/report.json`
 - `.vscode-test/external-app-candidate-2026-10-02/report.json`
 - `.vscode-test/external-app-baseline-2026-10-02/report.json`
 - `/tmp/external-paste-unlock-fixed.log`
 - `/tmp/external-paste-unlock-full-browser.log`
 - `/tmp/mdlp-external-app-final-units.log`
+- `/tmp/external-paste-production-focused.log`
+- `/tmp/mdlp-external-app-save-integration.log`
+- `/tmp/mdlp-external-app-vsix.log`
 
 Earlier reports are retained, not overwritten with passing results. One rich
 selection expectation omitted the blank line supplied by Chrome and was
@@ -105,3 +116,22 @@ incorrect helper command (`command` instead of `action`). Those are test-driver
 errors, not extension failures. The initial helper also selected a stale hidden
 webview; it now binds observations to the requested fixture and retains that
 binding. Earlier ambiguous observations are not used as proof of a fix.
+
+The first production Select All/Paste attempt appended to the initial text
+while a separate native smoke-test host was running. There was no selection
+trace for that attempt, so its cause is unconfirmed. After the other host
+exited, the selection was inspected explicitly and replacement succeeded;
+three immediate Select All/Paste cycles also passed without additional waits.
+Retest native clipboard workflows serially to avoid competing app focus.
+
+## Release
+
+The tested release archive is `releases/local-markdown-vault-0.2.0.vsix` with
+SHA256 `056e17780e9f2a2eb03a470e54a98dcf45b773aa1f983147bb8b9f8df2d35733`.
+The unchanged development version remains `0.2.0`; use the checksum or Git
+commit to distinguish this package from older development archives. Existing
+VS Code windows must reload to activate updated extension code.
+
+The package was force-installed into the normal macOS VS Code profile. All 62
+installed payload files match the archive, allowing only the installer's
+`__metadata` field in `package.json`. No personal window was forcibly reloaded.
