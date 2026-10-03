@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { isPathInside, resolveVaultRelativePath } from '../shared/pathContainment';
 import { normalizeOpenOnlyAttachmentTarget } from '../shared/openOnlyAttachment';
-import { noteFileName, validateVaultEntryName } from './vaultName';
+import { noteFileName, validateVaultEntryName, validateVaultNoteName, validateVaultRelativeNotePath } from './vaultName';
 import { classifyVaultWorkspace, isCurrentVaultWorkspace, type VaultUnavailableReason } from './vaultWorkspace';
 import { readBoundedFile } from './readBoundedFile';
 
@@ -230,6 +230,8 @@ export class VaultService {
 	}
 
 	async createNote(parent: vscode.Uri, requestedName: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
+		const error = validateVaultNoteName(requestedName);
+		if (error) throw new Error(error);
 		const name = noteFileName(requestedName);
 		const created = await this.createFileExclusive(parent, name, new Uint8Array(), 0, isCurrent);
 		try {
@@ -243,16 +245,10 @@ export class VaultService {
 	}
 
 	async createNoteAtRelativePath(requestedPath: string, isCurrent: () => boolean = () => true): Promise<vscode.Uri> {
+		const error = validateVaultRelativeNotePath(requestedPath);
+		if (error) throw new Error(error);
 		const normalized = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
-		if (!normalized || normalized.startsWith('/') || /^[a-z]:/i.test(normalized)) {
-			throw new Error('The note path must be relative to the Document Vault.');
-		}
 		const parts = normalized.split('/');
-		if (parts.length > 64) throw new Error('The note path is too deeply nested.');
-		for (const part of parts) {
-			const error = validateVaultEntryName(part);
-			if (error) throw new Error(error);
-		}
 		parts[parts.length - 1] = noteFileName(parts[parts.length - 1]);
 		const target = resolve(this.rootUri.fsPath, ...parts);
 		if (!isPathInside(this.rootUri.fsPath, target, process.platform === 'win32')) {

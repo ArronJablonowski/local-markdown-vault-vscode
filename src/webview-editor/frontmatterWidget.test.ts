@@ -98,6 +98,13 @@ describe('updateFrontmatterProperty', () => {
 });
 
 describe('typed property list editing', () => {
+	it('quotes embedded line endings so editing another list item cannot flatten them', () => {
+		const original = ['First\nSecond', 'Alpha\rBravo', 'tail'];
+		const input = formatPropertyListInput(original);
+		expect(input).toBe('"First\\nSecond", "Alpha\\rBravo", tail');
+		expect(parsePropertyListInput(input.replace(/tail$/, 'edited'), original)).toEqual(['First\nSecond', 'Alpha\rBravo', 'edited']);
+	});
+
 	it('round-trips commas inside wikilink aliases and quoted scalar values', () => {
 		const original = ['[[Project|Plan, 2026]]', 'alpha,beta', 'plain'];
 		const input = formatPropertyListInput(original);

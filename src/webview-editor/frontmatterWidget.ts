@@ -113,7 +113,7 @@ export function formatPropertyListInput(values: readonly unknown[]): string {
 		if (value === null || value === undefined) return 'null';
 		if (typeof value !== 'string') return String(value);
 		if (propertyWikiLinkBody(value) !== undefined) return value;
-		return value === '' || value.trim() !== value || /[,'"\\]/.test(value)
+		return value === '' || value.trim() !== value || /[,'"\\\r\n]/.test(value)
 			? JSON.stringify(value)
 			: value;
 	}).join(', ');
@@ -318,13 +318,20 @@ function enableValueEditing(
 		if (editing || !canEdit()) return;
 		editing = true;
 		const original = Array.from(cell.childNodes).map((node) => node.cloneNode(true));
-		const input = document.createElement('input');
+		const multiline = typeof value === 'string' && /[\r\n]/.test(value);
+		const input = multiline ? document.createElement('textarea') : document.createElement('input');
 		input.className = 'mlp-property-input';
-		input.type = 'text';
+		if (input instanceof HTMLInputElement) input.type = 'text';
+		else {
+			input.rows = Math.min(8, Math.max(2, String(value).split(/\r\n?|\n/).length));
+			input.style.resize = 'vertical';
+			input.title = t('property.multilineHint');
+		}
 		input.setAttribute('aria-label', t('property.edit', key));
 		input.value = Array.isArray(value)
 			? formatPropertyListInput(value)
 			: String(value ?? '');
+		const initialInputValue = input.value;
 		input.maxLength = MAX_YAML_BYTES;
 		const validation = document.createElement('div');
 		validation.className = 'mlp-property-error';
@@ -348,6 +355,9 @@ function enableValueEditing(
 			notifyActiveDraftChanged();
 		};
 		const readInput = (): { ok: true; value: unknown } | { ok: false } => {
+			// Merely opening and accepting a field must preserve its scalar type
+			// and exact value, including null and browser-normalized line endings.
+			if (input.value === initialInputValue) return { ok: true, value };
 			let next: unknown;
 			if (Array.isArray(value)) {
 				next = parsePropertyListInput(input.value, value);
@@ -375,8 +385,11 @@ function enableValueEditing(
 			}
 		};
 		input.addEventListener('keydown', (event) => {
-			if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); commit(); }
-			else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); restore(); }
+			const keyEvent = event as KeyboardEvent;
+			// Keep Enter-to-commit consistent with the other property fields;
+			// Shift+Enter inserts a line break in a multiline scalar.
+			if (keyEvent.key === 'Enter' && !(multiline && keyEvent.shiftKey)) { event.preventDefault(); event.stopPropagation(); commit(); }
+			else if (keyEvent.key === 'Escape') { event.preventDefault(); event.stopPropagation(); restore(); }
 		});
 		input.addEventListener('input', clearValidation);
 		registerActiveDraft(input, () => { if (editing && input.isConnected) commit(); },
@@ -419,7 +432,10 @@ function enableValueEditing(
 			start();
 		});
 		trigger.addEventListener('keydown', (event) => {
-			if (event.key === 'Enter' || event.key === 'F2') {
+			// The table cell acts as a button until its nested input opens. Match
+			// native button Space activation without consuming spaces typed into
+			// that input, and prevent Space from scrolling the document.
+			if (event.target === trigger && (event.key === 'Enter' || event.key === 'F2' || event.key === ' ')) {
 				event.preventDefault();
 				event.stopPropagation();
 				start();
@@ -503,7 +519,7 @@ export class FrontmatterWidget extends WidgetType {
 		}
 		table.appendChild(tbody);
 		table.addEventListener('mousedown', (event) => {
-			if ((event.target as HTMLElement | null)?.closest('input, button, a')) return;
+			if ((event.target as HTMLElement | null)?.closest('input, textarea, button, a')) return;
 			const editable = (event.target as HTMLElement | null)?.closest('td[role="button"]') as HTMLElement | null;
 			if (editable) {
 				event.preventDefault();

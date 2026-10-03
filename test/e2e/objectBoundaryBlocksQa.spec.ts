@@ -19,6 +19,34 @@ async function source(page: Page): Promise<string> {
 	return page.locator('.cm-content').evaluate(content => (content as any).cmTile.root.view.state.doc.toString());
 }
 
+async function holdInitialParsing(page: Page): Promise<void> {
+	// Find deliberately parses through its requested match. Hold background
+	// parsing and navigate with the host so these gesture tests exercise a
+	// genuinely pending parse, regardless of the browser worker's timing.
+	await page.evaluate(() => {
+		const request = window.requestIdleCallback.bind(window);
+		const cancel = window.cancelIdleCallback.bind(window);
+		let held = true, serial = 0;
+		const pending = new Map<number, { callback: IdleRequestCallback; options?: IdleRequestOptions; actual?: number }>();
+		window.requestIdleCallback = (callback, options) => {
+			if (!held) return request(callback, options);
+			const id = --serial;
+			pending.set(id, { callback, options });
+			return id;
+		};
+		window.cancelIdleCallback = id => {
+			const entry = pending.get(id);
+			if (!entry) { if (id >= 0) cancel(id); return; }
+			if (entry.actual !== undefined) cancel(entry.actual);
+			pending.delete(id);
+		};
+		(window as any).__releaseInitialParsing = () => {
+			held = false;
+			for (const [id, entry] of pending) entry.actual = request(deadline => { pending.delete(id); entry.callback(deadline); }, entry.options);
+		};
+	});
+}
+
 async function find(page: Page, query: string): Promise<void> {
 	await page.locator('.cm-content').focus();
 	await page.keyboard.press(`${mod}+f`);
@@ -257,9 +285,10 @@ test('initial large-note parsing does not move text during an active mouse selec
 	test.setTimeout(120000);
 	await page.setViewportSize({ width: 960, height: 1100 });
 	const initial = largeMixedDocument(100) + '\nINITIAL_DRAG_START\n\n' + objects.drawio + '\n\nINITIAL_DRAG_END\n\nINITIAL_SURVIVOR';
+	await holdInitialParsing(page);
 	await mountEditor(page, initial, { css: obsidian });
-	await find(page, 'INITIAL_SURVIVOR');
-	await page.keyboard.press('ArrowRight');
+	await postToWebview(page, { type: 'jumpToLine', line: initial.split('\n').length });
+	await caretVisible(page);
 	const points = await page.evaluate(() => {
 		const point = (target: string, end = false) => {
 			const line = Array.from(document.querySelectorAll('.cm-line')).find(el => el.textContent?.includes(target))!;
@@ -289,6 +318,7 @@ test('initial large-note parsing does not move text during an active mouse selec
 	});
 	await page.mouse.move(points.start.x, points.start.y);
 	await page.mouse.down();
+	await page.evaluate(() => (window as any).__releaseInitialParsing());
 	await page.mouse.move(points.end.x, points.end.y, { steps: 45 });
 	await page.mouse.up();
 	await page.screenshot({ path: info.outputPath('initial-parse-drag.png') });
@@ -317,9 +347,9 @@ for (const ending of ['mouseup', 'blur', 'pointercancel', 'missed-mouseup'] as c
 		await page.setViewportSize({ width: 960, height: 1100 });
 		const marker = 'GESTURE_EDIT_BOUNDARY';
 		const initial = largeMixedDocument(80) + `\n${marker}\n\n${objects.drawio}\n\nAFTER_GESTURE`;
+		await holdInitialParsing(page);
 		await mountEditor(page, initial, { css: obsidian });
-		await find(page, marker);
-		await page.keyboard.press('ArrowRight');
+		await postToWebview(page, { type: 'jumpToLine', line: initial.split('\n').findIndex(line => line === marker) + 1 });
 		await caretVisible(page);
 		const point = await page.locator('.cm-line', { hasText: marker }).evaluate(line => {
 			const range = document.createRange(); range.selectNodeContents(line);
@@ -328,6 +358,8 @@ for (const ending of ['mouseup', 'blur', 'pointercancel', 'missed-mouseup'] as c
 		});
 		await page.mouse.move(point.x, point.y);
 		await page.mouse.down();
+		await expect(page.locator('.mlp-drawio-wrap')).toHaveCount(0);
+		await page.evaluate(() => (window as any).__releaseInitialParsing());
 		await page.keyboard.press('End');
 		await page.keyboard.type(' revised', { delay: 5 });
 		await expect.poll(() => source(page)).toBe(initial.replace(marker, marker + ' revised'));

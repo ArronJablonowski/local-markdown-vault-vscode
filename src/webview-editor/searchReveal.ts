@@ -1,7 +1,9 @@
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, ViewPlugin } from '@codemirror/view';
 import { getSearchQuery, openSearchPanel, searchPanelOpen, SearchQuery, setSearchQuery } from '@codemirror/search';
+import { forceParsing } from '@codemirror/language';
 import { t } from '../shared/i18n';
+import { commitActiveDraft, preserveUncommittedDraft } from './activeDraft';
 
 /**
  * Makes a search match reveal the Markdown behind it.
@@ -36,7 +38,9 @@ const searchSelectionField = StateField.define<boolean>({
 		for (const effect of tr.effects) {
 			if (effect.is(setSearchSelection)) return effect.value;
 		}
-		if (tr.selection) return tr.isUserEvent('select.search');
+		// Typing a replacement supplies an explicit new caret as well as changes.
+		// Retain its Find provenance while parsing catches up with that source.
+		if (tr.selection) return tr.isUserEvent('select.search') || value && tr.docChanged;
 		return value;
 	},
 });
@@ -60,6 +64,17 @@ function markingSearchSelection(command: (view: EditorView) => boolean) {
 		return handled;
 	};
 }
+
+/** Publish parsed source before Find transfers its selection back to the DOM. */
+const settleSearchParsing = EditorView.updateListener.of(update => {
+	if (!update.transactions.some(tr => tr.selection && tr.isUserEvent('select.search'))) return;
+	const upto = Math.max(...update.state.selection.ranges.map(range => range.to));
+	// forceParsing commits the parser's tree as well as advancing its context.
+	// Publishing it now avoids postponing source/preview redraw to the first
+	// typed character. A timed-out parse retains its late-parser fallback:
+	// Find provenance survives replacement typing, so later ancestors open.
+	forceParsing(update.view, upto, 50);
+});
 
 /**
  * Keeps the selected source visible when the panel closes.
@@ -357,8 +372,31 @@ const replaceToggle = EditorView.updateListener.of((update) => {
 	if (panel) decorateSearchPanel(update.view, panel);
 });
 
+/** Find remains an editor command while focus belongs to a rendered field. */
+const widgetSearchShortcut = ViewPlugin.fromClass(class {
+	constructor(private readonly view: EditorView) {
+		view.dom.addEventListener('keydown', this.keydown);
+	}
+	private readonly keydown = (event: KeyboardEvent): void => {
+		if (event.defaultPrevented || event.isComposing || event.shiftKey || !(event.metaKey || event.ctrlKey)
+			|| event.key.toLowerCase() !== 'f') return;
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || target === this.view.contentDOM || !this.view.contentDOM.contains(target)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		const residual = commitActiveDraft();
+		if (residual !== undefined) preserveUncommittedDraft(residual);
+		openSearchPanelFocused(this.view);
+	};
+	destroy(): void {
+		this.view.dom.removeEventListener('keydown', this.keydown);
+	}
+});
+
 export const searchRevealExtension: Extension = [
 	searchSelectionField,
+	settleSearchParsing,
 	scrollOnPanelClose,
 	replaceToggle,
+	widgetSearchShortcut,
 ];

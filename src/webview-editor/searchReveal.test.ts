@@ -65,6 +65,13 @@ describe('selectionIsSearchMatch', () => {
 		expect(selectionIsSearchMatch(edited)).toBe(true);
 	});
 
+	it('survives the explicit caret supplied while typing a replacement', () => {
+		const marked = markAsMatch(stateWith(8, 14));
+		const edited = marked.update({ changes: { from: 8, to: 14, insert: 'R' }, selection: { anchor: 9 }, userEvent: 'input.type' }).state;
+		expect(selectionIsSearchMatch(edited)).toBe(true);
+		expect(selectionIsSearchMatch(edited.update({ selection: { anchor: 10 }, userEvent: 'select.pointer' }).state)).toBe(false);
+	});
+
 	it('clears when explicitly unset', () => {
 		const marked = markAsMatch(stateWith(8, 14));
 		const cleared = marked.update({ effects: setSearchSelection.of(false) }).state;
@@ -90,6 +97,13 @@ describe('cursorTouchesRange with a search match', () => {
 	it('reveals a block when the sweep is a search match', () => {
 		const state = markAsMatch(stateWith(0, DOC.length - 1));
 		const { from, to } = tableRange(state);
+		expect(blockCursorTouchesRange(state, from, to)).toBe(true);
+	});
+
+	it('reveals matches selected by a search-panel click above a rendered widget', () => {
+		const state = markAsMatch(stateWith(0, DOC.length - 1));
+		const { from, to } = tableRange(state);
+		setSuppressForTesting(true);
 		expect(blockCursorTouchesRange(state, from, to)).toBe(true);
 	});
 

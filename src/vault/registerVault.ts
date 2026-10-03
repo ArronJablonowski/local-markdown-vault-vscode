@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { basename, dirname } from 'node:path';
-import { validateVaultEntryName, noteFileName, validateVaultRelativeNotePath } from './vaultName';
+import { validateVaultEntryName, validateVaultNoteName, validateVaultRelativeNotePath } from './vaultName';
 import { VaultEntry, VaultTreeProvider } from './VaultTreeProvider';
 import { LinkRewriteService, VaultTransactionConflictError } from './LinkRewriteService';
 import { VaultIndex, type VaultIndexRecord } from './VaultIndex';
@@ -17,6 +17,7 @@ import { openConfiguredVaultResource } from '../editor/configuredDocumentOpen';
 import { topLevelSelection } from './topLevelSelection';
 import { PassiveTreeReveal } from './PassiveTreeReveal';
 import { vaultMoveHistoryFor, type VaultMoveHistory } from './VaultMoveHistory';
+import { isVaultPathExcluded } from './vaultExclusions';
 
 export interface VaultRegistration {
 	getIndex(): VaultIndex | undefined;
@@ -208,6 +209,7 @@ export async function registerVault(
 			// for the serialized replacement and retry once against the current vault.
 			for (let attempt = 0; attempt < 2; attempt++) {
 				await workspaceRefresh.catch(() => undefined);
+				await exclusionRefresh.catch(() => undefined);
 				const targetIndex = index;
 				const generation = vaultGeneration;
 				if (!targetIndex) return;
@@ -390,7 +392,7 @@ export async function registerVault(
 			const name = await vscode.window.showInputBox({
 				title: vscode.l10n.t('New note'),
 				prompt: vscode.l10n.t('Name for the Markdown note'),
-				validateInput: (value) => localizeVaultValidation(validateVaultEntryName(noteFileName(value))),
+				validateInput: (value) => localizeVaultValidation(validateVaultNoteName(value)),
 			});
 			if (!name || provider.service !== service || !vscode.workspace.isTrusted) return;
 			try {
@@ -436,12 +438,13 @@ export async function registerVault(
 			const item = await resolveCommandEntry(provider, entry === undefined ? tree.selection[0] : entry);
 			if (!item || !service || provider.service !== service) return;
 			const currentName = basenameLabel(item.uri);
+			const extensionStart = currentName.lastIndexOf('.');
 			const name = await vscode.window.showInputBox({
 				title: vscode.l10n.t('Rename vault item'),
 				value: currentName,
-				valueSelection: item.fileType & vscode.FileType.Directory
+				valueSelection: item.fileType & vscode.FileType.Directory || extensionStart <= 0
 					? [0, currentName.length]
-					: [0, Math.max(0, currentName.lastIndexOf('.'))],
+					: [0, extensionStart],
 				validateInput: (value) => localizeVaultValidation(validateVaultEntryName(value)),
 			});
 			if (!name || name === currentName || provider.service !== service || !vscode.workspace.isTrusted) return;
@@ -720,7 +723,16 @@ async function showQuickSwitcher(
 ): Promise<boolean> {
 	// Quick Switcher is an index-backed user action, so an unsaved alias or note
 	// title must win even when the command lands inside the document debounce.
-	await index.flushDocumentUpdates();
+	// Rebuilds must also settle before missing records become Create suggestions.
+	const ready = await index.waitForRebuild();
+	if (!isCurrent()) return false;
+	if (ready) await index.flushDocumentUpdates();
+	if (!isCurrent()) return false;
+	if (!ready || !await index.waitForRebuild()) {
+		if (!isCurrent()) return false;
+		void vscode.window.showWarningMessage(vscode.l10n.t('The vault could not be searched. Refresh the index and try again.'));
+		return true;
+	}
 	if (!isCurrent()) return false;
 	const picker = vscode.window.createQuickPick<VaultQuickPickItem>();
 	const untrack = trackPicker(picker);
@@ -867,7 +879,9 @@ async function showVaultSearch(
 						return;
 					}
 					if (batch.status !== 'complete') return;
-					picker.title = vscode.l10n.t('Search Document Vault — {0} matching documents', batch.results.length);
+					picker.title = batch.results.length === 1
+						? vscode.l10n.t('Search Document Vault — 1 matching document')
+						: vscode.l10n.t('Search Document Vault — {0} matching documents', batch.results.length);
 					const items = batch.results.map(searchResultItem);
 					if (items.length === 0) items.push(statusItem(vscode.l10n.t('No matching documents'), scope));
 					if (batch.unreadable > 0) items.push(statusItem(
@@ -955,18 +969,20 @@ async function openIndexedRecord(
 	isCurrent: () => boolean = () => true,
 	revealOpenedLine?: (uri: vscode.Uri, line: number) => boolean,
 ): Promise<void> {
-	if (!isCurrent()) return;
+	const canOpen = () => isCurrent() && index.get(record.path) !== undefined
+		&& !isVaultPathExcluded(record.path, vscode.workspace.getConfiguration('mdLivePreview.vault', index.vault.rootUri).get<string[]>('exclude', []));
+	if (!canOpen()) return;
 	const uri = index.vault.uriForRelative(record.path);
 	try {
 		await index.vault.assertRegularFileInside(uri);
-		if (!isCurrent()) return;
+		if (!canOpen()) return;
 		// Opening the configured custom editor directly avoids a plain-text tab
 		// followed by an asynchronous conversion, which can otherwise discard
 		// the search result's requested line before CodeMirror mounts.
 		await openConfiguredVaultResource(uri);
-		if (!isCurrent()) return;
+		if (!canOpen()) return;
 		await rememberRecent(index, record.path, context);
-		if (line !== undefined && isCurrent() && !revealOpenedLine?.(uri, line)) {
+		if (line !== undefined && canOpen() && !revealOpenedLine?.(uri, line)) {
 			await vscode.commands.executeCommand('revealLine', { lineNumber: line - 1, at: 'center' });
 		}
 	} catch {

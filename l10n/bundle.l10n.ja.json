@@ -89,6 +89,7 @@
   "Search Document Vault — searched {0} of {1}": "Search Document Vault — searched {0} of {1}",
   "Invalid or oversized search": "Invalid or oversized search",
   "Use a query of at most 2,048 characters. In advanced mode, check filter and regular-expression syntax.": "Use a query of at most 2,048 characters. In advanced mode, check filter and regular-expression syntax.",
+  "Search Document Vault — 1 matching document": "Search Document Vault — 1 matching document",
   "Search Document Vault — {0} matching documents": "Search Document Vault — {0} matching documents",
   "No matching documents": "No matching documents",
   "{0} documents could not be searched": "{0} documents could not be searched",

@@ -92,6 +92,7 @@ const en = {
 	'property.false': 'False',
 	'property.edit': 'Edit {0}',
 	'property.editHint': 'Press Enter or double-click to edit',
+	'property.multilineHint': 'Enter to save; Shift+Enter for a new line; Escape to cancel',
 	'property.numberInvalid': 'Enter a valid number.',
 	'property.listInvalid': 'Use commas between values and close every quote and wikilink.',
 	'embed.loading': 'Loading embedded note…',

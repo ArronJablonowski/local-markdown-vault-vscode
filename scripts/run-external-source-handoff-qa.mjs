@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
+import { extensiveUiFixtures } from './extensive-ui-fixtures.mjs';
 
 assert.equal(process.platform, 'darwin', 'This interactive handoff runner currently targets macOS.');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,6 +38,7 @@ try {
     'Table.md': '# Table paste\n\n| Item | Status |\n| --- | --- |\n| Original | Keep |\n\nEnd of table.',
     'Code.md': '# Code paste\n\n```text\nOriginal code\n```\n\nEnd of code.',
     'Lock.md': '# Locked paste\n\nKeep this content unchanged.\n\n- [ ] Task remains unchecked.\n',
+    ...(process.env.MDLP_EXTENSIVE_UI === '1' ? extensiveUiFixtures : {}),
   };
   for (const [name, text] of Object.entries(fixtures)) { await writeFile(join(workspace, name), text); baselines.set(name, text); }
   current = 'Paragraph.md'; baseline = fixtures[current];
@@ -105,8 +107,7 @@ async function dispatch(command) {
     return { file: current, path: join(workspace, current), source: text };
   }
   if (command.file !== undefined) {
-    assert.ok(['Empty.md', 'Paragraph.md', 'Table.md', 'Code.md', 'Lock.md'].includes(command.file)
-      || /^External-\d{3}\.md$/.test(command.file), 'Only synthetic fixture filenames are permitted.');
+    assert.ok(baselines.has(command.file), 'Only synthetic fixture filenames are permitted.');
     current = command.file;
     baseline = baselines.get(current);
   }

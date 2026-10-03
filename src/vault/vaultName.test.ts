@@ -25,6 +25,8 @@ describe('validateVaultRelativeNotePath', () => {
 	it.each([
 		'', '/absolute', 'C:/absolute', '../escape', 'Folder/../escape',
 		'Folder//Note', 'Folder/CON', 'Folder/bad?.md',
+		'Folder/', 'Folder/.', 'Folder/..', 'Folder/ ', 'Folder/Note ', 'Folder/Note.',
+		'.', '..', 'Note ', 'Note.',
 	])('rejects unsafe or invalid path %o', (path) => {
 		expect(validateVaultRelativeNotePath(path)).toBeTypeOf('string');
 	});

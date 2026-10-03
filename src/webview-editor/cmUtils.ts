@@ -260,6 +260,10 @@ export function blockCursorTouchesRange(state: EditorState, from: number, to: nu
 	// Once source is open, selecting text inside it is an edit, not a drag
 	// across a rendered widget. Keep it open before applying gesture guards.
 	if (revealedRanges.has(rangeKey(from, to))) return true;
+	// Find's buttons can sit above a rendered widget. Their click may trip the
+	// coordinate-based widget guard, but selecting search matches explicitly
+	// requests their source. Hide it only during an actual content drag.
+	if (selectionIsSearchMatch(state) && !pointerSelectionInProgress()) return true;
 	// Sweeping a selection across a block is a copy, not a request to edit it:
 	// unrendering mid-sweep replaces the rows being selected with pipe text and
 	// loses the selection. Inline constructs want the opposite (a drag across an

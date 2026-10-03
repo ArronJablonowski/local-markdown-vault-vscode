@@ -304,11 +304,13 @@ describe('host security boundaries', () => {
 		expect(vault).toContain('if (provider.service !== service) return undefined;');
 
 		const indexedOpen = vault.slice(vault.indexOf('async function openIndexedRecord('), vault.indexOf('\nfunction recentKey('));
-		expect(indexedOpen).toContain('if (!isCurrent()) return;');
+		expect(indexedOpen).toContain('const canOpen = () => isCurrent() && index.get(record.path) !== undefined');
+		expect(indexedOpen).toContain('!isVaultPathExcluded(record.path');
+		expect(indexedOpen).toContain('if (!canOpen()) return;');
 		expect(indexedOpen.indexOf('await index.vault.assertRegularFileInside(uri)')).toBeLessThan(
 			indexedOpen.indexOf('await openConfiguredVaultResource(uri)'),
 		);
-		expect(indexedOpen.indexOf('if (!isCurrent()) return;', indexedOpen.indexOf('assertRegularFileInside'))).toBeLessThan(
+		expect(indexedOpen.indexOf('if (!canOpen()) return;', indexedOpen.indexOf('assertRegularFileInside'))).toBeLessThan(
 			indexedOpen.indexOf('await openConfiguredVaultResource(uri)'),
 		);
 		const switcher = vault.slice(vault.indexOf('async function showQuickSwitcher('), vault.indexOf('\nasync function showVaultSearch('));

@@ -16,6 +16,11 @@ export function noteFileName(input: string): string {
 	return /\.(?:md|markdown)$/i.test(input) ? input : `${input}.md`;
 }
 
+/** Check the authored name before adding an extension can hide invalid input. */
+export function validateVaultNoteName(input: string): string | undefined {
+	return validateVaultEntryName(input) ?? validateVaultEntryName(noteFileName(input));
+}
+
 /** Validates a Quick Switcher/unresolved-note path without touching disk. */
 export function validateVaultRelativeNotePath(input: string): string | undefined {
 	const normalized = input.replace(/\\/g, '/').replace(/^\.\//, '');
@@ -25,8 +30,9 @@ export function validateVaultRelativeNotePath(input: string): string | undefined
 	const parts = normalized.split('/');
 	if (parts.length > 64) return 'The note path is too deeply nested.';
 	for (let index = 0; index < parts.length; index++) {
-		const part = index === parts.length - 1 ? noteFileName(parts[index]) : parts[index];
-		const error = validateVaultEntryName(part);
+		const error = index === parts.length - 1
+			? validateVaultNoteName(parts[index])
+			: validateVaultEntryName(parts[index]);
 		if (error) return error;
 	}
 	return undefined;
