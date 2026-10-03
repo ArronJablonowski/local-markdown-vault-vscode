@@ -533,6 +533,9 @@ Return or Space, to collapse or expand the block.
 
 Tags may also be listed in YAML properties. Aliases defined in the `aliases` property are available to wikilink completion and the Quick Switcher.
 
+Tags also work at the beginning of a line. Type an explicit space after a single
+`#` to create a level-one heading, for example `# Meeting notes`.
+
 #### Create a Mermaid diagram
 
 ````markdown

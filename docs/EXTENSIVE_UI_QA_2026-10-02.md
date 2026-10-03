@@ -1,5 +1,96 @@
 # Extensive UI QA — October 2, 2026
 
+## Meeting notes and arrow navigation follow-up
+
+The follow-up session tested realistic note-taking with individual native keys,
+corrections, and repeated arrow navigation in an isolated macOS VS Code window.
+It found two editing defects: a line-start hashtag became a heading, and Enter
+after highlighted text discarded the surrounding list or quote structure.
+
+The heading helper now preserves single-hash tags and literal hashes in code,
+HTML, and YAML. Level-one headings require the normal explicit space (`# Title`);
+level-two through level-six convenience spacing remains available in prose.
+Composition input is left to the input method, and uncertain parser context
+does not trigger automatic formatting.
+
+The highlight Enter handler now preserves the surrounding bullet, task,
+numbered list, or quote while leaving the inline highlight. Pressing Enter
+again on an empty item still exits that section. Review also found that a
+partially parsed large document could make the handler mistake literal code
+for a highlight; a bounded context check addresses that case.
+
+### Native meeting workflow
+
+A blank note grew to 2,987 UTF-8 bytes through individual key events, including
+headings, paragraphs, nested bullets, numbered items, tasks, a warning callout,
+a table, a Python code block, highlighted decisions, tags, and emoji completion.
+The test used Backspace for corrections, Tab and Shift+Tab for indentation,
+mouse clicks for focus and task completion, and Command+B on an arrow-selected
+word. Markdown was not pasted into this note.
+
+Arrow navigation moved into earlier paragraphs, across the table boundary,
+through code lines, and back into quoted tasks. Shift+Arrow selected exact
+words for replacement, including `Friday` to `Monday`, `notes` to `steps`,
+`owner` to `lead`, and `date` to `deadline`. Highlight delimiters remained
+intact. Repeated Enter left the code block and continued ordinary prose.
+
+The complete intended source matched both the editor and saved file, including
+delayed rechecks. The initial 2,798-byte draft also survived an isolated window
+reload unchanged. No personal window was reloaded. The final meeting-note
+fingerprint was SHA256
+`83557deae0402f8da71727ef3843fc64ec06fbbd9f380f67893b927c1ef724e2`.
+
+### Layout and interaction coverage
+
+New browser regressions exercise individual typing, corrections, emoji
+completion, line-start tags, literal code and YAML hashes, and highlight Enter
+with the caret both before and after the closing delimiter. Large mixed notes
+contain repeated tables, diagrams, callouts, code, and lists.
+
+The layout cases test Arial at 16 px, Georgia at 22 px, and monospace at 14 px
+in 820 px, 390 px, and 600 px panes. They inspect eight post-paint frames after
+edits, comparing document selection, native selection, visible caret position,
+and the host edit stream. Arrow-heavy cases repeatedly cross callouts, tables,
+and code in both directions. Wrapped-list checks make 12 Up/Down round trips
+and 168 lateral key movements before selecting and replacing a known word.
+
+Native drag attempts did not produce a usable selection through the automation
+tool. This is not claimed as a confirmed product failure or successful native
+drag coverage. Separate browser mouse drags selected the exact intended phrase
+in paragraphs, bullets, and nested bullets before and after focus. The native
+key driver also mapped its `equal` key name to `+`; highlight tests used a
+single-character native text event for `=` instead. Actual operating-system
+IME composition, native Linux/Windows, and every possible transient frame are
+not covered by this session.
+
+Native Undo restored the exact source after highlighted-list continuation,
+but placed the caret after the closing highlight marker rather than at its
+prior position before it. This is a remaining UX limitation: the host Undo
+response carries text changes without historical selection metadata. The
+helper now commits one transaction and its local CodeMirror history test
+restores the original caret, but that is not proof of native host-history
+caret restoration. Broader selection-history support remains follow-up work.
+
+The native helper now accepts `MDLP_HANDOFF_TRACE=0` to disable extra input
+listeners during timing-sensitive QA; observation and source/disk verification
+remain available. This session used that untraced mode. Local native evidence
+is under `.vscode-test/meeting-notes-native-2026-10-02`.
+
+### Follow-up verification results
+
+- The complete unit suite passed all 1,944 tests across 142 files, including
+  the vault performance gates.
+- All 943 non-native-clipboard browser cases passed, including 41 new meeting
+  workflows and the additional literal-hashtag typing case. Five OS-clipboard
+  cases were excluded to avoid interfering with native note-taking.
+- The final focused heading and highlight unit run passed all 51 tests,
+  including composition bypass, cold-parser context, readonly behavior,
+  rejected edits, retained annotations and effects, and local Undo selection.
+- All five exact native source/disk checks passed with delayed rechecks.
+- Source and test type checks, US English verification, and dependency policy
+  passed. The production dependency audit reported zero known vulnerabilities.
+  Development-only advisories from the earlier session remain documented below.
+
 ## Scope and method
 
 This session combines native macOS VS Code interaction, browser-based tests of

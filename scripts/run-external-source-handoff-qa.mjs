@@ -20,7 +20,9 @@ const workspace = join(temporary, 'External Source QA');
 const profile = join(temporary, 'profile');
 const artifacts = join(root, '.vscode-test', process.env.MDLP_HANDOFF_ARTIFACTS ?? 'external-source-handoff');
 const executable = '/Applications/Visual Studio Code.app/Contents/MacOS/Code';
-const report = { startedAt: new Date().toISOString(), executable, checks: [], failures: [], pageErrors: [], editorErrors: [], completed: false, savedChecks: 0 };
+// Extra input listeners can change browser event timing; allow untraced QA.
+const traceInput = process.env.MDLP_HANDOFF_TRACE !== '0';
+const report = { startedAt: new Date().toISOString(), executable, traceInput, checks: [], failures: [], pageErrors: [], editorErrors: [], completed: false, savedChecks: 0 };
 let browser, child, page, frame, current, baseline, launchError, number = 0;
 const baselines = new Map();
 const observedFrames = new Map();
@@ -146,7 +148,7 @@ async function observeFrame() {
     }
     return false;
   }, 'active Markdown webview');
-  await trace();
+  if (traceInput) await trace();
 }
 async function source() { return frame.evaluate(() => document.querySelector('.cm-content').cmTile.root.view.state.doc.toString()); }
 async function inspect(compact = false) {

@@ -119,7 +119,8 @@ test('text committed without keydown retains native Unicode insertion and subseq
 });
 
 for (const [name, initial, typed, expected] of [
-	['heading spacing', '#', 'Heading', '# Heading'],
+	['heading spacing', '##', 'Heading', '## Heading'],
+	['literal hashtag', '#', 'meeting', '#meeting'],
 	['parenthesis pairing', 'Before ', '(value)', 'Before (value)'],
 	['inline code pairing', '', '`value`', '`value`'],
 	['fenced code pairing', '', '```ts', '```ts\n\n```'],
