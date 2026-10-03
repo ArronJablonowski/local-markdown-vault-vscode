@@ -87,9 +87,18 @@ is under `.vscode-test/meeting-notes-native-2026-10-02`.
   including composition bypass, cold-parser context, readonly behavior,
   rejected edits, retained annotations and effects, and local Undo selection.
 - All five exact native source/disk checks passed with delayed rechecks.
+- The minified production bundle passed all 123 repeated meeting-note browser
+  checks and all 20 save-durability integration cases.
 - Source and test type checks, US English verification, and dependency policy
   passed. The production dependency audit reported zero known vulnerabilities.
   Development-only advisories from the earlier session remain documented below.
+- Packaging and archive verification passed with 64 entries and 3,735,244
+  compressed bytes. The release VSIX fingerprint is SHA256
+  `52c839961df760d42cd979e0d105df81db44b88c7ee438634845d593a52b402a`.
+- Installed-package smoke testing passed all 16 applicable checks across
+  trusted, restricted, and disabled profiles. Profile-inapplicable cases were
+  skipped intentionally. The VSIX was installed into the normal local VS Code
+  extension directory; existing personal windows were not forcibly reloaded.
 
 ## Scope and method
 
