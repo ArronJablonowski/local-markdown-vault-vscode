@@ -22,14 +22,26 @@ export const clipboardShortcuts = ViewPlugin.fromClass(class {
 			return;
 		}
 		if (!['c', 'x', 'v'].includes(key)) return;
-		// Do not preventDefault: the browser must still emit the real copy/cut/paste event.
-		// Forwarding to the workbench would replay it after the next selection or edit.
+		// Forwarding to the workbench would replay after the next selection or edit.
 		event.stopPropagation();
-		if (key === 'v' && event.shiftKey && event.isTrusted) {
-			// Electron on macOS emits no default paste for this shifted chord.
-			// A synchronous native command preserves the current selection and uses
-			// the same guarded paste handlers; never read the clipboard asynchronously.
-			try { if (document.execCommand('paste')) event.preventDefault(); } catch { /* Keep the browser fallback when unavailable. */ }
+		if (key === 'v' && event.isTrusted && !event.defaultPrevented) {
+			// Electron may omit the default paste event for either paste chord. Invoke
+			// the native command while its trusted gesture and selection are current.
+			// Existing guarded paste handlers still enforce locking and payload limits.
+			let receivedPaste = false;
+			const observedPaste = (): void => { receivedPaste = true; };
+			this.view.dom.addEventListener('paste', observedPaste, true);
+			try {
+				const handled = document.execCommand('paste');
+				// A guarded handler can cancel a delivered event while the command
+				// reports false. Do not let the browser paste the same data twice.
+				if (handled || receivedPaste) event.preventDefault();
+			} catch {
+				if (receivedPaste) event.preventDefault();
+				// With no dispatched event, leave the browser's native fallback intact.
+			} finally {
+				this.view.dom.removeEventListener('paste', observedPaste, true);
+			}
 		}
 	};
 	destroy(): void {

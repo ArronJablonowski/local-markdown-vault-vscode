@@ -438,9 +438,17 @@ imported, and formulas are never executed. No cloud service is involved.
 
 Table paste is bounded to 256 KiB of copied text, 1,000 rows, 200 columns, 10,000
 cells in the expanded table, and 512 KiB of resulting table source. Invalid
-quoting in explicitly labeled CSV/TSV or excessive size produces a warning
-without applying a partial table.
-Split larger data into smaller tables. A locked note never accepts a paste.
+quoting or excessive size in explicitly labeled CSV/TSV produces a warning
+without applying a partial table. In the main editor, automatic conversion of
+plain text is optional: content exceeding these table limits is pasted as its
+original text instead, subject to normal document limits. A table cell still
+enforces its own size limit. Split larger grids into smaller tables when you
+want table conversion. A locked note never accepts a paste.
+
+Ordinary **Command+V** / **Ctrl+V** and the native **Edit → Paste** action use
+the same validated paste handlers. Empty or unsupported clipboard data must
+not erase selected text. After explicitly unlocking, focus returns to the
+editor's retained selection so you can paste and continue typing immediately.
 
 In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
 (Windows/Linux) work in both Edit and Locked modes. You can select part of a

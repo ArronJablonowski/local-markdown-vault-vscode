@@ -49,21 +49,55 @@ describe('clipboard shortcut containment', () => {
 		expect(stop).not.toHaveBeenCalled();
 	});
 
-	it.each(['success', 'unsupported', 'throws'] as const)('trusted shifted paste handles native command %s without an asynchronous replay', outcome => {
-		const execCommand = vi.fn(() => { if (outcome === 'throws') throw new Error('Clipboard unavailable'); return outcome === 'success'; });
-		vi.stubGlobal('document', { execCommand });
-		const { plugin } = gesture('v', { ctrlKey: true });
-		const event = { key: 'V', ctrlKey: true, shiftKey: true, isTrusted: true,
-			stopPropagation: vi.fn(), preventDefault: vi.fn() };
-		expect(() => plugin.keydown(event)).not.toThrow();
-		expect(execCommand).toHaveBeenCalledExactlyOnceWith('paste');
-		expect(event.stopPropagation).toHaveBeenCalledOnce();
-		expect(event.preventDefault).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 0);
+	describe.each(['metaKey', 'ctrlKey'])('trusted native paste with %s', modifier => {
+		it.each([
+			[false, 'success'], [false, 'unsupported'], [false, 'throws'],
+			[true, 'success'], [true, 'unsupported'], [true, 'throws'],
+		] as const)('handles shifted=%s command=%s without an asynchronous replay', (shiftKey, outcome) => {
+			const execCommand = vi.fn(() => { if (outcome === 'throws') throw new Error('Clipboard unavailable'); return outcome === 'success'; });
+			vi.stubGlobal('document', { execCommand });
+			const { plugin } = gesture('v', { [modifier]: true });
+			const event = { key: shiftKey ? 'V' : 'v', [modifier]: true, shiftKey, isTrusted: true,
+				stopPropagation: vi.fn(), preventDefault: vi.fn() };
+			expect(() => plugin.keydown(event)).not.toThrow();
+			expect(execCommand).toHaveBeenCalledExactlyOnceWith('paste');
+			expect(event.stopPropagation).toHaveBeenCalledOnce();
+			expect(event.preventDefault).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 0);
+		});
+
+		it.each([false, true])('does not replay an already-handled shifted=%s gesture', shiftKey => {
+			const execCommand = vi.fn(); vi.stubGlobal('document', { execCommand });
+			const { plugin } = gesture('v', { [modifier]: true });
+			const event = { key: 'v', [modifier]: true, shiftKey, isTrusted: true, defaultPrevented: true,
+				stopPropagation: vi.fn(), preventDefault: vi.fn() };
+			plugin.keydown(event);
+			expect(execCommand).not.toHaveBeenCalled();
+			expect(event.preventDefault).not.toHaveBeenCalled();
+		});
 	});
 
-	it('never reads the native clipboard for synthetic shifted shortcuts', () => {
+	it.each(['false', 'throws'] as const)('prevents duplicate paste when a canceled event is delivered but the command returns %s', outcome => {
+		const { dom, plugin } = gesture('v', { metaKey: true });
+		const canceledPaste = vi.fn((event: Event) => event.preventDefault());
+		dom.addEventListener('paste', canceledPaste);
+		const remove = vi.spyOn(dom, 'removeEventListener');
+		const execCommand = vi.fn(() => {
+			dom.dispatchEvent(new Event('paste', { bubbles: true, cancelable: true }));
+			if (outcome === 'throws') throw new Error('Clipboard command failed after dispatch');
+			return false;
+		});
+		vi.stubGlobal('document', { execCommand });
+		const event = { key: 'v', metaKey: true, isTrusted: true, stopPropagation: vi.fn(), preventDefault: vi.fn() };
+		expect(() => plugin.keydown(event)).not.toThrow();
+		expect(canceledPaste).toHaveBeenCalledOnce();
+		expect(event.preventDefault).toHaveBeenCalledOnce();
+		expect(execCommand).toHaveBeenCalledOnce();
+		expect(remove).toHaveBeenCalledWith('paste', expect.any(Function), true);
+	});
+
+	it.each([false, true])('never accesses the native clipboard for synthetic shifted=%s shortcuts', shiftKey => {
 		const execCommand = vi.fn(); vi.stubGlobal('document', { execCommand });
-		gesture('v', { ctrlKey: true, shiftKey: true });
+		gesture('v', { ctrlKey: true, shiftKey });
 		expect(execCommand).not.toHaveBeenCalled();
 	});
 });

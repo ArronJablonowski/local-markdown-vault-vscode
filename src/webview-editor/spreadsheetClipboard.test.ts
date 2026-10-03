@@ -105,7 +105,7 @@ describe('parseSpreadsheetClipboard', () => {
 		expect(note.length).toBeGreaterThan(MAX_SPREADSHEET_INPUT_BYTES);
 		expect(parseSpreadsheetClipboard(note)).toEqual({ kind: 'text' });
 		for (const mime of ['csv', 'tsv'] as const) expect(parseSpreadsheetClipboard(note, mime)).toEqual({ kind: 'invalid', reason: 'tooLarge' });
-		expect(parseSpreadsheetClipboard('Name\tValue\n' + 'x\ty\n'.repeat(70_000))).toEqual({ kind: 'invalid', reason: 'tooLarge' });
+		expect(parseSpreadsheetClipboard('Name\tValue\n' + 'x\ty\n'.repeat(70_000))).toEqual({ kind: 'text' });
 	});
 	it('does not infer a plain first record from a truncated bounded prefix', () => {
 		const first = 'x'.repeat(4_100);
@@ -131,9 +131,9 @@ describe('parseSpreadsheetClipboard', () => {
 	it.each(['"unfinished\tx', '"closed" suffix\tx'])('still rejects malformed explicitly declared TSV: %j', value => {
 		expect(parseSpreadsheetClipboard(value, 'tsv')).toEqual({ kind: 'invalid', reason: 'malformed' });
 	});
-	it('bounds oversized auto input before falling back for malformed quotes', () => {
+	it('does not expand oversized auto input before falling back to literal text', () => {
 		expect(parseSpreadsheetClipboard('a,b\n"' + 'x'.repeat(MAX_SPREADSHEET_INPUT_BYTES)))
-			.toEqual({ kind: 'invalid', reason: 'tooLarge' });
+			.toEqual({ kind: 'text' });
 	});
 	it('bounds actual UTF-8 input bytes, not UTF-16 string length', () => {
 		expect(parseSpreadsheetClipboard('é'.repeat(MAX_SPREADSHEET_INPUT_BYTES / 2), 'csv').kind).toBe('table');

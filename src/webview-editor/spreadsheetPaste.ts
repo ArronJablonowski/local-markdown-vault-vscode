@@ -116,8 +116,7 @@ export function createSpreadsheetPasteHandler() {
 				if (hasPlainText || hasText) showSpreadsheetPasteWarning();
 				return false;
 			}
-			event.preventDefault();
-			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return true; }
+			if (result.kind === 'invalid') { event.preventDefault(); showSpreadsheetPasteWarning(result.reason); return true; }
 			try {
 				const line = state.doc.lineAt(from);
 				const prefix = state.sliceDoc(line.from, from);
@@ -134,12 +133,19 @@ export function createSpreadsheetPasteHandler() {
 					: !indent && after.startsWith('\n') ? '\n' : `\n${blank}\n${indent}`;
 				const insert = lead + renderTableMarkdown(model) + tail;
 				if (!spreadsheetReplacementFits(state, start, to, insert)) throw new RangeError();
+				event.preventDefault();
 				showSpreadsheetPasteWarning();
 				view.dispatch({ changes: { from: start, to, insert },
 					selection: { anchor: start + insert.length + (tail ? 0 : Math.min(2, after.length)) },
 					annotations: isolatedSpreadsheetPaste.of(true), userEvent: 'input.paste', scrollIntoView: true });
 				return true;
 			} catch {
+				// Auto-conversion is optional for plain text. If escaping/framing the
+				// grid is too large, keep the original bytes under normal editor guards.
+				if (preferred.type === 'text/plain' && !event.defaultPrevented) {
+					showSpreadsheetPasteWarning(); return false;
+				}
+				event.preventDefault();
 				showSpreadsheetPasteWarning('tooLarge');
 				return true;
 			}

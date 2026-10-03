@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<title>Local clipboard QA sources</title>
+<style>body{font:18px system-ui;max-width:850px;margin:36px auto;line-height:1.5}button{padding:10px;margin:6px}pre,textarea{padding:12px;background:#eee}td,th{border:1px solid;padding:8px}table{border-collapse:collapse}</style>
+<h1>Local clipboard QA sources</h1>
+<p>These synthetic fixtures make no network requests.</p>
+<button id="markdown">Copy Markdown report</button>
+<button id="large">Copy large comma-first report</button>
+<button id="code">Copy code</button>
+<p id="status" role="status">Ready</p>
+<section id="rich" contenteditable="true">
+<h2>Quarterly review</h2>
+<p>Copy <strong>bold</strong>, <em>italic</em>, and Unicode: café 🚀 &#x4e2d;&#x6587;.</p>
+<ul><li>First action</li><li>Second action<ul><li>Nested detail</li></ul></li></ul>
+<blockquote>Review this local-only example.</blockquote>
+<table><thead><tr><th>Item</th><th>Count</th></tr></thead><tbody><tr><td>Apples</td><td>3</td></tr><tr><td>Pears</td><td>7</td></tr></tbody></table>
+</section>
+<h2>Spreadsheet source</h2>
+<textarea id="grid" rows="4" cols="55">Item	Count
+Apples	3
+Pears	7</textarea>
+<h2>Code source</h2>
+<pre id="sample" contenteditable="true">function greet(name) {
+	return `Hello, ${name}!`;
+}
+console.log(greet("café 🚀"));</pre>
+<script>
+const report = '# Synthetic report\n\nA summary, with **bold** and *italic*.\n\n- First action\n  - Nested detail\n- [ ] Follow-up\n\n| Item | Count |\n| --- | --- |\n| Apples | 3 |\n\n> [!note] Review\n> Local fixture only.\n\n```javascript\nconsole.log("café 🚀");\n```\n';
+const large = '## Notes, findings\n\n' + 'Ordinary **report** paragraph, with useful details and no spreadsheet rows.\n\n'.repeat(4300);
+const status = document.getElementById('status');
+for (const [id, text] of [['markdown', report], ['large', large], ['code', document.getElementById('sample').textContent]]) {
+  document.getElementById(id).addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(text); status.textContent = `Copied ${id}: ${text.length} characters`; }
+    catch { status.textContent = 'Copy failed in source browser'; }
+  });
+}
+</script>

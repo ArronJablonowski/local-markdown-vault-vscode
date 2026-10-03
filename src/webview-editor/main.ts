@@ -535,7 +535,12 @@ function ensureEditingModeButton(): void {
 		segment.appendChild(icon);
 		modeButton.appendChild(segment);
 	}
-	modeButton.addEventListener('click', () => setEditingAllowed(!editingAllowed));
+	modeButton.addEventListener('click', () => {
+		setEditingAllowed(!editingAllowed);
+		// Resume at the retained selection after an explicit unlock. Leaving focus
+		// on this button would turn the next typed space into another lock action.
+		if (editingAllowed && !recoveryBlocked) view?.focus();
+	});
 	document.getElementById('mlp-root')?.appendChild(modeButton);
 	updateEditingModeUi();
 }

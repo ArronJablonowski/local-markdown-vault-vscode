@@ -1342,7 +1342,9 @@ class TableWidget extends WidgetType {
 			const text = plain ? event.clipboardData.getData('text/plain') || event.clipboardData.getData('text/uri-list') : clipboard.text;
 			const hasText = plain ? text.length > 0 : clipboard.hasText;
 			const result = plain ? { kind: 'text' as const } : clipboard.result;
-			if (!hasText) { showSpreadsheetPasteWarning('textOnly'); return; }
+			// Empty plain-text metadata is not an instruction to erase a cell.
+			// Explicit CSV/TSV empty cells still arrive as a validated table result.
+			if (!hasText || result.kind === 'text' && !text.length) { showSpreadsheetPasteWarning('textOnly'); return; }
 			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return; }
 			if (result.kind === 'text') {
 				if (text.length > MAX_SPREADSHEET_INPUT_BYTES || new TextEncoder().encode(text).byteLength > MAX_SPREADSHEET_INPUT_BYTES) {

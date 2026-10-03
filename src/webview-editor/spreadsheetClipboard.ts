@@ -64,16 +64,18 @@ function outsideQuotedFields(source: string): string {
 	return pieces.join('');
 }
 
-/** Recognize a complete plain first record without scanning a large note. */
-function startsWithPlainRecord(source: string): boolean {
-	// Do this before spreadsheet size checks: a large Markdown note with one
-	// incidental indentation tab must not be rejected as an oversized grid.
+/** Recognize plain report records before applying spreadsheet-only limits. */
+function hasPlainRecordPrefix(source: string): boolean {
+	// Inspect only a bounded prefix, hiding quoted fields so multiline CSV values
+	// containing headings or prose cannot be mistaken for an ordinary report.
 	const prefix = source.slice(0, 4_096);
-	const records = prefix.split(/\r\n?|\n/);
+	const records = outsideQuotedFields(prefix).split(/\r\n?|\n/);
 	for (let index = 0; index < records.length; index++) {
 		if (index === records.length - 1 && prefix.length < source.length) return false;
 		const record = records[index];
-		if (record.trim()) return !record.includes('\t') && !record.includes(',') && !record.trimStart().startsWith('"');
+		// A real TSV row has a tab; a real CSV row has a comma and does not
+		// contain unquoted Markdown. Either rule can reject a mixed report early.
+		if (record.trim() && !record.includes('\t') && (!record.includes(',') || looksLikeMarkdown(record))) return true;
 	}
 	return false;
 }
@@ -85,11 +87,14 @@ function startsWithPlainRecord(source: string): boolean {
  */
 export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | 'tsv' = 'auto'): SpreadsheetClipboardResult {
 	if (typeof text !== 'string' || !['auto', 'csv', 'tsv'].includes(mime)) return invalid('malformed');
+	// An oversized plain-text paste is not proof of a spreadsheet. Decline the
+	// optional conversion and let the editor apply its ordinary document limit.
+	const exhausted = (): SpreadsheetClipboardResult => mime === 'auto' ? { kind: 'text' } : invalid('tooLarge');
 	const source = text.startsWith('\ufeff') ? text.slice(1) : text;
 	if (mime === 'auto' && /^(?:[ \t]*\r?\n)*[ \t]{0,3}(?:`{3,}|~{3,})/.test(source)) return { kind: 'text' };
-	if (mime === 'auto' && startsWithPlainRecord(source)) return { kind: 'text' };
+	if (mime === 'auto' && hasPlainRecordPrefix(source)) return { kind: 'text' };
 	if (mime === 'auto' && !source.includes('\t') && (!source.includes(',') || !/[\r\n]/.test(source))) return { kind: 'text' };
-	if (text.length > MAX_SPREADSHEET_INPUT_BYTES || utf8Bytes(text) > MAX_SPREADSHEET_INPUT_BYTES) return invalid('tooLarge');
+	if (text.length > MAX_SPREADSHEET_INPUT_BYTES || utf8Bytes(text) > MAX_SPREADSHEET_INPUT_BYTES) return exhausted();
 	const classification = mime === 'auto' ? outsideQuotedFields(source) : source;
 	let delimiter: ',' | '\t';
 	if (mime === 'tsv' || (mime === 'auto' && classification.includes('\t'))) delimiter = '\t';
@@ -106,7 +111,7 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 	let position = 0;
 	let widest = 0;
 	for (;;) {
-		if (rows.length >= MAX_SPREADSHEET_ROWS || row.length >= MAX_SPREADSHEET_COLUMNS) return invalid('tooLarge');
+		if (rows.length >= MAX_SPREADSHEET_ROWS || row.length >= MAX_SPREADSHEET_COLUMNS) return exhausted();
 		let value: string;
 		if (source[position] === '"') {
 			position++;
@@ -133,8 +138,12 @@ export function parseSpreadsheetClipboard(text: string, mime: 'auto' | 'csv' | '
 		}
 		row.push(value);
 		widest = Math.max(widest, row.length);
-		if ((rows.length + 1) * widest > MAX_SPREADSHEET_CELLS) return invalid('tooLarge');
+		if ((rows.length + 1) * widest > MAX_SPREADSHEET_CELLS) return exhausted();
 		if (source[position] === delimiter) { position++; continue; }
+		// Once a complete record proves auto-detection wrong, preserve the text
+		// immediately instead of reaching grid row/cell limits in a long report.
+		if (mime === 'auto' && (delimiter === ',' && (row.length < 2 || rows.length > 0 && row.length !== rows[0].length)
+			|| delimiter === '\t' && row.length === 1 && row[0].trim() !== '')) return { kind: 'text' };
 		rows.push(row); row = [];
 		if (position >= source.length) break;
 		position += source[position] === '\r' && source[position + 1] === '\n' ? 2 : 1;

@@ -61,7 +61,7 @@ for (const kind of ['prose', 'code', 'table source'] as const) test(`external pl
 	expect(await source(page)).toBe(doc.slice(0, head) + 'PASTED' + doc.slice(head));
 });
 
-test('keyboard lock toggle retains accessible focus and unlocked prose accepts paste', async ({ page }) => {
+test('keyboard lock toggle remains focused while locked and restores the editor on unlock', async ({ page }) => {
 	const doc = 'Retained text';
 	await mountEditor(page, doc);
 	await page.locator('.cm-line').click();
@@ -70,15 +70,14 @@ test('keyboard lock toggle retains accessible focus and unlocked prose accepts p
 	await toggle.focus();
 	await page.keyboard.press('Space');
 	await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+	await expect(toggle).toBeFocused();
 	await page.keyboard.press('Space');
 	await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-	await expect(toggle).toBeFocused();
-	// Native Electron can route paste to the remembered editor despite button
-	// focus. That behavior is tested in VS Code, not faked by this page harness.
-	await page.locator('.cm-line').click();
-	await page.keyboard.press('End');
+	await expect(page.locator('.cm-content')).toBeFocused();
 	const event = await pasteAtFocus(page, ' external');
-	expect(await source(page), JSON.stringify(event)).toBe(doc + ' external');
+	await page.keyboard.type(' Continue typing');
+	expect(await source(page), JSON.stringify(event)).toBe(doc + ' external Continue typing');
+	await expect(toggle).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('successive external plain text pastes retain a table cell editing target', async ({ page }) => {

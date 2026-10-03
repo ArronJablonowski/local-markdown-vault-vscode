@@ -271,11 +271,11 @@ for (const [name, clipboard] of [
 	['column limit', Array.from({ length: 201 }, (_, index) => `Column ${index}`).join('\t')],
 	['cell limit', Array.from({ length: 101 }, () => Array(100).fill('x').join('\t')).join('\n')],
 ] as const) {
-	test(`spreadsheet ${name} is refused visibly without changing the selected text`, async ({ page }) => {
+	test(`declared spreadsheet ${name} is refused visibly without changing the selected text`, async ({ page }) => {
 		const original = 'This note must remain exactly intact.';
 		await mountEditor(page, original);
 		await selectAll(page);
-		await paste(page, { 'text/plain': clipboard });
+		await paste(page, { 'text/tab-separated-values': clipboard });
 		await expect(page.getByRole('alert')).toBeVisible();
 		await expect(page.getByRole('alert')).not.toHaveText('');
 		expect(await sourceAfterEdits(page, original)).toBe(original);
@@ -290,7 +290,7 @@ test('an over-limit paste into a cell preserves its uncommitted draft and every 
 	await cell.click();
 	await page.keyboard.press(`${modifier}+a`);
 	await page.keyboard.type('Uncommitted draft');
-	await paste(page, { 'text/plain': Array.from({ length: 201 }, () => 'x').join('\t') }, '.mlp-table td[contenteditable="true"]');
+	await paste(page, { 'text/tab-separated-values': Array.from({ length: 201 }, () => 'x').join('\t') }, '.mlp-table td[contenteditable="true"]');
 	await expect(page.getByRole('alert')).toBeVisible();
 	await expect(cell).toHaveText('Uncommitted draft');
 	await expect(page.locator('.mlp-table td').last()).toHaveText('Neighbor');

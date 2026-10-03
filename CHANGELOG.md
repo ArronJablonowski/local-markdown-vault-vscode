@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix ordinary Command/Ctrl+V when Electron omits its default paste event. Use a synchronous trusted native paste command, prevent duplicate delivery, and keep existing lock and payload checks.
+- Keep large plain-text reports from being rejected as oversized spreadsheets. Automatic conversion falls back to original text when grid limits are exceeded; explicit CSV/TSV remains strictly bounded. Empty clipboard text cannot erase a selected table-cell draft.
+- Return keyboard focus to the retained editor selection after explicitly unlocking, so pasting and typing a space cannot accidentally lock the document again.
+
 - Render balanced, attribute-free unordered and ordered lists inside Live Preview and embedded table cells with compact spacing and nested bullet markers. Preserve original list source during editing and copying; keep malformed lists, attributes, code examples, and unrelated HTML inert, with bounded list parsing.
 - Keep Enter from reopening a table cell's raw source after an unchanged edit; finishing the edit returns to the rendered cell without adding an undo entry.
 - Prefer usable external clipboard text over alternate images, skip empty spreadsheet metadata when a text fallback exists, and accept URI-only text in table cells without importing HTML. Keep consecutive cell pastes and post-Tab drafts at their intended target; image-only clipboard metadata cannot clear a table cell.
