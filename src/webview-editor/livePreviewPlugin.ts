@@ -1,7 +1,7 @@
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
-import { notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft } from './activeDraft';
+import { commitActiveDraft, notifyActiveDraftChanged, preserveUncommittedDraft, readActiveDraftSnapshot, registerActiveDraft } from './activeDraft';
 import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
-import type { Range, EditorState, Transaction } from '@codemirror/state';
+import { EditorSelection, type Range, type EditorState, type Transaction } from '@codemirror/state';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { cursorTouchesRange, blockCursorTouchesRange, noteRevealed, protectRenderedBlockFromCaret, onPointerRelease, pointerSelectionInProgress, cancelPointerSelection } from './cmUtils';
 import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
@@ -346,15 +346,37 @@ class CalloutHeaderWidget extends WidgetType {
 		chevron.textContent = this.initiallyCollapsed ? '›' : '⌄';
 		button.append(icon, label, chevron);
 		const toggle = () => {
-			// Folding is a widget action, not a request to edit the callout source.
-			// Removing a focused nested table commits its draft on blur and parks
-			// CodeMirror's caret inside this callout. Keep the header rendered while
-			// that commit runs so its unfold button does not disappear into markup.
+			// Commit before hiding the widget: a later blur commit can otherwise park
+			// the cursor back inside a body that has already disappeared.
 			protectRenderedBlockFromCaret();
-			const focused = document.activeElement === button;
-			view.dispatch({ effects: toggleCallout.of({ from: this.from, collapsed: !this.initiallyCollapsed }) });
+			const focused = document.activeElement === button || readActiveDraftSnapshot() !== undefined;
+			const before = view.state.doc;
+			const residual = commitActiveDraft();
+			if (residual !== undefined) { preserveUncommittedDraft(residual); return; }
+			let from = this.from;
+			const after = view.state.doc;
+			if (before !== after && !before.slice(0, from).eq(after.slice(0, Math.min(from, after.length)))) {
+				// A field above this header may have changed its position. Accept only
+				// an unchanged suffix, never apply the old widget's offset blindly.
+				const mapped = from + after.length - before.length;
+				if (mapped < 0 || mapped > after.length || !before.slice(from).eq(after.slice(mapped))) return;
+				from = mapped;
+			}
+			let callout: ReturnType<typeof calloutForNode>;
+			syntaxTree(view.state).iterate({ from, to: view.state.doc.lineAt(from).to, enter(node) {
+				const candidate = calloutForNode(view.state, node.node);
+				if (candidate?.from === from) callout = candidate;
+			} });
+			if (!callout) return;
+			const collapsed = !callout.collapsed;
+			const bodyFrom = view.state.doc.lineAt(from).to + 1;
+			const selection = view.state.selection;
+			const ranges = selection.ranges.map(range => collapsed && range.to >= bodyFrom && range.from <= callout!.to
+				? EditorSelection.cursor(from) : range);
+			view.dispatch({ effects: toggleCallout.of({ from, collapsed }),
+				selection: EditorSelection.create(ranges, selection.mainIndex), userEvent: 'select.fold' });
 			view.requestMeasure();
-			if (focused) view.dom.querySelector<HTMLElement>(`[data-callout-from="${this.from}"]`)?.focus();
+			if (focused || before !== after) view.dom.querySelector<HTMLElement>(`[data-callout-from="${from}"]`)?.focus();
 		};
 		button.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
 		button.addEventListener('click', (event) => {
@@ -2355,15 +2377,15 @@ function buildDecorations(view: EditorView): DecorationSet {
 								addLineRange(node.from, collapsed ? firstLine.to : node.to, (n, first, last) => replaced.has(n) ? '' :
 									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}`);
 								if (!blockCursorTouchesRange(state, node.from, node.to)) {
-									calloutHeaders.set(firstLine.from, { from: firstLine.from + callout.markerOffset, to: firstLine.to });
+									calloutHeaders.set(firstLine.from, { from: firstLine.from, to: firstLine.to });
 									pushReplace(
 										firstLine.from + callout.markerOffset,
 										firstLine.to,
 										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, collapsed, firstLine.from) }),
 									);
-									// Collapsed bodies skip QuoteMark traversal below. Hide the
-									// header prefix here so it cannot wrap above the full-width title.
-									if (collapsed && callout.markerOffset > 0) {
+									// A rendered title owns its quote prefix too. The cursor can
+									// be parked here after folding, even when it expands again.
+									if (callout.markerOffset > 0) {
 										pushReplace(firstLine.from, firstLine.from + callout.markerOffset, hiddenMarkerDeco);
 									}
 								}
