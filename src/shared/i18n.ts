@@ -28,6 +28,12 @@ const en = {
 	'code.collapse.aria': 'Collapse code block',
 	'code.expand.title': 'Expand this code block ({0} lines)',
 	'code.expand.aria': 'Expand code block',
+	'foldAll.collapse': 'Collapse all collapsible objects',
+	'foldAll.expand': 'Expand all collapsible objects',
+	'foldAll.collapsed': 'All callouts and long code blocks collapsed.',
+	'foldAll.expanded': 'All callouts and long code blocks expanded.',
+	'foldAll.parsing': 'Markdown parsing is not finished. Nothing was folded. Wait a moment and try again.',
+	'foldAll.limit': 'This document is too complex to fold all objects safely. Use individual controls.',
 
 	'zoom.in': 'Zoom in (Ctrl+wheel also works)',
 	'zoom.out': 'Zoom out',

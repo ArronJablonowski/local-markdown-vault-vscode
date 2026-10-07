@@ -286,6 +286,14 @@ Tab and Shift+Tab change bullet nesting inside the callout. Click the header
 the file. Folding survives unrelated edits during the current editor session;
 the authored `+`/`-` marker controls its initial state when reopened.
 
+Use **Collapse all collapsible objects** beside the Lock/Edit switch to fold
+every callout and code block with eight or more lines, including nested objects
+and sections below the screen. The button changes to **Expand all collapsible
+objects** when everything is folded. If some objects are open and others are
+closed, it collapses them all first. It works in Edit and Locked modes without
+changing your Markdown. Tables and rendered diagrams stay visible unless they
+are inside a collapsed callout. The button is disabled when nothing can fold.
+
 See [callout QA coverage](docs/CALLOUT_QA_2026-09-23.md) for tested interactions
 and remaining limitations.
 

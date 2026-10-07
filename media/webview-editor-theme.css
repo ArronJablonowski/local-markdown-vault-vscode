@@ -33,12 +33,19 @@ html, body {
 	height: 100%;
 }
 
-.mlp-editing-mode-toggle {
-	overflow: hidden;
+.mlp-editor-actions {
 	position: absolute;
 	top: 8px;
 	right: 18px;
 	z-index: 20;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mlp-editing-mode-toggle {
+	overflow: hidden;
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 2px;
@@ -90,7 +97,8 @@ html, body {
 	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
 }
 
-.mlp-editing-mode-icon svg {
+.mlp-editing-mode-icon svg,
+.mlp-fold-all-toggle svg {
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 1;
@@ -98,11 +106,50 @@ html, body {
 	stroke-linejoin: round;
 }
 
-.mlp-editing-mode-toggle:hover {
+.mlp-fold-all-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, rgba(127, 127, 127, 0.35)));
+	border-radius: 50%;
+	color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+	background: var(--vscode-editor-background);
+	cursor: pointer;
+}
+
+.mlp-fold-all-toggle:disabled { opacity: 0.5; cursor: default; }
+.mlp-fold-all-status {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.mlp-fold-all-status.mlp-fold-all-warning {
+	top: 38px;
+	right: 0;
+	width: min(300px, calc(100vw - 48px));
+	height: auto;
+	padding: 8px;
+	clip-path: none;
+	white-space: normal;
+	color: var(--vscode-editor-foreground);
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	border: 1px solid var(--vscode-editorWarning-foreground, var(--vscode-focusBorder));
+	font: 12px/1.5 var(--vscode-font-family, sans-serif);
+}
+
+.mlp-editing-mode-toggle:hover,
+.mlp-fold-all-toggle:hover:not(:disabled) {
 	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
 }
 
-.mlp-editing-mode-toggle:focus-visible {
+.mlp-editing-mode-toggle:focus-visible,
+.mlp-fold-all-toggle:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }

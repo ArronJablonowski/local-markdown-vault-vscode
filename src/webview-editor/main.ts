@@ -71,6 +71,7 @@ import { createSpreadsheetPasteHandler, isolatedSpreadsheetPaste, showSpreadshee
 import { setDiagramHostVisibility } from './diagramVisibility';
 import { setStickyTableHeaders } from './tableHeaderSettings';
 import { typingIntegrity } from './typingIntegrity';
+import { FoldAllControls } from './foldAll';
 
 const remoteChange = Annotation.define<boolean>();
 // Match Obsidian's list editing: continue list and task markers on Enter, but
@@ -103,6 +104,7 @@ let pendingVaultNoteChunks: VaultNoteSummary[] = [];
 let editingAllowed = true;
 let initialEditingModeReceived = false;
 let modeButton: HTMLButtonElement | undefined;
+let foldControls: FoldAllControls | undefined;
 const editingCompartment = new Compartment();
 const whitespaceCompartment = new Compartment();
 
@@ -458,6 +460,7 @@ function createExtensions(): Extension[] {
 			{ key: 'Escape', run: temporarilySetTabFocusMode },
 		]),
 		EditorView.updateListener.of((update) => {
+			foldControls?.update(update);
 			if (update.docChanged) {
 				const local = update.transactions.filter(tr => tr.docChanged && !tr.annotation(remoteChange));
 				if (local.length) {
@@ -555,7 +558,12 @@ function ensureEditingModeButton(): void {
 		// on this button would turn the next typed space into another lock action.
 		if (editingAllowed && !recoveryBlocked) view?.focus();
 	});
-	document.getElementById('mlp-root')?.appendChild(modeButton);
+	const actions = document.createElement('div');
+	actions.className = 'mlp-editor-actions';
+	if (view) foldControls = new FoldAllControls(view, actions, () =>
+		!recoveryBlocked && settleFocusedDraft() && !recoveryBlocked);
+	actions.appendChild(modeButton);
+	document.getElementById('mlp-root')?.appendChild(actions);
 	updateEditingModeUi();
 }
 
@@ -613,6 +621,7 @@ function resetView(text: string) {
 	}
 	const restoreSearch = preserveSearchPanel(view);
 	view.setState(initialStateFor(text));
+	foldControls?.reset();
 	restoreSearch();
 	restoreScrollPosition();
 }

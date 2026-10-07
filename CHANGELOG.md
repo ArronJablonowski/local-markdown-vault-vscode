@@ -1,5 +1,7 @@
 # Changelog
 
+- Add an Expand All / Collapse All button beside the Live Preview Lock/Edit switch for callouts and code blocks with eight or more lines. Include nested and offscreen objects, preserve active table/property drafts, and allow folding in locked mode without changing Markdown.
+
 - Fix native Command/Ctrl+C and Command/Ctrl+X failing in Live Preview. Run trusted clipboard commands synchronously, preserve lock checks, and prevent duplicate delivery.
 - Keep whole-table selections focused in the editor and backed by exact source ranges so Copy and Cut survive redraws. Ignore stale table selections after arrow navigation or Select All.
 - Keep Copy, Cut, Backspace, and Delete inside Find and nested fields from acting on an earlier whole-table selection.
