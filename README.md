@@ -426,6 +426,13 @@ body; a rendered table cell rejects image-only data without erasing its contents
 Consecutive text pastes stay in the same table cell, including after moving
 between cells with Tab.
 
+Pasting ordinary text over a mouse-selected word in a plain rendered cell
+preserves the surrounding words. Partial selections in formatted cells, or
+spreadsheet data pasted over only part of a rendered cell, show a warning
+instead of replacing unselected content. Press **F2** to edit the cell source,
+select the intended text, and retry. To fill a rectangle, select a complete
+cell or click into its editor first.
+
 Use **Command+Shift+V** on macOS or **Ctrl+Shift+V** on Windows/Linux to paste
 plain text without automatic table conversion. In a rendered table cell, this
 keeps the pasted text in that cell instead of expanding it into a rectangle.

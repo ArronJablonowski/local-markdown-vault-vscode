@@ -11,6 +11,7 @@ const en = {
 	'spreadsheetPaste.tooLarge': 'This table paste exceeds a safe limit (256 KiB copied data, 1,000 rows, 200 columns, 10,000 cells, or 512 KiB resulting table). Nothing was pasted.',
 	'spreadsheetPaste.textOnly': 'The clipboard has no usable plain text for this destination. Copy the text again. Clipboard HTML and spreadsheet formulas are not executed.',
 	'spreadsheetPaste.stale': 'The table changed before the paste could finish. Nothing was pasted. Select the destination cell and try again.',
+	'spreadsheetPaste.selection': 'Nothing was pasted because the selected formatted text cannot be replaced safely. Press F2 to edit the cell source, then select the text and paste again.',
 	'spreadsheetPaste.busy': 'Too many edits are waiting to save. Wait for saving to finish, then paste again. Nothing was pasted.',
 	'recovery.retry': 'Retry preserving draft',
 	'recovery.editQueueFull': 'Too many edits are waiting to save. This input was not applied. Keep the tab open and wait for saving to finish before continuing.',

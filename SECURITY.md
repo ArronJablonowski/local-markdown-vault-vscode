@@ -26,13 +26,17 @@ Untrusted workspaces run in restricted mode. Diagram execution, custom CSS, atta
 
 ## Webview policy notes
 
-Clipboard shortcuts may invoke the browser's synchronous native paste command
+Clipboard shortcuts may invoke the browser's synchronous native copy, cut, or paste command
 only during a trusted keyboard gesture. They do not asynchronously read the
 clipboard, replay a delayed host command, or request additional permissions.
-Delivered paste events retain the existing lock, MIME, image, document, and
-host-message checks. Automatic plain-text spreadsheet conversion may fall
+Delivered clipboard events retain the existing selection, lock, MIME, image,
+document, and host-message checks. Already delivered commands are not repeated,
+including canceled cuts. Automatic plain-text spreadsheet conversion may fall
 back to unchanged text when grid limits are exceeded; explicit CSV/TSV remains
-bounded and raw clipboard HTML is not imported.
+bounded and raw clipboard HTML is not imported. Incomplete or ambiguous parser
+context falls back to literal text; grid-only data cannot erase selected source.
+Partial rendered table selections with ambiguous source offsets are refused
+before mutation, with instructions to edit the cell source instead.
 
 Live Preview table cells recognize a narrow structural subset: bare `br` and
 balanced, attribute-free `ul`, `ol`, and `li` tags. The extension creates those

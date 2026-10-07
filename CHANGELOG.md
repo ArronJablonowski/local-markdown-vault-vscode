@@ -1,5 +1,10 @@
 # Changelog
 
+- Fix native Command/Ctrl+C and Command/Ctrl+X failing in Live Preview. Run trusted clipboard commands synchronously, preserve lock checks, and prevent duplicate delivery.
+- Keep whole-table selections focused in the editor and backed by exact source ranges so Copy and Cut survive redraws. Ignore stale table selections after arrow navigation or Select All.
+- Preserve unselected words when pasting into a partially selected plain table cell. Refuse ambiguous formatted selections and partial-cell grid replacement with source-editing guidance instead of discarding content.
+- Keep spreadsheet-shaped clipboard text literal inside code, YAML, and HTML source, including large notes with incomplete parsing. Add native macOS clipboard QA and regression coverage for tables, Unicode, locked notes, pending saves, and clipboard format handling.
+
 - Prevent a scroll/typing race after Find from reordering ordinary keystrokes. Commit matched physical-key input through normal editor transactions before native DOM insertion; retain pairing, multiple selections, locking, autosave, and Undo/Redo. Leave composition, paste, and other native input paths unchanged.
 - Reveal distant Find matches inside nested folded callouts before editing, preserve search selections through background parsing, and allow Find from table/property fields without losing drafts.
 - Preserve multiline, null, and list property values during editing; support Space on property controls. Validate new-note names consistently, wait for the Vault index before navigation, and correct rename selection and singular search-result wording.

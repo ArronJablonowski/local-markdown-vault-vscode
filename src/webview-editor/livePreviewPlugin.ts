@@ -20,6 +20,7 @@ import { pasteSpreadsheetCells, MAX_SPREADSHEET_INPUT_BYTES } from './spreadshee
 import { isolatedSpreadsheetPaste, isPlainTextPaste, readSpreadsheetClipboard, showSpreadsheetPasteWarning, spreadsheetReplacementFits } from './spreadsheetPaste';
 import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHeaderSettings';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
+import { isClipboardShortcut } from './clipboardShortcuts';
 import {
 	insertRow,
 	insertColumn,
@@ -141,6 +142,7 @@ const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
 // A committed cell replaces its widget. Resume through the live widget's
 // handlers, never a closure that still owns the previous table source.
 const tableCellEditors = new WeakMap<HTMLElement, (cell: HTMLElement, caret: 'all' | 'end' | number) => void>();
+const tableBlockSelectionSetters = new WeakMap<HTMLElement, (selected: boolean, sourceBacked?: boolean) => void>();
 
 // A click on a different table can blur/commit the old table between mouse
 // down and up. Keep its destination outside either replaceable widget DOM.
@@ -645,6 +647,8 @@ class TableWidget extends WidgetType {
 			if (!editing) optionsButton.focus();
 		});
 		optionsButton.addEventListener('keydown', (event) => {
+			// Clipboard gestures belong to the editor's native-command bridge.
+			if (isClipboardShortcut(event)) return;
 			event.stopPropagation();
 			protectRenderedBlockFromCaret();
 			if (event.key === 'Tab' && !event.shiftKey && !toolbar.hidden) {
@@ -657,6 +661,7 @@ class TableWidget extends WidgetType {
 			}
 		});
 		wrap.addEventListener('keydown', (event) => {
+			if (isClipboardShortcut(event)) return;
 			if (toolbar.hidden) return;
 			if (toolbar.contains(event.target as Node)) {
 				event.stopPropagation();
@@ -830,11 +835,14 @@ class TableWidget extends WidgetType {
 		// change it, and its raw Markdown only while being edited.
 		let editing: HTMLElement | null = null;
 		let tableBlockSelected = false;
-		const setTableBlockSelected = (selected: boolean) => {
+		let sourceBackedTableSelection = false;
+		const setTableBlockSelected = (selected: boolean, sourceBacked = false) => {
 			tableBlockSelected = selected;
+			sourceBackedTableSelection = selected && sourceBacked;
 			wrap.classList.toggle('mlp-table-block-selected', selected);
 			wrap.setAttribute('aria-selected', String(selected));
 		};
+		tableBlockSelectionSetters.set(wrap, setTableBlockSelected);
 		// The cell most recently clicked or tabbed to, remembered after editing
 		// ends so the code-mode button can put the caret back where the user was.
 		let lastCell: HTMLElement | null = null;
@@ -1346,6 +1354,31 @@ class TableWidget extends WidgetType {
 			// Explicit CSV/TSV empty cells still arrive as a validated table result.
 			if (!hasText || result.kind === 'text' && !text.length) { showSpreadsheetPasteWarning('textOnly'); return; }
 			if (result.kind === 'invalid') { showSpreadsheetPasteWarning(result.reason); return; }
+			let selectedSource: { from: number; to: number; wholeCell: boolean } | undefined;
+			const renderedSelection = window.getSelection();
+			if (editing !== cell && renderedSelection?.rangeCount && !renderedSelection.isCollapsed) {
+				const range = renderedSelection.getRangeAt(0);
+				if (range.intersectsNode(cell)) {
+					const ref = readCellRef(cell);
+					if (!ref || !cell.contains(range.startContainer) || !cell.contains(range.endContainer)) {
+						showSpreadsheetPasteWarning('selection'); return;
+					}
+					const prefix = document.createRange();
+					prefix.selectNodeContents(cell); prefix.setEnd(range.startContainer, range.startOffset);
+					const from = prefix.toString().length, selected = range.toString();
+					// Rendered Markdown omits delimiters, escapes, and list tags.
+					// Never guess offsets that could erase unselected rich source.
+					if (cell.textContent === ref.source) {
+						selectedSource = { from, to: from + selected.length, wholeCell: from === 0 && selected.length === ref.source.length };
+					} else if (from === 0 && selected.length > 0 && selected === cell.textContent && !cell.querySelector('img, br')) {
+						selectedSource = { from: 0, to: ref.source.length, wholeCell: true };
+					} else { showSpreadsheetPasteWarning('selection'); return; }
+				}
+			}
+			// A word selection is not permission to overwrite a rectangle of cells.
+			if (result.kind === 'table' && selectedSource && !selectedSource.wholeCell) {
+				showSpreadsheetPasteWarning('selection'); return;
+			}
 			if (result.kind === 'text') {
 				if (text.length > MAX_SPREADSHEET_INPUT_BYTES || new TextEncoder().encode(text).byteLength > MAX_SPREADSHEET_INPUT_BYTES) {
 					showSpreadsheetPasteWarning('tooLarge'); return;
@@ -1356,6 +1389,13 @@ class TableWidget extends WidgetType {
 				const selection = window.getSelection();
 				if (editing !== cell || !selection?.rangeCount) return;
 				const range = selection.getRangeAt(0);
+				if (selectedSource && cell.firstChild) {
+					// Entering source mode replaces the DOM. Restore the exact range
+					// selected before the swap instead of selecting the entire cell.
+					range.setStart(cell.firstChild, selectedSource.from);
+					range.setEnd(cell.firstChild, selectedSource.to);
+					selection.removeAllRanges(); selection.addRange(range);
+				}
 				if (!cell.contains(range.commonAncestorContainer)) return;
 				const ref = readCellRef(cell);
 				if (!ref) return;
@@ -1419,9 +1459,23 @@ class TableWidget extends WidgetType {
 			}
 		});
 
-		const copySelectedTable = (event: ClipboardEvent): void => {
-			if (!tableBlockSelected || !event.clipboardData) return;
+		const selectedTableModel = () => {
+			if (!tableBlockSelected) return null;
 			const current = currentTableModel();
+			if (current && sourceBackedTableSelection) {
+				const selected = view.state.selection;
+				// Ordinary navigation or Select All supersedes the toolbar action.
+				// Native whole-table drag selections still own their separate DOM range.
+				if (selected.ranges.length !== 1 || selected.main.from !== current.from || selected.main.to !== current.to) {
+					setTableBlockSelected(false);
+					return null;
+				}
+			}
+			return current;
+		};
+		const copySelectedTable = (event: ClipboardEvent): void => {
+			if (!event.clipboardData) return;
+			const current = selectedTableModel();
 			if (!current) return;
 			event.clipboardData.setData('text/plain', view.state.sliceDoc(current.from, current.to));
 			event.preventDefault();
@@ -1429,7 +1483,7 @@ class TableWidget extends WidgetType {
 		const deleteSelectedTable = (event: KeyboardEvent): void => {
 			if (!tableBlockSelected || (event.key !== 'Backspace' && event.key !== 'Delete')) return;
 			if (event.altKey || event.ctrlKey || event.metaKey) return;
-			const current = currentTableModel();
+			const current = selectedTableModel();
 			if (!current) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -1536,9 +1590,22 @@ class TableWidget extends WidgetType {
 			return button;
 		};
 		const selectTableButton = makeAddButton('▦', t('table.select'), () => {
+			if (!wrap.isConnected || view.state.sliceDoc(this.tableFrom, this.tableTo) !== originalTableSource) {
+				showSpreadsheetPasteWarning('stale'); return;
+			}
+			if (editing) commit(editing);
+			if (editing) return;
+			const current = currentTableModel();
+			if (!current || current.from !== this.tableFrom || current.to <= current.from) return;
 			window.getSelection?.()?.removeAllRanges();
-			setTableBlockSelected(true);
-			selectTableButton.focus();
+			// Back the visual selection with source offsets, so a later redraw
+			// cannot turn Copy/Cut into an operation on an unrelated caret line.
+			view.dispatch({ selection: { anchor: current.from, head: current.to } });
+			const live = view.dom.querySelector<HTMLElement>(`.mlp-table-wrap[data-mlp-table-from="${current.from}"]`);
+			if (live) tableBlockSelectionSetters.get(live)?.(true, true);
+			// Clipboard commands from a focused button can target the page body.
+			// Keep the selected table's copy/cut events inside the editor boundary.
+			view.focus();
 		});
 		selectTableButton.className = 'mlp-table-action-btn';
 		selectTableButton.textContent = t('table.select');
@@ -1653,6 +1720,7 @@ class TableWidget extends WidgetType {
 		if (!wrap) return;
 		tableWidgetCleanup.get(wrap)?.();
 		tableWidgetCleanup.delete(wrap);
+		tableBlockSelectionSetters.delete(wrap);
 	}
 }
 

@@ -1,6 +1,6 @@
 import { Annotation, type EditorState } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree } from '@codemirror/language';
 import { detectFrontmatter } from './frontmatterWidget';
 import { renderTableMarkdown } from './tableEdit';
 import { parseSpreadsheetClipboard, pasteSpreadsheetCells, MAX_SPREADSHEET_OUTPUT_BYTES } from './spreadsheetClipboard';
@@ -10,7 +10,7 @@ import { readClipboardText } from './clipboardText';
 
 /** Keep a spreadsheet paste separate from neighboring typing in host undo. */
 export const isolatedSpreadsheetPaste = Annotation.define<boolean>();
-type PasteWarning = 'malformed' | 'tooLarge' | 'textOnly' | 'stale' | 'busy';
+type PasteWarning = 'malformed' | 'tooLarge' | 'textOnly' | 'stale' | 'busy' | 'selection';
 const plainTextPasteEvents = new WeakSet<ClipboardEvent>();
 
 /** Shared with rendered table cells, whose events bypass CodeMirror handlers. */
@@ -72,11 +72,24 @@ export function spreadsheetReplacementFits(state: EditorState, from: number, to:
 		&& isEditorDocumentWithinLimit(state.sliceDoc(0, from) + insert + state.sliceDoc(to));
 }
 
-function inSourceObject(state: EditorState, position: number): boolean {
+/** Unknown syntax is not permission to rewrite literal clipboard data. */
+export function spreadsheetPasteNeedsLiteralText(state: EditorState, from: number, to: number): boolean {
 	const frontmatter = detectFrontmatter(state);
-	if (frontmatter && position <= frontmatter.to) return true;
-	for (let node = syntaxTree(state).resolveInner(position, -1); node; node = node.parent!) {
-		if (['FencedCode', 'CodeBlock', 'InlineCode', 'Table', 'HTMLBlock'].includes(node.name)) return true;
+	if (frontmatter && from <= frontmatter.to) return true;
+	// The bounded detector deliberately declines unfinished/oversized headers.
+	// They remain editable source, not a safe location for inferred tables.
+	if (!frontmatter && /^---\r?\n/.test(state.sliceDoc(0, Math.min(5, state.doc.length)))) return true;
+	// One shared budget covers both endpoints, including a distant selection in
+	// a large note. An incomplete tree resolves to Document and used to turn
+	// source code into a Markdown table. Fall back to normal literal paste when
+	// parsing cannot establish context promptly (grid-only MIME is refused).
+	const tree = ensureSyntaxTree(state, to, 20);
+	if (!tree) return true;
+	for (const position of from === to ? [from] : [from, to]) {
+		for (let node = tree.resolveInner(position, -1); node; node = node.parent!) {
+			if (['FencedCode', 'CodeBlock', 'InlineCode', 'Table', 'HTMLBlock', 'HTMLTag',
+				'Comment', 'CommentBlock', 'ProcessingInstruction', 'ProcessingInstructionBlock'].includes(node.name)) return true;
+		}
 	}
 	return false;
 }
@@ -104,7 +117,7 @@ export function createSpreadsheetPasteHandler() {
 			}
 			const { state } = view;
 			const { from, to } = state.selection.main;
-			if (isPlainTextPaste(event) || state.selection.ranges.length !== 1 || inSourceObject(state, from) || inSourceObject(state, to)) {
+			if (isPlainTextPaste(event) || state.selection.ranges.length !== 1 || spreadsheetPasteNeedsLiteralText(state, from, to)) {
 				// CodeMirror only reads plain text/URI data. Explicit grid-only MIME
 				// cannot fall through here as an empty replacement of selected code.
 				if (hasText) { showSpreadsheetPasteWarning(); return false; }
