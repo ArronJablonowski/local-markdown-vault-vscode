@@ -680,6 +680,12 @@ can interrupt a keystroke before it reaches the host or storage; disk failures a
 other extensions' save participants can also prevent completion. Keep an
 independent local backup of important vaults and do not ignore save warnings.
 
+A stress test still exposes an intermittent race when an extension or automation
+closes the editor immediately after uncommitted property input through VS Code's
+command API. The native macOS Command+W comparison passed, but the API-close case
+is not resolved. Correct invalid property values or save a recovery copy before
+an automated close; see [clipboard QA findings](docs/CLIPBOARD_QA_2026-10-07.md).
+
 | Setting | Purpose | Default posture |
 | --- | --- | --- |
 | Default viewing mode | **Markdown Editor** and **VS Code Markdown Editor** temporarily route to **Markdown Live Preview** for save safety. Text Editor, Markdown Preview, and VS Code default are also available. | Markdown Live Preview |

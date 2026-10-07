@@ -2,6 +2,8 @@
 
 - Fix native Command/Ctrl+C and Command/Ctrl+X failing in Live Preview. Run trusted clipboard commands synchronously, preserve lock checks, and prevent duplicate delivery.
 - Keep whole-table selections focused in the editor and backed by exact source ranges so Copy and Cut survive redraws. Ignore stale table selections after arrow navigation or Select All.
+- Keep Copy, Cut, Backspace, and Delete inside Find and nested fields from acting on an earlier whole-table selection.
+- Journal newer property input while an earlier recovery copy is pending; preserve the newest draft after an older acknowledgment without overwriting unrelated conflict recovery.
 - Preserve unselected words when pasting into a partially selected plain table cell. Refuse ambiguous formatted selections and partial-cell grid replacement with source-editing guidance instead of discarding content.
 - Keep spreadsheet-shaped clipboard text literal inside code, YAML, and HTML source, including large notes with incomplete parsing. Add native macOS clipboard QA and regression coverage for tables, Unicode, locked notes, pending saves, and clipboard format handling.
 

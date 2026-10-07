@@ -1459,6 +1459,14 @@ class TableWidget extends WidgetType {
 			}
 		});
 
+		const ownsTableSelectionEvent = (event: Event): boolean => {
+			const target = event.target instanceof Element ? event.target : null;
+			// A source selection can remain on this table while Find or a rendered
+			// field owns keyboard focus. Those controls own their copy/cut/delete;
+			// a remembered table highlight must never turn field edits into note edits.
+			return !!target && view.contentDOM.contains(target)
+				&& !target.closest('input, textarea, select, [contenteditable="true"]:not(.cm-content)');
+		};
 		const selectedTableModel = () => {
 			if (!tableBlockSelected) return null;
 			const current = currentTableModel();
@@ -1474,19 +1482,13 @@ class TableWidget extends WidgetType {
 			return current;
 		};
 		const copySelectedTable = (event: ClipboardEvent): void => {
-			if (!event.clipboardData) return;
+			if (!event.clipboardData || !ownsTableSelectionEvent(event)) return;
 			const current = selectedTableModel();
 			if (!current) return;
 			event.clipboardData.setData('text/plain', view.state.sliceDoc(current.from, current.to));
 			event.preventDefault();
 		};
-		const deleteSelectedTable = (event: KeyboardEvent): void => {
-			if (!tableBlockSelected || (event.key !== 'Backspace' && event.key !== 'Delete')) return;
-			if (event.altKey || event.ctrlKey || event.metaKey) return;
-			const current = selectedTableModel();
-			if (!current) return;
-			event.preventDefault();
-			event.stopImmediatePropagation();
+		const removeSelectedTable = (current: NonNullable<ReturnType<typeof selectedTableModel>>): void => {
 			window.getSelection?.()?.removeAllRanges();
 			setTableBlockSelected(false);
 			view.dispatch({
@@ -1497,12 +1499,22 @@ class TableWidget extends WidgetType {
 			});
 			view.focus();
 		};
+		const deleteSelectedTable = (event: KeyboardEvent): void => {
+			if (!tableBlockSelected || (event.key !== 'Backspace' && event.key !== 'Delete') || !ownsTableSelectionEvent(event)) return;
+			if (event.altKey || event.ctrlKey || event.metaKey) return;
+			const current = selectedTableModel();
+			if (!current) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			removeSelectedTable(current);
+		};
 		const cutSelectedTable = (event: ClipboardEvent): void => {
-			if (!tableBlockSelected || !event.clipboardData) return;
+			if (!tableBlockSelected || !event.clipboardData || !ownsTableSelectionEvent(event)) return;
 			copySelectedTable(event);
 			if (!event.defaultPrevented) return;
 			event.stopImmediatePropagation();
-			if (view.state.facet(EditorView.editable)) deleteSelectedTable(new KeyboardEvent('keydown', { key: 'Delete' }));
+			const current = selectedTableModel();
+			if (current && view.state.facet(EditorView.editable)) removeSelectedTable(current);
 		};
 		const clearTableSelectionOutside = (event: PointerEvent): void => {
 			if (tableBlockSelected && !wrap.contains(event.target as Node | null)) setTableBlockSelected(false);

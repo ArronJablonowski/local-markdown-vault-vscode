@@ -13,6 +13,8 @@ disposable notes. Personal vault files and settings were not changed.
 | Whole-table copying from the toolbar could copy only one caret line; locked selections could disappear during redraw. | Focus the editor, back the table selection with exact source offsets, and reject a stale structural selection after subsequent navigation or Select All. | Pointer and keyboard activation, repeated modifier presses, dirty cells, multiple tables, locked notes, and native copy/cut/paste. |
 | Pasting over one word in a rendered cell replaced the entire cell. Spreadsheet data could overwrite neighboring content despite a partial selection. | Restore exact plain-text selection offsets before replacement. Refuse ambiguous formatted or partial-grid selections before mutation and explain source editing with F2. | Forward/backward mouse drags, Unicode offsets, rich cells, lists, images, grid formats, follow-on typing, and F2 retry. |
 | Spreadsheet-shaped text pasted into source could become a Markdown table while large-note parsing lagged. | Use one bounded parser budget, inspect both selection endpoints, and fall back to literal text when syntax is unknown. Protect code, table source, frontmatter, HTML tags, comments, and processing instructions. | Large cold-parser notes, unfinished/oversized YAML, ordinary prose controls, grid-only rejection, lock and save-queue cases. |
+| Find shortcuts could operate on a previous whole-table selection instead of the search field. | Require the table action to originate in the document, excluding nested editable controls. | Copy, Cut, Delete, and Backspace in both modes, then returning to copy the table. All eight cases failed before the fix. |
+| A property field accepted newer input while preserving its previous value, but its latest text was not journaled. Correcting it back to the original value could also leave editing locked after a failed old request. | Continue bounded snapshots for that same field and coalesce a newer recovery copy after the previous acknowledgment. Leave unrelated conflict recovery intact and unlock when the corrected field needs no recovery. | Delayed and failed acknowledgments, blur, retry, a return to the original value, and unrelated source conflicts. |
 
 Clipboard HTML is not imported. The changes do not add network access,
 clipboard permissions, asynchronous clipboard reads, or a host-side clipboard
@@ -46,6 +48,13 @@ editor errors. Evidence remains locally under
 removed when the runner finished. The TextEdit sample was saved in that
 artifact folder rather than modifying or discarding another open document.
 
+A follow-up native session added six exact source/disk checks under
+`.vscode-test/clipboard-final-native-2026-10-07`. After reloading the final
+bundle, Find copy/delete/paste left the table unchanged, whole-table cut/paste
+restored its exact source, and locked-table copying transferred all 51 source
+bytes into a separate blank note without mutating the locked note. Both native
+sessions completed without page errors or editor errors.
+
 One reload displayed a recovery warning. Inspection found a preserved
 intermediate draft replacing selected `Unicode` with `De`, the opening letters
 of `Developer: Reload Window`. The saved file still held the expected text.
@@ -60,21 +69,44 @@ no recovery warning. Recovery/save code was not changed to suppress it.
   the 500 ms broken-link performance gate at 516 ms; the quiet full rerun passed
   without code or threshold changes.
 - All 1,995 deterministic tests passed across 142 files.
-- The minified production bundle passed all 996 non-native-clipboard browser
-  tests, then all five real-browser clipboard cases ran separately and passed.
+- The final minified production bundle passed all 1,009 non-native-clipboard
+  browser tests and all five real-browser clipboard cases: 1,014 unique cases.
 - All 13 focused command/selection browser cases passed 20 repetitions each
   with one worker, for 260 checks. These use event-local clipboard transfers
   and do not count as operating-system clipboard testing.
+- The expanded 21-case command/selection suite passed five repetitions each
+  after the Find fix, plus 119 related clipboard/table cases. The five final
+  recovery regressions passed ten repetitions each, plus all 36 existing
+  recovery/immediate-save cases.
 - Production browser bundle SHA256:
-  `0daec75bfe26df2ec6aa737d1aa7ead3b18cad1e26161ea9ef09318b2ad3bbd4`.
+  `a884a8acc84b36c49ec4da8cb8ef5680b1be52bc8dce989f537eaf0b545bcfb6`.
 - Source/test type checks, US English checks, dependency policy, and whitespace
   checks passed. Packaging verified 64 archive files.
 
 New coverage is in `clipboardKeyDispatchQa.spec.ts`,
 `clipboardLargeContextQa.spec.ts`, `clipboardOctoberQa.spec.ts`,
-`clipboardShortcuts.test.ts`, and `spreadsheetPaste.test.ts`.
+`recoveryPendingInputQa.spec.ts`, `clipboardShortcuts.test.ts`, and
+`spreadsheetPaste.test.ts`.
 
 ## Remaining limits and dependency findings
+
+The initial default native save integration run passed 19 tests and failed the
+full-recovery-storage case. Isolated execution passed, but a preceding invalid
+property recovery made the failure repeat. Closing through the extension-host
+command API immediately after the final field input could leave no exact fallback
+copy. This remains an unresolved intermittent failure, not a confirmed fix.
+Cross-channel close/message ordering is a hypothesis; the exact upstream drop
+location was not proven.
+
+On the final production bundle, a full strict run passed all 20 cases, but three
+fresh paired runs then produced one pass and two reproductions of the same
+missing fallback. The passing full run therefore does not close this finding.
+
+The same immediate action using a native Command+W key event passed the paired
+reproduction and all 20 save scenarios. The strict API-close assertion remains
+the default test; `MDLP_SAVE_QUOTA_UI_CLOSE=1` explicitly selects the native-key
+comparison. No idle wait or weaker text assertion was added. This distinction
+must remain visible when reporting save coverage.
 
 Partial selections in formatted rendered table cells are intentionally refused
 when source offsets cannot be determined safely. Press F2 and select the cell

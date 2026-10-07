@@ -87,6 +87,8 @@ let baselineText = '';
 let inFlightText: string | undefined;
 let currentVaultPath = '';
 let recovery: DraftRecovery | undefined;
+let recoveryField: Element | undefined;
+let blockedRecoveryField: Element | undefined;
 let awaitingResync = false;
 let processingHostSnapshot = false;
 let recoveryRequestId = 0;
@@ -210,8 +212,14 @@ function persistEditorUiState() {
 }
 
 function captureRecovery(extra?: string): boolean {
-	if (!view || recoveryBlocked) return true;
-	const field = extra ? { residualText: extra } : readActiveDraftSnapshot();
+	if (!view) return true;
+	const activeField = readActiveDraftSnapshot();
+	const fieldOwner = activeField ? document.activeElement ?? undefined : undefined;
+	// Locking CodeMirror does not disable an existing property input. Continue
+	// journaling that same field while its earlier copy is pending, but never
+	// replace a divergent-source conflict with the newly displayed host text.
+	if (recoveryBlocked && (!blockedRecoveryField || fieldOwner !== blockedRecoveryField)) return true;
+	const field = extra ? { residualText: extra } : activeField;
 	const residual = field?.residualText;
 	const text = (field?.documentText ?? view.state.doc.toString()) + (residual ? `\n\n${residual}` : '');
 	const next = editInFlight || residual
@@ -226,6 +234,7 @@ function captureRecovery(extra?: string): boolean {
 		persistEditorUiState();
 		return false;
 	}
+	recoveryField = fieldOwner ?? (extra && recovery?.draftText === text ? recoveryField : undefined);
 	recovery = next;
 	persistEditorUiState();
 	postToHost({ type: 'draftSnapshot', text, baselineText: inFlightText ?? baselineText,
@@ -269,6 +278,9 @@ function preserveLocalDraft(draft: DraftRecovery, conflict: boolean): void {
 	const id = ++recoveryRequestId;
 	recoveryRequest = { id, conflict, text: draft.draftText, baselineText: draft.baselineText };
 	if (conflict) {
+		blockedRecoveryField = draft === recovery && recoveryField?.isConnected &&
+			draft.baselineText === (inFlightText ?? baselineText) && draft.currentVaultPath === currentVaultPath
+			? recoveryField : undefined;
 		recoveryBlocked = true;
 		view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(false)) });
 		recoveryNotice(t('recovery.preserving'));
@@ -694,11 +706,24 @@ onHostMessage((message) => {
 		case 'draftPreserved': {
 			if (!recoveryRequest || recoveryRequest.id !== message.requestId) break;
 			if (recoveryRequest.conflict) {
-				if (message.ok) {
+				// A field corrected back to the host baseline no longer needs a
+				// recovery copy, even if the superseded invalid value failed to save.
+				if (message.ok || !recovery) {
+					// The immutable request may contain an older field value. Keep the
+					// latest bounded journal, even after blur, and preserve it once the
+					// previous request finishes instead of flooding the host per input.
+					if (recovery && (recovery.draftText !== recoveryRequest.text ||
+						recovery.baselineText !== recoveryRequest.baselineText)) {
+						recoveryRequest = undefined;
+						preserveLocalDraft(recovery, true);
+						break;
+					}
 					recoveryBlocked = false; recovery = undefined;
+					blockedRecoveryField = undefined; recoveryField = undefined;
 					view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed)) });
 					captureRecovery();
-					recoveryNotice(t('recovery.saved'));
+					if (message.ok) recoveryNotice(t('recovery.saved'));
+					else document.getElementById('mlp-recovery-notice')?.remove();
 				} else recoveryNotice(t('recovery.failed'), true);
 			}
 			recoveryRequest = undefined;

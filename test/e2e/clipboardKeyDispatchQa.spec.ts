@@ -220,3 +220,53 @@ test('table toolbar clipboard chords reach the shared shortcut boundary', async 
 		expect(observed, label).toEqual(['c', 'x', 'v', 'V']);
 	}
 });
+
+for (const editingMode of ['editing', 'locked'] as const) {
+	for (const action of ['copy', 'cut', 'Delete', 'Backspace'] as const) {
+		test(`Find owns ${action} after whole-table selection in ${editingMode} mode`, async ({ page }) => {
+			const table = '| Item | Count |\n| --- | ---: |\n| Cable | 2 |';
+			const original = `Before\n\n${table}\n\nAfter`;
+			await mountEditor(page, original, { editingMode });
+			await page.locator('.mlp-table td').first().click();
+			await page.getByRole('button', { name: 'Table options', exact: true }).click();
+			await page.getByRole('button', { name: 'Select entire table', exact: true }).click();
+			await page.keyboard.press(`${mod}+f`);
+			const field = page.locator('.cm-search input[name="search"]');
+			await expect(field).toBeFocused();
+			await field.fill('query remains');
+			await field.press(`${mod}+a`);
+			expect(await page.locator('.cm-content').evaluate(content => {
+				const state = (content as any).cmTile.root.view.state;
+				return state.sliceDoc(state.selection.main.from, state.selection.main.to);
+			})).toBe(table);
+			if (action === 'copy' || action === 'cut') {
+				// Event-local data checks handler ownership without touching the OS
+				// clipboard or pretending synthetic events perform native field edits.
+				const result = await field.evaluate((input, command) => {
+					const data = new DataTransfer();
+					const event = new ClipboardEvent(command, { clipboardData: data, bubbles: true, cancelable: true });
+					input.dispatchEvent(event);
+					return { prevented: event.defaultPrevented, text: data.getData('text/plain') };
+				}, action);
+				expect(await source(page)).toBe(original);
+				expect(result).toEqual({ prevented: false, text: '' });
+				await expect(field).toHaveValue('query remains');
+			} else {
+				await field.press(action);
+				expect(await source(page)).toBe(original);
+				await expect(field).toHaveValue('');
+			}
+			await expect(field).toBeFocused();
+			expect(await source(page)).toBe(original);
+			expect(await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit'))).toEqual([]);
+			await field.press('Escape');
+			await expect(page.locator('.cm-content')).toBeFocused();
+			const resumedCopy = await page.locator('.cm-content').evaluate(content => {
+				const data = new DataTransfer();
+				content.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+				return data.getData('text/plain');
+			});
+			expect(resumedCopy).toBe(table);
+		});
+	}
+}

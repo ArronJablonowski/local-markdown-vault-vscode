@@ -511,7 +511,7 @@ suite('native Markdown save durability', () => {
 		await assertSaved(note, original + 'Never discard this edit.', 'manual recovery after denied write');
 	});
 
-	test('full recovery storage opens an exact unsaved fallback when an additional invalid draft is closed', async function () {
+	test(`full recovery storage opens an exact unsaved fallback when an additional invalid draft is closed (${process.env.MDLP_SAVE_QUOTA_UI_CLOSE === '1' ? 'native keyboard close' : 'host API close'})`, async function () {
 		this.timeout(120_000);
 		const source = '---\npriority: 2\n---\n\n# Recovery capacity\n\nNever overwrite this source.\n';
 		const note = await fixture('recovery-capacity', source);
@@ -547,13 +547,27 @@ suite('native Markdown save durability', () => {
 		}
 		assert.strictEqual(await disk(note), source);
 		const residual = 'KEEP-THIS-FINAL-DRAFT-AT-CAPACITY';
-		await input.fill(residual);
-		// No Enter, manual Save, idle pause, or extra blur before closing.
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		const lifecycle: unknown[] = [];
+		const opened = vscode.workspace.onDidOpenTextDocument(document => lifecycle.push({ event: 'open', uri: document.uri.toString(), text: document.getText() }));
+		const activeChanged = vscode.window.onDidChangeActiveTextEditor(editor => lifecycle.push({ event: 'active', uri: editor?.document.uri.toString() }));
 		const expected = source + '\n\nUncommitted property priority:\n' + residual;
-		await waitFor(() => vscode.window.activeTextEditor?.document.isUntitled === true &&
-			vscode.window.activeTextEditor.document.getText() === expected,
-		'quota fallback did not open the exact final draft as an unsaved document', 10_000);
+		try {
+			await input.fill(residual);
+			const nativeClose = process.env.MDLP_SAVE_QUOTA_UI_CLOSE === '1';
+			lifecycle.push({ event: 'before-close', nativeClose, tab: vscode.window.tabGroups.activeTabGroup.activeTab?.label });
+			// No Enter, Save, idle pause, or extra blur before either close path.
+			// Keep the strict host-API regression as default. The opt-in native
+			// gesture comparison must not hide its unresolved cross-channel race.
+			if (nativeClose) await page.keyboard.press(`${mod}+w`);
+			else await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+			await waitFor(() => vscode.window.activeTextEditor?.document.isUntitled === true &&
+				vscode.window.activeTextEditor.document.getText() === expected,
+			'quota fallback did not open the exact final draft as an unsaved document', 10_000).catch(error => {
+				const buffers = vscode.workspace.textDocuments.filter(document => document.isUntitled || document.uri.toString() === note.toString())
+					.map(document => ({ uri: document.uri.toString(), dirty: document.isDirty, text: document.getText() }));
+				assert.fail(`${String(error)}; diagnostics=${JSON.stringify({ lifecycle, buffers })}`);
+			});
+		} finally { opened.dispose(); activeChanged.dispose(); }
 		const fallback = vscode.window.activeTextEditor!.document;
 		ownedDocuments.add(fallback.uri.toString());
 		assert.strictEqual(fallback.languageId, 'markdown');
