@@ -82,6 +82,19 @@ no recovery warning. Recovery/save code was not changed to suppress it.
   `a884a8acc84b36c49ec4da8cb8ef5680b1be52bc8dce989f537eaf0b545bcfb6`.
 - Source/test type checks, US English checks, dependency policy, and whitespace
   checks passed. Packaging verified 64 archive files.
+- Installed-VSIX smoke tests passed 16 applicable checks: 10 trusted, five
+  restricted, and one disabled-extension check. Mode-specific cases were
+  intentionally skipped in profiles where they do not apply.
+- Final native-key save comparison passed all 20 cases. The strict host-API
+  stress failure below remains separate and unresolved.
+
+Source fixes were committed as `a658cc5` and `bfa1120`. The packaged VSIX is
+`releases/local-markdown-vault-0.2.0.vsix`, SHA256
+`afcb2e9bad3bf6cee50b5d9b4f967d00730c694f9e560f514dd8f375b0f217ff`.
+It was force-installed into the local VS Code app. All 62 extension payload
+files matched the archive; only VS Code's added package installation metadata
+was excluded from comparison. Existing personal windows were not reloaded;
+save open work and reload the window to activate the updated build.
 
 New coverage is in `clipboardKeyDispatchQa.spec.ts`,
 `clipboardLargeContextQa.spec.ts`, `clipboardOctoberQa.spec.ts`,
