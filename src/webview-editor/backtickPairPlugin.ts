@@ -24,6 +24,9 @@ export const backtickInputHandler = Prec.high(
 	EditorView.inputHandler.of((view, from, to, text) => {
 		if (text !== '`') return false;
 		const { state } = view;
+		// Code content is literal: Markdown pairing must not add delimiters or
+		// wrap selected code in an inline span inside an existing fence.
+		if (isInsideFencedCode(state, from)) return false;
 
 		// Selection: wrap the selected text in a backtick pair (inline code).
 		if (from !== to) {

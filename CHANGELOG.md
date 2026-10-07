@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep backticks literal inside fenced code instead of applying Markdown inline-code pairing or wrapping. Add meeting-note revision checks for narrow and wide panes and trailing tags.
+
 - Commit active callout field edits before collapsing, keep the cursor on a visible header, and preserve invalid drafts instead of hiding them. Hide nested quote markers consistently when expanding rendered callout titles.
 
 - Add an Expand All / Collapse All button beside the Live Preview Lock/Edit switch for callouts and code blocks with eight or more lines. Include nested and offscreen objects, preserve active table/property drafts, and allow folding in locked mode without changing Markdown.
