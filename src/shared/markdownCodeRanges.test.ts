@@ -28,4 +28,20 @@ describe('Markdown code ranges', () => {
 		markdownCodeRanges(source);
 		expect(performance.now() - started).toBeLessThan(200);
 	});
+	it('preserves container-nested and indented code including CRLF source positions', () => {
+		const source = '> > ~~~md\r\n> > [[hidden]]\r\n> > ~~~\r\n\r\n    [[indented]]\r\n\r\n[[visible]]';
+		const result = masked(source);
+		expect(result).not.toContain('hidden');
+		expect(result).not.toContain('indented');
+		expect(result).toContain('[[visible]]');
+		expect(result.length).toBe(source.length);
+	});
+	it('supports multiline code spans without treating escaped openers as code', () => {
+		expect(masked('`first\n[[hidden]]`\n\n\\` [[visible]] \\`')).not.toContain('hidden');
+		expect(masked('`first\n[[hidden]]`\n\n\\` [[visible]] \\`')).toContain('[[visible]]');
+	});
+	it('does not pair backticks across separate GFM table cells', () => {
+		expect(masked('| `unfinished | [[visible]] ` |\n| --- | --- |')).toContain('[[visible]]');
+		expect(masked('| `[[hidden]]` | [[visible]] |\n| --- | --- |')).not.toContain('hidden');
+	});
 });

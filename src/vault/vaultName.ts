@@ -1,3 +1,5 @@
+import { isRepresentableWikiPath } from './LinkResolver';
+
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 /** Apply portable filename rules on every host so a vault can later move between systems. */
@@ -6,6 +8,7 @@ export function validateVaultEntryName(name: string): string | undefined {
 	if (name === '.' || name === '..' || /[\\/]/.test(name)) return 'The name must not contain path separators.';
 	if (/[\u0000-\u001f\u007f]/.test(name)) return 'The name contains a control character.';
 	if (/[<>:"|?*]/.test(name)) return 'The name contains a character that is not portable across supported systems.';
+	if (!isRepresentableWikiPath(name)) return 'The name must not contain wikilink delimiters (#, ^, [ or ]).';
 	if (/[. ]$/.test(name)) return 'The name must not end with a period or space.';
 	if (WINDOWS_RESERVED.test(name)) return 'That name is reserved by Windows.';
 	if (new TextEncoder().encode(name).byteLength > 255) return 'The name is longer than 255 bytes.';

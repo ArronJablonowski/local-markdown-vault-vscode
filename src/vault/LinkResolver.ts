@@ -8,6 +8,11 @@ export interface ParsedWikiLink {
 
 export const MAX_WIKI_ALIAS_LENGTH = 512;
 
+/** Literal filenames must not acquire wikilink target, fragment, or label syntax. */
+export function isRepresentableWikiPath(path: string): boolean {
+	return !/[#^\[\]|\u0000-\u001f\u007f]/.test(path);
+}
+
 /** Whether an alias can be represented unambiguously inside `[[target|alias]]`. */
 export function isSafeWikiAlias(alias: string): boolean {
 	return alias.length > 0 && alias.length <= MAX_WIKI_ALIAS_LENGTH && alias.trim() === alias &&
@@ -34,14 +39,14 @@ export function parseWikiLinkBody(body: string): ParsedWikiLink | undefined {
 /** Resolve path, then basename, then alias; ambiguity at a higher tier never falls through. */
 export function resolveWikiLinkSummary(target: string, notes: readonly VaultNoteSummary[]): WikiLinkResolution {
 	if (!target) return { kind: 'unresolved' };
-	const normalized = normalizeTarget(target);
-	const exactPaths = notes.filter((note) => normalizeTarget(note.path) === normalized);
+	const normalized = normalizeWikiTarget(target);
+	const exactPaths = notes.filter((note) => normalizeWikiTarget(note.path) === normalized);
 	if (exactPaths.length === 1) return { kind: 'resolved', note: exactPaths[0] };
 	if (exactPaths.length > 1) return { kind: 'ambiguous', notes: exactPaths };
-	const basenames = notes.filter((note) => note.basename.toLocaleLowerCase() === normalized);
+	const basenames = notes.filter((note) => note.basename.normalize('NFC').toLocaleLowerCase() === normalized);
 	if (basenames.length === 1) return { kind: 'resolved', note: basenames[0] };
 	if (basenames.length > 1) return { kind: 'ambiguous', notes: basenames };
-	const aliases = notes.filter((note) => note.aliases.some((alias) => alias.toLocaleLowerCase() === normalized));
+	const aliases = notes.filter((note) => note.aliases.some((alias) => alias.normalize('NFC').toLocaleLowerCase() === normalized));
 	if (aliases.length === 1) return { kind: 'resolved', note: aliases[0] };
 	if (aliases.length > 1) return { kind: 'ambiguous', notes: aliases };
 	return { kind: 'unresolved' };
@@ -51,6 +56,6 @@ export function wikiHeadingSlug(value: string): string {
 	return value.trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-').replace(/-+/g, '-');
 }
 
-function normalizeTarget(value: string): string {
-	return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\.(?:md|markdown)$/i, '').toLocaleLowerCase();
+export function normalizeWikiTarget(value: string): string {
+	return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\.(?:md|markdown)$/i, '').normalize('NFC').toLocaleLowerCase();
 }

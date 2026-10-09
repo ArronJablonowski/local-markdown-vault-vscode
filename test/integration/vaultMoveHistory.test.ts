@@ -55,7 +55,7 @@ suite('dedicated Document Vault move history', () => {
 		// user documents if a test host was accidentally configured incorrectly.
 		for (const document of vscode.workspace.textDocuments) {
 			if (!document.isClosed && document.isDirty && document.uri.path.startsWith(fixture.path + '/')) {
-				assert.equal(await document.save(), true);
+				await persistDocument(document);
 			}
 		}
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -436,6 +436,70 @@ suite('dedicated Document Vault move history', () => {
 		// authoring-style snapshots while retaining its actual target.
 		await persisted(index, `[[${relative}/Docs/${oldName}]]\n`);
 		assert.equal(await text(unrelatedRoot), '# Root target\n');
+	});
+
+	test('folder move and history preserve a same-name unmoved note and literal code examples', async () => {
+		const name = `Folder-${randomUUID()}`;
+		const movedName = `Moved-${randomUUID()}`;
+		const source = await folder(name);
+		await file(`${name}/Child.md`, '# Child\n');
+		await file(`${name}.md`, '# Unmoved note\n');
+		const prefix = vscode.workspace.asRelativePath(fixture, false).replace(/\\/g, '/');
+		const rootLink = `${prefix}/${name}`;
+		const childLink = `${rootLink}/Child`;
+		const finalLink = `${prefix}/${movedName}/Child`;
+		const original = `[[${rootLink}]] ![[${childLink}#Heading]]\n\n    [example](${name}/Child.md)\n\n> ~~~md\n> [example](${name}/Child.md)\n> ~~~\n\n[real](${name}/Child.md)\n`;
+		const updated = original.replace(`![[${childLink}#Heading]]`, `![[${finalLink}#Heading]]`).replace(`[real](${name}/Child.md)`, `[real](${movedName}/Child.md)`);
+		const index = await file('Index.md', original);
+		assert.equal(await api.renameOrMoveMany([{ source, destination: vscode.Uri.joinPath(fixture, movedName), isFolder: true }]), true);
+		await persisted(index, updated);
+		assert.equal(await undo(), true);
+		await persisted(index, original);
+		assert.equal(await redo(), true);
+		await persisted(index, updated);
+	});
+
+	test('mixed-case incoming wikilinks update through rename and history', async () => {
+		const oldName = `Old-${randomUUID()}`;
+		const newName = `New-${randomUUID()}`;
+		const source = await file(`${oldName}.md`, '# Target\n');
+		const index = await file('Index.md', `[[${oldName.toLowerCase()}^block|Owner]]\n`);
+		assert.equal(await api.renameOrMoveMany([{ source, destination: vscode.Uri.joinPath(fixture, `${newName}.md`), isFolder: false }]), true);
+		await persisted(index, `[[${newName}^block|Owner]]\n`);
+		assert.equal(await undo(), true);
+		await persisted(index, `[[${oldName}^block|Owner]]\n`);
+		assert.equal(await redo(), true);
+		await persisted(index, `[[${newName}^block|Owner]]\n`);
+	});
+
+	test('history can restore a legacy delimiter filename without breaking encoded Markdown links', async () => {
+		const oldName = `Legacy-${randomUUID()}#topic`;
+		const newName = `Safe-${randomUUID()}`;
+		const source = await file(`${oldName}.md`, '# Existing legacy note\n');
+		const original = `[legacy](${encodeURIComponent(oldName)}.md)\n`;
+		const updated = `[legacy](${newName}.md)\n`;
+		const index = await file('Index.md', original);
+		assert.equal(await api.renameOrMoveMany([{ source, destination: vscode.Uri.joinPath(fixture, `${newName}.md`), isFolder: false }]), true);
+		await persisted(index, updated);
+		assert.equal(await undo(), true);
+		await persisted(index, original);
+		assert.equal(await text(source), '# Existing legacy note\n');
+		assert.equal(await redo(), true);
+		await persisted(index, updated);
+	});
+
+	test('unsafe new filename is rejected before any filesystem or link mutation', async () => {
+		const oldName = `Old-${randomUUID()}`;
+		const source = await file(`${oldName}.md`, '# Target\n');
+		const original = `[[${oldName}]]\n`;
+		const index = await file('Index.md', original);
+		for (const name of ['New#topic.md', 'New^block.md', 'New[topic].md']) {
+			const destination = vscode.Uri.joinPath(fixture, name);
+			await assert.rejects(api.renameOrMoveMany([{ source, destination, isFolder: false }]), /wikilink delimiters/);
+			assert.equal(await text(source), '# Target\n');
+			await persisted(index, original);
+			await missing(destination);
+		}
 	});
 
 	async function file(path: string, contents: string): Promise<vscode.Uri> {

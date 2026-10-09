@@ -72,12 +72,26 @@ export function assignWikiTargets(
 		originalBasenames.set(key(basename), basenameMatches);
 	}
 	const basenameCounts = new Map<string, number>();
+	const resolvedTargets = new Map<string, string>();
+	// Exact root paths take precedence over basename matches, including casing
+	// and explicit Markdown extensions, just as in LinkResolver.
+	for (const target of new Set([...originalPaths.keys(), ...originalBasenames.keys()])) {
+		const matches = originalPaths.get(target) ?? originalBasenames.get(target) ?? [];
+		if (matches.length === 1) resolvedTargets.set(target, matches[0]);
+	}
 	for (const path of finalPaths) {
 		const basename = stripMarkdownExtension(path).split('/').pop() ?? path;
 		basenameCounts.set(key(basename), (basenameCounts.get(key(basename)) ?? 0) + 1);
 	}
+	const finalTargets = new Map<string, string>();
+	for (let index = 0; index < markdownPaths.length; index++) {
+		const path = stripMarkdownExtension(finalPaths[index]);
+		const basename = path.split('/').pop() ?? path;
+		finalTargets.set(markdownPaths[index], basenameCounts.get(key(basename)) === 1 ? basename : path);
+	}
 	return moves.map((move) => {
-		if (move.isFolder || !/\.(?:md|markdown)$/i.test(move.newPath)) return { ...move };
+		if (move.isFolder) return { ...move, wikiResolvedTargets: resolvedTargets, wikiFinalTargets: finalTargets };
+		if (!/\.(?:md|markdown)$/i.test(move.newPath)) return { ...move };
 		const withoutExtension = stripMarkdownExtension(move.newPath);
 		const basename = withoutExtension.split('/').pop() ?? withoutExtension;
 		const oldBasename = stripMarkdownExtension(move.oldPath).split('/').pop() ?? move.oldPath;
@@ -85,6 +99,8 @@ export function assignWikiTargets(
 		const sourceMatches = originalPaths.get(key(oldBasename)) ?? originalBasenames.get(key(oldBasename)) ?? [];
 		return {
 			...move,
+			wikiResolvedTargets: resolvedTargets,
+			wikiFinalTargets: finalTargets,
 			wikiTarget: basenameCounts.get(key(basename)) === 1 ? basename : withoutExtension,
 			wikiSourceBasename: sourceMatches.length === 1 && key(sourceMatches[0]) === key(move.oldPath),
 		};

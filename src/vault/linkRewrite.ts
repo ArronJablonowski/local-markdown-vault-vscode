@@ -1,6 +1,7 @@
 import { posix } from 'node:path';
 import { markdownCodeRanges } from '../shared/markdownCodeRanges';
 import { markdownDestination } from '../shared/markdownDestination';
+import { isRepresentableWikiPath, normalizeWikiTarget } from './LinkResolver';
 
 export interface VaultMove {
 	oldPath: string;
@@ -10,6 +11,10 @@ export interface VaultMove {
 	wikiTarget?: string;
 	/** Whether a basename-only wikilink currently resolves to this note. */
 	wikiSourceBasename?: boolean;
+	/** Original note resolution, shared by the transaction; missing/ambiguous targets are not guessed. */
+	wikiResolvedTargets?: ReadonlyMap<string, string>;
+	/** Shortest final spelling for each original note, including folder descendants. */
+	wikiFinalTargets?: ReadonlyMap<string, string>;
 }
 
 export interface LinkReplacement {
@@ -209,6 +214,24 @@ function resolveAuthoredVaultPath(sourcePath: string, authoredPath: string, root
 function rewriteWikiTarget(target: string, move: VaultMove): string | undefined {
 	const trimmed = target.trim();
 	if (!trimmed || hasScheme(trimmed) || trimmed.startsWith('/')) return undefined;
+	if (move.wikiResolvedTargets) {
+		const resolved = move.wikiResolvedTargets.get(normalizeWikiTarget(trimmed));
+		if (resolved !== undefined) {
+			const mapped = mapMovedPath(resolved, move);
+			if (mapped === resolved) return undefined;
+			const omitted = !/\.(?:md|markdown)$/i.test(trimmed);
+			const path = omitted ? stripMarkdownExtension(mapped) : mapped;
+			const shortest = move.wikiFinalTargets?.get(resolved);
+			const rewritten = !trimmed.replace(/^\.\//, '').includes('/')
+				? shortest !== undefined ? shortest + (omitted ? '' : posix.extname(mapped))
+					: plannedWikiTarget(move, omitted, posix.basename(path)) : path;
+			if (!isRepresentableWikiPath(rewritten)) throw new Error('The destination cannot be represented safely in a wikilink.');
+			return target.replace(trimmed, rewritten);
+		}
+		// Keep unresolved note references and aliases intact. Qualified non-note
+		// resources retain the existing attachment-path behavior.
+		if (!trimmed.includes('/') || !posix.extname(trimmed) || /\.(?:md|markdown)$/i.test(trimmed)) return undefined;
+	}
 	const oldPath = normalizePath(move.oldPath);
 	const newPath = normalizePath(move.newPath);
 	const omittedExtension = !posix.extname(trimmed);
@@ -223,7 +246,7 @@ function rewriteWikiTarget(target: string, move: VaultMove): string | undefined 
 	if (basenameOnly && move.wikiSourceBasename === false) return undefined;
 
 	let rewritten: string | undefined;
-	if (move.isFolder && isSameOrDescendant(normalizedTarget, oldPath)) {
+	if (move.isFolder && normalizedTarget.includes('/') && isSameOrDescendant(normalizedTarget, oldPath)) {
 		rewritten = replacePathPrefix(normalizedTarget, oldPath, newPath);
 	} else if (!move.isFolder && (samePath(normalizedTarget, oldComparable) || samePath(candidate, oldPath))) {
 		const movedTarget = omittedExtension && /\.(?:md|markdown)$/i.test(newPath)
@@ -241,6 +264,7 @@ function rewriteWikiTarget(target: string, move: VaultMove): string | undefined 
 		}
 	}
 	if (!rewritten) return undefined;
+	if (!isRepresentableWikiPath(rewritten)) throw new Error('The destination cannot be represented safely in a wikilink.');
 	return target.replace(trimmed, rewritten);
 }
 
@@ -303,7 +327,7 @@ function safeDecode(value: string): string {
 }
 
 function firstSeparator(value: string, ...separators: string[]): number {
-	const candidates = (separators.length ? separators : ['#', '|'])
+	const candidates = (separators.length ? separators : ['#', '^', '|'])
 		.map((separator) => value.indexOf(separator))
 		.filter((index) => index >= 0);
 	return candidates.length ? Math.min(...candidates) : -1;

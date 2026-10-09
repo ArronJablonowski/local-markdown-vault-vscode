@@ -1,41 +1,29 @@
+import { parser, Table } from '@lezer/markdown';
+
 export type MarkdownSourceRange = readonly [from: number, to: number];
 
+// Block parsing supplies container-aware source boundaries. Scan backtick
+// runs separately to avoid repeated closer searches in hostile inline input.
+const blockParser = parser.configure([Table, { remove: ['Escape', 'Entity', 'InlineCode', 'HTMLTag', 'Emphasis', 'HardBreak', 'Link', 'Image'] }]);
+
 /**
- * Returns fenced-code blocks and inline backtick spans as UTF-16 source
+ * Returns fenced/indented blocks and inline backtick spans as UTF-16 source
  * ranges. Fence closers must use the same marker and at least the opener's
  * length; inline spans close only on a run of exactly the opener's length.
  * The scan is linear even for a line containing thousands of unmatched runs.
  */
 export function markdownCodeRanges(text: string): MarkdownSourceRange[] {
 	const ranges: MarkdownSourceRange[] = [];
-	let fenceStart = -1;
-	let fenceMarker: '`' | '~' | '' = '';
-	let fenceLength = 0;
-	let offset = 0;
-	for (const line of text.split(/(?<=\n)/)) {
-		if (fenceStart >= 0) {
-			const closing = /^[ \t]{0,3}(`+|~+)[ \t]*(?:\r?\n)?$/.exec(line);
-			if (closing && closing[1][0] === fenceMarker && closing[1].length >= fenceLength) {
-				ranges.push([fenceStart, offset + line.length]);
-				fenceStart = -1;
-				fenceMarker = '';
-				fenceLength = 0;
-			}
-			offset += line.length;
-			continue;
+	blockParser.parse(text).iterate({ enter(node) {
+		if (node.name === 'FencedCode' || node.name === 'CodeBlock') {
+			ranges.push([node.from, node.to]);
+			return false;
 		}
-
-		const opening = /^[ \t]{0,3}(`{3,}|~{3,})/.exec(line);
-		if (opening && !(opening[1][0] === '`' && line.slice(opening[0].length).includes('`'))) {
-			fenceStart = offset;
-			fenceMarker = opening[1][0] as '`' | '~';
-			fenceLength = opening[1].length;
-		} else {
-			for (const [from, to] of inlineCodeRanges(line)) ranges.push([offset + from, offset + to]);
+		if (node.name === 'Paragraph' || node.name === 'TableCell' || /^ATXHeading[1-6]$/.test(node.name) || /^SetextHeading[12]$/.test(node.name)) {
+			for (const [from, to] of inlineCodeRanges(text.slice(node.from, node.to))) ranges.push([node.from + from, node.from + to]);
+			return false;
 		}
-		offset += line.length;
-	}
-	if (fenceStart >= 0) ranges.push([fenceStart, text.length]);
+	} });
 	return ranges;
 }
 
@@ -59,6 +47,9 @@ function inlineCodeRanges(line: string): MarkdownSourceRange[] {
 	}
 	const ranges: MarkdownSourceRange[] = [];
 	for (let index = 0; index < runs.length; index++) {
+		let slashes = 0;
+		for (let cursor = runs[index].from - 1; cursor >= 0 && line[cursor] === '\\'; cursor--) slashes++;
+		if (slashes % 2) continue;
 		const closingIndex = nextSameLength[index];
 		if (closingIndex === undefined) continue;
 		ranges.push([runs[index].from, runs[closingIndex].to]);

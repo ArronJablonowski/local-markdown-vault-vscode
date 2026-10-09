@@ -39,6 +39,9 @@ Other explicitly saved viewing preferences are preserved when updating.
 - Right-click any vault file or folder and choose **Copy Absolute Path** to copy its full operating-system path, or **Copy Vault-Relative Path** for a path relative to the vault
 - Immediate external-file updates with a coalesced reconciliation pass for folder renames and bulk changes
 - Automatic Markdown and wikilink updates after file or folder moves
+- New file and folder names cannot contain `#`, `^`, `[` or `]`, which conflict
+  with wikilink syntax. Existing files remain readable. Automatic link updates
+  preserve literal code examples and resolve note names before rewriting them.
 - Drag onto a folder to move into it, onto a file to move into that file's parent,
   or onto empty tree space to move to the vault root. Multiple selections are
   supported; selecting a folder and its children moves the folder once, intact.

@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix four confirmed vault rename defects: reject new wikilink-delimiter names, preserve indented/quoted/multiline code examples, update case-insensitive wikilinks with resolver-equivalent ambiguity rules, and preserve unmoved same-name notes during folder renames. Add real filesystem rename/undo/redo regressions and keep ordinary Markdown paths case-sensitive.
+
 - Keep backticks literal inside fenced code instead of applying Markdown inline-code pairing or wrapping. Add meeting-note revision checks for narrow and wide panes and trailing tags.
 
 - Commit active callout field edits before collapsing, keep the cursor on a visible header, and preserve invalid drafts instead of hiding them. Hide nested quote markers consistently when expanding rendered callout titles.

@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { rewriteLinksForMoves, type VaultMove } from './linkRewrite';
 import { VaultService } from './VaultService';
 import { assignWikiTargets, assertIndependentMoves, minimalTextReplacement } from './vaultMovePlan';
+import { validateVaultEntryName } from './vaultName';
 import { MAX_DISCOVERED_MARKDOWN_FILES, MAX_INDEXED_VAULT_NOTES, selectIndexCandidates } from './vaultIndexSelection';
 import { CaseRenameCoordinator, caseRenameCoordinatorFor, type StagedCaseRename } from './CaseRenameCoordinator';
 import {
@@ -120,6 +121,12 @@ export class LinkRewriteService {
 			const oldPath = this.vault.relativePath(source);
 			const newPath = this.vault.relativePath(destination);
 			if (!oldPath || !newPath) throw new Error('Every move must remain inside the Document Vault.');
+			// Fresh moves cannot introduce names that corrupt incoming wikilinks.
+			// History may restore an existing legacy name captured by the move.
+			if (!execution.expectedSources) {
+				const error = validateVaultEntryName(newPath.split('/').pop()!);
+				if (error) throw new Error(error);
+			}
 			return {
 				source,
 				destination,
