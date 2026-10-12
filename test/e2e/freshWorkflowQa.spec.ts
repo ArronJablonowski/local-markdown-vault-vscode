@@ -66,7 +66,7 @@ test('typing a fresh handoff preserves formatting shortcuts, list continuation, 
 	await expect.poll(() => sourceAfterEdits(page, '')).toMatch(/\n\nFinal handoff\.$/);
 	const typed = await sourceAfterEdits(page, '');
 	expect(typed).toContain('Owner: **Morgan**');
-	expect(typed).toContain('- Inspect power\n  - Inspect network\n    Keep the backup disconnected.');
+	expect(typed).toContain('- Inspect power\n    - Inspect network\n      Keep the backup disconnected.');
 	expect(typed).toMatch(/\n\nFinal handoff\.$/);
 	const line = page.locator('.cm-line').filter({ hasText: /^Final handoff\.$/ });
 	await line.dblclick({ position: { x: 15, y: 8 } });

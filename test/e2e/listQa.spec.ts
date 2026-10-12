@@ -46,7 +46,7 @@ for (const marker of ['-', '*', '+', '- [ ]']) {
 		await mountEditor(page, initial);
 		await page.locator('.cm-line', { hasText: 'Child' }).click();
 		await page.keyboard.press('Tab');
-		expect(await source(page)).toBe(`${marker} Parent\n  ${marker} Child\n\nAfter`);
+		expect(await source(page)).toBe(`${marker} Parent\n    ${marker} Child\n\nAfter`);
 		await page.locator('.cm-line', { hasText: 'Child' }).click();
 		await page.keyboard.press('Shift+Tab');
 		expect(await source(page)).toBe(initial);
@@ -63,7 +63,7 @@ test('an empty new bullet nests and outdents without inserting extra blank lines
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Shift+Tab');
 	await page.keyboard.type('Sibling');
-	expect(await source(page)).toBe('# Heading\n- Parent\n  - Child\n- Sibling');
+	expect(await source(page)).toBe('# Heading\n- Parent\n    - Child\n- Sibling');
 });
 
 for (const level of [1, 2, 3, 4, 5, 6]) {

@@ -95,7 +95,7 @@ for (const width of [580, 1000]) test(`meeting notes grow through individual key
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Tab');
 	await typeKeys(page, 'Assign #owner/alex and keep the evidence 🔎');
-	expected += '\n  - Assign #owner/alex and keep the evidence 🔎';
+		expected += '\n    - Assign #owner/alex and keep the evidence 🔎';
 	await expectSource(page, initial, expected);
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Shift+Tab');

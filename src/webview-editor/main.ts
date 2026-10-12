@@ -11,7 +11,7 @@ import {
 	selectNextOccurrence,
 } from '@codemirror/search';
 import { insertNewlineContinueMarkupCommand, markdown } from '@codemirror/lang-markdown';
-import { codeFolding } from '@codemirror/language';
+import { codeFolding, indentUnit } from '@codemirror/language';
 import { GFM } from './gfmTableFix';
 import {
 	livePreviewPlugin,
@@ -22,7 +22,7 @@ import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
 import { createBlockReplacementSelectionGuard } from './blockReplacementSelection';
 import { calloutState } from './calloutState';
-import { indentQuotedList } from './quotedListIndent';
+import { indentMarkdownList } from './quotedListIndent';
 import { detectFrontmatter } from './frontmatterWidget';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
@@ -328,6 +328,8 @@ function createExtensions(): Extension[] {
 		EditorView.contentAttributes.of({ tabindex: '0' }),
 		whitespaceCompartment.of([]),
 		markdownSupport,
+		indentUnit.of('    '),
+		EditorState.tabSize.of(4),
 		codeFolding(),
 		// Extend closeBrackets' default pair set (`( [ { ' "`) with the emphasis
 		// marks so `*bold/italic*` and `_italic_` also auto-pair and wrap a
@@ -449,7 +451,7 @@ function createExtensions(): Extension[] {
 			{ key: 'Mod-a', stopPropagation: true, run: selectAll },
 			{ key: 'Mod-b', stopPropagation: true, run: toggleEmphasisCommand('**') },
 			{ key: 'Mod-i', stopPropagation: true, run: toggleEmphasisCommand('*') },
-			{ key: 'Tab', run: indentQuotedList, shift: view => indentQuotedList(view, true), stopPropagation: true },
+			{ key: 'Tab', run: indentMarkdownList, shift: view => indentMarkdownList(view, true), stopPropagation: true },
 			indentWithTab,
 			...defaultKeymap,
 			// Tab indents Markdown, matching the requested Obsidian-style editing

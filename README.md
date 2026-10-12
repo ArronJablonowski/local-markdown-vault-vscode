@@ -249,6 +249,12 @@ Long list items use hanging indentation: wrapped lines align with the start of
 the item's text, not its marker. This also applies to nested bullets, numbered
 lists, and tasks, and adapts when you resize the editor or change themes.
 
+Bullets and checkboxes start one four-character tab in from the text margin;
+each nested level adds another full tab. Tab inserts four spaces without
+rewriting existing list indentation. Shift+Tab also recognizes older two-space
+lists and moves them back one level. A first item needs a preceding item before
+it can become a sub-item.
+
 Press **Tab** on a bullet to make it a sub-bullet, and **Shift+Tab** to move it
 back one level. This also works on a new empty bullet after Return. Nested
 lists stay compact beneath headings; intentional blank lines in your Markdown

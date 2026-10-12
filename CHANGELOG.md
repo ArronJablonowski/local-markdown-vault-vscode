@@ -1,5 +1,7 @@
 # Changelog
 
+- Use a four-space tab width for bullet and checkbox indentation. Render each nesting level one full tab apart, keep wrapped text aligned, preserve legacy source indentation, and outdent older two-space lists one level at a time. Prevent first-item indentation from accidentally creating a code block.
+
 - Render callouts beginning inside bulleted/numbered lists, including nested quote/list containers. Keep list markers visible and reserve their width beside the callout title so clicking the body edits the correct line; preserve fold state during subsequent edits.
 
 - Fix four confirmed vault rename defects: reject new wikilink-delimiter names, preserve indented/quoted/multiline code examples, update case-insensitive wikilinks with resolver-equivalent ambiguity rules, and preserve unmoved same-name notes during folder renames. Add real filesystem rename/undo/redo regressions and keep ordinary Markdown paths case-sensitive.

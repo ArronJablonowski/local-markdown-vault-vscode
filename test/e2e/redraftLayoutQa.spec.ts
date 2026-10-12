@@ -201,7 +201,7 @@ test('typing a callout and nested tasks at a large note end remains editable thr
 	await page.locator('.mlp-checkbox').last().click();
 	await expect(page.locator('.cm-line', { hasText: 'Confirm draft' })).toHaveClass(/mlp-line-task-complete/);
 	await expect.poll(() => documentText(page, initial)).toContain('> - [x] Confirm draft');
-	await expect.poll(() => documentText(page, initial)).toContain('>   - Child item with **extra details** and ==attention==.');
+	await expect.poll(() => documentText(page, initial)).toContain('>     - Child item with **extra details** and ==attention==.');
 	await page.screenshot({ path: info.outputPath('typed-callout-redraft.png') });
 });
 
@@ -266,7 +266,7 @@ test('mouse paragraph replacement between mixed objects retains layout and exact
 	await page.keyboard.press('Tab');
 	await page.keyboard.type('Review child evidence', { delay: 6 });
 	await page.getByRole('button', { name: 'Redraft boundary callout', exact: true }).click();
-	const replacement = 'Revised assessment: **ready** after *manual review*.\n\n- Verify local behavior\n  - Review child evidence';
+	const replacement = 'Revised assessment: **ready** after *manual review*.\n\n- Verify local behavior\n    - Review child evidence';
 	await expect.poll(() => documentText(page, initial)).toBe(initial.replace(original, replacement));
 	await expect(page.locator('.cm-line', { hasText: 'Review child evidence' })).toHaveClass(/mlp-line-list/);
 	await page.keyboard.press(`${mod}+z`);

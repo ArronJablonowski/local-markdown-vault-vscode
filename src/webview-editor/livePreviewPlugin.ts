@@ -2348,13 +2348,20 @@ function buildDecorations(view: EditorView): DecorationSet {
 						const taskComplete = taskItemCompletion(state, node.from);
 						const taskLineNumber = doc.lineAt(node.from).number;
 						const itemLine = doc.line(taskLineNumber);
-						const indentation = state.sliceDoc(itemLine.from, node.from);
-						if (/^[ \t]+$/.test(indentation)) {
+						// The parser may start a nested item before all of its spaces.
+						// Cover the complete source indent so no literal gap remains.
+						const indentMatch = /^((?:[ \t]*>[ \t]?)*)([ \t]*)(?=[-+*]|\d+[.)])/.exec(itemLine.text);
+						const indentation = indentMatch?.[2];
+						if (indentation) {
 							let columns = 0;
 							for (const char of indentation) columns += char === '\t' ? state.tabSize - columns % state.tabSize : 1;
+							let depth = 0;
+							for (let ancestor = node.node.parent; ancestor; ancestor = ancestor.parent) if (ancestor.name === 'ListItem') depth++;
+							if (depth > 0) columns = depth * state.tabSize;
 							// Proportional themes make two literal spaces narrower than a
 							// bullet. Reserve actual character columns for visible nesting.
-							decorations.push(Decoration.mark({ class: 'mlp-list-indent', attributes: { style: `width: ${columns}ch` } }).range(itemLine.from, node.from));
+							const indentFrom = itemLine.from + indentMatch![1].length;
+							decorations.push(Decoration.mark({ class: 'mlp-list-indent', attributes: { style: `width: ${columns}ch` } }).range(indentFrom, indentFrom + indentation.length));
 						}
 						// Lines a nested table widget will replace get no line decoration,
 						// or CodeMirror discards the widget and shows raw pipes instead.
@@ -2613,7 +2620,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 	}
 
 	for (const [lineFrom, cls] of seenLine) {
-		decorations.push(Decoration.line({ class: cls }).range(lineFrom));
+		decorations.push(Decoration.line({ attributes: { class: cls,
+			...(cls.split(' ').includes('mlp-line-list') ? { style: `padding-inline-start: ${state.tabSize}ch` } : {}),
+		} }).range(lineFrom));
 		// Source reveal can leave styled paragraphs, quotes, lists, or code as
 		// plain short text. Their padding is not a typical text height: sampling
 		// it makes large-note navigation jump when a later edit recalibrates it.

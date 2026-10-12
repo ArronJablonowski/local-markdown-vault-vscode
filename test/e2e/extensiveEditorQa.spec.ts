@@ -301,7 +301,7 @@ test('nested quoted tasks retain indentation through Enter, Tab, Shift+Tab, and 
 	const inserted = initial.replace('>   - [x] Child task\n', '>   - [x] Child task\n>   - [ ] New child\n');
 	await expect.poll(() => source(page)).toBe(inserted);
 	await page.keyboard.press('Tab');
-	await expect.poll(() => source(page)).toBe(inserted.replace('>   - [ ] New child', '>     - [ ] New child'));
+	await expect.poll(() => source(page)).toBe(inserted.replace('>   - [ ] New child', '>       - [ ] New child'));
 	await page.keyboard.press('Shift+Tab');
 	await expect.poll(() => source(page)).toBe(inserted);
 	await find(page, 'New child');
