@@ -1,5 +1,7 @@
 # Changelog
 
+- Render callouts beginning inside bulleted/numbered lists, including nested quote/list containers. Keep list markers visible and reserve their width beside the callout title so clicking the body edits the correct line; preserve fold state during subsequent edits.
+
 - Fix four confirmed vault rename defects: reject new wikilink-delimiter names, preserve indented/quoted/multiline code examples, update case-insensitive wikilinks with resolver-equivalent ambiguity rules, and preserve unmoved same-name notes during folder renames. Add real filesystem rename/undo/redo regressions and keep ordinary Markdown paths case-sensitive.
 
 - Keep backticks literal inside fenced code instead of applying Markdown inline-code pairing or wrapping. Add meeting-note revision checks for narrow and wide panes and trailing tags.

@@ -321,14 +321,20 @@ class CalloutHeaderWidget extends WidgetType {
 		private readonly title: string,
 		private readonly initiallyCollapsed: boolean,
 		private readonly from: number,
+		private readonly prefixColumns: number,
 	) { super(); }
 	eq(other: CalloutHeaderWidget): boolean {
-		return this.type === other.type && this.title === other.title && this.initiallyCollapsed === other.initiallyCollapsed && this.from === other.from;
+		return this.type === other.type && this.title === other.title && this.initiallyCollapsed === other.initiallyCollapsed && this.from === other.from && this.prefixColumns === other.prefixColumns;
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'mlp-callout-header';
+		if (this.prefixColumns > 0) {
+			// A full-width inline title beside a list marker wraps onto another
+			// row and can corrupt mouse-to-source coordinates for the body.
+			button.style.width = `calc(100% - ${this.prefixColumns}ch)`;
+		}
 		button.dataset.calloutFrom = String(this.from);
 		button.setAttribute('aria-expanded', String(!this.initiallyCollapsed));
 		button.setAttribute('aria-label', t('callout.label', this.title));
@@ -2258,7 +2264,12 @@ function buildDecorations(view: EditorView): DecorationSet {
 							// don't leave a dangling indent.
 							const next = state.sliceDoc(node.to, node.to + 1);
 							const to = next === ' ' ? node.to + 1 : node.to;
-							pushReplace(node.from, to, hiddenMarkerDeco);
+							const line = doc.lineAt(node.from);
+							// List-container indentation is source syntax, not a visible
+							// first-line indent for a wrapped callout paragraph.
+							const from = node.name === 'QuoteMark' && containingCallouts(state, node.node).length > 0
+								&& /^[ \t]*$/.test(state.sliceDoc(line.from, node.from)) ? line.from : node.from;
+							pushReplace(from, to, hiddenMarkerDeco);
 						}
 						return;
 					}
@@ -2377,16 +2388,17 @@ function buildDecorations(view: EditorView): DecorationSet {
 								addLineRange(node.from, collapsed ? firstLine.to : node.to, (n, first, last) => replaced.has(n) ? '' :
 									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}`);
 								if (!blockCursorTouchesRange(state, node.from, node.to)) {
-									calloutHeaders.set(firstLine.from, { from: firstLine.from, to: firstLine.to });
+									calloutHeaders.set(firstLine.from, { from: firstLine.from + callout.quoteOffset, to: firstLine.to });
 									pushReplace(
 										firstLine.from + callout.markerOffset,
 										firstLine.to,
-										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, collapsed, firstLine.from) }),
+										Decoration.replace({ widget: new CalloutHeaderWidget(type, callout.title, collapsed, firstLine.from,
+											raw.slice(0, callout.quoteOffset).trim() ? raw.slice(0, callout.quoteOffset).replace(/\t/g, '    ').length + 1 : 0) }),
 									);
 									// A rendered title owns its quote prefix too. The cursor can
 									// be parked here after folding, even when it expands again.
-									if (callout.markerOffset > 0) {
-										pushReplace(firstLine.from, firstLine.from + callout.markerOffset, hiddenMarkerDeco);
+									if (callout.markerOffset > callout.quoteOffset) {
+										pushReplace(firstLine.from + callout.quoteOffset, firstLine.from + callout.markerOffset, hiddenMarkerDeco);
 									}
 								}
 								// A callout is not an ordinary quote for styling purposes.

@@ -23,7 +23,7 @@ export const calloutState = StateField.define<ReadonlyMap<number, boolean>>({
 			// An explicit source change to the fold marker supersedes a UI toggle.
 			if (oldHeader?.[1] !== newHeader?.[1]) continue;
 			if (mapped <= tr.newDoc.length && tr.newDoc.lineAt(mapped).from === mapped
-				&& /^[ \t]*(?:>[ \t]*)+\[!/.test(tr.newDoc.lineAt(mapped).text)) next.set(mapped, collapsed);
+				&& parseCalloutHeader(tr.newDoc.lineAt(mapped).text)) next.set(mapped, collapsed);
 		}
 		// A Find result must be visible even when its containing callout was
 		// collapsed. Expand the UI state (not the saved +/- marker), just as

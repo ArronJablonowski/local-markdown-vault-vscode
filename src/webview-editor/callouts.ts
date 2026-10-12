@@ -3,6 +3,7 @@ export interface ParsedCallout {
 	title: string;
 	collapsed: boolean;
 	markerOffset: number;
+	quoteOffset: number;
 }
 
 const TYPE_ALIASES: Record<string, string> = {
@@ -65,11 +66,12 @@ export function createCalloutOutlineIcon(type: string): SVGSVGElement | undefine
 }
 
 /** Parses the callout marker belonging to one particular blockquote depth. */
-export function parseCalloutHeader(rawLine: string, blockquoteDepth: number): ParsedCallout | undefined {
-	const match = /^[ \t]*((?:>[ \t]*)+)\[!([A-Za-z0-9_-]{1,32})\]([+-])?[ \t]*(.*)$/.exec(rawLine);
+export function parseCalloutHeader(rawLine: string, blockquoteDepth?: number): ParsedCallout | undefined {
+	// List containers may precede or sit between quote markers on the same line.
+	const match = /^[ \t]*(?:(?:[-+*]|\d+[.)])[ \t]+)?((?:>[ \t]*(?:(?:[-+*]|\d+[.)])[ \t]+)?)+)\[!([A-Za-z0-9_-]{1,32})\]([+-])?[ \t]*(.*)$/.exec(rawLine);
 	if (!match) return undefined;
 	const markerDepth = [...match[1]].filter((character) => character === '>').length;
-	if (markerDepth !== blockquoteDepth) return undefined;
+	if (blockquoteDepth !== undefined && markerDepth !== blockquoteDepth) return undefined;
 	const authoredType = match[2].toLocaleLowerCase();
 	const type = TYPE_ALIASES[authoredType] ?? authoredType;
 	const title = match[4].trim() || type.charAt(0).toLocaleUpperCase() + type.slice(1);
@@ -78,5 +80,6 @@ export function parseCalloutHeader(rawLine: string, blockquoteDepth: number): Pa
 		title,
 		collapsed: match[3] === '-',
 		markerOffset: rawLine.indexOf('[!'),
+		quoteOffset: rawLine.slice(0, rawLine.indexOf('>')).trim() ? rawLine.indexOf('>') : 0,
 	};
 }

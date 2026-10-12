@@ -19,10 +19,20 @@ describe('Obsidian callout headers', () => {
 		expect(parseCalloutHeader('> > [!tip] Nested', 1)).toBeUndefined();
 		expect(parseCalloutHeader('> > [!tip] Nested', 2)).toMatchObject({ type: 'tip', title: 'Nested' });
 	});
+	it.each(['- > ', '1. > ', '123456789. > ', '> - > '])('recognizes a list container before a callout: %s', prefix => {
+		const depth = [...prefix].filter(character => character === '>').length;
+		expect(parseCalloutHeader(`${prefix}[!warning]+ Review`, depth)).toMatchObject({
+			type: 'warning', title: 'Review', collapsed: false, quoteOffset: prefix.indexOf('>'),
+		});
+		expect(parseCalloutHeader(`${prefix}[!warning]+ Review`, depth + 1)).toBeUndefined();
+	});
 
 	it('rejects malformed and excessively long types', () => {
 		expect(parseCalloutHeader('> [!]', 1)).toBeUndefined();
 		expect(parseCalloutHeader(`> [!${'a'.repeat(33)}]`, 1)).toBeUndefined();
+	});
+	it('includes plain leading indentation in the rendered header replacement', () => {
+		expect(parseCalloutHeader('  > [!warning] Review', 1)).toMatchObject({ quoteOffset: 0, markerOffset: 4 });
 	});
 
 	it('assigns distinct icons to the documented callout families', () => {
