@@ -118,6 +118,34 @@ function mutationHarness(text = 'Before') {
 }
 
 describe('accepted edits across close and reopen', () => {
+	it('does not recover an unchanged clean opening snapshot after an external edit', async () => {
+		const { session, document } = mutationHarness();
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Before' });
+		document.text = 'Externally updated'; document.version++;
+		session.setVisible(false);
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Externally updated');
+		expect(session.preserveDraft).not.toHaveBeenCalled();
+	});
+	it('retires an exactly saved snapshot before a later edit makes it obsolete', async () => {
+		const { session, document } = mutationHarness();
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Before first' });
+		await session.applyEdit([{ from: 6, to: 6, insert: ' first' }], 1);
+		await session.applyEdit([{ from: 12, to: 12, insert: ' second' }], 2);
+		session.setVisible(false);
+		await session.mutationQueue.drain();
+		expect(document.text).toBe('Before first second');
+		expect(session.preserveDraft).not.toHaveBeenCalled();
+	});
+	it.each(['dirty', 'newer', 'separate'])('does not retire a %s draft merely because an edit was applied', async kind => {
+		const { session, settle } = mutationHarness();
+		const snapshot = { type: 'draftSnapshot', baselineText: 'Before', text: kind === 'newer' ? 'Before first tail' : 'Before first',
+			...(kind === 'separate' ? { requiresSeparatePreservation: true } : {}) };
+		session.handleMessage(snapshot);
+		if (kind === 'dirty') settle.mockImplementation(async () => {});
+		await session.applyEdit([{ from: 6, to: 6, insert: ' first' }], 1);
+		expect(session.pendingDraft).toBe(snapshot);
+	});
 	it('replays the final accepted edit if native close discarded it while its save was settling', async () => {
 		const { session, document, settle } = mutationHarness();
 		const reopened = documentFor('Before', 7);

@@ -205,6 +205,13 @@ export class DocumentSyncSession {
 	private handleMessage(message: EditorToHostMessage) {
 		switch (message.type) {
 			case 'draftSnapshot':
+				// Initial/ack snapshots often describe text already saved to disk.
+				// Do not retain those as unsaved drafts across later external edits.
+				if (!message.requiresSeparatePreservation && !this.document.isClosed && !this.document.isDirty &&
+					normalizeLineEndingsForWebview(this.document.getText()) === message.text) {
+					this.pendingDraft = undefined;
+					break;
+				}
 				this.pendingDraft = message;
 				if (!this.visible) this.queuePendingDraftFlush();
 				break;
@@ -1124,6 +1131,12 @@ export class DocumentSyncSession {
 			// to call this accepted edit safe. Keep a separate local recovery copy.
 			await this.recoverRejectedEdit(acceptedText, changes);
 			return;
+		}
+		// Retire only the exact snapshot proven durable by this save. Otherwise
+		// a later accepted edit makes an already-saved cache look like a conflict.
+		if (!this.document.isClosed && !this.document.isDirty && this.pendingDraft &&
+			!this.pendingDraft.requiresSeparatePreservation && this.pendingDraft.text === expectedNormalizedText) {
+			this.pendingDraft = undefined;
 		}
 		if (acknowledge) this.post({ type: 'ackEdit', version: this.document.version });
 		this.scheduleRehighlight();

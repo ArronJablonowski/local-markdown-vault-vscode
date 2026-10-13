@@ -1,5 +1,7 @@
 # Changelog
 
+- Stop treating already-saved opening and edit snapshots as unsaved recovery drafts after later changes. Retire only exact, clean, open-document matches; retain dirty snapshots, newer typing tails, and separately preserved field drafts. Keep genuine conflict and write-failure recovery intact.
+
 - Use a four-space tab width for bullet and checkbox indentation. Render each nesting level one full tab apart, keep wrapped text aligned, preserve legacy source indentation, and outdent older two-space lists one level at a time. Prevent first-item indentation from accidentally creating a code block.
 
 - Render callouts beginning inside bulleted/numbered lists, including nested quote/list containers. Keep list markers visible and reserve their width beside the callout title so clicking the body edits the correct line; preserve fold state during subsequent edits.
