@@ -260,7 +260,9 @@ test.describe('Markdown list editing', () => {
 		await page.keyboard.press('Enter');
 
 		await expect(page.locator('.cm-line')).toHaveCount(2);
-		await expect(page.locator('.cm-line').nth(1)).toContainText('- [ ]');
+		await expect(page.locator('.cm-line').nth(1).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false');
+		await expect.poll(() => page.locator('.cm-content').evaluate(el => (el as any).cmTile.root.view.state.doc.toString()))
+			.toBe('- [ ] First task\n- [ ] ');
 	});
 
 	test('ends an ordered list when its current item is empty', async ({ page }) => {

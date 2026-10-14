@@ -1,5 +1,6 @@
 import { EditorState, Annotation, type Extension, Compartment, Prec } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
+import { listLineStart } from './listLineStart';
 import { defaultKeymap, indentWithTab, selectAll, temporarilySetTabFocusMode } from '@codemirror/commands';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import {
@@ -379,6 +380,7 @@ function createExtensions(): Extension[] {
 		search({ top: true }),
 		searchRevealExtension,
 		Prec.highest(keymap.of([
+			{ key: 'Home', run: editor => listLineStart(editor), shift: editor => listLineStart(editor, true) },
 			{ key: 'Backspace', run: deleteFullySelectedFencedCode },
 			{ key: 'Delete', run: deleteFullySelectedFencedCode },
 			{

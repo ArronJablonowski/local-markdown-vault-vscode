@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep new bullets and task items aligned inside callouts while typing, including nested and tab-indented lists. Reveal prefixes only when editing the markers themselves, and preserve Home/Shift+Home access to the full list source for replacement and deletion.
+
 - Apply the configured default editor before exposing Vault commands during startup, preventing Quick Open from racing delayed index/style initialization on fresh profiles. Qualify Ubuntu/Snap on a short NOC display; support Wayland/X11 clipboard probes, isolated window managers, and native file/folder QA in the Linux runners.
 
 - Preserve all nested quote containers when Shift+Enter continues inside list-nested callout bodies. Retain task continuation alignment without carrying it into subsequent tables. Add meeting redrafts with mouse selections, arrow corrections, deletion, nested bullets, checked tasks, tables, folding, and exact edit-stream checks.

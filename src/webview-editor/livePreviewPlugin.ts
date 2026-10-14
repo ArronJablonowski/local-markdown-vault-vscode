@@ -46,6 +46,12 @@ import {
 	MAX_HIGHLIGHTS_PER_VIEWPORT,
 } from './inlineHighlight';
 
+// Body typing keeps list prefixes rendered; navigating into a marker reveals it.
+function selectionTouchesMarker(state: EditorState, from: number, to: number): boolean {
+	return state.selection.ranges.some(r => r.empty
+		? r.head >= from && r.head <= to : r.from < to && r.to > from);
+}
+
 const HEADING_LINE_CLASS: Record<string, string> = {
 	SetextHeading1: 'mlp-line-h1',
 	SetextHeading2: 'mlp-line-h2',
@@ -2259,7 +2265,12 @@ function buildDecorations(view: EditorView): DecorationSet {
 					case 'QuoteMark':
 					case 'CodeMark':
 					case 'CodeInfo': {
-						if (!cursorTouchesRange(state, node.from, node.to)) {
+						// Quote prefixes must not shift a list's caret merely because its
+						// body is active. Reveal them only while editing the prefix itself.
+						const touches = node.name === 'QuoteMark'
+							? selectionTouchesMarker(state, node.from, node.to)
+							: cursorTouchesRange(state, node.from, node.to);
+						if (!touches) {
 							// Also swallow the single space after the marker so hidden markers
 							// don't leave a dangling indent.
 							const next = state.sliceDoc(node.to, node.to + 1);
@@ -2426,6 +2437,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						return; // descend to hide the ">" marks
 					case 'ListMark': {
 						const line = doc.lineAt(node.from);
+						const touchesMarker = selectionTouchesMarker(state, node.from, node.to);
 						const following = state.sliceDoc(node.to, Math.min(line.to, node.to + 256));
 						const prefix = /^[ \t]+(?:\[[^\]\r\n]\][ \t]+)?/u.exec(following)?.[0] ?? '';
 						const textFrom = node.to + prefix.length;
@@ -2434,7 +2446,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						} }).range(line.from));
 						if (listItemIsTask(state, node)) {
 							// Task items render a checkbox from the TaskMarker; drop the bullet.
-							if (!cursorTouchesRange(state, node.from, node.to)) {
+							if (!touchesMarker) {
 								const next = state.sliceDoc(node.to, node.to + 1);
 								pushReplace(node.from, next === ' ' ? node.to + 1 : node.to, hiddenMarkerDeco);
 							}
@@ -2442,7 +2454,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						}
 						const markText = state.sliceDoc(node.from, node.to);
 						if (/^[-*+]$/.test(markText)) {
-							if (!cursorTouchesRange(state, node.from, node.to)) {
+							if (!touchesMarker) {
 								pushReplace(node.from, node.to, Decoration.replace({
 									widget: new BulletWidget(bulletListDepth(node.node)),
 								}));
@@ -2456,7 +2468,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 						return;
 					}
 					case 'TaskMarker': {
-						if (!cursorTouchesRange(state, node.from, node.to)) {
+						if (!selectionTouchesMarker(state, node.from, node.to)) {
 							const checked = !/^\[ \]$/.test(state.sliceDoc(node.from, node.to));
 							pushReplace(node.from, node.to, Decoration.replace({ widget: new CheckboxWidget(checked, node.from) }));
 						}
