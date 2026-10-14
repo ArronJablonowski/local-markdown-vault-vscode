@@ -21,6 +21,7 @@ for (const quote of ['', '> ', '> > ']) {
 					return caret && text ? Math.abs(caret.left - text.left) : Infinity;
 				})).toBeLessThanOrEqual(1);
 				await page.keyboard.type('Next decision', { delay: 12 });
+				if (quote) await expect(page.getByRole('button', { name: 'Meeting callout', exact: true })).toBeVisible();
 				await expect.poll(() => page.locator('.cm-content').evaluate(el => {
 					const view = (el as any).cmTile.root.view;
 					const last = view.state.doc.line(view.state.doc.lines);

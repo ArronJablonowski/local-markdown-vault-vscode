@@ -86,3 +86,11 @@ protections were disabled. Orca, Trash restoration, other Linux packaging
 formats, Windows, and the existing full-recovery-storage immediate-close edge
 case were not qualified by this run. This is not a Marketplace or secure-release
 sign-off.
+
+The follow-up native callout/list run on the same NOC display passed 49 workflows
+after fixing callout-title source reveal during body edits. Enter, Tab/Shift+Tab,
+cursor alignment, list-line deletion, mouse edits, nested callouts, heading soft
+breaks, folding, and checkbox changes were exercised with exact source/disk
+checks. The updated package was installed in the NOC user's regular profile.
+See [callout/list QA](CALLOUT_LIST_ALIGNMENT_QA_2026-10-14.md) for evidence and
+coverage details. The sandbox and platform limitations above still apply.

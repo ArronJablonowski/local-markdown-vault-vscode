@@ -2405,7 +2405,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 								const replaced = blockReplacedLines(state, node.node);
 								addLineRange(node.from, collapsed ? firstLine.to : node.to, (n, first, last) => replaced.has(n) ? '' :
 									`mlp-line-callout mlp-callout-${safeType}${first ? ' mlp-line-callout-first' : ''}${last ? ' mlp-line-callout-last' : ''}`);
-								if (!blockCursorTouchesRange(state, node.from, node.to)) {
+								// Only the title's line needs source reveal. Body edits must
+								// retain the styled title and its folding control.
+								if (!blockCursorTouchesRange(state, firstLine.from, firstLine.to)) {
 									calloutHeaders.set(firstLine.from, { from: firstLine.from + callout.quoteOffset, to: firstLine.to });
 									pushReplace(
 										firstLine.from + callout.markerOffset,

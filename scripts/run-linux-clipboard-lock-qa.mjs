@@ -4,6 +4,8 @@
 // The arrow runner's EXECUTABLE, CLI and desktop DISPLAY options are supported.
 // USE_CLI=1 keeps Xvfb alive; TOOL_PATH optionally provides user-space QA tools.
 // WINDOW_MANAGER and WM_LIBRARY_PATH provide focus management inside Xvfb only.
+// CALLOUT_LIST_QA=1 adds native list/callout editing and exact-save fixtures;
+// ASSERT_CALLOUT_TITLES=1 also verifies that body edits retain styled titles.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -44,6 +46,23 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
+// Optional native editing matrix; all edits use keyboard/mouse events, never editor dispatch.
+const listCases = [];
+const meetingCases = [];
+if (process.env.MDLP_LINUX_CALLOUT_LIST_QA === '1') {
+  for (const quote of ['', '> ', '> > ']) for (const indent of ['', '    ', '\t']) for (const marker of ['-', '*', '+', '- [ ]', '- [x]']) {
+    const name = `Callout list ${String(listCases.length + 1).padStart(2, '0')}.md`;
+    const text = `# Meeting notes\n\n${quote ? `${quote}[!note]+ Meeting\n` : ''}${indent ? `${quote}- Parent\n` : ''}${quote}${indent}${marker} First decision`;
+    initial.set(name, text); expected.set(name, text);
+    listCases.push({ name, quote, indent, marker, text });
+  }
+  for (const { type, quote } of [{ type: 'note', quote: '> ' }, { type: 'warning', quote: '> ' }, { type: 'abstract', quote: '> ' }, { type: 'nested-warning', quote: '> > ' }]) {
+    const name = `Meeting callout ${type}.md`, title = `${type} meeting`;
+    const text = `Intro\n\n${type === 'nested-warning' ? '> [!note]+ Outer meeting\n' : ''}${quote}[!${type === 'nested-warning' ? 'warning' : type}]+ ${title}`;
+    initial.set(name, text); expected.set(name, text);
+    meetingCases.push({ name, title, text, quote });
+  }
+}
 const report = { startedAt: new Date().toISOString(), platform: 'linux', completed: false, passed: false, checks: [], skipped: [], failures: [], samples: [], files: [], pageErrors: [], consoleErrors: [], keys: 0, clipboardReads: 0 };
 report.editorAssociationsSeeded = process.env.MDLP_LINUX_QA_EXPLICIT_ASSOCIATIONS !== '0';
 let remote, processGroup, tunnel, browser, page, frame, current, display, authority;
@@ -115,6 +134,62 @@ try {
     await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
     await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
   }
+
+  for (const item of listCases) await check(`Callout/list native ${JSON.stringify(item)}`, async () => {
+    await open(item.name); await press('Control+End'); await press('Enter');
+    const indent = item.indent === '\t' ? ' '.repeat(4 - item.quote.length % 4) : item.indent;
+    const marker = item.marker === '- [x]' ? '- [ ]' : item.marker;
+    let text = `${item.text}\n${item.quote}${indent}${marker} `;
+    expected.set(current, text); await saved(); await aligned('empty sibling', 'First decision', '');
+    await page.keyboard.type('Next decision', { delay: 35 }); text += 'Next decision';
+    expected.set(current, text); await saved(); await aligned('typed sibling', 'First decision', 'Next decision');
+    if (item.quote && process.env.MDLP_LINUX_QA_ASSERT_CALLOUT_TITLES === '1') {
+      await frame.getByRole('button', { name: 'Meeting callout', exact: true }).waitFor({ state: 'visible' });
+    }
+    await press('Tab');
+    const nested = text.slice(0, text.lastIndexOf('\n') + 1) + item.quote + '    ' + indent + marker + ' Next decision';
+    expected.set(current, nested); await saved();
+    await press('Shift+Tab'); expected.set(current, text); await saved();
+    await aligned('outdented sibling', 'First decision', 'Next decision');
+    // Navigate into the source prefix and back to the body without changing content.
+    await press('Home'); await press('End'); await press('ArrowLeft'); await press('ArrowRight'); await unchanged('arrow navigation');
+    await press('Enter'); await page.keyboard.type('Final action', { delay: 35 });
+    const final = text + `\n${item.quote}${indent}${marker} Final action`;
+    expected.set(current, final); await saved(); await aligned('third sibling', 'Next decision', 'Final action');
+    await press('Shift+Home'); await press('Backspace'); await press('Backspace');
+    expected.set(current, text); await saved();
+    // Mouse placement and individual backspaces must keep the neighboring item intact.
+    await frame.locator('.cm-line', { hasText: 'Next decision' }).click(); await press('End');
+    for (let index = 0; index < 8; index++) await press('Backspace');
+    await page.keyboard.type('revised', { delay: 35 });
+    text = text.slice(0, -8) + 'revised'; expected.set(current, text); await saved();
+    await screenshot(item.name.replace('.md', ''));
+  });
+  for (const item of meetingCases) await check(`Callout/list meeting ${item.title}`, async () => {
+    await open(item.name); await press('Control+End'); await press('Shift+Enter');
+    let text = item.text + '\n' + item.quote;
+    expected.set(current, text); await saved();
+    await page.keyboard.type('- Review owners', { delay: 40 });
+    text += '- Review owners'; expected.set(current, text); await saved();
+    await press('Enter'); await page.keyboard.type('[ ] Confirm scope', { delay: 40 });
+    text += `\n${item.quote}- [ ] Confirm scope`; expected.set(current, text); await saved();
+    await press('Tab'); text = text.replace(`${item.quote}- [ ] Confirm scope`, `${item.quote}    - [ ] Confirm scope`);
+    expected.set(current, text); await saved();
+    await press('Shift+Tab'); text = text.replace(`${item.quote}    - [ ] Confirm scope`, `${item.quote}- [ ] Confirm scope`);
+    expected.set(current, text); await saved();
+    await press('Control+Home');
+    const header = frame.getByRole('button', { name: `${item.title} callout`, exact: true });
+    await header.click(); await wait(async () => await frame.getByRole('checkbox').count() === 0, 'folded callout task');
+    await unchanged('folding'); await header.click();
+    await frame.getByRole('checkbox').waitFor({ state: 'visible' });
+    await frame.getByRole('checkbox').click(); text = text.replace('[ ] Confirm scope', '[x] Confirm scope');
+    expected.set(current, text); await saved();
+    await find('Confirm scope'); await press('ArrowRight');
+    for (let index = 0; index < 5; index++) await press('Backspace');
+    await page.keyboard.type('evidence', { delay: 40 }); text = text.replace('Confirm scope', 'Confirm evidence');
+    expected.set(current, text); await saved();
+    await screenshot(item.name.replace('.md', ''));
+  });
 
   await check('Ctrl+C copies selected Unicode exactly', async () => {
     await open('Unicode clipboard.md'); await find('Caf\u00e9'); await press('Control+c');
@@ -437,6 +512,22 @@ async function saved() {
   report.samples.push({ file: current, expectedSha256: hash(expected.get(current)), diskSha256: hash(await disk()), sourceSha256: hash(await state()) });
 }
 async function unchanged(label) { await delay(250); assert.equal(await state(), expected.get(current), label); assert.equal(await disk(), expected.get(current), label); }
+async function aligned(label, previousText, currentText) {
+  await wait(async () => {
+    const sample = await frame.evaluate(({ previousText, currentText }) => {
+      const view = document.querySelector('.cm-content').cmTile.root.view;
+      const doc = view.state.doc, last = doc.line(doc.lines), prior = doc.line(doc.lines - 1);
+      const previous = view.coordsAtPos(prior.to - previousText.length);
+      const next = view.coordsAtPos(last.to - currentText.length);
+      const caret = view.coordsAtPos(view.state.selection.main.head);
+      const bounds = view.scrollDOM.getBoundingClientRect();
+      return { delta: previous && next ? Math.abs(previous.left - next.left) : Infinity,
+        caretVisible: Boolean(caret && caret.top >= bounds.top - 1 && caret.bottom <= bounds.bottom + 1) };
+    }, { previousText, currentText });
+    report.samples.push({ file: current, label, ...sample });
+    return sample.delta <= 1 && sample.caretVisible;
+  }, `${label} alignment and visible caret`, 5000);
+}
 async function setLocked(value) {
   const toggle = frame.locator('.mlp-editing-mode-toggle');
   if (await toggle.getAttribute('aria-pressed') !== String(value)) await toggle.click();
