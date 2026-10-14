@@ -1,5 +1,7 @@
 # Changelog
 
+- Expand a callout's displayed body when Shift+Enter continues from its heading, including collapsed meeting sections. Preserve saved fold markers and quote/list containers, and keep locked content read-only. Add multi-meeting keyboard, table, task, and folding regressions at narrow and wide widths.
+
 - Stop treating already-saved opening and edit snapshots as unsaved recovery drafts after later changes. Retire only exact, clean, open-document matches; retain dirty snapshots, newer typing tails, and separately preserved field drafts. Keep genuine conflict and write-failure recovery intact.
 
 - Use a four-space tab width for bullet and checkbox indentation. Render each nesting level one full tab apart, keep wrapped text aligned, preserve legacy source indentation, and outdent older two-space lists one level at a time. Prevent first-item indentation from accidentally creating a code block.

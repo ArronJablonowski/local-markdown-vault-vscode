@@ -291,7 +291,9 @@ is not part of the callout.
 Callouts can also contain task lists, tables, fenced code, Mermaid/draw.io
 diagrams, and display math. Keep the `>` prefix on every line of those objects.
 Enter continues a nonempty quoted line. Use Shift+Enter for a blank line inside
-the panel; pressing Enter again on an empty quote exits it. Callouts can also
+the panel. Shift+Enter from the callout heading opens its body for typing,
+even with a collapsed `-` marker; the saved marker remains unchanged.
+Pressing Enter again on an empty quote exits it. Callouts can also
 start inside bulleted or numbered lists, such as `- > [!warning] Review`.
 Tab and Shift+Tab change bullet nesting inside the callout. Click the header
 (or focus it and press Enter/Space) to fold the whole section without editing

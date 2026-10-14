@@ -26,4 +26,12 @@ describe('softLineBreakPrefix', () => {
 		expect(softLineBreakPrefix('> Quoted text')).toBe('> ');
 		expect(softLineBreakPrefix('> - Quoted list item')).toBe('>   ');
 	});
+	it.each([
+		['> [!note]- Meeting', '> '],
+		['- > [!note]- Meeting', '  > '],
+		['12. > [!warning] Meeting', '    > '],
+		['> - > [!tip] Meeting', '>   > '],
+	])('preserves every callout container in %s', (heading, prefix) => {
+		expect(softLineBreakPrefix(heading)).toBe(prefix);
+	});
 });
