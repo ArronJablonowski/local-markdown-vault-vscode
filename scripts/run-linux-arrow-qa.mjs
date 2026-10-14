@@ -1,10 +1,13 @@
-// Drives installed Linux ARM64 VS Code over an SSH-forwarded loopback CDP port.
+// Drives installed Linux VS Code over an SSH-forwarded loopback CDP port.
 // Synthetic notes and an isolated profile are disposable. Editor probes only read.
 // Required: MDLP_LINUX_QA_HOST, MDLP_LINUX_QA_KEY, MDLP_LINUX_QA_EXTENSION.
 // Optional: MDLP_LINUX_QA_ARTIFACTS, MDLP_LINUX_QA_SIZES (comma-separated bytes),
 // MDLP_LINUX_QA_DIRECTIONS (down,up,right,left), MDLP_LINUX_QA_KINDS (object names),
 // MDLP_LINUX_QA_VSIX (remote archive path), MDLP_LINUX_QA_KEEP_REMOTE=1,
 // MDLP_LINUX_QA_DOM_FIRST=1 (passive frame/DOM probes before CodeMirror geometry).
+// MDLP_LINUX_QA_EXECUTABLE/CLI support Snap installations. DISPLAY_MODE=desktop
+// uses QA_DISPLAY, QA_XAUTHORITY and QA_RUNTIME_DIR without changing the monitor.
+// USE_CLI=1 keeps installed CLI launchers alive until their QA window closes.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -18,8 +21,11 @@ import { chromium } from 'playwright';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const host = required('MDLP_LINUX_QA_HOST');
-const sshOptions = ['-i', required('MDLP_LINUX_QA_KEY'), '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=2'];
+const sshOptions = ['-i', required('MDLP_LINUX_QA_KEY'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=2'];
 const installed = required('MDLP_LINUX_QA_EXTENSION');
+const executable = process.env.MDLP_LINUX_QA_EXECUTABLE ?? '/usr/share/code/code';
+const cli = process.env.MDLP_LINUX_QA_CLI ?? '/usr/bin/code';
+assert.ok(executable.startsWith('/') && cli.startsWith('/'));
 assert.match(host, /^[A-Za-z0-9][A-Za-z0-9_.@:-]+$/);
 assert.ok(installed.startsWith('/') && installed !== '/', 'Extension path must name an absolute extension directory');
 const sizes = (process.env.MDLP_LINUX_QA_SIZES ?? '120000,300000,490000').split(',').map(Number);
@@ -28,7 +34,7 @@ const directions = (process.env.MDLP_LINUX_QA_DIRECTIONS ?? 'down,up,right,left'
 assert.ok(directions.length > 0 && directions.every(direction => ['down', 'up', 'right', 'left'].includes(direction)), 'Invalid arrow directions');
 const artifacts = resolve(root, '.vscode-test', process.env.MDLP_LINUX_QA_ARTIFACTS ?? 'linux-arrow-ui');
 const local = await mkdtemp(join(tmpdir(), 'mdlp-linux-arrow-'));
-const report = { startedAt: new Date().toISOString(), platform: 'linux-arm64', completed: false, passed: false, checks: [], failures: [], files: [], samples: [], caretSamples: [], consoleErrors: [], pageErrors: [], keyPresses: 0, arrowPresses: 0 };
+const report = { startedAt: new Date().toISOString(), platform: 'linux', completed: false, passed: false, checks: [], failures: [], files: [], samples: [], caretSamples: [], consoleErrors: [], pageErrors: [], keyPresses: 0, arrowPresses: 0 };
 const kinds = ['TABLE', 'CODE', 'INDENTED', 'ER', 'FLOW', 'DRAWIO', 'CALLOUT', 'MATH', 'LIST', 'QUOTE', 'IMAGE'];
 const testedKinds = process.env.MDLP_LINUX_QA_KINDS?.split(',') ?? kinds;
 assert.ok(testedKinds.every(kind => kinds.includes(kind)), 'Invalid object kind');
@@ -36,7 +42,8 @@ let remote, processGroup, tunnel, browser, page, frame, source, file;
 await mkdir(artifacts, { recursive: true });
 
 try {
-  report.environment = (await ssh('uname -a; /usr/bin/code --version')).trim();
+  report.environment = (await ssh(`uname -a; ${quote(cli)} --version`)).trim();
+  report.platform = `linux-${(await ssh('uname -m')).trim()}`;
   remote = (await ssh('mktemp -d /tmp/mdlp-linux-arrow-XXXXXX')).trim();
   assert.match(remote, /^\/tmp\/mdlp-linux-arrow-[A-Za-z0-9]+$/);
   report.remoteTemporary = remote;
@@ -63,32 +70,45 @@ try {
   const remotePort = Number((await ssh("python3 -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\",0)); print(s.getsockname()[1]); s.close()'")).trim());
   assert.ok(remotePort > 1024 && remotePort < 65536);
   const args = [join(remote, 'Arrow QA Vault'), '--new-window', '--disable-updates', '--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--user-data-dir=${remote}/profile`, `--extensions-dir=${remote}/extensions`, '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${remotePort}`];
-  processGroup = Number((await ssh(`setsid xvfb-run -a -s '-screen 0 1600x1000x24' dbus-run-session /usr/share/code/code ${args.map(quote).join(' ')} >${quote(`${remote}/code.log`)} 2>&1 < /dev/null & printf '%s' "$!"`)).trim());
+  if (process.env.MDLP_LINUX_QA_USE_CLI === '1') args.push('--wait');
+  let launcher = "xvfb-run -a -s '-screen 0 1600x1000x24'";
+  let sessionLauncher = 'dbus-run-session';
+  if (process.env.MDLP_LINUX_QA_DISPLAY_MODE === 'desktop') {
+    const display = required('MDLP_LINUX_QA_DISPLAY'), authority = required('MDLP_LINUX_QA_XAUTHORITY'), runtime = required('MDLP_LINUX_QA_RUNTIME_DIR');
+    assert.match(display, /^:\d+(?:\.\d+)?$/); assert.ok(authority.startsWith('/') && runtime.startsWith('/'));
+    launcher = `env DISPLAY=${quote(display)} XAUTHORITY=${quote(authority)} XDG_RUNTIME_DIR=${quote(runtime)} DBUS_SESSION_BUS_ADDRESS=${quote('unix:path=' + runtime + '/bus')}`;
+    sessionLauncher = '';
+    report.displayMode = 'desktop';
+  }
+  processGroup = Number((await ssh(`setsid ${launcher} ${sessionLauncher} ${quote(executable)} ${args.map(quote).join(' ')} >${quote(`${remote}/code.log`)} 2>&1 < /dev/null & printf '%s' "$!"`)).trim());
   assert.ok(Number.isSafeInteger(processGroup) && processGroup > 1);
   const port = await reservePort();
   tunnel = spawn('ssh', [...sshOptions, '-N', '-o', 'ExitOnForwardFailure=yes', '-L', `127.0.0.1:${port}:127.0.0.1:${remotePort}`, host], { stdio: 'ignore' });
   await wait(async () => {
     try { browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 2000 }); return true; }
     catch { return false; }
-  }, 'sandboxed Linux VS Code debug endpoint', 40000);
+  }, 'Linux VS Code debug endpoint', 40000);
   await wait(() => browser.contexts().flatMap(c => c.pages()).length > 0, 'workbench page');
   page = browser.contexts().flatMap(c => c.pages()).find(p => p.url().includes('workbench')) ?? browser.contexts()[0].pages()[0];
   page.setDefaultTimeout(10000);
+  report.viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scale: devicePixelRatio }));
   page.on('pageerror', error => report.pageErrors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') report.consoleErrors.push({ text: message.text(), location: message.location() }); });
   await page.bringToFront();
   const trust = page.getByRole('button', { name: /Yes, I trust the authors/ });
   await trust.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
   if (await trust.isVisible()) await trust.click();
-  if (await page.getByText('Restricted Mode', { exact: true }).count()) {
-    await press('Control+Shift+p');
-    const palette = page.locator('.quick-input-widget:visible .quick-input-box input');
-    await palette.fill('>Workspaces: Manage Workspace Trust');
-    await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Manage Workspace Trust' }).first().click();
-    await page.getByRole('button', { name: 'Trust', exact: true }).click();
+  const manageTrust = page.getByText('Manage', { exact: true });
+  await manageTrust.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
+  if (await manageTrust.isVisible()) {
+    // Startup can paint the Restricted Mode banner after an early count probe.
+    // Verify trust explicitly rather than misreport disabled diagrams as errors.
+    // Use the visible banner action; installed builds can defer palette entries.
+    await manageTrust.click();
+    if (!await page.getByText('You trust this folder', { exact: true }).isVisible()) await page.getByRole('button', { name: 'Trust', exact: true }).click();
     if (await trust.isVisible()) await trust.click();
     await page.getByText('You trust this folder', { exact: true }).waitFor({ state: 'visible' });
-    await wait(async () => !await page.getByText('Restricted Mode', { exact: true }).count(), 'trust only the synthetic workspace');
+    await press('Control+w');
   }
   report.syntheticWorkspaceTrusted = true;
   await press('Escape');
@@ -97,7 +117,14 @@ try {
     await press('Control+w');
     await modal.waitFor({ state: 'hidden' });
   }
-  await page.getByRole('tab', { name: /Local Markdown Vault/ }).click();
+  const vaultTab = page.getByRole('tab', { name: /Local Markdown Vault/ });
+  if (await vaultTab.isVisible()) await vaultTab.click();
+  else {
+    // Short monitors move activity-bar icons into VS Code's overflow menu.
+    await press('Control+Shift+p');
+    await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
+    await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
+  }
   for (const [index, current] of report.files.entries()) {
     file = current;
     source = await readFile(join(local, 'Arrow QA Vault', file.name), 'utf8');
@@ -178,6 +205,16 @@ try {
   if (remote) {
     await writeFile(join(artifacts, 'linux-code.log'), await ssh(`cat ${quote(`${remote}/code.log`)}`).catch(error => String(error)));
     if (processGroup) await ssh(`kill -TERM -- -${processGroup}`).catch(() => {});
+    // CLI launchers may detach the GUI from their original process group.
+    // Match only this private profile, never the user's other VS Code windows.
+    if (remote) await ssh(`python3 -c ${quote(`import os,signal
+target='--user-data-dir=${remote}/profile'
+for item in os.listdir('/proc'):
+ if not item.isdigit(): continue
+ try:
+  args=[part.decode() for part in open('/proc/'+item+'/cmdline','rb').read().split(bytes([0]))]
+  if target in args: os.kill(int(item),signal.SIGTERM)
+ except (OSError,UnicodeError): pass`)} `).catch(() => {});
   }
   await browser?.close().catch(() => {});
   tunnel?.kill();

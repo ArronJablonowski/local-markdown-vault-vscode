@@ -101,6 +101,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 	// Never replace a workspace the user chose. In an empty window, create the
 	// local default vault and stop because vscode.openFolder reloads this host.
 	if (await openDefaultVaultWhenNeeded()) return undefined;
+	// Apply the selected editor before exposing Vault commands. Index/style
+	// initialization can take time, and Quick Open otherwise races this setting.
+	try { await syncDefaultEditorAssociation(); }
+	catch {
+		// Keep manual editor registration available if settings are unwritable.
+		// The final settings sync below retries and reports its existing failure.
+	}
 	context.subscriptions.push({ dispose: disposeCaseRenameCoordinators });
 	initializeDiagnostics(context);
 	const markdownPreviewSupport = createMarkdownPreviewSupport();

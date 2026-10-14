@@ -1,23 +1,30 @@
-// Native Linux clipboard and Lock/Edit QA in a private Xvfb session.
+// Native Linux clipboard and Lock/Edit QA in a private profile.
 // Required: MDLP_LINUX_QA_HOST, MDLP_LINUX_QA_KEY, MDLP_LINUX_QA_EXTENSION.
 // Optional: MDLP_LINUX_CLIPBOARD_ARTIFACTS. No document edits use editor APIs.
+// The arrow runner's EXECUTABLE, CLI and desktop DISPLAY options are supported.
+// USE_CLI=1 keeps Xvfb alive; TOOL_PATH optionally provides user-space QA tools.
+// WINDOW_MANAGER and WM_LIBRARY_PATH provide focus management inside Xvfb only.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const host = required('MDLP_LINUX_QA_HOST'), installed = required('MDLP_LINUX_QA_EXTENSION');
+const executable = process.env.MDLP_LINUX_QA_EXECUTABLE ?? '/usr/share/code/code';
+const cli = process.env.MDLP_LINUX_QA_CLI ?? '/usr/bin/code';
+assert.ok(executable.startsWith('/') && cli.startsWith('/'));
 assert.match(host, /^[A-Za-z0-9][A-Za-z0-9_.@:-]+$/);
 assert.ok(installed.startsWith('/') && installed !== '/');
-const sshOptions = ['-i', required('MDLP_LINUX_QA_KEY'), '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10'];
+const sshOptions = ['-i', required('MDLP_LINUX_QA_KEY'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10'];
 const artifacts = resolve(root, '.vscode-test', process.env.MDLP_LINUX_CLIPBOARD_ARTIFACTS ?? 'linux-clipboard-lock-ui');
+const caseFilter = process.env.MDLP_LINUX_QA_TEST_GREP ? new RegExp(process.env.MDLP_LINUX_QA_TEST_GREP) : undefined;
 const local = await mkdtemp(join(tmpdir(), 'mdlp-linux-clipboard-'));
 const unicode = 'Unicode clipboard fixture\nCaf\u00e9, na\u00efve, \u6771\u4eac, \ud83d\ude80\nFinal multiline record.';
 const code = 'const message = "Clipboard \u03a9 \ud83d\ude80";\nconsole.log(message);';
@@ -37,22 +44,29 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
-const report = { startedAt: new Date().toISOString(), platform: 'linux-arm64', completed: false, passed: false, checks: [], failures: [], samples: [], files: [], pageErrors: [], consoleErrors: [], keys: 0, clipboardReads: 0 };
+const report = { startedAt: new Date().toISOString(), platform: 'linux', completed: false, passed: false, checks: [], skipped: [], failures: [], samples: [], files: [], pageErrors: [], consoleErrors: [], keys: 0, clipboardReads: 0 };
+report.editorAssociationsSeeded = process.env.MDLP_LINUX_QA_EXPLICIT_ASSOCIATIONS !== '0';
 let remote, processGroup, tunnel, browser, page, frame, current, display, authority;
 await mkdir(artifacts, { recursive: true });
 
 try {
-  report.environment = (await ssh('uname -a; /usr/bin/code --version')).trim();
+  report.environment = (await ssh(`uname -a; ${q(cli)} --version`)).trim();
+  report.platform = `linux-${(await ssh('uname -m')).trim()}`;
   remote = (await ssh('mktemp -d /tmp/mdlp-linux-clipboard-XXXXXX')).trim();
   assert.match(remote, /^\/tmp\/mdlp-linux-clipboard-[A-Za-z0-9]+$/);
   report.remoteTemporary = remote;
   await mkdir(join(local, 'profile/User'), { recursive: true });
   await mkdir(join(local, 'Clipboard QA Vault'));
+  await mkdir(join(local, 'Clipboard QA Vault', 'Vault operations'));
   await writeFile(join(local, 'profile/User/settings.json'), JSON.stringify({
     'workbench.startupEditor': 'none', 'update.mode': 'none', 'telemetry.telemetryLevel': 'off',
     'window.dialogStyle': 'custom', 'files.autoSave': 'off', 'git.openRepositoryInParentFolders': 'never',
     'mdLivePreview.defaultEditor': 'livePreview', 'mdLivePreview.defaultEditingMode': 'editing',
     'mdLivePreview.autoSave': true, 'mdLivePreview.vault.openBehavior': 'newTab',
+    // Quick Open can precede the extension's asynchronous first-run settings sync.
+    ...(process.env.MDLP_LINUX_QA_EXPLICIT_ASSOCIATIONS === '0' ? {} : {
+      'workbench.editorAssociations': { '*.md': 'mdLivePreview.editor', '*.markdown': 'mdLivePreview.editor' },
+    }),
   }, null, 2));
   for (const [name, text] of initial) await writeFile(join(local, 'Clipboard QA Vault', name), text);
   await command('scp', [...sshOptions, '-r', join(local, 'profile'), join(local, 'Clipboard QA Vault'), `${host}:${remote}/`]);
@@ -60,22 +74,47 @@ try {
   report.extensionSha256 = (await ssh(`sha256sum ${q(`${installed}/dist/extension.js`)} ${q(`${installed}/dist/webview-editor.js`)}`)).trim();
   const remotePort = Number((await ssh("python3 -c 'import socket; s=socket.socket(); s.bind((\"127.0.0.1\",0)); print(s.getsockname()[1]); s.close()'")).trim());
   const args = [`${remote}/Clipboard QA Vault`, '--new-window', '--disable-updates', '--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--user-data-dir=${remote}/profile`, `--extensions-dir=${remote}/extensions`, '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${remotePort}`];
-  const launch = `printf '%s\\n%s\\n' "$DISPLAY" "$XAUTHORITY" > ${q(`${remote}/display.txt`)}; exec dbus-run-session /usr/share/code/code ${args.map(q).join(' ')}`;
-  processGroup = Number((await ssh(`setsid xvfb-run -a -s '-screen 0 1600x1000x24' sh -c ${q(launch)} >${q(`${remote}/code.log`)} 2>&1 < /dev/null & printf '%s' "$!"`)).trim());
+  if (process.env.MDLP_LINUX_QA_USE_CLI === '1') args.push('--wait');
+  const toolPath = process.env.MDLP_LINUX_QA_TOOL_PATH;
+  if (toolPath) assert.ok(toolPath.startsWith('/') && !toolPath.includes(':'));
+  const toolEnv = toolPath ? `env PATH=${q(toolPath + ':/usr/bin:/bin:/snap/bin')} ` : '';
+  let launcher = "xvfb-run -a -s '-screen 0 1600x1000x24'";
+  let sessionLauncher = 'dbus-run-session';
+  if (process.env.MDLP_LINUX_QA_DISPLAY_MODE === 'desktop') {
+    const desktopDisplay = required('MDLP_LINUX_QA_DISPLAY'), desktopAuthority = required('MDLP_LINUX_QA_XAUTHORITY'), runtime = required('MDLP_LINUX_QA_RUNTIME_DIR');
+    assert.match(desktopDisplay, /^:\d+(?:\.\d+)?$/); assert.ok(desktopAuthority.startsWith('/') && runtime.startsWith('/'));
+    launcher = `env DISPLAY=${q(desktopDisplay)} XAUTHORITY=${q(desktopAuthority)} XDG_RUNTIME_DIR=${q(runtime)} DBUS_SESSION_BUS_ADDRESS=${q('unix:path=' + runtime + '/bus')}`;
+    sessionLauncher = '';
+    report.displayMode = 'desktop';
+  }
+  const wm = process.env.MDLP_LINUX_QA_WINDOW_MANAGER, wmLibraries = process.env.MDLP_LINUX_QA_WM_LIBRARY_PATH;
+  if (wm) assert.ok(wm.startsWith('/') && process.env.MDLP_LINUX_QA_DISPLAY_MODE !== 'desktop', 'QA window manager must use a private display');
+  if (wmLibraries) assert.ok(wmLibraries.startsWith('/'));
+  const wmLaunch = wm ? `${wmLibraries ? 'env LD_LIBRARY_PATH=' + q(wmLibraries) + ' ' : ''}${q(wm)} >${q(`${remote}/wm.log`)} 2>&1 & ` : '';
+  const launch = `printf '%s\\n%s\\n' "$DISPLAY" "$XAUTHORITY" > ${q(`${remote}/display.txt`)}; ${wmLaunch}exec ${sessionLauncher} ${q(executable)} ${args.map(q).join(' ')}`;
+  processGroup = Number((await ssh(`setsid ${toolEnv}${launcher} sh -c ${q(launch)} >${q(`${remote}/code.log`)} 2>&1 < /dev/null & printf '%s' "$!"`)).trim());
   assert.ok(Number.isSafeInteger(processGroup) && processGroup > 1);
   const port = await reservePort();
   tunnel = spawn('ssh', [...sshOptions, '-N', '-o', 'ExitOnForwardFailure=yes', '-L', `127.0.0.1:${port}:127.0.0.1:${remotePort}`, host], { stdio: 'ignore' });
   await wait(async () => { try { browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 2000 }); return true; } catch { return false; } }, 'Linux workbench', 40000);
   [display, authority] = (await ssh(`cat ${q(`${remote}/display.txt`)}`)).trim().split('\n');
-  assert.match(display, /^:\d+$/); assert.ok(authority.startsWith('/tmp/'));
+  assert.match(display, /^:\d+$/); assert.ok(authority.startsWith(process.env.MDLP_LINUX_QA_DISPLAY_MODE === 'desktop' ? '/run/user/' : '/tmp/'));
   report.clipboardDisplay = display;
+  await wait(() => browser.contexts().flatMap(context => context.pages()).some(candidate => candidate.url().includes('workbench')), 'workbench page', 15000);
   page = browser.contexts().flatMap(context => context.pages()).find(candidate => candidate.url().includes('workbench'));
   assert.ok(page); page.setDefaultTimeout(10000);
+  report.viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scale: devicePixelRatio }));
   page.on('pageerror', error => report.pageErrors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') report.consoleErrors.push(message.text()); });
   await page.bringToFront();
   await trustSyntheticWorkspace();
-  await page.getByRole('tab', { name: /Local Markdown Vault/ }).click();
+  const vaultTab = page.getByRole('tab', { name: /Local Markdown Vault/ });
+  if (await vaultTab.isVisible()) await vaultTab.click();
+  else {
+    await press('Control+Shift+p');
+    await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
+    await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
+  }
 
   await check('Ctrl+C copies selected Unicode exactly', async () => {
     await open('Unicode clipboard.md'); await find('Caf\u00e9'); await press('Control+c');
@@ -281,9 +320,67 @@ try {
     assert.equal(await frame.locator('.mlp-table td').last().innerText(), 'Preserve neighbor');
     await screenshot('nested-table-list-edited');
   });
+  await check('Vault UI creates, edits, renames and moves Unicode files and folders', async () => {
+    const row = label => page.getByRole('treeitem', { name: label, exact: true });
+    const menu = async (label, action) => {
+      // Reveal virtualized root/folder rows through ordinary tree navigation.
+      await press('Control+Shift+p');
+      await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
+      await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
+      await press('Home');
+      await row(label).click({ button: 'right' });
+      await delay(250); // Let the menu-opening gesture finish before activating.
+      const item = page.getByRole('menuitem').filter({ hasText: action });
+      await item.click();
+      if (await item.isVisible()) await press('Enter');
+    };
+    const input = async value => {
+      const box = page.locator('.quick-input-widget:visible .quick-input-box input');
+      await box.fill(value); await box.press('Enter');
+      await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
+    };
+    const exists = async name => (await ssh(`[ -e ${q(`${remote}/Clipboard QA Vault/${name}`)} ] && printf 1 || printf 0`)) === '1';
+    const expand = async label => {
+      if (await row(label).getAttribute('aria-expanded') !== 'true') { await row(label).click(); await press('ArrowRight'); }
+    };
+    await menu('Folder: Vault operations', 'New Folder'); await input('Review drafts');
+    await wait(() => exists('Vault operations/Review drafts'), 'new folder');
+    await expand('Folder: Vault operations');
+    await menu('Folder: Vault operations/Review drafts', 'New Note'); await input('Meeting');
+    let name = 'Vault operations/Review drafts/Meeting.md';
+    await wait(() => exists(name), 'new note');
+    const original = await disk(name); initial.set(name, original); expected.set(name, original);
+    await open(name, true); await press('Control+a');
+    await page.keyboard.type('# Meeting review', { delay: 15 }); await press('Enter'); await press('Enter');
+    await page.keyboard.type('> [!note]+ Notes', { delay: 15 }); await press('Shift+Enter');
+    await page.keyboard.type('Confirm owner.', { delay: 15 });
+    expected.set(name, '# Meeting review\n\n> [!note]+ Notes\n> Confirm owner.'); await saved();
+    const rememberRename = next => {
+      expected.set(next, expected.get(name)); initial.set(next, initial.get(name));
+      expected.delete(name); initial.delete(name); name = next;
+    };
+    await expand('Folder: Vault operations/Review drafts');
+    await menu(`File: ${name}`, 'Rename Vault Item'); await input('Meeting reviewed Ω.md');
+    const renamed = 'Vault operations/Review drafts/Meeting reviewed Ω.md';
+    await wait(() => exists(renamed), 'Unicode note rename'); assert.equal(await exists(name), false);
+    rememberRename(renamed);
+    await menu('Folder: Vault operations/Review drafts', 'Rename Vault Item'); await input('Archive');
+    const archived = 'Vault operations/Archive/Meeting reviewed Ω.md';
+    await wait(() => exists(archived), 'folder rename'); rememberRename(archived);
+    await expand('Folder: Vault operations/Archive');
+    await menu(`File: ${name}`, 'Move Vault Item');
+    const picker = page.locator('.quick-input-widget:visible');
+    await picker.locator('.quick-input-box input').fill('Vault operations');
+    await picker.locator('.monaco-list-row').filter({ hasText: 'Vault operations' }).filter({ hasNotText: 'Archive' }).first().click();
+    const moved = 'Vault operations/Meeting reviewed Ω.md';
+    await wait(() => exists(moved), 'note move'); assert.equal(await exists(name), false);
+    rememberRename(moved); await open(name); await saved();
+  });
+  assert.ok(report.checks.length > 0, 'No Linux QA cases completed successfully');
   for (const [name, text] of expected) {
     const actual = await disk(name);
     report.files.push({ name, initialSha256: hash(initial.get(name)), expectedSha256: hash(text), finalSha256: hash(actual), exactExpected: actual === text });
+    await mkdir(dirname(join(artifacts, name)), { recursive: true });
     await writeFile(join(artifacts, name), actual);
     assert.equal(actual, text, `Final source mismatch: ${name}`);
   }
@@ -296,6 +393,15 @@ try {
 } finally {
   if (remote) await writeFile(join(artifacts, 'linux-code.log'), await ssh(`cat ${q(`${remote}/code.log`)}`).catch(String));
   if (processGroup) await ssh(`kill -TERM -- -${processGroup}`).catch(() => {});
+  // Installed CLI launchers can detach. Close only this disposable profile.
+  if (remote) await ssh(`python3 -c ${q(`import os,signal
+target='--user-data-dir=${remote}/profile'
+for item in os.listdir('/proc'):
+ if not item.isdigit(): continue
+ try:
+  args=[part.decode() for part in open('/proc/'+item+'/cmdline','rb').read().split(bytes([0]))]
+  if target in args: os.kill(int(item),signal.SIGTERM)
+ except (OSError,UnicodeError): pass`)} `).catch(() => {});
   await browser?.close().catch(() => {}); tunnel?.kill();
   if (report.passed && remote) { await ssh(`rm -r -- ${q(remote)}`).catch(error => { report.cleanupError = String(error); }); }
   report.finishedAt = new Date().toISOString();
@@ -321,7 +427,9 @@ async function disk(name = current) { return ssh(`cat ${q(`${remote}/Clipboard Q
 async function clipboard() {
   report.clipboardReads++;
   const script = 'import gi,json; gi.require_version("Gtk","3.0"); from gi.repository import Gtk,Gdk; Gtk.init([]); print(json.dumps(Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).wait_for_text()))';
-  return JSON.parse(await ssh(`env DISPLAY=${q(display)} XAUTHORITY=${q(authority)} python3 -c ${q(script)}`));
+  // GTK prefers Wayland on Ubuntu even when DISPLAY names our private X server.
+  // Force the same X11 backend as Electron so the probe never reads NOC's clipboard.
+  return JSON.parse(await ssh(`env GDK_BACKEND=x11 DISPLAY=${q(display)} XAUTHORITY=${q(authority)} python3 -c ${q(script)}`));
 }
 async function copied(text) { await wait(async () => await clipboard() === text, 'exact native clipboard'); }
 async function saved() {
@@ -340,13 +448,16 @@ async function find(text) {
   await frame.locator('.cm-search input[name="search"]').fill(text); await press('Enter'); await press('Escape');
   assert.equal(await frame.evaluate(() => { const s = document.querySelector('.cm-content').cmTile.root.view.state; return s.sliceDoc(s.selection.main.from, s.selection.main.to); }), text);
 }
-async function open(name) {
+async function open(name, alreadyOpening = false) {
   current = name;
+  frame = undefined; // Never treat a previous note's renderer as this file's draft.
   // The native vault tree virtualizes rows when the fixture set grows. Open
   // the exact synthetic path through Quick Open, independent of sidebar height.
-  await press('Control+p');
-  await page.locator('.quick-input-widget:visible .quick-input-box input').fill(`${remote}/Clipboard QA Vault/${name}`);
-  await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: name }).first().click();
+  if (!alreadyOpening) {
+    await press('Escape'); await press('Control+p');
+    await page.locator('.quick-input-widget:visible .quick-input-box input').fill(`${remote}/Clipboard QA Vault/${name}`);
+    await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: basename(name) }).first().click();
+  }
   await wait(async () => {
     for (const candidate of page.frames()) {
       if (candidate.isDetached() || !await candidate.locator('.cm-content').count()) continue;
@@ -360,17 +471,20 @@ async function trustSyntheticWorkspace() {
   const trust = page.getByRole('button', { name: /Yes, I trust the authors/ });
   await trust.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
   if (await trust.isVisible()) await trust.click();
-  if (await page.getByText('Restricted Mode', { exact: true }).count()) {
-    await press('Control+Shift+p'); await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Workspaces: Manage Workspace Trust');
-    await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Manage Workspace Trust' }).first().click();
-    await page.getByRole('button', { name: 'Trust', exact: true }).click();
+  const manageTrust = page.getByText('Manage', { exact: true });
+  await manageTrust.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
+  if (await manageTrust.isVisible()) {
+    await manageTrust.click();
+    if (!await page.getByText('You trust this folder', { exact: true }).isVisible()) await page.getByRole('button', { name: 'Trust', exact: true }).click();
     if (await trust.isVisible()) await trust.click();
     await page.getByText('You trust this folder', { exact: true }).waitFor({ state: 'visible' });
+    await press('Control+w');
   }
   await press('Escape'); const modal = page.locator('.monaco-modal-editor-block');
   if (await modal.isVisible()) { await press('Control+w'); await modal.waitFor({ state: 'hidden' }); }
 }
 async function check(label, operation) {
+  if (caseFilter && !caseFilter.test(label)) { report.skipped.push(label); return; }
   try { await operation(); report.checks.push(label); console.log(`PASS ${label}`); }
   catch (error) {
     report.failures.push({ label, file: current, error: String(error), stack: error.stack, actualSource: frame && await state().catch(() => undefined), expectedSource: expected.get(current), actualDisk: current && await disk().catch(() => undefined), clipboard: display && await clipboard().catch(() => undefined) });

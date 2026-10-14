@@ -1,5 +1,7 @@
 # Changelog
 
+- Apply the configured default editor before exposing Vault commands during startup, preventing Quick Open from racing delayed index/style initialization on fresh profiles. Qualify Ubuntu/Snap on a short NOC display; support Wayland/X11 clipboard probes, isolated window managers, and native file/folder QA in the Linux runners.
+
 - Preserve all nested quote containers when Shift+Enter continues inside list-nested callout bodies. Retain task continuation alignment without carrying it into subsequent tables. Add meeting redrafts with mouse selections, arrow corrections, deletion, nested bullets, checked tasks, tables, folding, and exact edit-stream checks.
 
 - Expand a callout's displayed body when Shift+Enter continues from its heading, including collapsed meeting sections. Preserve saved fold markers and quote/list containers, and keep locked content read-only. Add multi-meeting keyboard, table, task, and folding regressions at narrow and wide widths.
