@@ -16,14 +16,18 @@ export function softLineBreakPrefix(line: string): string {
 		// Keep quote markers after list containers: '- > [!note]' needs '  > '.
 		return line.slice(0, callout.markerOffset).replace(/(?:[-+*]|\d+[.)])([ \t]+)/g, marker => marker.replace(/[^\t]/g, ' '));
 	}
-	const container = /^([ \t]*(?:>[ \t]?)*)(?:(?:[-+*]|\d+[.)])[ \t]+(?:\[[^\]\r\n]\][ \t]+)?)/.exec(line);
+	// Nested list containers can place several spaces between quote markers.
+	// Preserve all of them instead of stopping at the first outer quote.
+	const container = /^([ \t]*(?:>[ \t]*)*)(?:(?:[-+*]|\d+[.)])[ \t]+(?:\[[^\]\r\n]\][ \t]+)?)/.exec(line);
 	if (container) {
 		const outer = container[1];
 		const marker = container[0].slice(outer.length);
 		return outer + marker.replace(/[^\t]/g, ' ');
 	}
 
-	const quote = /^([ \t]*(?:>[ \t]?)+)/.exec(line);
+	// Preserve spacing between quotes, but not a previous task's trailing
+	// alignment spaces: carrying those forward can turn a table into code.
+	const quote = /^([ \t]*(?:>[ \t]*(?=>))*>[ \t]?)/.exec(line);
 	if (quote) return quote[1];
 	return /^[ \t]*/.exec(line)?.[0] ?? '';
 }

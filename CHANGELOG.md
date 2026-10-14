@@ -1,5 +1,7 @@
 # Changelog
 
+- Preserve all nested quote containers when Shift+Enter continues inside list-nested callout bodies. Retain task continuation alignment without carrying it into subsequent tables. Add meeting redrafts with mouse selections, arrow corrections, deletion, nested bullets, checked tasks, tables, folding, and exact edit-stream checks.
+
 - Expand a callout's displayed body when Shift+Enter continues from its heading, including collapsed meeting sections. Preserve saved fold markers and quote/list containers, and keep locked content read-only. Add multi-meeting keyboard, table, task, and folding regressions at narrow and wide widths.
 
 - Stop treating already-saved opening and edit snapshots as unsaved recovery drafts after later changes. Retire only exact, clean, open-document matches; retain dirty snapshots, newer typing tails, and separately preserved field drafts. Keep genuine conflict and write-failure recovery intact.

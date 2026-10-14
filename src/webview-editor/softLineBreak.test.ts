@@ -27,6 +27,15 @@ describe('softLineBreakPrefix', () => {
 		expect(softLineBreakPrefix('> - Quoted list item')).toBe('>   ');
 	});
 	it.each([
+		['>   > Nested body', '>   > '],
+		['>       > Nested body', '>       > '],
+		['>\t> Nested body', '>\t> '],
+		['>     - [ ] Task', '>           '],
+		['>       ', '> '],
+	])('retains nested quote and list spacing in %s', (body, prefix) => {
+		expect(softLineBreakPrefix(body)).toBe(prefix);
+	});
+	it.each([
 		['> [!note]- Meeting', '> '],
 		['- > [!note]- Meeting', '  > '],
 		['12. > [!warning] Meeting', '    > '],
