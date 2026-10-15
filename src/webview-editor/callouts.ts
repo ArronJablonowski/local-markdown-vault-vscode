@@ -41,7 +41,7 @@ const TYPE_ICONS: Readonly<Record<string, string>> = {
 };
 
 export function calloutIcon(type: string): string {
-	return TYPE_ICONS[type] ?? '◆';
+	return Object.prototype.hasOwnProperty.call(TYPE_ICONS, type) ? TYPE_ICONS[type] : '◆';
 }
 
 /** Fixed local geometry only: Markdown never supplies SVG markup or attributes. */
@@ -73,7 +73,8 @@ export function parseCalloutHeader(rawLine: string, blockquoteDepth?: number): P
 	const markerDepth = [...match[1]].filter((character) => character === '>').length;
 	if (blockquoteDepth !== undefined && markerDepth !== blockquoteDepth) return undefined;
 	const authoredType = match[2].toLocaleLowerCase();
-	const type = TYPE_ALIASES[authoredType] ?? authoredType;
+	// Markdown names must never resolve inherited Object.prototype members.
+	const type = Object.prototype.hasOwnProperty.call(TYPE_ALIASES, authoredType) ? TYPE_ALIASES[authoredType] : authoredType;
 	const title = match[4].trim() || type.charAt(0).toLocaleUpperCase() + type.slice(1);
 	return {
 		type,

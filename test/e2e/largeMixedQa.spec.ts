@@ -95,12 +95,25 @@ test('large note mixed widgets survive repeated scrolling, folding, editing, and
 	const line = page.locator('.cm-line', { hasText: 'Final editable paragraph.' });
 	// Find scrolls after CodeMirror's next measurement; do not drag using a stale box.
 	await line.scrollIntoViewIfNeeded();
-	const box = (await line.boundingBox())!;
+	await line.hover(); // Wait for Playwright's visible/stable/hit-target checks.
+	const box = await line.evaluate(async el => {
+		await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		const range = document.createRange(); range.selectNodeContents(el);
+		const bounds = range.getBoundingClientRect();
+		return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+	});
+	// Use rendered glyph bounds, not the full-width line's empty right margin.
 	await page.mouse.move(box.x + 1, box.y + box.height / 2);
 	await page.mouse.down();
 	await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 20 });
 	await page.mouse.up();
-	expect(await page.evaluate(() => window.getSelection()?.toString())).toContain('Final editable paragraph.');
+	const diagnostics = await line.evaluate((el, before) => ({ before, after: el.getBoundingClientRect().toJSON(), viewport: { width: innerWidth, height: innerHeight } }), box);
+	// CodeMirror may redraw its DOM selection after a large viewport measure;
+	// verify the authoritative selection that Copy/Delete actually operate on.
+	await expect.poll(() => page.locator('.cm-content').evaluate((el: any) => {
+		const state = el.cmTile.root.view.state;
+		return state.sliceDoc(state.selection.main.from, state.selection.main.to);
+	}), { message: JSON.stringify(diagnostics) }).toContain('Final editable paragraph.');
 	await page.keyboard.press('Backspace');
 	await expect(line).toHaveCount(0);
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');

@@ -10,9 +10,10 @@
 // display; CLOSE_REPEATS=0..20 adds immediate-close stress cases.
 // RAPID_MIXED_QA=1 adds large mixed-object notes with immediate file switching.
 // WINDOW_RESTART_QA=1 closes and relaunches the entire private workbench.
+// CALLOUT_OBJECT_QA=1 adds rendered mixed-object callout edits and exact saves.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -55,6 +56,16 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
+const calloutObjectCases = [];
+if (process.env.MDLP_LINUX_CALLOUT_OBJECT_QA === '1') {
+  assert.equal(process.env.MDLP_LINUX_PASTE_SAVE_QA, '1');
+  const fixture = await readFile(join(root, 'test/fixtures/callout-qa/mixed-objects.md'), 'utf8');
+  for (const type of ['warning', 'constructor', '__proto__']) {
+    const name = `Callout objects ${type}.md`, title = `Mixed ${type}`;
+    const text = fixture.replace('[!warning]+ Mixed objects', `[!${type}]+ ${title}`);
+    initial.set(name, text); expected.set(name, text); calloutObjectCases.push({ name, title, text });
+  }
+}
 // Mixed objects expose redraw/save races that prose-only padding cannot cover.
 const rapidCases = [];
 if (process.env.MDLP_LINUX_RAPID_MIXED_QA === '1') {
@@ -199,6 +210,27 @@ try {
     await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
     await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
   }
+
+  for (const item of calloutObjectCases) await check(`Callout objects native ${item.name}`, async () => {
+    await open(item.name); await find('Final details.'); await press('ArrowRight'); await press('Shift+Enter');
+    await page.keyboard.type('Decision retained xx'); await press('Backspace'); await press('Backspace');
+    await page.keyboard.type('now');
+    let text = item.text.replace('Final details.', 'Final details.\n> Decision retained now'); expected.set(current, text); await saved();
+    await find('After the callout.'); await press('ArrowRight');
+    await frame.locator('.mlp-checkbox').click(); text = text.replace('[ ] Review task', '[x] Review task'); expected.set(current, text); await saved();
+    await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    await page.keyboard.type('Reviewed'); text = text.replace('| Alpha |', '| Reviewed |'); expected.set(current, text);
+    const header = frame.getByRole('button', { name: `${item.title} callout`, exact: true });
+    await header.click(); await saved();
+    assert.equal(await frame.locator('.mlp-table, .mlp-math, .mlp-drawio-wrap').count(), 0);
+    await header.click();
+    await wait(async () => await frame.locator('.mlp-drawio-wrap svg').count() === 1 && await frame.locator('.mlp-math-block math').count() === 1, 'expanded mixed objects');
+    assert.equal(await frame.locator('.mlp-table td').first().innerText(), 'Reviewed');
+    await frame.locator('.mlp-copy-code-btn').click();
+    await copied('const first = 1;\nconst second = 2;\nconst third = 3;\nconst fourth = 4;\nconst fifth = 5;\nconst sixth = 6;\nconst seventh = 7;\nconsole.log(first, second, third);');
+    await closeCurrentTab(); await open(item.name); await saved();
+    await screenshot(`callout-objects-${item.title}`);
+  });
 
   for (const item of listCases) await check(`Callout/list native ${JSON.stringify(item)}`, async () => {
     await open(item.name); await press('Control+End'); await press('Enter');
@@ -810,7 +842,16 @@ async function open(name, alreadyOpening = false) {
       await page.mouse.move(box.x + 80, Math.max(150, box.y + 40));
       await page.mouse.wheel(0, 250); await delay(100);
     }
-    assert.ok(opened, `Vault tree file not found: ${name}`);
+    if (!opened) {
+      // Metadata panes can shrink the virtualized tree during long matrices.
+      // Fall back to native Quick Open, never typing the path into the editor.
+      report.treeOpenFallbacks = (report.treeOpenFallbacks ?? 0) + 1;
+      await press('Control+p');
+      const input = page.locator('.quick-input-widget:visible .quick-input-box input');
+      await input.waitFor({ state: 'visible' });
+      await input.fill(`${remote}/Clipboard QA Vault/${name}`);
+      await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: basename(name) }).first().click();
+    }
   } else if (!alreadyOpening) {
     await press('Escape'); await press('Control+p');
     const input = page.locator('.quick-input-widget:visible .quick-input-box input');

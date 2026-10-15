@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { calloutIcon, parseCalloutHeader } from './callouts';
 
 describe('Obsidian callout headers', () => {
+	it.each(['constructor', '__proto__', 'hasOwnProperty'])('treats inherited object names as ordinary custom callouts: %s', type => {
+		const normalized = type.toLowerCase();
+		expect(parseCalloutHeader(`> [!${type}]`, 1)).toMatchObject({ type: normalized });
+		expect(calloutIcon(normalized)).toBe('◆');
+	});
 	it('parses titles and collapsed state', () => {
 		expect(parseCalloutHeader('> [!note]- Details', 1)).toMatchObject({
 			type: 'note', title: 'Details', collapsed: true,

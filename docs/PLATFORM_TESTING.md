@@ -249,3 +249,51 @@ unit suite passed when rerun without that load. Type checking also passed.
 Final VSIX verification and trusted/restricted/disabled packaged smoke tests
 passed. The matching VSIX was installed in the regular NOC and Mac profiles;
 existing personal windows were not forcibly reloaded.
+
+### Callout mixed-object redraft QA — October 15, 2026
+
+Confirmed and fixed a callout parser availability bug: `[!constructor]` and
+`[!__proto__]` resolved inherited members of the plain alias/icon dictionaries.
+Without an authored title, parsing threw `type.charAt is not a function`;
+rendering with a title could also receive a non-string type. Both lookups now
+accept own keys only. Unknown names retain ordinary custom-callout behavior.
+This was a rendering/parser failure, not evidence of arbitrary code execution.
+
+New browser tests exercise nested meeting callouts at 480 and 1100 pixels:
+character-wise body/code revisions, Shift+Enter continuation, checkbox toggles,
+live table-cell changes followed immediately by folding, independent inner and
+outer folds, Mermaid and math restoration, exact quoted-code clipboard payloads,
+and unchanged outside text. Reserved-name callouts also render, edit tasks, and
+fold tables without page errors. Existing callout suites cover hostile/inert
+titles, all named families and aliases, locked mode, mouse selection, table
+row/column operations, draw.io, math, blank-line continuation, source replacement,
+EOF exit, and marker/indent alignment.
+
+The native Ubuntu runner adds `MDLP_LINUX_CALLOUT_OBJECT_QA=1` alongside the
+paste/save harness. Three disposable rich notes contain callouts, bullets/tasks,
+tables, inline formatting, Mermaid, draw.io, display math, and long fenced code.
+Native typing, Backspace, Shift+Enter, task clicks, rendered-cell edits, folding,
+code Copy, tab close/reopen, and exact file comparisons exercise real VS Code,
+not the browser host stub. It also repeats the existing 45-case list/container
+matrix and four meeting-callout workflows. Clipboard operations remain on the
+private X11 display; personal notes and the NOC desktop clipboard are untouched.
+
+The 48 initial native object/list workflows passed. Four meeting fixtures were
+not reached because the virtualized tree became short after metadata panes
+opened; the driver now falls back to guarded native Quick Open. All four passed
+in `.vscode-test/noc-callout-meetings-final-2026-10-15`. Final production-bundle
+object qualification passed three workflows with all 25 files exact and no
+page errors: `.vscode-test/noc-callout-objects-packaged-2026-10-15`.
+The webview SHA-256 is
+`1fec885c4262dbf2c850c81d131f2662c3d1ae4369445016408809f7968f5ce8`.
+All 2,084 unit tests passed; the focused callout browser groups passed 174
+checks. The initial full browser run passed 1,132 checks but hit an intermittent
+large-note mouse-selection assertion. The test now uses rendered glyph bounds,
+waits for a stable hit target, and polls the authoritative CodeMirror selection
+before Delete instead of inspecting the DOM selection synchronously. Three
+repeats passed without repeating the mouse gesture. This is a test-driver
+change, not a claimed production selection fix. Packaged smoke tests passed on
+retry after an initial built-in Preview opening timeout.
+The final complete browser rerun passed all 1,133 tests. The rebuilt VSIX was
+installed in the regular NOC and development Mac profiles without forcibly
+reloading existing windows.
