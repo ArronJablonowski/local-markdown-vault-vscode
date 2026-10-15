@@ -5,6 +5,8 @@ import { parsePersistedEditorState, type PersistedEditorState } from './persiste
 export interface DraftRecovery {
 	version: 1;
 	baselineText: string;
+	/** Last acknowledged source while the next batch is still in flight. */
+	alternateBaselineText?: string;
 	draftText: string;
 	currentVaultPath: string;
 	/** Invalid widget input is recovery content, never a replacement document. */
@@ -43,9 +45,12 @@ function validVaultPath(value: unknown): value is string {
 	return value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
 }
 
-/** Both document snapshots must fit the existing editor's UTF-8 byte limit. */
+/** Every snapshot must fit the existing editor's UTF-8 byte limit. */
 export function parseDraftRecovery(value: unknown): DraftRecovery | undefined {
-	if (!hasExactDataKeys(value, RECOVERY_KEYS) && !hasExactDataKeys(value, [...RECOVERY_KEYS, 'requiresSeparatePreservation'])) return undefined;
+	if (!hasExactDataKeys(value, RECOVERY_KEYS) && !hasExactDataKeys(value, [...RECOVERY_KEYS, 'requiresSeparatePreservation']) &&
+		!hasExactDataKeys(value, [...RECOVERY_KEYS, 'alternateBaselineText']) &&
+		!hasExactDataKeys(value, [...RECOVERY_KEYS, 'requiresSeparatePreservation', 'alternateBaselineText'])) return undefined;
+	if ('alternateBaselineText' in value && (typeof value.alternateBaselineText !== 'string' || !isEditorDocumentWithinLimit(value.alternateBaselineText))) return undefined;
 	if (value.version !== 1 || 'requiresSeparatePreservation' in value && value.requiresSeparatePreservation !== true) return undefined;
 	if (typeof value.baselineText !== 'string' || typeof value.draftText !== 'string' ||
 		!isEditorDocumentWithinLimit(value.baselineText) || !isEditorDocumentWithinLimit(value.draftText) ||
@@ -53,6 +58,7 @@ export function parseDraftRecovery(value: unknown): DraftRecovery | undefined {
 	return {
 		version: 1,
 		baselineText: value.baselineText,
+		...(typeof value.alternateBaselineText === 'string' ? { alternateBaselineText: value.alternateBaselineText } : {}),
 		draftText: value.draftText,
 		currentVaultPath: value.currentVaultPath,
 		...(value.requiresSeparatePreservation === true ? { requiresSeparatePreservation: true as const } : {}),
@@ -93,7 +99,7 @@ export function readPersistedDraftRecovery(value: unknown): DraftRecovery | unde
 }
 
 /**
- * Only an unchanged host baseline is safe to replay automatically. A changed
+ * Only an exact known host baseline is safe to replay automatically. A changed
  * path or divergent host content must preserve the local text separately and
  * ask the user to reconcile it; never infer a merge from offsets or versions.
  */
@@ -107,6 +113,6 @@ export function classifyDraftRecovery(
 		!validVaultPath(currentVaultPath) || currentVaultPath !== recovery.currentVaultPath) return 'divergent';
 	if (hostText === recovery.draftText) return 'matches-draft';
 	if (recovery.requiresSeparatePreservation) return 'divergent';
-	if (hostText === recovery.baselineText) return 'unchanged-baseline';
+	if (hostText === recovery.baselineText || hostText === recovery.alternateBaselineText) return 'unchanged-baseline';
 	return 'divergent';
 }

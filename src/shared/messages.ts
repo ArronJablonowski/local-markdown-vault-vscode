@@ -75,8 +75,8 @@ export type HostToEditorMessage =
 
 // Paths in these messages are requests, not authority; the host reauthorizes each operation.
 export type EditorToHostMessage =
-	| { type: 'draftSnapshot'; text: string; baselineText: string; requiresSeparatePreservation?: true }
-	| { type: 'checkpoint'; requestId: number; text: string; baselineText: string }
+	| { type: 'draftSnapshot'; text: string; baselineText: string; alternateBaselineText?: string; requiresSeparatePreservation?: true }
+	| { type: 'checkpoint'; requestId: number; text: string; baselineText: string; alternateBaselineText?: string }
 	| { type: 'preserveDraft'; requestId: number; text: string }
 	| { type: 'resync' }
 	| { type: 'save' }

@@ -105,7 +105,7 @@ test('typing during a slow save journals the full draft before the host acknowle
 	await mountEditor(page, 'Start ', { currentVaultPath: vaultPath });
 	await typeWithUnsentTail(page);
 	await expect.poll(() => page.evaluate(() => (window as any).__webviewState?.recovery)).toEqual({
-		version: 1, baselineText: 'Start A', draftText: 'Start ABC', currentVaultPath: vaultPath,
+		version: 1, baselineText: 'Start A', alternateBaselineText: 'Start ', draftText: 'Start ABC', currentVaultPath: vaultPath,
 	});
 	// The journal is independent of the outbound batch, which currently contains
 	// only A while BC still lives in the renderer's pending queue.
@@ -310,6 +310,15 @@ test('a recreated hidden editor replays its draft only against an unchanged host
 	await mountEditor(page, baseline, { currentVaultPath: vaultPath, persistedState: persisted });
 	await expect(page.locator('.cm-content')).toContainText('Recovered local paragraph 🙂');
 	await expect.poll(async () => applyEdits(baseline, await messages(page, 'edit'))).toBe(draft);
+	expect(await messages(page, 'preserveDraft')).toHaveLength(0);
+});
+
+test('a restarted editor restores the tail when shutdown saved the acknowledged side of an in-flight batch', async ({ page }) => {
+	await mountEditor(page, 'Start ', { currentVaultPath: vaultPath });
+	await typeWithUnsentTail(page);
+	const journal = await page.evaluate(() => (window as any).__webviewState);
+	await mountEditor(page, 'Start ', { currentVaultPath: vaultPath, persistedState: journal });
+	await expect.poll(async () => applyEdits('Start ', await messages(page, 'edit'))).toBe('Start ABC');
 	expect(await messages(page, 'preserveDraft')).toHaveLength(0);
 });
 

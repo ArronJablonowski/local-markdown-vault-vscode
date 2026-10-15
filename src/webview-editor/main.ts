@@ -228,6 +228,9 @@ function captureRecovery(extra?: string): boolean {
 	const text = (field?.documentText ?? view.state.doc.toString()) + (residual ? `\n\n${residual}` : '');
 	const next = editInFlight || residual
 		? parseDraftRecovery({ version: 1, baselineText: inFlightText ?? baselineText, draftText: text, currentVaultPath,
+			// A native close may finish saving either side of this unacknowledged
+			// batch. Accept only those exact snapshots, never a guessed prefix.
+			...(editInFlight && inFlightText !== baselineText ? { alternateBaselineText: baselineText } : {}),
 			...(residual ? { requiresSeparatePreservation: true } : {}) })
 		: makeDraftRecovery(baselineText, text, currentVaultPath);
 	if (!next && (editInFlight || text !== baselineText)) {
@@ -242,6 +245,7 @@ function captureRecovery(extra?: string): boolean {
 	recovery = next;
 	persistEditorUiState();
 	postToHost({ type: 'draftSnapshot', text, baselineText: inFlightText ?? baselineText,
+		...(next?.alternateBaselineText !== undefined ? { alternateBaselineText: next.alternateBaselineText } : {}),
 		...(residual ? { requiresSeparatePreservation: true } : {}) });
 	return true;
 }
@@ -291,7 +295,8 @@ function preserveLocalDraft(draft: DraftRecovery, conflict: boolean): void {
 	}
 	postToHost(conflict
 		? { type: 'preserveDraft', requestId: id, text: draft.draftText }
-		: { type: 'checkpoint', requestId: id, text: draft.draftText, baselineText: draft.baselineText });
+		: { type: 'checkpoint', requestId: id, text: draft.draftText, baselineText: draft.baselineText,
+			...(draft.alternateBaselineText !== undefined ? { alternateBaselineText: draft.alternateBaselineText } : {}) });
 }
 
 function settleFocusedDraft(): boolean {

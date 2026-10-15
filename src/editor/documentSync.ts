@@ -385,14 +385,14 @@ export class DocumentSyncSession {
 		})) this.draftFlushQueued = false;
 	}
 
-	private async trySaveSnapshot(draft: { text: string; baselineText: string; requiresSeparatePreservation?: true }): Promise<boolean> {
+	private async trySaveSnapshot(draft: { text: string; baselineText: string; alternateBaselineText?: string; requiresSeparatePreservation?: true }): Promise<boolean> {
 		// Only replay over an unchanged baseline; divergent drafts belong in recovery, not the file.
 		if (draft.requiresSeparatePreservation) return false;
 		try {
 			await this.settleAutoSave?.();
 			await this.reopenClosedDocument();
 			const text = normalizeLineEndingsForWebview(this.document.getText());
-			if (text === draft.baselineText && text !== draft.text) {
+			if ((text === draft.baselineText || text === draft.alternateBaselineText) && text !== draft.text) {
 				await this.applyEdit([{ from: 0, to: text.length, insert: draft.text }], this.document.version, false);
 				if (normalizeLineEndingsForWebview(this.document.getText()) !== text) {
 					// Snapshot-only widget drafts are not normal renderer batches, so

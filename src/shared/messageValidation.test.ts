@@ -57,6 +57,13 @@ describe('validateEditorToHostMessage', () => {
 		expect(validateEditorToHostMessage({ type, extra: true }, 10).ok).toBe(false);
 	});
 	it('accepts bounded recovery payloads without trusting a renderer-supplied URI or storage path', () => {
+		for (const type of ['draftSnapshot', 'checkpoint']) {
+			const request = { type, text: 'Final', baselineText: 'Pending', alternateBaselineText: 'Saved', ...(type === 'checkpoint' ? { requestId: 1 } : {}) };
+			expect(validateEditorToHostMessage(request, 0).ok).toBe(true);
+			for (const alternateBaselineText of [null, 42, 'é'.repeat(MAX_EDITOR_DOCUMENT_BYTES)]) {
+				expect(validateEditorToHostMessage({ ...request, alternateBaselineText }, 0).ok).toBe(false);
+			}
+		}
 		const preserve = { type: 'preserveDraft', requestId: 8, text: '# Unsaved draft\n- [x] Complete\n' };
 		const checkpoint = { type: 'checkpoint', requestId: 9, text: 'new version', baselineText: 'old version' };
 		expect(validateEditorToHostMessage(preserve, 0).ok).toBe(true);

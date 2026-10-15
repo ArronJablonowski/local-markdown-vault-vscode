@@ -1,5 +1,7 @@
 # Changelog
 
+- Recover rapid edits after native window shutdown when the file saved either exact side of an in-flight edit batch. Retain the acknowledged baseline alongside the pending baseline, validate both at runtime, and use the same checks during host shutdown flushing. Add Ubuntu whole-window close/relaunch tests for callouts, tables, and code blocks at small, 120 KB, and 450 KB sizes.
+
 - Save rendered-table typing, cuts, and deletions without waiting for blur. Retain the active cell's cursor, in-progress spaces, column widths, Escape cancellation, and normal mouse placement in surrounding prose. Preserve empty-cell padding through cut/paste. Extend native Ubuntu clipboard/save QA to external GTK clipboard data, large notes, and immediate tab-close/reopen workflows.
 
 - Preserve styled callout titles and folding controls while editing their bodies. Add native Ubuntu/NOC tests for Enter, Tab/Shift+Tab, nested bullets/tasks, cursor alignment, saved text, folding, and meeting-heading soft breaks.

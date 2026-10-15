@@ -326,13 +326,17 @@ export function validateEditorToHostMessage(
 				: { ok: false, reason: 'Invalid clipboard request.' };
 		case 'draftSnapshot':
 			return (hasExactKeys(value, ['type', 'text', 'baselineText']) ||
-				(hasExactKeys(value, ['type', 'text', 'baselineText', 'requiresSeparatePreservation']) && value.requiresSeparatePreservation === true))
+				hasExactKeys(value, ['type', 'text', 'baselineText', 'alternateBaselineText']) ||
+				(hasExactKeys(value, ['type', 'text', 'baselineText', 'requiresSeparatePreservation']) && value.requiresSeparatePreservation === true) ||
+				(hasExactKeys(value, ['type', 'text', 'baselineText', 'alternateBaselineText', 'requiresSeparatePreservation']) && value.requiresSeparatePreservation === true))
+				&& (!('alternateBaselineText' in value) || typeof value.alternateBaselineText === 'string' && isEditorDocumentWithinLimit(value.alternateBaselineText))
 				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
 				&& typeof value.baselineText === 'string' && isEditorDocumentWithinLimit(value.baselineText)
 				? { ok: true, value: value as unknown as EditorToHostMessage }
 				: { ok: false, reason: 'Invalid pending draft snapshot.' };
 		case 'checkpoint':
-			return hasExactKeys(value, ['type', 'requestId', 'text', 'baselineText']) && isNonNegativeInteger(value.requestId)
+			return (hasExactKeys(value, ['type', 'requestId', 'text', 'baselineText']) || hasExactKeys(value, ['type', 'requestId', 'text', 'baselineText', 'alternateBaselineText'])) && isNonNegativeInteger(value.requestId)
+				&& (!('alternateBaselineText' in value) || typeof value.alternateBaselineText === 'string' && isEditorDocumentWithinLimit(value.alternateBaselineText))
 				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
 				&& typeof value.baselineText === 'string' && isEditorDocumentWithinLimit(value.baselineText)
 				? { ok: true, value: value as unknown as EditorToHostMessage }

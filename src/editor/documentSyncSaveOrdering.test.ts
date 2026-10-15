@@ -118,6 +118,13 @@ function mutationHarness(text = 'Before') {
 }
 
 describe('accepted edits across close and reopen', () => {
+	it('flushes the final snapshot over the acknowledged side of an in-flight batch', async () => {
+		const { session, document } = mutationHarness();
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before first', alternateBaselineText: 'Before', text: 'Before first tail' });
+		await session.flushPendingSaves();
+		expect(document.text).toBe('Before first tail');
+		expect(session.preserveDraft).not.toHaveBeenCalled();
+	});
 	it('does not recover an unchanged clean opening snapshot after an external edit', async () => {
 		const { session, document } = mutationHarness();
 		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Before' });

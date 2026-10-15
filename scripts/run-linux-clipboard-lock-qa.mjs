@@ -9,6 +9,7 @@
 // PASTE_SAVE_QA=1 adds external clipboard and save-durability cases on a private
 // display; CLOSE_REPEATS=0..20 adds immediate-close stress cases.
 // RAPID_MIXED_QA=1 adds large mixed-object notes with immediate file switching.
+// WINDOW_RESTART_QA=1 closes and relaunches the entire private workbench.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -30,6 +31,11 @@ assert.ok(installed.startsWith('/') && installed !== '/');
 const sshOptions = ['-i', required('MDLP_LINUX_QA_KEY'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10'];
 const artifacts = resolve(root, '.vscode-test', process.env.MDLP_LINUX_CLIPBOARD_ARTIFACTS ?? 'linux-clipboard-lock-ui');
 const caseFilter = process.env.MDLP_LINUX_QA_TEST_GREP ? new RegExp(process.env.MDLP_LINUX_QA_TEST_GREP) : undefined;
+const windowRestartQA = process.env.MDLP_LINUX_WINDOW_RESTART_QA === '1';
+if (windowRestartQA) {
+  assert.equal(process.env.MDLP_LINUX_PASTE_SAVE_QA, '1');
+  assert.notEqual(process.env.MDLP_LINUX_QA_DISPLAY_MODE, 'desktop', 'Window restart tests require a private desktop');
+}
 const local = await mkdtemp(join(tmpdir(), 'mdlp-linux-clipboard-'));
 const unicode = 'Unicode clipboard fixture\nCaf\u00e9, na\u00efve, \u6771\u4eac, \ud83d\ude80\nFinal multiline record.';
 const code = 'const message = "Clipboard \u03a9 \ud83d\ude80";\nconsole.log(message);';
@@ -80,7 +86,7 @@ if (process.env.MDLP_LINUX_PASTE_SAVE_QA === '1') {
     const text = '# Review\n\n| Owner | Status |\n| --- | --- |\n| Reviewed now | Preserve neighbor |\n\nEnd sentinel';
     initial.set(name, text); expected.set(name, text); closeCases.push({ name, text });
   }
-  for (const size of [0, 120000]) for (const kind of ['callout', 'list', 'table', 'code']) {
+  for (const size of [0, 120000, ...(windowRestartQA ? [450000] : [])]) for (const kind of ['callout', 'list', 'table', 'code']) {
     const padding = size ? '# Report history\n\n' + 'Retain previous meeting decisions and evidence.\n\n'.repeat(Math.ceil(size / 48)) : '';
     const object = {
       callout: '> [!warning]+ Review\n> - Owner: PASTE_TARGET\n> - [ ] Preserve task',
@@ -164,7 +170,9 @@ try {
   if (wm) assert.ok(wm.startsWith('/') && process.env.MDLP_LINUX_QA_DISPLAY_MODE !== 'desktop', 'QA window manager must use a private display');
   if (wmLibraries) assert.ok(wmLibraries.startsWith('/'));
   const wmLaunch = wm ? `${wmLibraries ? 'env LD_LIBRARY_PATH=' + q(wmLibraries) + ' ' : ''}${q(wm)} >${q(`${remote}/wm.log`)} 2>&1 & ` : '';
-  const launch = `printf '%s\\n%s\\n' "$DISPLAY" "$XAUTHORITY" > ${q(`${remote}/display.txt`)}; ${wmLaunch}exec ${sessionLauncher} ${q(executable)} ${args.map(q).join(' ')}`;
+  const application = `${sessionLauncher} ${q(executable)} ${args.map(q).join(' ')}`;
+  // Keep only the disposable X server alive across normal application exits.
+  const launch = `printf '%s\\n%s\\n' "$DISPLAY" "$XAUTHORITY" > ${q(`${remote}/display.txt`)}; ${wmLaunch}${windowRestartQA ? application + '; sleep 3600' : 'exec ' + application}`;
   processGroup = Number((await ssh(`setsid ${toolEnv}${launcher} sh -c ${q(launch)} >${q(`${remote}/code.log`)} 2>&1 < /dev/null & printf '%s' "$!"`)).trim());
   assert.ok(Number.isSafeInteger(processGroup) && processGroup > 1);
   const port = await reservePort();
@@ -246,6 +254,69 @@ try {
     await page.keyboard.type('evidence', { delay: 40 }); text = text.replace('Confirm scope', 'Confirm evidence');
     expected.set(current, text); await saved();
     await screenshot(item.name.replace('.md', ''));
+  });
+
+  if (windowRestartQA) for (const item of pasteSaveCases.filter(item => item.kind !== 'list')) await check(`Window restart native ${item.name}`, async () => {
+    await open(item.name);
+    if (item.kind === 'table') {
+      await find('End sentinel'); await press('ArrowRight');
+      await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    } else await find('PASTE_TARGET');
+    await page.keyboard.type('Rapid meeting edit xx');
+    await press('Backspace'); await press('Backspace');
+    await page.keyboard.type('retained');
+    expected.set(current, item.text.replace('PASTE_TARGET', 'Rapid meeting edit retained'));
+    // Close the whole native window, with no pre-close save/source probe.
+    await press('Control+Shift+w');
+    await wait(async () => {
+      if (page.isClosed()) return true;
+      const save = page.getByRole('button', { name: 'Save', exact: true });
+      if (await save.isVisible().catch(error => { if (page.isClosed()) return false; throw error; })) {
+        report.windowSaveConfirmations = (report.windowSaveConfirmations ?? 0) + 1;
+        await save.click();
+      }
+      return false;
+    }, 'native window closed', 20000);
+    frame = undefined;
+    // Optional read-only forensic probe; disabled in zero-delay reopen qualification.
+    if (process.env.MDLP_LINUX_QA_RESTART_FORENSICS === '1') {
+    report.samples.push({ file: current, label: 'closed disk tail', text: (await disk()).slice(-220) });
+    const probe = `import sqlite3,json,glob
+def scan(x):
+ if isinstance(x,dict):
+  if 'baselineText' in x: print(json.dumps({k:(v[-220:] if isinstance(v,str) else v) for k,v in x.items()}))
+  for v in x.values(): scan(v)
+ elif isinstance(x,list):
+  for v in x: scan(v)
+ elif isinstance(x,str) and 'baselineText' in x:
+  try: scan(json.loads(x))
+  except: pass
+for p in glob.glob(${JSON.stringify(`${remote}/profile/User/workspaceStorage/*/state.vscdb`)}):
+ for k,v in sqlite3.connect(p).execute('select key,value from ItemTable'):
+  if k == 'memento/workbench.parts.editor': scan(json.loads(v))`;
+    report.samples.push({ file: current, label: 'closed recovery tails', text: await ssh(`python3 -c ${q(probe)}`) });
+    }
+    await ssh(`env DISPLAY=${q(display)} XAUTHORITY=${q(authority)} ${application} >>${q(`${remote}/code.log`)} 2>&1 < /dev/null &`);
+    await wait(async () => {
+      try {
+        browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 2000 });
+        page = browser.contexts().flatMap(context => context.pages()).find(candidate => candidate.url().includes('workbench'));
+        return Boolean(page);
+      } catch { return false; }
+    }, 'reopened native workbench', 40000);
+    page.setDefaultTimeout(10000);
+    page.on('pageerror', error => report.pageErrors.push(String(error)));
+    await page.bringToFront(); await trustSyntheticWorkspace();
+    // A fresh workbench can restore Explorer rather than our contributed view.
+    const vault = page.getByRole('tab', { name: /Local Markdown Vault/ });
+    if (await vault.isVisible()) await vault.click();
+    else {
+      await press('Control+Shift+p');
+      await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
+      await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
+    }
+    await open(item.name); await saved(); await unchanged('window restart retains every edit');
+    await screenshot(`window-restart-${item.kind}-${item.text.length}`);
   });
 
   for (const item of closeCases) await check(`Close race native ${item.name}`, async () => {

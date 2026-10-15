@@ -204,3 +204,48 @@ including SSH/read overhead; these are not end-to-end keystroke-save timings.
 The workbench logged an unrelated bundled Copilot API-proposal mismatch.
 The 89 targeted autosave/save-ordering unit tests and type checking passed.
 Report and screenshots: `.vscode-test/noc-rapid-mixed-final-2026-10-15`.
+
+### Ubuntu rapid-edit whole-window shutdown — October 15, 2026
+
+`MDLP_LINUX_WINDOW_RESTART_QA=1` extends the private-display paste/save runner
+with native Ctrl+Shift+W window closure and application relaunch using the same
+disposable profile. Callout, rendered table-cell, and fenced-code edits are
+typed rapidly, corrected with Backspace, and followed immediately by Close.
+There is no pre-close source check, save probe, Enter, blur, or manual Save.
+The runner handles any native Save safeguard by choosing Save and recording it;
+it never chooses Don't Save. After reopening, both editor and disk must match
+the complete expected document. Cases cover small, roughly 120 KB, and roughly
+450 KB notes. The private X server survives solely to allow actual application
+restarts; this does not close or reload the NOC user's personal VS Code window.
+
+Initial tests exposed incomplete final edits in large code/table files, with a
+separate recovery draft instead of automatic restoration. A pending renderer
+batch used its prospective text as the only recovery baseline, but shutdown
+could leave the last acknowledged source on disk. Recovery now retains that
+second exact baseline as a bounded optional field. Both runtime message
+validation and persisted-state parsing enforce document-size limits, types,
+exact keys, and existing note identity. Host shutdown flushing and reopened
+editor recovery accept either exact baseline, never an inferred prefix or
+arbitrary merge. Divergent external changes and invalid widget residuals still
+require separate preservation. Unit and browser regressions cover this case.
+
+The first fixed run exposed another intermittent near-limit table failure;
+the initial result is retained, not counted as a pass. A diagnostic run passed
+and showed the exact older disk snapshot in the new alternate-baseline field.
+A subsequent nine-case run without the diagnostic pause passed all cases.
+Optional `MDLP_LINUX_QA_RESTART_FORENSICS=1` records synthetic disk/journal tails
+after closure for diagnosis; it is disabled in zero-delay reopen qualification.
+These are orderly window shutdown tests, not power-loss or forced-kill tests.
+
+Final production-bundle qualification passed all nine window-close/relaunch
+workflows, with all 26 fixture files matching expected disk contents, no page
+errors, and no Save confirmations required. Evidence is under
+`.vscode-test/noc-window-restart-packaged-2026-10-15`. The checked host bundle
+SHA-256 is `77d104565e26743c6d7b89d38c62ad7bfa2e2fb72414326f5a71c50650a25187`;
+the webview SHA-256 is `f891cb798c6c65b8931b0b46979931a541cb7a19480ba60d2ab7ce9da31e4333`.
+All 2,081 unit tests and 1,129 browser tests passed. An initial search-performance
+gate failed while the full browser suite was competing for CPU; the complete
+unit suite passed when rerun without that load. Type checking also passed.
+Final VSIX verification and trusted/restricted/disabled packaged smoke tests
+passed. The matching VSIX was installed in the regular NOC and Mac profiles;
+existing personal windows were not forcibly reloaded.

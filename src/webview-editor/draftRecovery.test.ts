@@ -13,6 +13,16 @@ const ui = { version: 1 as const, anchor: 3, head: 5, scrollTop: 80.5 };
 const snapshot = { version: 1 as const, baselineText: 'Before', draftText: 'Before\nDraft 🙂', currentVaultPath: 'Notes/Meeting.md' };
 
 describe('bounded local draft recovery', () => {
+	it('replays over either exact side of an in-flight batch after native shutdown', () => {
+		const draft = { ...snapshot, baselineText: 'Before after', alternateBaselineText: 'Before', draftText: 'Before after retained' };
+		expect(readPersistedDraftRecovery(mergeDraftRecovery(ui, draft))).toEqual(draft);
+		for (const text of ['Before', 'Before after']) expect(classifyDraftRecovery(draft, text, draft.currentVaultPath)).toBe('unchanged-baseline');
+		for (const text of ['Before a', 'External edit']) expect(classifyDraftRecovery(draft, text, draft.currentVaultPath)).toBe('divergent');
+		expect(classifyDraftRecovery({ ...draft, requiresSeparatePreservation: true }, 'Before', draft.currentVaultPath)).toBe('divergent');
+		expect(classifyDraftRecovery(draft, 'Before', 'Other.md')).toBe('divergent');
+		expect(parseDraftRecovery({ ...draft, alternateBaselineText: 42 })).toBeUndefined();
+		expect(parseDraftRecovery({ ...draft, alternateBaselineText: 'a'.repeat(MAX_EDITOR_DOCUMENT_BYTES + 1) })).toBeUndefined();
+	});
 	it('round-trips one snapshot with the existing caret/scroll hints', () => {
 		const state = mergeDraftRecovery(ui, snapshot);
 		expect(state).toEqual({ ...ui, recovery: snapshot });
