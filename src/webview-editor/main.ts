@@ -12,10 +12,11 @@ import {
 	selectNextOccurrence,
 } from '@codemirror/search';
 import { insertNewlineContinueMarkupCommand, markdown } from '@codemirror/lang-markdown';
-import { codeFolding, indentUnit } from '@codemirror/language';
+import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language';
 import { GFM } from './gfmTableFix';
 import {
 	livePreviewPlugin,
+	caretPastTable,
 	createLinkClickHandler,
 	setRemoteMediaPolicy,
 } from './livePreviewPlugin';
@@ -519,7 +520,19 @@ function setEditingAllowed(next: boolean): void {
 		updateEditingModeUi();
 		return;
 	}
-	if (!next) flushNow();
+	if (!next) {
+		flushNow();
+		// Live-saved cells no longer need a final text transaction to park the
+		// document caret. Do so only at Lock, never during a click into prose.
+		if (view && view.state.selection.main.empty) {
+			let node = syntaxTree(view.state).resolveInner(view.state.selection.main.head, 1);
+			while (node.parent && node.name !== 'Table') node = node.parent;
+			if (node.name === 'Table') {
+				const anchor = caretPastTable(view.state, node.from, 0);
+				if (anchor !== null) view.dispatch({ selection: { anchor } });
+			}
+		}
+	}
 	editingAllowed = next;
 	view?.dispatch({ effects: editingCompartment.reconfigure(EditorView.editable.of(editingAllowed && !recoveryBlocked)) });
 	updateEditingModeUi();

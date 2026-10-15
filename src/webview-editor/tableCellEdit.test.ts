@@ -48,12 +48,14 @@ describe('cell source ranges', () => {
 	});
 
 	it('gives an empty cell a zero-width range between its pipes', () => {
-		const { state, model } = modelFor('| a | b |\n|---|---|\n| 1 |  |\n');
+		const original = '| a | b |\n|---|---|\n| 1 |  |\n';
+		const { state, model } = modelFor(original);
 		const empty = model.cellRanges[1][1];
 		expect(empty).not.toBeNull();
 		expect(empty!.from).toBe(empty!.to);
-		// The insertion point must sit between the two pipes that bound the cell.
-		expect(state.sliceDoc(empty!.from - 1, empty!.from + 1).includes('|')).toBe(true);
+		// Restoring a cut value must retain a space on both sides of it.
+		const restored = state.update({ changes: { from: empty!.from, to: empty!.to, insert: 'restored' } }).state.doc.toString();
+		expect(restored).toBe(original.replace('|  |', '| restored |'));
 	});
 
 	it('records no range for a cell invented to pad a ragged row', () => {

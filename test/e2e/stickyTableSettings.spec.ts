@@ -106,8 +106,17 @@ test('changing sticky headers preserves the focused unfinished cell, selection, 
 	await cell.focus();
 	await page.keyboard.press('F2');
 	await page.keyboard.type('Unfinished | draft');
+	// Drain the ordinary live-save batches before attributing later edits to settings.
+	await expect.poll(() => page.evaluate(initial => {
+		let value = initial;
+		for (const message of (window as any).__posted) if (message.type === 'edit') {
+			for (const change of [...message.changes].reverse()) value = value.slice(0, change.from) + change.insert + value.slice(change.to);
+		}
+		return value;
+	}, original)).toBe(original.replace('Table row 0 value 11', 'Unfinished \\| draft'));
 	const originalCell = await cell.elementHandle();
 	const originalLeft = await viewport.evaluate(element => element.scrollLeft);
+	const editsBeforeSettings = await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit').length);
 	for (const enabled of [true, false, true, false]) {
 		await postToWebview(page, { type: 'setStickyTableHeaders', enabled });
 		expect(await originalCell!.evaluate(element => element.isConnected && document.activeElement === element)).toBe(true);
@@ -115,7 +124,7 @@ test('changing sticky headers preserves the focused unfinished cell, selection, 
 		await expect(cell).toHaveAttribute('contenteditable', 'true');
 		expect(await viewport.evaluate(element => element.scrollLeft)).toBe(originalLeft);
 	}
-	await assertNoEdits(page);
+	expect(await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit').length)).toBe(editsBeforeSettings);
 	await page.keyboard.press('Enter');
 	await expect(cell).toHaveText('Unfinished | draft');
 	await expect.poll(() => page.evaluate(original => {

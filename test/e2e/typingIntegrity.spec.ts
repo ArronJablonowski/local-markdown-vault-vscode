@@ -200,8 +200,9 @@ for (const field of ['search', 'property', 'multiline property', 'table'] as con
 	await page.keyboard.type('Field value');
 	if (field === 'table') await expect(input).toHaveText('Field value');
 	else await expect(input).toHaveValue('Field value');
-	expect(await source(page)).toBe(initial);
-	expect(await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit'))).toEqual([]);
+	expect(await source(page)).toBe(field === 'table' ? initial.replace('| Original |', '| Field value |') : initial);
+	if (field === 'table') await expect.poll(() => emittedSource(page, initial)).toBe(initial.replace('| Original |', '| Field value |'));
+	else expect(await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit'))).toEqual([]);
 	const events = await records(page);
 	expect(events.some(event => event.type === 'input' && event.trusted && !event.body)).toBe(true);
 	expect(events.filter(event => event.type === 'beforeinput').every(event => !event.prevented)).toBe(true);

@@ -6,6 +6,8 @@
 // WINDOW_MANAGER and WM_LIBRARY_PATH provide focus management inside Xvfb only.
 // CALLOUT_LIST_QA=1 adds native list/callout editing and exact-save fixtures;
 // ASSERT_CALLOUT_TITLES=1 also verifies that body edits retain styled titles.
+// PASTE_SAVE_QA=1 adds external clipboard and save-durability cases on a private
+// display; CLOSE_REPEATS=0..20 adds immediate-close stress cases.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -46,6 +48,36 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
+const pasteSaveCases = [];
+const externalPasteCases = [];
+const closeCases = [];
+const closeRepeats = Number(process.env.MDLP_LINUX_QA_CLOSE_REPEATS ?? 0);
+assert.ok(Number.isSafeInteger(closeRepeats) && closeRepeats >= 0 && closeRepeats <= 20, 'Close-repeat count must be 0–20');
+const pasteSaveText = 'Reviewed \u03a9 \ud83d\ude80';
+if (process.env.MDLP_LINUX_PASTE_SAVE_QA === '1') {
+  initial.set('Clipboard save seed.md', pasteSaveText); expected.set('Clipboard save seed.md', pasteSaveText);
+  for (let index = 0; index < closeRepeats; index++) {
+    const name = `Close race table ${index + 1}.md`;
+    const text = '# Review\n\n| Owner | Status |\n| --- | --- |\n| Reviewed now | Preserve neighbor |\n\nEnd sentinel';
+    initial.set(name, text); expected.set(name, text); closeCases.push({ name, text });
+  }
+  for (const size of [0, 120000]) for (const kind of ['callout', 'list', 'table', 'code']) {
+    const padding = size ? '# Report history\n\n' + 'Retain previous meeting decisions and evidence.\n\n'.repeat(Math.ceil(size / 48)) : '';
+    const object = {
+      callout: '> [!warning]+ Review\n> - Owner: PASTE_TARGET\n> - [ ] Preserve task',
+      list: '- Parent\n    - Owner: PASTE_TARGET\n    - Preserve sibling',
+      table: '| Owner | Status |\n| --- | --- |\n| PASTE_TARGET | Preserve neighbor |',
+      code: '```typescript\nconst owner = "PASTE_TARGET";\nconsole.log(owner);\n```',
+    }[kind];
+    const name = `Paste save ${kind} ${size}.md`, text = `${padding}# Current review\n\n${object}\n\nEnd sentinel`;
+    initial.set(name, text); expected.set(name, text); pasteSaveCases.push({ name, kind, text });
+    if (!size) {
+      const externalName = `External paste ${kind}.md`;
+      initial.set(externalName, text); expected.set(externalName, text);
+      externalPasteCases.push({ name: externalName, kind, text });
+    }
+  }
+}
 // Optional native editing matrix; all edits use keyboard/mouse events, never editor dispatch.
 const listCases = [];
 const meetingCases = [];
@@ -82,6 +114,9 @@ try {
     'window.dialogStyle': 'custom', 'files.autoSave': 'off', 'git.openRepositoryInParentFolders': 'never',
     'mdLivePreview.defaultEditor': 'livePreview', 'mdLivePreview.defaultEditingMode': 'editing',
     'mdLivePreview.autoSave': true, 'mdLivePreview.vault.openBehavior': 'newTab',
+    // Only this disposable synthetic-data profile; restricted-mode behavior has
+    // its own packaged smoke suite. Never change the NOC user's trust settings.
+    ...(process.env.MDLP_LINUX_PASTE_SAVE_QA === '1' ? { 'security.workspace.trust.enabled': false } : {}),
     // Quick Open can precede the extension's asynchronous first-run settings sync.
     ...(process.env.MDLP_LINUX_QA_EXPLICIT_ASSOCIATIONS === '0' ? {} : {
       'workbench.editorAssociations': { '*.md': 'mdLivePreview.editor', '*.markdown': 'mdLivePreview.editor' },
@@ -124,7 +159,10 @@ try {
   assert.ok(page); page.setDefaultTimeout(10000);
   report.viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scale: devicePixelRatio }));
   page.on('pageerror', error => report.pageErrors.push(String(error)));
-  page.on('console', message => { if (message.type() === 'error') report.consoleErrors.push(message.text()); });
+  page.on('console', message => {
+    if (message.type() === 'error') report.consoleErrors.push(message.text());
+    if (message.text().startsWith('MDLP_QA_TRACE ')) report.samples.push(JSON.parse(message.text().slice(14)));
+  });
   await page.bringToFront();
   await trustSyntheticWorkspace();
   const vaultTab = page.getByRole('tab', { name: /Local Markdown Vault/ });
@@ -188,6 +226,84 @@ try {
     for (let index = 0; index < 5; index++) await press('Backspace');
     await page.keyboard.type('evidence', { delay: 40 }); text = text.replace('Confirm scope', 'Confirm evidence');
     expected.set(current, text); await saved();
+    await screenshot(item.name.replace('.md', ''));
+  });
+
+  for (const item of closeCases) await check(`Close race native ${item.name}`, async () => {
+    await open(item.name); await find('Reviewed now'); await press('Control+c'); await copied('Reviewed now');
+    await find('End sentinel'); await press('ArrowRight');
+    await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    await frame.evaluate(() => {
+      document.addEventListener('keydown', event => {
+        if (event.ctrlKey && event.key.toLowerCase() === 'w') {
+          const view = document.querySelector('.cm-content').cmTile.root.view;
+          console.log('MDLP_QA_TRACE ' + JSON.stringify({ label: 'close stress', source: view.state.doc.toString(), field: document.activeElement?.textContent }));
+        }
+      }, true);
+    });
+    await press('Control+v'); await page.keyboard.type(' CLOSED'); await closeCurrentTab();
+    expected.set(current, item.text.replace('Reviewed now', 'Reviewed now CLOSED'));
+    await open(item.name); await saved();
+  });
+
+  for (const item of pasteSaveCases) await check(`Paste/save native ${item.name}`, async () => {
+    await open('Clipboard save seed.md'); await press('Control+a'); await press('Control+c'); await copied(pasteSaveText);
+    await open(item.name);
+    if (item.kind === 'table') {
+      await find('End sentinel'); await press('ArrowRight');
+      await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    } else await find('PASTE_TARGET');
+    // Consecutive paste/typing goes straight to the focused editor or live cell.
+    await press('Control+v'); await page.keyboard.type(' now');
+    let text = item.text.replace('PASTE_TARGET', pasteSaveText + ' now'); expected.set(current, text);
+    const started = Date.now(); await saved();
+    report.samples.push({ file: current, label: 'paste/type save latency', elapsedMs: Date.now() - started });
+    // Copy/cut must work in the same live cell/code/list context without a focus reset.
+    if (item.kind === 'table') await press('Control+a');
+    else await find(pasteSaveText + ' now');
+    await press('Control+c'); await copied(pasteSaveText + ' now');
+    await press('Control+x'); text = text.replace(pasteSaveText + ' now', ''); expected.set(current, text); await saved();
+    await press('Control+v'); text = text.replace(item.kind === 'code' ? '""' : item.kind === 'table' ? '|  |' : 'Owner: ',
+      item.kind === 'code' ? '"' + pasteSaveText + ' now"' : item.kind === 'table' ? '| ' + pasteSaveText + ' now |' : 'Owner: ' + pasteSaveText + ' now');
+    expected.set(current, text); await saved();
+    // Commit any table draft before testing the document's Undo/Redo history.
+    if (item.kind === 'table') await press('Enter');
+    await frame.locator('.cm-content').focus(); await press('Control+z');
+    expected.set(current, item.text.replace('PASTE_TARGET', '')); await saved();
+    await press('Control+y'); expected.set(current, text); await saved();
+    if (item.kind === 'table') {
+      await find('End sentinel'); await press('ArrowRight');
+      await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    } else await find(pasteSaveText + ' now');
+    if (process.env.MDLP_LINUX_QA_TRACE_INPUT === '1') await frame.evaluate(() => {
+      const trace = label => {
+        const view = document.querySelector('.cm-content').cmTile.root.view;
+        console.log('MDLP_QA_TRACE ' + JSON.stringify({ label, tail: view.state.doc.toString().slice(-240), active: document.activeElement?.className, field: document.activeElement?.textContent }));
+      };
+      document.addEventListener('input', () => queueMicrotask(() => trace('input')));
+      document.addEventListener('keydown', event => { if (event.ctrlKey && event.key.toLowerCase() === 'w') trace('close'); }, true);
+    });
+    // Do not inspect the frame, source, or disk between paste and closing.
+    await press('Control+v'); await page.keyboard.type(' CLOSED'); await closeCurrentTab();
+    text = text.replace(pasteSaveText + ' now', pasteSaveText + ' now CLOSED'); expected.set(current, text);
+    await open(item.name); await saved(); await unchanged('immediate-close paste has no delayed replay');
+    await screenshot(item.name.replace('.md', ''));
+  });
+
+  for (const item of externalPasteCases) await check(`External paste/save native ${item.kind}`, async () => {
+    const text = 'GTK external \u03a9 \ud83d\ude80';
+    await externalClipboard(text); await copied(text); await open(item.name);
+    if (item.kind === 'table') {
+      await find('End sentinel'); await press('ArrowRight');
+      await frame.locator('.mlp-table td').first().click(); await press('Control+a');
+    } else await find('PASTE_TARGET');
+    await press('Control+v'); await page.keyboard.type(' retained');
+    expected.set(current, item.text.replace('PASTE_TARGET', text + ' retained')); await saved();
+    if (item.kind === 'table') await press('Enter');
+    await frame.locator('.cm-line', { hasText: /^End sentinel$/ }).click(); await press('End'); await press('Enter');
+    await press('Control+Shift+V'); await page.keyboard.type(' plain'); await closeCurrentTab();
+    expected.set(current, expected.get(current) + '\n' + text + ' plain');
+    await open(item.name); await saved(); await unchanged('external clipboard close/reopen');
     await screenshot(item.name.replace('.md', ''));
   });
 
@@ -475,7 +591,7 @@ for item in os.listdir('/proc'):
  if not item.isdigit(): continue
  try:
   args=[part.decode() for part in open('/proc/'+item+'/cmdline','rb').read().split(bytes([0]))]
-  if target in args: os.kill(int(item),signal.SIGTERM)
+  if target in args or '${remote}/clipboard-owner' in args: os.kill(int(item),signal.SIGTERM)
  except (OSError,UnicodeError): pass`)} `).catch(() => {});
   await browser?.close().catch(() => {}); tunnel?.kill();
   if (report.passed && remote) { await ssh(`rm -r -- ${q(remote)}`).catch(error => { report.cleanupError = String(error); }); }
@@ -497,6 +613,24 @@ async function command(binary, args) {
 }
 async function ssh(script) { return command('ssh', [...sshOptions, host, script]); }
 async function press(key) { report.keys++; await page.keyboard.press(key); }
+async function closeCurrentTab() {
+  const tab = page.locator('.tabs-container .tab').filter({ hasText: basename(current) });
+  assert.equal(await tab.count(), 1, `The exact native editor tab must exist before closing ${current}`);
+  await press('Control+w'); // No pause or save probe before the tested close.
+  // Do not open Quick Open while the previous Close command is still executing:
+  // it can dismiss the picker and redirect its path text into another note.
+  await wait(async () => {
+    if (await tab.count() === 0) return true;
+    const save = page.getByRole('button', { name: 'Save', exact: true });
+    if (await save.isVisible()) {
+      // A zero-delay Close can beat an in-flight automatic save. Preserve the
+      // native safety prompt and choose Save, never Don't Save or Cancel.
+      report.closeSaveConfirmations = (report.closeSaveConfirmations ?? 0) + 1;
+      await save.click();
+    }
+    return false;
+  }, `native tab closed: ${current}`, 15000);
+}
 async function state() { return frame.evaluate(() => document.querySelector('.cm-content').cmTile.root.view.state.doc.toString()); }
 async function disk(name = current) { return ssh(`cat ${q(`${remote}/Clipboard QA Vault/${name}`)}`); }
 async function clipboard() {
@@ -505,6 +639,13 @@ async function clipboard() {
   // GTK prefers Wayland on Ubuntu even when DISPLAY names our private X server.
   // Force the same X11 backend as Electron so the probe never reads NOC's clipboard.
   return JSON.parse(await ssh(`env GDK_BACKEND=x11 DISPLAY=${q(display)} XAUTHORITY=${q(authority)} python3 -c ${q(script)}`));
+}
+async function externalClipboard(text) {
+  assert.notEqual(process.env.MDLP_LINUX_QA_DISPLAY_MODE, 'desktop', 'External clipboard QA must not replace the NOC desktop clipboard');
+  // A separate GTK process owns the X11 selection, like an external desktop app.
+  // The unique argv token lets cleanup terminate only this QA clipboard owner.
+  const script = 'import gi,base64; gi.require_version("Gtk","3.0"); from gi.repository import Gtk,Gdk; Gtk.init([]); c=Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); c.set_text(base64.b64decode("' + Buffer.from(text).toString('base64') + '").decode("utf-8"),-1); Gtk.main()';
+  await ssh(`env GDK_BACKEND=x11 DISPLAY=${q(display)} XAUTHORITY=${q(authority)} python3 -c ${q(script)} ${q(`${remote}/clipboard-owner`)} >${q(`${remote}/clipboard-owner.log`)} 2>&1 < /dev/null &`);
 }
 async function copied(text) { await wait(async () => await clipboard() === text, 'exact native clipboard'); }
 async function saved() {
@@ -544,9 +685,32 @@ async function open(name, alreadyOpening = false) {
   frame = undefined; // Never treat a previous note's renderer as this file's draft.
   // The native vault tree virtualizes rows when the fixture set grows. Open
   // the exact synthetic path through Quick Open, independent of sidebar height.
-  if (!alreadyOpening) {
+  if (!alreadyOpening && process.env.MDLP_LINUX_PASTE_SAVE_QA === '1') {
+    // Use the native Vault tree for this stress suite. Quick Open can lose focus
+    // while VS Code completes a previous asynchronous close/preview operation.
+    await page.getByRole('tree').first().focus(); await press('Home');
+    const row = page.getByRole('treeitem', { name: `File: ${name}`, exact: true });
+    let opened = false;
+    for (let step = 0; step < 20; step++) {
+      if (await row.count()) { await row.scrollIntoViewIfNeeded(); await row.click(); opened = true; break; }
+      const box = await page.getByRole('treeitem').first().boundingBox();
+      assert.ok(box, 'Vault tree must be visible');
+      await page.mouse.move(box.x + 80, Math.max(150, box.y + 40));
+      await page.mouse.wheel(0, 250); await delay(100);
+    }
+    assert.ok(opened, `Vault tree file not found: ${name}`);
+  } else if (!alreadyOpening) {
     await press('Escape'); await press('Control+p');
-    await page.locator('.quick-input-widget:visible .quick-input-box input').fill(`${remote}/Clipboard QA Vault/${name}`);
+    const input = page.locator('.quick-input-widget:visible .quick-input-box input');
+    // Closing a webview can briefly leave native focus on its detached frame.
+    // The paste/close sequence above remains uninterrupted; retry only navigation.
+    if (!await input.isVisible()) {
+      await input.waitFor({ state: 'visible', timeout: 2000 }).catch(async () => {
+        report.quickOpenRetries = (report.quickOpenRetries ?? 0) + 1;
+        await page.bringToFront(); await press('Escape'); await press('Control+p');
+      });
+    }
+    await input.fill(`${remote}/Clipboard QA Vault/${name}`);
     await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: basename(name) }).first().click();
   }
   await wait(async () => {

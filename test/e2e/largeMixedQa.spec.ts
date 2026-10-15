@@ -93,6 +93,8 @@ test('large note mixed widgets survive repeated scrolling, folding, editing, and
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Escape');
 	const line = page.locator('.cm-line', { hasText: 'Final editable paragraph.' });
+	// Find scrolls after CodeMirror's next measurement; do not drag using a stale box.
+	await line.scrollIntoViewIfNeeded();
 	const box = (await line.boundingBox())!;
 	await page.mouse.move(box.x + 1, box.y + box.height / 2);
 	await page.mouse.down();

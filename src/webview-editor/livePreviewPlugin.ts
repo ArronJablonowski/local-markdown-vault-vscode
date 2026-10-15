@@ -148,6 +148,7 @@ const tableWidgetCleanup = new WeakMap<HTMLElement, () => void>();
 // A committed cell replaces its widget. Resume through the live widget's
 // handlers, never a closure that still owns the previous table source.
 const tableCellEditors = new WeakMap<HTMLElement, (cell: HTMLElement, caret: 'all' | 'end' | number) => void>();
+const tableCellOrigins = new WeakMap<HTMLElement, string>();
 const tableBlockSelectionSetters = new WeakMap<HTMLElement, (selected: boolean, sourceBacked?: boolean) => void>();
 
 // A click on a different table can blur/commit the old table between mouse
@@ -629,6 +630,7 @@ class TableWidget extends WidgetType {
 	}
 	toDOM(view: EditorView): HTMLElement {
 		const originalTableSource = view.state.sliceDoc(this.tableFrom, this.tableTo);
+		const thisTableFrom = this.tableFrom;
 		const table = renderTableElement(
 			{
 				rows: this.rows,
@@ -923,9 +925,9 @@ class TableWidget extends WidgetType {
 			}
 			if (event.key === 'Escape') {
 				event.preventDefault();
-				// Restoring the original text makes `commit` see no change, so the
-				// edit is discarded rather than written back.
-				editing.textContent = ref.source;
+				// Restore the session's original value, rolling back any characters
+				// already live-saved through the same validated document pipeline.
+				editing.textContent = tableCellOrigins.get(editing) ?? ref.source;
 				commit(editing);
 				protectRenderedBlockFromCaret();
 				view.focus();
@@ -969,6 +971,8 @@ class TableWidget extends WidgetType {
 			}
 			cell.dataset.mlpCommitted = '1';
 			cell.removeEventListener('keydown', onCellKeydown);
+			cell.removeEventListener('input', onCellInput);
+			cell.removeEventListener('compositionend', onCellCompositionEnd);
 			cell.contentEditable = 'false';
 			cell.classList.remove('mlp-table-cell-editing');
 			if (editing === cell) editing = null;
@@ -1086,7 +1090,10 @@ class TableWidget extends WidgetType {
 			// back onto a cell edited a moment ago otherwise silently discarded the
 			// new text.
 			delete cell.dataset.mlpCommitted;
+			tableCellOrigins.set(cell, ref.source);
 			cell.addEventListener('keydown', onCellKeydown);
+			cell.addEventListener('input', onCellInput);
+			cell.addEventListener('compositionend', onCellCompositionEnd);
 			registerActiveDraft(cell, () => { if (editing === cell) commit(cell); },
 				() => editing === cell ? `Uncommitted table cell:\n${cell.textContent ?? ''}` : undefined,
 				() => {
@@ -1111,6 +1118,48 @@ class TableWidget extends WidgetType {
 			selection.addRange(range);
 		};
 		tableCellEditors.set(wrap, beginEditing);
+
+		function onCellCompositionEnd(): void { onCellInput(); }
+		function onCellInput(event?: Event): void {
+			// Save ordinary typing/cut/delete as promptly as paste, without waiting
+			// for blur. Do not replace the DOM during an unfinished IME composition.
+			if ((event as InputEvent | undefined)?.isComposing || !editing) return;
+			const cell = editing, ref = readCellRef(cell), selection = window.getSelection();
+			if (!ref || !selection?.rangeCount || !cell.contains(selection.anchorNode)) return;
+			const prefix = document.createRange();
+			prefix.selectNodeContents(cell);
+			prefix.setEnd(selection.anchorNode!, selection.anchorOffset);
+			const caret = prefix.toString().length;
+			const raw = cell.textContent ?? '';
+			const origin = tableCellOrigins.get(cell) ?? ref.source;
+			// Retain the frozen column geometry through the synchronous DOM swap.
+			const width = table.style.width;
+			const left = tableViewport.scrollLeft;
+			const columns = Array.from(table.rows[0]?.cells ?? []).map(c => c.style.width);
+			if (commit(cell) === null) return;
+			const scope = view.dom.querySelector<HTMLElement>(`.mlp-table-wrap[data-mlp-table-from="${thisTableFrom}"]`);
+			const live = scope?.querySelector<HTMLElement>(`.mlp-table .mlp-table-cell[data-mlp-row="${ref.row}"][data-mlp-col="${ref.col}"]`);
+			const replacement = scope?.querySelector<HTMLTableElement>('.mlp-table');
+			if (!scope || !live || !replacement) return;
+			replacement.style.tableLayout = 'fixed'; replacement.style.boxSizing = 'border-box'; replacement.style.width = width;
+			Array.from(replacement.rows[0]?.cells ?? []).forEach((c, index) => {
+				c.style.boxSizing = 'border-box'; c.style.width = columns[index] ?? '';
+			});
+			const viewport = scope.querySelector<HTMLElement>('.mlp-table-viewport');
+			if (viewport) {
+				viewport.classList.toggle('mlp-table-scrollable', viewport.scrollWidth > viewport.clientWidth + 1);
+				viewport.scrollLeft = left;
+			}
+			tableCellEditors.get(scope)?.(live, caret);
+			// Canonical cell source trims padding/escapes pipes. Keep the user's
+			// in-progress text (especially a trailing space) until editing ends.
+			live.textContent = raw;
+			const range = document.createRange(); range.selectNodeContents(live);
+			if (live.firstChild) range.setStart(live.firstChild, Math.min(caret, raw.length));
+			range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
+			if (viewport) viewport.scrollLeft = left;
+			tableCellOrigins.set(live, origin);
+		}
 
 		const cellAt = (row: number, col: number): HTMLElement | null =>
 			table.querySelector('[data-mlp-row="' + row + '"][data-mlp-col="' + col + '"]');
@@ -1896,8 +1945,10 @@ export function readCellSpans(state: EditorState, rowNode: SyntaxNode): CellSpan
 	if (segments.length > 1 && segments[segments.length - 1].raw.trim() === '') segments.pop();
 	return segments.map(({ raw, offset }) => {
 		// Shift past the padding so the range bounds the trimmed text alone.
-		const leading = raw.length - raw.trimStart().length;
 		const trimmed = raw.trim();
+		// An empty padded cell needs an insertion point between its padding,
+		// not after all whitespace; otherwise cut/paste shifts the row's spaces.
+		const leading = trimmed ? raw.length - raw.trimStart().length : Math.ceil(raw.length / 2);
 		const from = rowNode.from + offset + leading;
 		return { text: trimmed, from, to: from + trimmed.length };
 	});

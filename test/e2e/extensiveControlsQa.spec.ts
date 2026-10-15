@@ -43,7 +43,8 @@ for (const field of ['property', 'table'] as const) for (const [change, message]
 		for (let i = 0; i < 8; i++) await page.keyboard.press('Shift+ArrowRight');
 		await postToWebview(page, message);
 		await expect(input).toBeFocused();
-		expect(await source(page)).toBe(original);
+		// Table input is now saved without waiting for blur or Enter.
+		expect(await source(page)).toBe(field === 'table' ? original.replace('| Original |', '| Before selected after |') : original);
 		await page.keyboard.insertText('CHANGED');
 		await page.keyboard.press('Enter');
 		await expect.poll(() => source(page)).toBe(field === 'property'
@@ -292,14 +293,14 @@ for (const field of ['property', 'table'] as const) test(`all bundled themes pre
 		await postToWebview(page, { type: 'applyCss', css: readFileSync(join(__dirname, `../../media/sample-styles/${theme}.css`), 'utf8') });
 		await expect(input).toBeFocused();
 		await expect(page.getByRole('button', { name: 'Folded review callout', exact: true })).toHaveAttribute('aria-expanded', 'false');
-		expect(await source(page)).toBe(original);
+		expect(await source(page)).toBe(field === 'table' ? original.replace('| Zulu |', '| Unicode café 🧭 unfinished |') : original);
 		if (theme === 'github-like') await page.screenshot({ path: info.outputPath(`${field}-draft-github-like.png`) });
 	}
 	await page.keyboard.insertText('complete'); await page.keyboard.press('Enter');
 	expect(await source(page)).toBe(field === 'property'
 		? original.replace('owner: Original', 'owner: Unicode café 🧭 complete')
 		: original.replace('| Zulu |', '| Unicode café 🧭 complete |'));
-	await expect.poll(async () => (await edits(page)).length).toBe(1);
+	await expect.poll(async () => (await edits(page)).length).toBe(field === 'table' ? 2 : 1);
 });
 
 for (const [style, yaml, expected] of [

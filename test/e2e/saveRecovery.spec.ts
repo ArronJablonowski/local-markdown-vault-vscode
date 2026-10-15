@@ -192,9 +192,10 @@ for (const widget of ['property', 'table'] as const) {
 		await editFocusedWidget(page);
 		await expect.poll(async () => (await messages(page, 'draftSnapshot')).at(-1)?.text).toContain(replacement);
 		const latest = (await messages(page, 'draftSnapshot')).at(-1)!;
-		expect(latest.baselineText).toBe(source);
+		if (widget === 'property') expect(latest.baselineText).toBe(source);
 		expect(latest.requiresSeparatePreservation).toBeUndefined();
-		await expect.poll(() => page.evaluate(() => (window as any).__webviewState?.recovery?.draftText)).toContain(replacement);
+		if (widget === 'property') await expect.poll(() => page.evaluate(() => (window as any).__webviewState?.recovery?.draftText)).toContain(replacement);
+		else await expect.poll(() => page.locator('.cm-content').evaluate(el => (el as any).cmTile.root.view.state.doc.toString())).toContain(replacement);
 		await expect(widget === 'property' ? page.locator('.mlp-property-input') : page.locator('.mlp-table td').first()).toBeFocused();
 	});
 
@@ -204,7 +205,8 @@ for (const widget of ['property', 'table'] as const) {
 		await page.keyboard.press('Escape');
 		await expect.poll(async () => (await messages(page, 'draftSnapshot')).at(-1)?.text).toBe(source);
 		await expect.poll(() => page.evaluate(() => (window as any).__webviewState?.recovery)).toBeUndefined();
-		expect(await messages(page, 'edit')).toHaveLength(0);
+		if (widget === 'property') expect(await messages(page, 'edit')).toHaveLength(0);
+		else expect((await messages(page, 'edit')).length).toBeGreaterThan(0);
 	});
 
 	test(`${widget} drafts participate in explicit Save even while the field has focus`, async ({ page }) => {
