@@ -170,3 +170,37 @@ The final native report and screenshots are under
 `9574d9492aabc7f6098d3516f0a7170e5fe28fbfa68439dc1ad6c64cef37e0e4`.
 The same build was installed in the NOC user's regular VS Code profile and on
 the development Mac. Existing windows were not forcibly reloaded.
+
+### Ubuntu large mixed-note switching stress — October 15, 2026
+
+The native Linux clipboard runner now supports `MDLP_LINUX_RAPID_MIXED_QA=1`
+together with `MDLP_LINUX_PASTE_SAVE_QA=1`. Three disposable reports of roughly
+120, 300, and 450 KB contain hundreds of repeated meeting sections with nested
+callouts, indented tasks, tables, TypeScript fences, Mermaid flowcharts, inline
+math, tags, bold text, and Unicode. Nine workflows edit the top, middle, and
+bottom using native typing, Backspace, selection, Copy, Paste, and Enter. Each
+workflow switches files immediately after typing and again immediately after
+paste-plus-typing, then compares the saved file and reopened editor with the
+exact expected source. Document mutations do not use editor dispatch APIs.
+
+An initial assertion read the 450 KB file before its asynchronous final save
+completed: the pasted text was present but the following word was still in
+flight. A subsequent disk read confirmed the word arrived. The runner now
+waits up to 12 seconds for exact disk convergence after switching, records the
+remaining save latency, and still performs the switch without a preceding save
+probe or manual Save. This is not a claim of synchronous disk persistence on
+every keystroke. The initial failed report is retained for comparison.
+
+This qualification uses the real Ubuntu VS Code application in a private
+1440 × 900 X11 workbench, not the physical NOC monitor or native Wayland.
+The same clipboard/sandbox/power-loss limitations documented above apply.
+No production source or installed extension build changed in this QA round.
+
+Final result: all nine mixed-note workflows passed; all 25 fixture files
+matched exact expected disk contents, with no page errors. The driver recorded
+163 explicit navigation/control keypresses plus character typing and nine
+native clipboard reads. Post-switch convergence probes took 155–231 ms,
+including SSH/read overhead; these are not end-to-end keystroke-save timings.
+The workbench logged an unrelated bundled Copilot API-proposal mismatch.
+The 89 targeted autosave/save-ordering unit tests and type checking passed.
+Report and screenshots: `.vscode-test/noc-rapid-mixed-final-2026-10-15`.

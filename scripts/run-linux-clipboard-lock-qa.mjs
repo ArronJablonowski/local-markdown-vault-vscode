@@ -8,6 +8,7 @@
 // ASSERT_CALLOUT_TITLES=1 also verifies that body edits retain styled titles.
 // PASTE_SAVE_QA=1 adds external clipboard and save-durability cases on a private
 // display; CLOSE_REPEATS=0..20 adds immediate-close stress cases.
+// RAPID_MIXED_QA=1 adds large mixed-object notes with immediate file switching.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -48,6 +49,24 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
+// Mixed objects expose redraw/save races that prose-only padding cannot cover.
+const rapidCases = [];
+if (process.env.MDLP_LINUX_RAPID_MIXED_QA === '1') {
+  assert.equal(process.env.MDLP_LINUX_PASTE_SAVE_QA, '1', 'Rapid mixed QA requires the native paste/save harness');
+  for (const size of [120000, 300000, 450000]) {
+    const name = `Rapid mixed ${size}.md`;
+    const section = index => `## Meeting ${index}\n\n> [!note]+ Decisions ${index}\n> - Parent decision\n>     - [ ] Nested action\n> > [!warning] Risk\n> > Preserve evidence.\n\n| Owner | Status |\n| --- | --- |\n| Team ${index} | Pending |\n\n\`\`\`typescript\nconst meeting = ${index};\nconsole.log(meeting);\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n A-->B\n B-->C\n\`\`\`\n\nMath $x^2$ and **decisions**, #meeting, 🚀.\n\n`;
+    let body = `# Rapid mixed report ${size}\n\n`;
+    for (let index = 0; body.length < size; index++) body += section(index);
+    for (const position of ['TOP', 'MIDDLE', 'BOTTOM']) {
+      const marker = `EDIT_${size}_${position}`;
+      const offset = position === 'TOP' ? body.indexOf('## Meeting') : position === 'MIDDLE' ? body.indexOf('## Meeting', Math.floor(body.length / 2)) : body.length;
+      body = body.slice(0, offset) + marker + '\n\n' + body.slice(offset);
+      rapidCases.push({ name, marker });
+    }
+    initial.set(name, body); expected.set(name, body);
+  }
+}
 const pasteSaveCases = [];
 const externalPasteCases = [];
 const closeCases = [];
@@ -244,6 +263,29 @@ try {
     await press('Control+v'); await page.keyboard.type(' CLOSED'); await closeCurrentTab();
     expected.set(current, item.text.replace('Reviewed now', 'Reviewed now CLOSED'));
     await open(item.name); await saved();
+  });
+
+  for (const [index, item] of rapidCases.entries()) await check(`Rapid mixed native ${item.marker}`, async () => {
+    await open(item.name); await find(item.marker);
+    const replacement = `Revised ${item.marker} Ω`;
+    await page.keyboard.type(replacement + 'xx');
+    await press('Backspace'); await press('Backspace');
+    expected.set(current, expected.get(current).replace(item.marker, replacement));
+    // Switch before any source/disk probe so navigation races remain observable.
+    const other = rapidCases.find(candidate => candidate.name !== item.name);
+    await open(other.name);
+    await wait(async () => await disk(item.name) === expected.get(item.name), 'Rapid edit reaches the correct file after switch', 12000);
+    await open(item.name); await saved(); await find(replacement);
+    await press('Control+c'); await copied(replacement);
+    await press('ArrowRight'); await press('End'); await press('Enter');
+    await press('Control+v'); await page.keyboard.type(' copied');
+    expected.set(current, expected.get(current).replace(replacement + '\n', replacement + '\n' + replacement + ' copied\n'));
+    await open(other.name);
+    const switchedAt = Date.now();
+    await wait(async () => await disk(item.name) === expected.get(item.name), 'Native paste survives switching', 12000);
+    report.samples.push({ file: item.name, label: 'remaining save latency after switch', elapsedMs: Date.now() - switchedAt });
+    await open(item.name); await saved();
+    if (index % 3 === 2) await screenshot(`rapid-mixed-${index}`);
   });
 
   for (const item of pasteSaveCases) await check(`Paste/save native ${item.name}`, async () => {
@@ -683,8 +725,7 @@ async function find(text) {
 async function open(name, alreadyOpening = false) {
   current = name;
   frame = undefined; // Never treat a previous note's renderer as this file's draft.
-  // The native vault tree virtualizes rows when the fixture set grows. Open
-  // the exact synthetic path through Quick Open, independent of sidebar height.
+  // Scroll virtualized native rows into view before opening the exact fixture.
   if (!alreadyOpening && process.env.MDLP_LINUX_PASTE_SAVE_QA === '1') {
     // Use the native Vault tree for this stress suite. Quick Open can lose focus
     // while VS Code completes a previous asynchronous close/preview operation.
