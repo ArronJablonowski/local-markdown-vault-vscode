@@ -260,6 +260,15 @@ try {
     for (let index = 0; index < 8; index++) await press('Backspace');
     await page.keyboard.type('revised', { delay: 35 });
     text = text.slice(0, -8) + 'revised'; expected.set(current, text); await saved();
+    if (process.env.MDLP_LINUX_LIST_REPEAT_QA === '1') {
+      // No save/geometry wait between Enter presses: catch cumulative drift.
+      for (let index = 0; index < 8; index++) {
+        await press('Enter'); await page.keyboard.type(`Repeated ${index}`);
+        text += `\n${item.quote}${indent}${marker} Repeated ${index}`;
+      }
+      expected.set(current, text); await saved();
+      await aligned('eighth repeated sibling', 'Repeated 0', 'Repeated 7');
+    }
     await screenshot(item.name.replace('.md', ''));
   });
   for (const item of meetingCases) await check(`Callout/list meeting ${item.title}`, async () => {

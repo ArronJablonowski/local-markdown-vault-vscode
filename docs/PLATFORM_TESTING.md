@@ -297,3 +297,26 @@ retry after an initial built-in Preview opening timeout.
 The final complete browser rerun passed all 1,133 tests. The rebuilt VSIX was
 installed in the regular NOC and development Mac profiles without forcibly
 reloading existing windows.
+
+### Repeated bullet continuation investigation — October 19, 2026
+
+Investigated reported progressive indentation on each new line, especially
+inside callouts. Added 18 browser workflows covering eight successive Enter
+continuations, tasks, nested quote/list containers, two/four-space and tab
+indentation, wrapped text at 480 pixels, default/Obsidian themes, and creation
+from an empty note one character at a time. Tests check source prefixes and
+rendered text/caret coordinates separately. Soft-break continuations remain
+inside the current item at a constant depth; they do not grow on each line.
+The complete focused list/callout browser group passed all 130 tests.
+
+The native Ubuntu runner supports `MDLP_LINUX_LIST_REPEAT_QA=1` with its
+callout/list matrix. Ten cases repeat eight Enter/type sequences without
+intermediate save or geometry probes, then verify exact disk contents and
+first-to-eighth sibling alignment. All ten passed, all 71 fixture files matched
+expected contents, and no page errors occurred. Evidence:
+`.vscode-test/noc-repeated-bullets-2026-10-19`.
+
+The reported cumulative drift was not reproduced. Installed Mac and NOC bundles
+matched the latest release webview hash. No production fix or new VSIX is
+claimed for this investigation: an affected source snippet, theme, and current
+view are needed to distinguish source nesting from visual-only indentation.
