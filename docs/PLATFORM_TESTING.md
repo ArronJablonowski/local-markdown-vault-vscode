@@ -320,3 +320,19 @@ The reported cumulative drift was not reproduced. Installed Mac and NOC bundles
 matched the latest release webview hash. No production fix or new VSIX is
 claimed for this investigation: an affected source snippet, theme, and current
 view are needed to distinguish source nesting from visual-only indentation.
+
+Live-window follow-up: used the owner's already-running macOS VS Code window,
+existing Obsidian Vault workspace, applied `obsidian-dark.css`, and current
+Markdown Live Preview settings. Created only the disposable note
+`QA Bullet Indentation 2026-10-19.md` in that vault. Native UI Enter presses
+created six sibling bullets, then Tab/Enter created aligned nested siblings;
+Shift+Tab returned to root level. Further checks covered wrapped text, four
+task items, adjacent and list-nested callouts, and repeated bullets in the inner
+callout. The 22 list/task items retained their intended indentation. No theme or
+editor setting was changed. Restored the initially hidden primary sidebar.
+
+The QA note autosaved and was closed/reopened through the UI; its exact SHA-256
+remained `0e91501770ab87ccdb0b63454708bfee1304cd85ce155e876f0239a805129e6e`.
+The reported progressive drift still did not reproduce in the live window.
+The synthetic note remains open for the owner to demonstrate the failing
+gesture. No production source change or extension reinstall was made.
