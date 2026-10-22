@@ -683,7 +683,7 @@
     "package:verify": "node scripts/verify-vsix.mjs",
     "language:verify": "node scripts/verify-us-english.mjs",
     "security:dependencies": "node scripts/verify-dependency-policy.mjs",
-    "security:audit": "npm audit --audit-level=high",
+    "security:audit": "npm audit --audit-level=low",
     "security:sbom": "cyclonedx-npm --package-lock-only --omit dev --output-reproducible --validate --output-format JSON --output-file local-markdown-vault.cdx.json",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit -p tsconfig.json --watch",
@@ -696,20 +696,26 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.90.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "^3.9.2",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "fast-check": "^4.9.0",
     "jszip": "3.10.1",
     "mocha": "^12.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "diff": "8.0.3",
-    "serialize-javascript": "7.0.5"
+    "serialize-javascript": "7.0.5",
+    "mermaid": {
+      "katex": "0.18.7"
+    },
+    "libxmljs2": {
+      "node-gyp": "13.1.0"
+    }
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -727,7 +733,7 @@
     "@shikijs/themes": "^1.24.0",
     "dompurify": "3.4.16",
     "katex": "0.18.7",
-    "mermaid": "^11.4.1",
+    "mermaid": "^11.17.2",
     "re2js": "2.8.6",
     "yaml": "^2.9.0"
   }

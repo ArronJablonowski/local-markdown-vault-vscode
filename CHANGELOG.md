@@ -1,5 +1,7 @@
 # Changelog
 
+- Update vulnerable packaging/test dependencies, share patched KaTeX 0.18.7 with Mermaid, and remove the legacy HTTP cache build-tool chain. Retain the Mermaid 11 renderer to minimize presentation changes. Add dependency-graph/trust regressions and refresh large-note UI QA expectations for raw table source and four-space list indentation.
+
 - Keep multiline plain-text pastes inside their callout, including blank paragraph separators, nested quotes, list/task continuation, and fenced code. Bound quote expansion before allocation, retain locked-document protection and spreadsheet paste precedence, and add large-payload browser and native Ubuntu clipboard/save/reopen regressions.
 
 - Treat custom callout names as own dictionary keys, preventing names such as `constructor` and `__proto__` from resolving inherited JavaScript objects and interrupting rendering. Add narrow/wide nested-object redrafts and native Ubuntu mixed-callout editing, folding, clipboard, and save checks.

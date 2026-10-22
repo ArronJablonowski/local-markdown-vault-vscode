@@ -101,7 +101,7 @@ The first supported vault model is exactly one local `file:` workspace folder. M
 - Visual Studio Code 1.90 or newer
 - macOS, Windows, or desktop Linux
 - A local folder opened as a VS Code workspace
-- Node.js 24 LTS and npm to build from source
+- Node.js 24 LTS (24.15.0 or newer) and npm to build from source
 - Git to clone the repository
 
 ## Install from source

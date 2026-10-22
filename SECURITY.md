@@ -90,6 +90,16 @@ an exact reviewed set of packages that declare install scripts. CI then uses
 `npm ci --ignore-scripts`; compilation, tests, packaging, and VSIX validation
 must succeed without executing dependency lifecycle scripts.
 
+Security overrides are narrowly scoped: Mermaid uses the reviewed KaTeX 0.18.7
+release instead of its older nested copy; the optional SBOM XML validator uses
+node-gyp 13.1.0, removing its legacy HTTP cache dependency chain. The latter
+requires Node.js 24.15.0 or newer in the development toolchain, not in the
+installed extension. Do not remove these overrides without reviewing the
+resulting graph, running both full and production-only audits, and repeating
+diagram and packaging QA. Development builds continue to disable install scripts.
+The CI/release audit fails on low-severity and higher findings, not just high
+findings; lower-severity transitive issues must not silently bypass the gate.
+
 ## Local diagnostics
 
 Diagnostics are disabled by default and are never uploaded. A user may enable

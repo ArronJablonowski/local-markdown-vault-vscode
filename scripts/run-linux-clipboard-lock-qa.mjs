@@ -872,7 +872,18 @@ async function open(name, alreadyOpening = false) {
     const row = page.getByRole('treeitem', { name: `File: ${name}`, exact: true });
     let opened = false;
     for (let step = 0; step < 20; step++) {
-      if (await row.count()) { await row.scrollIntoViewIfNeeded(); await row.click(); opened = true; break; }
+      if (await row.count()) {
+        try {
+          await row.scrollIntoViewIfNeeded({ timeout: 1500 }); await row.click({ timeout: 1500 }); opened = true; break;
+        } catch (error) {
+          // A watcher refresh can recycle the virtualized row between lookup
+          // and click. Retry navigation only, never an edit or save assertion.
+          if (!/Timeout|detached|not attached/i.test(String(error))) throw error;
+          report.treeRowRetries = (report.treeRowRetries ?? 0) + 1;
+          await page.getByRole('tree').first().focus(); await press('Home');
+          continue;
+        }
+      }
       const box = await page.getByRole('treeitem').first().boundingBox();
       assert.ok(box, 'Vault tree must be visible');
       await page.mouse.move(box.x + 80, Math.max(150, box.y + 40));

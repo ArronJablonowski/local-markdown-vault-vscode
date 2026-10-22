@@ -181,7 +181,8 @@ async function journey(name, index) {
 		assert.equal(await cell.locator('br').count(), 1);
 		assert.equal(await table.locator('tbody tr').first().locator('td').count(), 3);
 		await frame.getByRole('button', { name: 'Show Markdown source', exact: true }).first().click(); report.pointerActions++;
-		await frame.locator('.cm-line').filter({ hasText: 'Evidence accepted' }).first().waitFor({ state: 'visible' });
+		// Source reveal intentionally shows Markdown delimiters, not rendered bold.
+		await frame.locator('.cm-line').filter({ hasText: 'Evidence **accepted**' }).first().waitFor({ state: 'visible' });
 		assert.ok(await frame.locator('.mlp-table-raw').count() > 0, 'Source button did not reveal the table rows');
 		await replaceThroughFind('Pending review', 'Review complete');
 	});
@@ -236,7 +237,7 @@ async function journey(name, index) {
 		await type('flowchart LR'); await press('Enter');
 		await type('Draft --> Reviewed'); await press('Enter'); await press('Enter');
 		await type('Final saved decision.');
-		const suffix = '\n\n## Final redraft\nEvidence stays **local**. Formula $x^2 + 1$.\n\n- Review the complete record\n  - Check the nested evidence\n- Record the final decision\n\n- [ ] Request peer review\n\n```mermaid\nflowchart LR\nDraft --> Reviewed\n\n\n```\nFinal saved decision.';
+		const suffix = '\n\n## Final redraft\nEvidence stays **local**. Formula $x^2 + 1$.\n\n- Review the complete record\n    - Check the nested evidence\n- Record the final decision\n\n- [ ] Request peer review\n\n```mermaid\nflowchart LR\nDraft --> Reviewed\n\n\n```\nFinal saved decision.';
 		expected += suffix;
 		await saved('manual end-of-document note taking');
 		await page.screenshot({ path: join(artifacts, `typed-eof-${index + 1}.png`) });

@@ -16,6 +16,21 @@ const examples: Record<string, string> = {
 	timeline: 'timeline\ntitle History\n2025 : Start\n2026 : Finish',
 };
 
+for (const themeKind of ['dark', 'light'] as const) test(`Mermaid literal math fallback stays readable with safe SVG labels (${themeKind})`, async ({ page }, info) => {
+	await mountEditor(page, fence('mermaid', String.raw`flowchart LR
+A["$$x^2 + 1$$"] --> B["$$\frac{a}{b}$$"]`), { themeKind });
+	const svg = page.locator('.mlp-mermaid-wrap svg');
+	await expect(svg).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.mlp-mermaid-error')).toHaveCount(0);
+	// Strict SVG-only labels deliberately retain literal math, not foreignObject HTML.
+	await expect(svg).toContainText('$$x^2 + 1$$');
+	await expect(svg).toContainText(String.raw`$$\frac{a}{b}$$`);
+	const box = await svg.boundingBox();
+	expect(box!.width).toBeGreaterThan(30); expect(box!.height).toBeGreaterThan(20);
+	await expect(svg.locator('script, foreignObject, image, [onload], [onclick]')).toHaveCount(0);
+	await page.screenshot({ path: info.outputPath(`mermaid-math-${themeKind}.png`) });
+});
+
 for (const [family, source] of Object.entries(examples)) {
 	test(`Mermaid ${family} preserves visible labels and geometry`, async ({ page }, testInfo) => {
 		await mountEditor(page, fence('mermaid', source));
