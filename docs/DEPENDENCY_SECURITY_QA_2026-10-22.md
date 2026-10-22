@@ -78,3 +78,42 @@ Primary advisories: [markdown-it](https://github.com/markdown-it/markdown-it/sec
 [Vite/launch-editor](https://github.com/vitejs/launch-editor/security/advisories/GHSA-587h-7wmj-h5pm),
 [KaTeX](https://github.com/KaTeX/KaTeX/security/advisories/GHSA-238p-pmpm-9mq7), and
 [HTTP cache semantics](https://github.com/kornelski/http-cache-semantics/issues/56).
+
+## Final package and additional runs
+
+- A clean Node 24.19.0 `npm ci --ignore-scripts` succeeded, followed by all 2,093
+  unit tests, type checking, policy checks, production packaging, validated SBOM
+  generation, and zero findings in full and production-only audits. Gitleaks
+  found no secrets in the staged changes. US English verification passed.
+- The final 1,170-case production-bundle browser run had 1,169 passes and one
+  intermittent large sticky-table alignment timeout. Both editing and locked
+  large-table variants passed on focused rerun. The preceding 1,168-case full
+  run passed completely; the two added literal-math cases also passed.
+- Final VSIX smoke checks passed on rerun: 10 trusted, five restricted, and one
+  extension-disabled checks. One earlier run failed to open VS Code's built-in
+  Markdown Preview; the rerun covered that same sticky-header check successfully.
+- Ubuntu's long private-desktop run exercised 57 workflows: 53 passed, with four
+  navigation/clipboard/tab-close timeouts. Focused production-package reruns
+  passed all four previously timed-out paths, plus the two other mixed-callout
+  variants. The 120 KB list's immediate close/reopen passed on its isolated run
+  without a close retry or Save confirmation; every final byte was checked.
+  No change was made to the product's close/save behavior. This is not evidence
+  that long-session timing issues can never recur.
+- Ubuntu coverage includes approximately 2 MB callout pastes, 120/300/450 KB mixed
+  notes edited at top/middle/bottom, external GTK clipboard data, lock protection,
+  table/list/code drafts, and Unicode file/folder creation, rename, and move.
+- Artifacts remain local under `.vscode-test/large-redraft-ui`,
+  `.vscode-test/noc-security-dependencies-2026-10-22`,
+  `.vscode-test/noc-security-dependencies-focused-2026-10-22`, and
+  `.vscode-test/noc-security-close-confirmation-2026-10-22`. Ubuntu used the
+  authorized NOC host in a private X11 desktop; this is not Wayland certification.
+- The VSIX is installed on Mac and Ubuntu NOC. Installed Mermaid bundle SHA-256
+  matches the tested production build on both systems:
+  `264ae0960219838f508b5bfb7ccb0697991119e21665c46c4f6df6a289847d52`.
+  Release VSIX SHA-256:
+  `c529d088e30a6980a1f2a358f48129b66f06d901bc91dd243cee6ba9d1b634ac`.
+  Existing personal windows were not forcibly reloaded.
+- GitHub's dependency graph initially continued to return the preceding
+  markdown-it 14.3.2 / Vite 8.3.0 / HTTP cache 4.2.0 snapshot after the push.
+  Alerts were not manually dismissed. The committed lockfile and clean installs
+  contain none of those vulnerable versions/removed paths.
