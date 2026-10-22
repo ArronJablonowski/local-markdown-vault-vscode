@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep multiline plain-text pastes inside their callout, including blank paragraph separators, nested quotes, list/task continuation, and fenced code. Bound quote expansion before allocation, retain locked-document protection and spreadsheet paste precedence, and add large-payload browser and native Ubuntu clipboard/save/reopen regressions.
+
 - Treat custom callout names as own dictionary keys, preventing names such as `constructor` and `__proto__` from resolving inherited JavaScript objects and interrupting rendering. Add narrow/wide nested-object redrafts and native Ubuntu mixed-callout editing, folding, clipboard, and save checks.
 
 - Recover rapid edits after native window shutdown when the file saved either exact side of an in-flight edit batch. Retain the acknowledged baseline alongside the pending baseline, validate both at runtime, and use the same checks during host shutdown flushing. Add Ubuntu whole-window close/relaunch tests for callouts, tables, and code blocks at small, 120 KB, and 450 KB sizes.

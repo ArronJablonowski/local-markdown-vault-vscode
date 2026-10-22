@@ -56,6 +56,16 @@ const initial = new Map([
   ['Nested table lists.md', tableListNote],
 ]);
 const expected = new Map(initial);
+const paragraphCases = [];
+if (process.env.MDLP_LINUX_CALLOUT_PARAGRAPH_QA === '1') {
+  assert.equal(process.env.MDLP_LINUX_PASTE_SAVE_QA, '1');
+  for (const size of [1000, 100000, 1000000, 2000000]) for (const quote of ['> ', '> > ']) {
+    const name = `Paragraph paste ${size} ${quote.length}.md`;
+    const text = `# Paragraph paste ${size} ${quote.length}\n\n${quote}[!note]+ Meeting\n${quote}TARGET\n\nOutside sentinel`;
+    const payload = 'First paragraph Ω 🚀.\n\n' + 'Evidence and decisions retained. '.repeat(Math.ceil(size / 33)) + '\n\nFinal paragraph.';
+    initial.set(name, text); expected.set(name, text); paragraphCases.push({ name, text, payload, quote });
+  }
+}
 const calloutObjectCases = [];
 if (process.env.MDLP_LINUX_CALLOUT_OBJECT_QA === '1') {
   assert.equal(process.env.MDLP_LINUX_PASTE_SAVE_QA, '1');
@@ -210,6 +220,20 @@ try {
     await page.locator('.quick-input-widget:visible .quick-input-box input').fill('>Focus on Document Vault View');
     await page.locator('.quick-input-widget:visible .monaco-list-row').filter({ hasText: 'Focus on Document Vault View' }).first().click();
   }
+
+  for (const item of paragraphCases) await check(`Callout paragraphs native ${item.name}`, async () => {
+    await open(item.name); await find('TARGET');
+    await externalClipboard(item.payload); await copied(item.payload);
+    await press(item.quote.length > 2 ? 'Control+Shift+v' : 'Control+v'); await page.keyboard.type(' retained');
+    const text = item.text.replace('TARGET', item.payload.replaceAll('\n', '\n' + item.quote) + ' retained');
+    expected.set(current, text); await saved();
+    await frame.locator('.cm-content').focus(); await press('Control+Home');
+    const header = frame.getByRole('button', { name: 'Meeting callout', exact: true });
+    await header.click(); assert.equal(await frame.locator('.cm-line', { hasText: 'Final paragraph.' }).count(), 0);
+    await header.click(); await saved();
+    await closeCurrentTab(); await open(item.name); await saved();
+    await screenshot(`paragraph-paste-${item.payload.length}-${item.quote.length}`);
+  });
 
   for (const item of calloutObjectCases) await check(`Callout objects native ${item.name}`, async () => {
     await open(item.name); await find('Final details.'); await press('ArrowRight'); await press('Shift+Enter');
@@ -798,7 +822,10 @@ async function externalClipboard(text) {
   assert.notEqual(process.env.MDLP_LINUX_QA_DISPLAY_MODE, 'desktop', 'External clipboard QA must not replace the NOC desktop clipboard');
   // A separate GTK process owns the X11 selection, like an external desktop app.
   // The unique argv token lets cleanup terminate only this QA clipboard owner.
-  const script = 'import gi,base64; gi.require_version("Gtk","3.0"); from gi.repository import Gtk,Gdk; Gtk.init([]); c=Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); c.set_text(base64.b64decode("' + Buffer.from(text).toString('base64') + '").decode("utf-8"),-1); Gtk.main()';
+  // Stage synthetic large payloads in our private directory, not shell argv.
+  await writeFile(join(local, 'clipboard.txt'), text);
+  await command('scp', [...sshOptions, join(local, 'clipboard.txt'), `${host}:${remote}/clipboard.txt`]);
+  const script = 'import gi,pathlib; gi.require_version("Gtk","3.0"); from gi.repository import Gtk,Gdk; Gtk.init([]); c=Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD); c.set_text(pathlib.Path(' + JSON.stringify(`${remote}/clipboard.txt`) + ').read_text(),-1); Gtk.main()';
   await ssh(`env GDK_BACKEND=x11 DISPLAY=${q(display)} XAUTHORITY=${q(authority)} python3 -c ${q(script)} ${q(`${remote}/clipboard-owner`)} >${q(`${remote}/clipboard-owner.log`)} 2>&1 < /dev/null &`);
 }
 async function copied(text) { await wait(async () => await clipboard() === text, 'exact native clipboard'); }

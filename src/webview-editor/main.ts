@@ -60,6 +60,7 @@ import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 import { renderedSelection } from './renderedSelection';
 import { clipboardShortcuts } from './clipboardShortcuts';
+import { createCalloutPasteHandler } from './calloutPaste';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
 import { PendingEdits } from './pendingEdits';
@@ -363,6 +364,7 @@ function createExtensions(): Extension[] {
 		codeHighlightExtension,
 		Prec.highest(createLinkClickHandler((href) => postToHost({ type: 'openLink', href }))),
 		createSpreadsheetPasteHandler(),
+		createCalloutPasteHandler(() => recoveryNotice(t('recovery.tooLarge')), () => recoveryNotice(t('calloutPaste.parsing'))),
 		createImagePasteHandler(
 			(atPos, images, needsOwnParagraph) => {
 				if (!editingAllowed || recoveryBlocked || editInFlight || !pending.empty || awaitingResync || processingHostSnapshot) return false;

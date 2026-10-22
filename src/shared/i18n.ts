@@ -7,6 +7,7 @@
 
 /** Every user-visible webview string, keyed by a stable identifier. */
 const en = {
+	'calloutPaste.parsing': 'Markdown parsing is not finished. Nothing was pasted. Wait a moment and paste again.',
 	'spreadsheetPaste.malformed': 'The copied table has invalid CSV or TSV quoting. Nothing was pasted. Check the copied data and try again.',
 	'spreadsheetPaste.tooLarge': 'This table paste exceeds a safe limit (256 KiB copied data, 1,000 rows, 200 columns, 10,000 cells, or 512 KiB resulting table). Nothing was pasted.',
 	'spreadsheetPaste.textOnly': 'The clipboard has no usable plain text for this destination. Copy the text again. Clipboard HTML and spreadsheet formulas are not executed.',
