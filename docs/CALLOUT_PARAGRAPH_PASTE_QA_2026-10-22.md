@@ -33,3 +33,64 @@ Ubuntu runs on the authorized NOC host in a private 1440×900 X11 desktop. This 
 - Native artifacts: `.vscode-test/noc-callout-paragraph-paste-release-2026-10-22` (local, untracked).
 
 Existing VS Code windows were not forcibly reloaded. Reload the window to activate the installed bundle. No personal Markdown files were changed by these tests.
+
+## Follow-up UI/rendering QA: literal code continuation
+
+Further interaction testing confirmed that multiline paste inside an indented
+code block in a callout dropped the required code indentation after the first
+line. Subsequent lines could render as prose or bullets. Shift+Enter also treated
+literal leading dashes as list markers inside quoted code, adding unintended
+indentation. Callout-looking code could enter the heading-continuation path.
+
+The correction derives code prefixes from parser-owned `CodeText`/`CodeMark`
+spans rather than guessing from code content. It preserves quote/list containers,
+literal indentation, tabs, and code at an end-of-line boundary. Both paste and
+Shift+Enter use the same helper; ordinary paragraphs, lists, and callout headings
+retain their existing continuation behavior. HTML stays literal, and locked
+documents and resource limits are unchanged.
+
+Nine new browser workflows cover space/tab indentation, nested callouts,
+blank-line pastes, immediate typing, end-of-code paste, Shift+Enter, list-nested
+fence openings, and literal callout/HTML text. They compare exact source and
+rendered code classes. Tab fixtures follow Markdown tab stops: a single tab
+after `> ` is not necessarily an indented code block. Five unit cases cover the
+parser-owned container and indentation calculation.
+
+The native large-redraft runner now pastes multiline code from the macOS
+clipboard into callouts and continues it with Shift+Enter in approximately
+110 KB, 260 KB, and 470 KB notes. All 35 native checks passed, with 3,336 typed
+characters, 456 key actions, 47 pointer actions, no page errors, and exact disk
+comparisons. The full browser suite passed all 1,179 tests.
+
+Native control QA additionally exercises all configured viewing-mode aliases,
+lock defaults, five code palettes, whitespace visibility, tab reuse, sorting,
+remote-resource settings, exclusions, attachment location, trash confirmations,
+and multi-file drag/drop. Fixture-driven watcher refresh can detach native tree
+rows; the runner retries only that navigation, never file mutations or byte
+assertions.
+
+The previously documented VS Code filesystem Undo limitation remains: native
+Undo can restore moved files without restoring links in an unopened/disposed
+document. The extension's dedicated Vault Undo/Redo restored paths, links, and
+exact file bytes during this run. The separate out-of-band close/recovery race
+documented in the dependency QA report is not claimed fixed by this change.
+
+Local evidence: `.vscode-test/large-redraft-ui`,
+`.vscode-test/human-native-ui`, and Playwright's `test-results` directory.
+All test notes/settings belonged to disposable profiles; personal notes and
+settings were not modified. The large-redraft runner restores the clipboard.
+
+Final follow-up results: 2,098 unit tests passed, 1,179 browser tests passed,
+and 46 focused production-bundle paste/security checks passed. Native settings
+checks covered all added enum values. The extended full-control run reached
+25 successful checks before a watcher/menu navigation timeout; after waiting
+for the newly created folder to appear in the tree, the six gesture groups
+completed with only the already documented native Undo limitation. That
+platform limitation intentionally leaves the gesture report marked not fully
+passed; it is not hidden or counted as fixed. Timing-sensitive unit/performance
+checks were repeated under normal machine load after an overloaded parallel run.
+
+Follow-up VSIX SHA-256:
+`96fb0d54ebc306c1dc76696f75c6f3e71284bd3ed666383da662e1991d1c31b1`.
+Follow-up webview SHA-256:
+`3fcd27b88a72871b414eaa1ec8df243dadf4baa215904c1a3cfea0d06112e2e7`.

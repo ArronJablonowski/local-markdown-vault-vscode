@@ -103,6 +103,11 @@ try {
 	}
 	for (const [key, values] of Object.entries({
 		'vault.sortOrder': ['nameAsc', 'nameDesc', 'modifiedNewest', 'modifiedOldest', 'createdNewest', 'createdOldest'],
+		defaultEditor: ['livePreview', 'prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor'],
+		defaultEditingMode: ['editing', 'locked'],
+		codeTheme: ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'],
+		showWhitespace: ['off', 'on'],
+		'vault.openBehavior': ['reuseTab', 'newTab'],
 		diagramRendering: ['safe', 'off'], remoteMedia: ['block', 'https'],
 	})) {
 		const item = await setting(key);

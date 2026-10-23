@@ -32,12 +32,21 @@ export async function runVaultGestureQa({ page, workspace, modifier, onCheck, on
 	const focusVault = () => palette('Local Markdown Vault: Focus on Document Vault View');
 	const expand = async relative => {
 		const folder = row('Folder', relative);
-		await folder.waitFor({ state: 'visible' });
-		await folder.scrollIntoViewIfNeeded();
-		if (await folder.getAttribute('aria-expanded') !== 'true') {
-			await folder.click();
-			await page.keyboard.press('ArrowRight');
-			await wait(async () => await folder.getAttribute('aria-expanded') === 'true', `expand ${relative}`);
+		for (let attempt = 0; ; attempt++) {
+			try {
+				await folder.waitFor({ state: 'visible' });
+				await folder.scrollIntoViewIfNeeded();
+				if (await folder.getAttribute('aria-expanded') !== 'true') {
+					await folder.click();
+					await page.keyboard.press('ArrowRight');
+					await wait(async () => await folder.getAttribute('aria-expanded') === 'true', `expand ${relative}`);
+				}
+				break;
+			} catch (error) {
+				// Fixture writes can recycle a native tree row during navigation.
+				// Never retry file mutations or loosen their exact-content checks.
+				if (attempt >= 2 || !/not attached|detached/i.test(String(error))) throw error;
+			}
 		}
 	};
 	const revealFixture = async relative => {
@@ -227,6 +236,9 @@ export async function runVaultGestureQa({ page, workspace, modifier, onCheck, on
 	await menu('Folder', '04 Prompts', 'New Folder');
 	await answer('Review Ω 🧭');
 	await wait(() => exists(path('04 Prompts/Review Ω 🧭')), 'Unicode folder creation');
+	// Wait for the watcher-driven tree replacement, not just the filesystem,
+	// before opening the next context menu on a sibling row.
+	await row('Folder', '04 Prompts/Review Ω 🧭').waitFor({ state: 'visible' });
 	await menu('File', '04 Prompts/Original.md', 'Rename Vault Item');
 	await answer('Reviewed Ω 🧭.md');
 	await wait(() => exists(path('04 Prompts/Reviewed Ω 🧭.md')), 'Unicode file rename');

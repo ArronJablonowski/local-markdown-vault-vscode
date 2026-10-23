@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { calloutForNode } from './calloutState';
 import { softLineBreakPrefix } from './softLineBreak';
 import { readClipboardText } from './clipboardText';
+import { indentedCodeContinuationPrefix } from './indentedCode';
 import { isEditorDocumentWithinLimit, MAX_EDITOR_DOCUMENT_BYTES } from '../shared/messageValidation';
 
 /** Bound quote expansion before allocating its result or any per-line arrays. */
@@ -37,21 +38,23 @@ export function createCalloutPasteHandler(tooLarge: () => void, parsing: () => v
 		}
 		const context = (position: number, side: -1 | 1) => {
 			let literalLine: string | undefined;
+			let literalPrefix: string | undefined;
 			for (let node = tree.resolveInner(position, side); node; node = node.parent!) {
 				if (node.name === 'Table') return undefined;
 				if (['FencedCode', 'CodeBlock', 'InlineCode'].includes(node.name)) literalLine = state.doc.lineAt(node.from).text;
+				if (node.name === 'CodeBlock') literalPrefix = indentedCodeContinuationPrefix(state, node, position);
 				const callout = calloutForNode(state, node);
-				if (callout) return { ...callout, literalLine };
+				if (callout) return { ...callout, literalLine, literalPrefix };
 			}
 			return undefined;
 		};
-		const callout = context(from, 1), end = context(to, -1);
+		const callout = context(from, from === state.doc.lineAt(from).to ? -1 : 1), end = context(to, -1);
 		if (!callout || !end || callout.from !== end.from) return false;
 		const line = state.doc.lineAt(from);
 		const quote = /^[ \t]*(?:>[ \t]*)+/.exec(line.text)?.[0];
 		// Whole-source replacements must keep their authored Markdown unchanged.
 		if (quote && from < line.from + quote.length) return false;
-		const prefix = softLineBreakPrefix(callout.literalLine ?? (quote ? line.text : state.doc.lineAt(callout.from).text));
+		const prefix = callout.literalPrefix ?? softLineBreakPrefix(callout.literalLine ?? (quote ? line.text : state.doc.lineAt(callout.from).text));
 		const endLine = state.doc.lineAt(to);
 		// Count before expanding: millions of tiny lines must not allocate an
 		// attacker-sized array or a quote-expanded string beyond the document cap.

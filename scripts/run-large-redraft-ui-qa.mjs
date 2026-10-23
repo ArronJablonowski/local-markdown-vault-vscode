@@ -242,6 +242,19 @@ async function journey(name, index) {
 		await saved('manual end-of-document note taking');
 		await page.screenshot({ path: join(artifacts, `typed-eof-${index + 1}.png`) });
 	});
+	if (process.platform === 'darwin') await check(`${name}: native multiline code paste and Shift+Enter retain callout indentation`, async () => {
+		const payload = 'first();\n\n- literal_not_a_bullet();\nlast();';
+		await commandOutput('pbcopy', Buffer.from(payload));
+		await find('INDENTED_PASTE_TARGET'); await press(`${mod}+v`);
+		expected = expected.replace('INDENTED_PASTE_TARGET', payload.replaceAll('\n', '\n>     '));
+		await press('Shift+Enter'); await type('continued();');
+		expected = expected.replace('last();', 'last();\n>     continued();');
+		await saved('indented code multiline paste');
+		await find('END_OF_SEEDED_CONTENT'); await press('ArrowRight');
+		assert.ok(await frame.locator('.cm-line.mlp-line-code', { hasText: '- literal_not_a_bullet();' }).count() === 1);
+		assert.ok(await frame.locator('.cm-line.mlp-line-code', { hasText: 'continued();' }).count() === 1);
+		await page.screenshot({ path: join(artifacts, `indented-paste-${index + 1}.png`) });
+	});
 }
 
 async function replaceThroughFind(from, to) {
@@ -389,5 +402,5 @@ function makeNote(title, minimumBytes) {
 		source += `\n## Supporting analysis ${section}\n\nThis detailed supporting section ${section} preserves **bold**, *emphasis*, ~~superseded text~~, ==highlighting==, \\*literal symbols\\*, and [a local reference](#risk-review). Do not abbreviate the retained source while performing a redraft. This intentionally long paragraph wraps across several display lines so mouse and keyboard navigation can expose transient layout shifts in a large document.\n\n- Primary observation ${section}: this line also wraps and should align with the first character of the item, not the bullet marker. Add context about local storage, offline operation, secure defaults, and recovery from interrupted sessions.\n  - Secondary observation ${section}\n    - Detailed observation ${section}\n- [ ] Follow-up action ${section}\n\n> [!note] Supporting detail ${section}\n> Read the source before changing its interpretation.\n>\n> | Question | Answer |\n> | --- | --- |\n> | Storage | Local only |\n\n\`\`\`json\n{"section": ${section}, "local": true, "labels": ["qa", "redraft"]}\n\`\`\`\n\nA reference[^support-${section}] and inline expression $n_{${section}}^2$.\n\n[^support-${section}]: Retain the accompanying evidence.\n`;
 		section++;
 	}
-	return source + '\nEND_OF_SEEDED_CONTENT';
+	return source + '\n\n## Literal code continuation\n\n> [!note]+ Literal code\n>\n>     INDENTED_PASTE_TARGET\n\nEND_OF_SEEDED_CONTENT';
 }

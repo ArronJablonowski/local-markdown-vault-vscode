@@ -1,5 +1,7 @@
 # Changelog
 
+- Preserve parser-owned code indentation when pasting multiple lines or using Shift+Enter inside callouts and fenced code. Keep literal dashes, callout-like text, and HTML inside code instead of interpreting them as Markdown containers. Extend native large-note redrafts, settings coverage, and rendering regressions.
+
 - Update vulnerable packaging/test dependencies, share patched KaTeX 0.18.7 with Mermaid, and remove the legacy HTTP cache build-tool chain. Retain the Mermaid 11 renderer to minimize presentation changes. Add dependency-graph/trust regressions and refresh large-note UI QA expectations for raw table source and four-space list indentation.
 
 - Keep multiline plain-text pastes inside their callout, including blank paragraph separators, nested quotes, list/task continuation, and fenced code. Bound quote expansion before allocation, retain locked-document protection and spreadsheet paste precedence, and add large-payload browser and native Ubuntu clipboard/save/reopen regressions.

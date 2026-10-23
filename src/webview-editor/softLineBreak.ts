@@ -2,6 +2,8 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView, type Command } from '@codemirror/view';
 import { parseCalloutHeader } from './callouts';
 import { toggleCallout } from './calloutState';
+import { ensureSyntaxTree } from '@codemirror/language';
+import { indentedCodeContinuationPrefix } from './indentedCode';
 
 /**
  * Returns the prefix Obsidian uses for a Shift+Enter continuation line.
@@ -37,10 +39,20 @@ export const insertSoftLineBreak: Command = (view) => {
 	const { state } = view;
 	if (state.readOnly || !state.facet(EditorView.editable)) return false;
 	const headers = new Set<number>();
+	const parseTo = state.selection.ranges.reduce((end, range) => Math.max(end, range.to), 0);
+	const tree = ensureSyntaxTree(state, parseTo, 50);
 	const transaction = state.changeByRange((range) => {
 		const line = state.doc.lineAt(range.from);
-		if (parseCalloutHeader(line.text)) headers.add(line.from);
-		const insert = `\n${softLineBreakPrefix(line.text)}`;
+		let prefix = softLineBreakPrefix(line.text);
+		let blockCode = false;
+		for (let node = tree?.resolveInner(range.from, range.from === line.to ? -1 : 1); node; node = node.parent ?? undefined) {
+			if (node.name === 'InlineCode') break;
+			if (node.name === 'CodeBlock' || node.name === 'FencedCode') {
+				prefix = indentedCodeContinuationPrefix(state, node, range.from); blockCode = true; break;
+			}
+		}
+		if (!blockCode && parseCalloutHeader(line.text)) headers.add(line.from);
+		const insert = `\n${prefix}`;
 		return {
 			changes: { from: range.from, to: range.to, insert },
 			range: EditorSelection.cursor(range.from + insert.length),
