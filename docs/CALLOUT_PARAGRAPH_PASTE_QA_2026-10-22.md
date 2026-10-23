@@ -78,7 +78,7 @@ documented in the dependency QA report is not claimed fixed by this change.
 Local evidence: `.vscode-test/large-redraft-ui`,
 `.vscode-test/human-native-ui`, and Playwright's `test-results` directory.
 All test notes/settings belonged to disposable profiles; personal notes and
-settings were not modified. The large-redraft runner restores the clipboard.
+settings were not modified. The large-redraft runner restores the clipboard text.
 
 Final follow-up results: 2,098 unit tests passed, 1,179 browser tests passed,
 and 46 focused production-bundle paste/security checks passed. Native settings
@@ -94,3 +94,35 @@ Follow-up VSIX SHA-256:
 `96fb0d54ebc306c1dc76696f75c6f3e71284bd3ed666383da662e1991d1c31b1`.
 Follow-up webview SHA-256:
 `3fcd27b88a72871b414eaa1ec8df243dadf4baa215904c1a3cfea0d06112e2e7`.
+
+### Newly reported sanitizer advisories during handoff
+
+The push surfaced three new DOMPurify advisories against 3.4.16:
+[critical template/shadow-root DOM-output bypass](https://github.com/cure53/DOMPurify/security/advisories/GHSA-cg2g-xh64-v4q7),
+[high in-place hook/detached-subtree handling](https://github.com/cure53/DOMPurify/security/advisories/GHSA-mrv2-3pqr-j5jr), and
+[low XHTML SMIL attribute handling](https://github.com/cure53/DOMPurify/security/advisories/GHSA-c6gr-qvv4-5v3f).
+DOMPurify was pinned to patched 3.4.17 and deduplicated across direct MathML
+sanitization and Mermaid. The dependency-graph regression now rejects older
+copies. Direct MathML rendering does not enable the cited DOM-output/template,
+in-place, or XHTML-parser modes; this is not a claim that every possible Mermaid
+directive was proven unexploitable on the old version. The patched release is
+used regardless. Audits and the complete rendering tests are repeated before
+rebuilding the final package; the hashes above identify the preceding UI-fix
+package, not this sanitizer follow-up.
+
+The sanitizer follow-up passed all 2,098 unit tests and all 1,179 browser tests.
+Full/production dependency audits report zero findings, dependency policy and
+US English checks passed, and the validated SBOM was regenerated. The final
+package verifier passed with the updated direct and Mermaid sanitizer copies.
+
+Final sanitizer-follow-up VSIX SHA-256:
+`4555f7381bc6ae4d367686ffaead6c7f4b147f8718ea2ce066a8249825decd4a`.
+Final editor bundle SHA-256:
+`12b60c5fadf2f6763f269373ae3fc1f72c21fd445a8764152615d8c8e6bb4751`.
+Final Mermaid bundle SHA-256:
+`4e66a25040680d1017cda04c067af21e6424f5a31e447dc24488bf760f7de28c`.
+
+The final packaged checks passed in trusted (10), restricted (five), and
+extension-disabled (one) profiles. The final VSIX was installed on Mac and Ubuntu
+NOC; both installed editor/Mermaid bundle hashes match those above. Existing
+windows were left open, so a reload is required to activate the new bundles.
