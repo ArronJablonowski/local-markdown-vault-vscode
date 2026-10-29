@@ -503,7 +503,8 @@ In **Markdown Live Preview**, mouse selection and Command+C (macOS) or Ctrl+C
 table cell, drag across paragraphs and rendered blocks, or keep selecting while
 scrolling. Selections spanning blocks copy the underlying Markdown; selections
 inside a rendered table copy its displayed text. Locked mode permits copying
-without modifying the document.
+without modifying the document. After Find jumps through a large note, delayed
+preview measurements keep the hovered text anchored when mouse selection starts.
 
 Lock prevents new edits in that Live Preview tab; it is not a filesystem lock.
 Edits already accepted for saving, including an image insertion already handed
@@ -777,7 +778,6 @@ Additional references:
 
 ## Known limitations
 
-- An intermittent selection jump remains under investigation in very large mixed-object notes: after Find jumps to a paragraph near the bottom, starting a mouse drag can move the viewport and lose the intended selection. If it occurs, use Shift+arrow keys to select the text and verify the selection before deleting. Added QA diagnostics retain the failing geometry; passing retries do not establish a fix.
 - VS Code's built-in Markdown Preview does not render the extension's wikilinks or Obsidian-style callouts. Use **Markdown Live Preview** for those features; selecting another viewing mode does not add syntax support to that editor.
 - Only one local workspace folder is supported as a vault.
 - Windows, macOS, and Linux run the same source, package, filesystem, Trash, undo/redo, autosave, security, Restricted Mode, cache-recovery, and installed-VSIX validation gates. Platform-specific manual usability testing is still required before a production release.

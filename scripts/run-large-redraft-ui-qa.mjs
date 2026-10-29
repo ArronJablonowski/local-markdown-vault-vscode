@@ -111,6 +111,31 @@ try {
 }
 
 async function journey(name, index) {
+	await check(`${name}: Find-to-mouse selection at the bottom retains its glyph position and saves deletion`, async () => {
+		const marker = 'END_OF_SEEDED_CONTENT';
+		await find(marker);
+		const line = frame.locator('.cm-line').filter({ hasText: new RegExp(`^${marker}$`) });
+		await line.scrollIntoViewIfNeeded(); await line.hover();
+		const local = await line.evaluate(el => {
+			const range = document.createRange(); range.selectNodeContents(el);
+			const glyph = range.getBoundingClientRect(), box = el.getBoundingClientRect();
+			return { x: glyph.x - box.x, y: glyph.y - box.y, width: glyph.width, height: glyph.height };
+		});
+		const box = await line.boundingBox(); assert.ok(box);
+		const x = box.x + local.x, y = box.y + local.y + local.height / 2;
+		await page.mouse.move(x + 1, y); await page.mouse.down();
+		const pressed = await line.boundingBox(); assert.ok(pressed);
+		assert.ok(Math.abs(pressed.y - box.y) < 2, 'Mouse press moved the selected paragraph');
+		await page.mouse.move(x + local.width - 1, y, { steps: 20 }); await page.mouse.up(); report.pointerActions += 4;
+		const selected = await frame.locator('.cm-content').evaluate(el => {
+			const state = el.cmTile.root.view.state;
+			return state.sliceDoc(state.selection.main.from, state.selection.main.to);
+		});
+		assert.equal(selected, marker);
+		const original = expected;
+		await press('Backspace'); expected = expected.replace(marker, ''); await saved('bottom mouse selection deletion');
+		await press(`${mod}+z`); expected = original; await saved('restore bottom mouse deletion');
+	});
 	await check(`${name}: opening and closing Replace keeps immediate typing out of the note`, async () => {
 		await find('DRAFT_SUMMARY');
 		await press(`${mod}+f`); await press('Enter');
