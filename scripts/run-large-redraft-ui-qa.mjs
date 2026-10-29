@@ -111,7 +111,7 @@ try {
 }
 
 async function journey(name, index) {
-	await check(`${name}: Find-to-mouse selection at the bottom retains its glyph position and saves deletion`, async () => {
+	await check(`${name}: Find-to-Shift-mouse selection at the bottom retains its glyph position and saves deletion`, async () => {
 		const marker = 'END_OF_SEEDED_CONTENT';
 		await find(marker);
 		const line = frame.locator('.cm-line').filter({ hasText: new RegExp(`^${marker}$`) });
@@ -123,10 +123,12 @@ async function journey(name, index) {
 		});
 		const box = await line.boundingBox(); assert.ok(box);
 		const x = box.x + local.x, y = box.y + local.y + local.height / 2;
+		await page.keyboard.down('Shift');
 		await page.mouse.move(x + 1, y); await page.mouse.down();
 		const pressed = await line.boundingBox(); assert.ok(pressed);
 		assert.ok(Math.abs(pressed.y - box.y) < 2, 'Mouse press moved the selected paragraph');
 		await page.mouse.move(x + local.width - 1, y, { steps: 20 }); await page.mouse.up(); report.pointerActions += 4;
+		await page.keyboard.up('Shift');
 		const selected = await frame.locator('.cm-content').evaluate(el => {
 			const state = el.cmTile.root.view.state;
 			return state.sliceDoc(state.selection.main.from, state.selection.main.to);

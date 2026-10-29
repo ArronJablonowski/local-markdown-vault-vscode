@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mountEditor, openSearch } from './harness';
 
-for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const editingMode of ['editing', 'locked'] as const) for (const width of [500, 1000]) test(`mouse selection retains its visual anchor during ${phase} height correction: ${editingMode}, ${width}px`, async ({ page }) => {
+for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const editingMode of ['editing', 'locked'] as const) for (const width of [500, 1000]) for (const modifier of phase === 'between-events' ? ['none', 'Shift'] : ['none']) test(`mouse selection retains its visual anchor during ${phase} height correction: ${editingMode}, ${width}px, ${modifier}`, async ({ page }) => {
 	await page.setViewportSize({ width, height: 700 });
 	const text = '# Notes\n\n' + 'Retained paragraph.\n\n'.repeat(2000) + 'Final editable paragraph.';
 	await mountEditor(page, text, { editingMode });
@@ -24,6 +24,7 @@ for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const edi
 	});
 	// Reproduce a queued height correction during CodeMirror's coordinate read,
 	// rather than relying on a background parser/diagram winning a timing race.
+	if (modifier === 'Shift') await page.keyboard.down('Shift');
 	await page.locator('.cm-content').evaluate((el: any, phase) => {
 		const view = el.cmTile.root.view;
 		if (phase === 'between-events') {
@@ -40,6 +41,7 @@ for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const edi
 	const after = await line.boundingBox();
 	await page.mouse.move(before.x + before.width - 1, before.y + before.height / 2, { steps: 12 });
 	await page.mouse.up();
+	if (modifier === 'Shift') await page.keyboard.up('Shift');
 	expect(Math.abs(after!.y - before.lineY)).toBeLessThan(2);
 	const result = await page.locator('.cm-content').evaluate((el: any) => {
 		const state = el.cmTile.root.view.state;

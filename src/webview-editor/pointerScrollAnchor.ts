@@ -6,10 +6,15 @@ type PointerAnchor = { pos: number; top: number; bottom: number; left: number; r
 export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 	private anchor: PointerAnchor | null = null;
 	private readonly cancel = (): void => { this.anchor = null; };
+	private readonly keydown = (event: KeyboardEvent): void => {
+		// Holding a modifier prepares a mouse gesture; it does not move the caret.
+		if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) this.cancel();
+	};
 	constructor(private readonly view: EditorView) {
 		view.dom.addEventListener('mousedown', this.press, true);
 		view.dom.addEventListener('mousemove', this.hover, true);
-		for (const type of ['wheel', 'keydown', 'pointercancel', 'touchstart']) view.dom.addEventListener(type, this.cancel, true);
+		view.dom.addEventListener('keydown', this.keydown, true);
+		for (const type of ['wheel', 'focusout', 'pointercancel', 'touchstart']) view.dom.addEventListener(type, this.cancel, true);
 		view.dom.ownerDocument.defaultView?.addEventListener('blur', this.cancel);
 	}
 	private readonly hover = (event: MouseEvent): void => {
@@ -67,7 +72,8 @@ export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 	destroy(): void {
 		this.view.dom.removeEventListener('mousedown', this.press, true);
 		this.view.dom.removeEventListener('mousemove', this.hover, true);
-		for (const type of ['wheel', 'keydown', 'pointercancel', 'touchstart']) this.view.dom.removeEventListener(type, this.cancel, true);
+		this.view.dom.removeEventListener('keydown', this.keydown, true);
+		for (const type of ['wheel', 'focusout', 'pointercancel', 'touchstart']) this.view.dom.removeEventListener(type, this.cancel, true);
 		this.view.dom.ownerDocument.defaultView?.removeEventListener('blur', this.cancel);
 	}
 });
