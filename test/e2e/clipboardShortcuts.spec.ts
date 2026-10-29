@@ -53,6 +53,35 @@ test.describe('native clipboard shortcuts stay inside the webview', () => {
 	// Native clipboard state is shared by tabs; keep this file's gestures sequential.
 	test.describe.configure({ mode: 'serial' });
 
+	for (const locked of [false, true]) for (const container of ['paragraph', 'list', 'table']) for (const reverse of [false, true]) {
+		test(`copy mixed HTML formatting into Find from a ${container} (${locked ? 'locked' : 'editing'}, ${reverse ? 'backward' : 'forward'})`, async ({ page }) => {
+			const phrase = '<strong>Alpha</strong> beta <em>gamma</em>';
+			const html = container === 'table' ? `<table><tr><td>${phrase}</td></tr></table>`
+				: container === 'list' ? `<ul><li>${phrase}</li></ul>` : `<p>${phrase}</p>`;
+			const original = `# Start\n\n<div>${html}</div>\n\nAfter sentinel`;
+			await mountWithHostClipboardBoundary(page, original, locked);
+			const bounds = await page.locator('.mlp-safe-html').evaluate(el => {
+				const first = el.querySelector('strong')!.getBoundingClientRect();
+				const last = el.querySelector('em')!.getBoundingClientRect();
+				return { left: first.left, right: last.right, y: first.top + first.height / 2 };
+			});
+			await page.mouse.move(reverse ? bounds.right - 0.1 : bounds.left + 0.1, bounds.y);
+			await page.mouse.down();
+			await page.mouse.move(reverse ? bounds.left + 0.1 : bounds.right - 0.1, bounds.y, { steps: 12 });
+			await page.mouse.up();
+			expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Alpha beta gamma');
+			await page.keyboard.press(`${modifier}+c`);
+			await page.keyboard.press(`${modifier}+f`);
+			const search = page.locator('.cm-search input[name="search"]');
+			await search.click();
+			await page.keyboard.press(`${modifier}+a`);
+			await page.keyboard.press(`${modifier}+v`);
+			await expect(search).toHaveValue('Alpha beta gamma');
+			expect(await source(page)).toBe(original);
+			expect(await page.evaluate(() => (window as any).__forwardedClipboardKeys)).toEqual([]);
+		});
+	}
+
 	test('mouse copy followed immediately by deletion preserves exactly the copied prefix', async ({ page }) => {
 		const original = 'Mouse selection target: preserve copied evidence precisely.';
 		const prefix = 'Mouse selection tar';

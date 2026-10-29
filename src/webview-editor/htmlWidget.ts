@@ -14,6 +14,8 @@ export class HtmlWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		const content = document.createElement('div');
 		content.className = 'mlp-safe-html';
+		// Let native HTML selection own focus instead of syncing it into source.
+		content.tabIndex = -1;
 		renderSafeHtml(content, this.source);
 		const saved = view.state.field(htmlDisclosureState, false)?.get(this.initialFrom);
 		if (saved?.source === this.source) {

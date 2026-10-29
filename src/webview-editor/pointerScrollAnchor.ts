@@ -1,16 +1,21 @@
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { isDiagramHidden, onDiagramHostVisibilityChange } from './diagramVisibility';
 
 type PointerAnchor = { pos: number; top: number; bottom: number; left: number; right: number; expires: number };
 
 /** Settle pending height corrections before mouse hit-testing moves its target. */
 export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 	private anchor: PointerAnchor | null = null;
+	private readonly stopHostVisibility: () => void;
 	private readonly cancel = (): void => { this.anchor = null; };
 	private readonly keydown = (event: KeyboardEvent): void => {
 		// Holding a modifier prepares a mouse gesture; it does not move the caret.
 		if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) this.cancel();
 	};
 	constructor(private readonly view: EditorView) {
+		// Retained VS Code panes can be hidden without a browser blur event.
+		this.stopHostVisibility = onDiagramHostVisibilityChange(this.cancel);
+		view.dom.ownerDocument.addEventListener('visibilitychange', this.cancel);
 		view.dom.addEventListener('mousedown', this.press, true);
 		view.dom.addEventListener('mousemove', this.hover, true);
 		view.dom.addEventListener('mouseup', this.finish, true);
@@ -31,6 +36,7 @@ export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 		this.cancel();
 	};
 	private restoreDrag(event: MouseEvent): void {
+		if (isDiagramHidden(this.view.dom.ownerDocument)) { this.cancel(); return; }
 		const anchor = this.anchor;
 		if (!anchor) return;
 		const viewport = this.view.scrollDOM.getBoundingClientRect();
@@ -44,6 +50,7 @@ export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 	}
 
 	private readonly press = (event: MouseEvent): void => {
+		if (isDiagramHidden(this.view.dom.ownerDocument)) { this.cancel(); return; }
 		if (event.button !== 0 || event.defaultPrevented) return;
 		const target = event.target instanceof Element ? event.target : null;
 		if (target?.closest('button, input, textarea, select')) { this.cancel(); return; }
@@ -90,6 +97,8 @@ export const pointerScrollAnchor = ViewPlugin.fromClass(class {
 	update(update: ViewUpdate): void { if (update.docChanged) this.cancel(); }
 
 	destroy(): void {
+		this.stopHostVisibility();
+		this.view.dom.ownerDocument.removeEventListener('visibilitychange', this.cancel);
 		this.view.dom.removeEventListener('mousedown', this.press, true);
 		this.view.dom.removeEventListener('mousemove', this.hover, true);
 		this.view.dom.removeEventListener('mouseup', this.finish, true);
