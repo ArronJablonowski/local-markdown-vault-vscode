@@ -1,4 +1,4 @@
-import { EditorView, WidgetType } from '@codemirror/view';
+import { EditorView, WidgetType, runScopeHandlers } from '@codemirror/view';
 import { selectAll } from '@codemirror/commands';
 import { renderSafeHtml } from './safeHtml';
 import { wrapBlockWidget } from './blockWidgetWrap';
@@ -18,7 +18,18 @@ export class HtmlWidget extends WidgetType {
 		// Let native HTML selection own focus instead of syncing it into source.
 		content.tabIndex = -1;
 		content.addEventListener('keydown', event => {
-			if (event.isComposing || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'a') return;
+			if (event.isComposing || event.altKey || !(event.metaKey || event.ctrlKey)) return;
+			const key = event.key.toLowerCase();
+			if ((key === 'z' || key === 'y') && (!event.shiftKey || key === 'z')) {
+				// Native HTML focus must still flush edits through ordered history,
+				// including its locked-mode guard, rather than forwarding to VS Code.
+				if (runScopeHandlers(view, event, 'editor')) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+				return;
+			}
+			if (event.shiftKey || key !== 'a') return;
 			// The preview owns native text selection, but Select All owns the note,
 			// never the surrounding webview controls or unrelated rendered text.
 			event.preventDefault();

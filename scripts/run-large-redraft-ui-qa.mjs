@@ -110,6 +110,25 @@ try {
 		expected = 'Replacement after HTML focus. Every character survives.';
 		await saved('HTML Select All immediate replacement');
 	});
+	await check('HTML text and disclosure focus use ordered native Undo/Redo and respect the document lock', async () => {
+		await press(`${mod}+a`); await type('# HTML history probe');
+		await press('Enter'); await press('Enter');
+		await type('<div><p>Native history evidence</p><details><summary>History details</summary><p>Keep</p></details></div>');
+		const baseline = '# HTML history probe\n\n<div><p>Native history evidence</p><details><summary>History details</summary><p>Keep</p></details></div>';
+		expected = baseline; await saved('HTML history fixture');
+		await find('# HTML history probe'); await press('ArrowRight'); await type('!');
+		const revised = baseline.replace('# HTML history probe', '# HTML history probe!');
+		expected = revised; await saved('HTML history isolated edit');
+		for (const [target, key, text] of [['p', 'z', baseline], ['summary', 'Shift+z', revised], ['p', 'z', baseline], ['summary', 'y', revised]]) {
+			await frame.locator(`.mlp-safe-html ${target}`).first().click(); report.pointerActions++;
+			await press(`${mod}+${key}`); expected = text; await saved(`HTML focused ${key}`);
+		}
+		await frame.getByRole('button', { name: 'Editing: select to lock the editor', exact: true }).click(); report.pointerActions++;
+		assert.equal(await frame.locator('.cm-content').evaluate(el => el.isContentEditable), false);
+		await frame.locator('.mlp-safe-html p').first().click(); report.pointerActions++;
+		await press(`${mod}+z`); await press(`${mod}+Shift+z`); await delay(300);
+		await saved('locked HTML history leaves the file unchanged');
+	});
 	report.completed = true;
 	report.passed = report.failures.length === 0 && report.pageErrors.length === 0;
 } catch (error) {
