@@ -11,6 +11,7 @@ import { detectFrontmatter, FrontmatterWidget, FrontmatterEmptyWidget, Frontmatt
 import { parseFrontmatterYaml } from './frontmatterSecurity';
 import { calloutForNode, containingCallouts, toggleCallout } from './calloutState';
 import { refreshPreview } from './previewRefresh';
+import { HtmlWidget } from './htmlWidget';
 
 /** Keep a block object's measured box inside its surrounding callout panel. */
 class CalloutBlockWidget extends WidgetType {
@@ -80,6 +81,14 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 			if (callouts.some(callout => callout.collapsed)) return false;
 			const contextual = (widget: WidgetType): WidgetType => callouts.length
 				? new CalloutBlockWidget(widget, callouts[0].type, node.to === callouts[0].to) : widget;
+			if (node.name === 'HTMLBlock' && node.node.parent?.name === 'Document') {
+				const revealed = blockCursorTouchesRange(state, node.from, node.to);
+				noteRevealed(node.from, node.to, revealed);
+				if (!revealed) decorations.push(Decoration.replace({
+					widget: new HtmlWidget(state.sliceDoc(node.from, node.to), node.from), block: true,
+				}).range(node.from, node.to));
+				return false;
+			}
 			if (node.name === 'FencedCode') {
 				const infoNode = node.node.getChild('CodeInfo');
 				const lang = infoNode ? state.sliceDoc(infoNode.from, infoNode.to).trim().toLowerCase() : '';

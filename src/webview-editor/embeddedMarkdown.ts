@@ -2,6 +2,7 @@ import { parser as baseMarkdownParser, Autolink, Strikethrough, Table, TaskList 
 import type { SyntaxNode } from '@lezer/common';
 import { renderInlineInto, renderTableCellInto, type CellInlineHooks } from './tableCellInline';
 import { t } from '../shared/i18n';
+import { renderSafeHtml } from './safeHtml';
 
 const parser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink]);
 const MAX_RENDER_NODES = 5_000;
@@ -80,10 +81,9 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				renderTable(container, raw, hooks);
 				return;
 			case 'HTMLBlock': {
-				// Embedded notes get no HTML execution privilege beyond the parent document.
-				const literal = document.createElement('pre');
+				const literal = document.createElement('div');
 				literal.className = 'mlp-embed-raw-html';
-				literal.textContent = raw;
+				renderSafeHtml(literal, raw);
 				container.appendChild(literal);
 				return;
 			}

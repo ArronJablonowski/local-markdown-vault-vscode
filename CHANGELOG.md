@@ -1,5 +1,7 @@
 # Changelog
 
+- Render a bounded, sanitized formatting-only subset of standalone HTML blocks in Live Preview and embedded notes. Keep all attributes, resource loads, scripts, CSS, forms, SVG, and MathML disabled; provide an HTML source editing button.
+
 - Update DOMPurify to 3.4.17 for newly reported sanitizer advisories; retain the existing string-output sanitization and strict rendering boundaries, and prevent older copies from returning through dependency-graph tests.
 
 - Preserve parser-owned code indentation when pasting multiple lines or using Shift+Enter inside callouts and fenced code. Keep literal dashes, callout-like text, and HTML inside code instead of interpreting them as Markdown containers. Extend native large-note redrafts, settings coverage, and rendering regressions.

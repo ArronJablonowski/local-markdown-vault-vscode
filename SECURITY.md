@@ -46,7 +46,15 @@ elements, and 32 simultaneously open elements. Malformed, attributed, or
 over-limit lists remain source text. Code spans, escaped tags, link labels, and
 clipboard-escaped spreadsheet values do not become list structure. Scripts,
 event handlers, HTML resource elements, and other raw HTML remain inert. This
-does not enable general HTML rendering or weaken link/image authorization.
+does not weaken link/image authorization.
+
+Standalone HTML blocks in Live Preview and embedded notes support an explicit
+DOMPurify formatting allowlist: paragraphs, headings, emphasis, lists, tables,
+code, and details/summary. All attributes, URL targets, CSS, scripts, resource
+elements, SVG, MathML, templates, and forms are excluded. HTML never receives
+resource-loading privileges. Input over 100,000 characters or output over 2,000
+elements falls back to literal source. Empty sanitized blocks also show their
+literal source. Source remains unchanged; the source button reveals it for edits.
 
 Every executable script is a packaged extension resource authorized by a per-document nonce. The webview HTML contains no inline executable script. `default-src 'none'` is the baseline; HTTPS is added to the editor's `img-src` only for the explicit workspace remote-image opt-in. `connect-src` is limited to the extension webview origin for one packaged JSON asset and never permits HTTPS. The editor, Outline, and CSS-theme surfaces expose only their required extension `dist` and `media` directories through `localResourceRoots`; the live style preview exposes only `dist`. A workspace, note directory, vault, or arbitrary local folder is never a webview resource root. Local note content crosses validated host message boundaries instead.
 

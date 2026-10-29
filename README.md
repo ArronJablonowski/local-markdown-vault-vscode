@@ -72,14 +72,33 @@ policies; the extension cannot guarantee its remote-image or inert-HTML policy
 in those views. Vault filesystem protections apply to extension vault actions.
 
 - Remote images are blocked by default
-- Raw HTML stays inert except bare `<br>` line breaks and bounded, attribute-free
-  `<ul>`, `<ol>`, and `<li>` lists in table cells; these use safe DOM construction
+- Standalone HTML blocks render a sanitized formatting subset; scripts, resources,
+  URLs, styles, and attributes are stripped. Table cells retain their narrower safe subset.
 - Dangerous protocols and paths outside the vault are rejected
 - Filesystem paths are canonicalized and checked after symlink resolution
 - Webview messages, pasted images, YAML, diagrams, SVG, XML, and queued work are bounded and validated
 - Mermaid uses strict security mode; generated SVG is sanitized before insertion
 - Restricted Workspace Trust mode disables diagrams, custom CSS, remote media, and vault-wide mutations
 - No extension-managed network requests unless the user explicitly enables HTTPS remote images for the current workspace
+
+### HTML formatting
+
+In Markdown Live Preview, put HTML in a standalone block, separated from nearby
+Markdown by blank lines. For example:
+
+```html
+<div>
+  <h3>Meeting decisions</h3>
+  <p><strong>Owner:</strong> Alex — <mark>Follow up tomorrow</mark></p>
+  <details><summary>Action items</summary><ul><li>Review the draft</li></ul></details>
+</div>
+```
+
+Use the `</>` button above the block to edit its source. Formatting tags include
+headings, paragraphs, emphasis, lists, tables, code, and details/summary. Attributes,
+styles, HTML links/images, scripts, and interactive forms are not supported.
+Mixed inline HTML in Markdown prose and HTML inside callouts retain the existing
+literal-source behavior; Markdown table cells still support their safe list/line-break subset.
 
 See [SECURITY.md](SECURITY.md) for the security policy and threat-model summary.
 

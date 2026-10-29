@@ -1783,3 +1783,8 @@ table.mlp-frontmatter td pre {
 #mlp-css-warning[hidden] {
 	display: none;
 }
+/* Keep formatting-only HTML within the note's measured content box. */
+.mlp-safe-html { overflow: auto; max-width: 100%; overflow-wrap: anywhere; }
+.mlp-safe-html table { border-collapse: collapse; }
+.mlp-safe-html th, .mlp-safe-html td { border: 1px solid var(--vscode-panel-border); padding: 0.35em 0.65em; }
+.mlp-safe-html pre { overflow: auto; }
