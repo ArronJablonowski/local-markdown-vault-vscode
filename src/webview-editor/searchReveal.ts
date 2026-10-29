@@ -296,6 +296,12 @@ function iconifyToggles(panel: HTMLElement): void {
 
 
 function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
+	// Locked notes remain searchable, but must not offer mutation commands.
+	// Refresh on every update so an already-open panel follows lock changes.
+	const locked = !view.state.facet(EditorView.editable) || view.state.readOnly;
+	for (const button of Array.from(panel.querySelectorAll<HTMLButtonElement>('button[name="replace"], button[name="replaceAll"]'))) {
+		button.disabled = locked;
+	}
 	iconifyToggles(panel);
 	groupSearchRows(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;

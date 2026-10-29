@@ -242,7 +242,8 @@ test('locked search can find and select but replacement cannot change the note',
 	await page.locator('.mlp-search-toggle').click();
 	await page.locator('.cm-search input[name="replace"]').fill('Overwrite');
 	await page.getByRole('button', { name: 'all', exact: true }).click();
-	await page.getByRole('button', { name: 'replace all', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'replace all', exact: true })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'replace', exact: true })).toBeDisabled();
 	expect(await source(page)).toBe(doc);
 	expect(await mutations(page)).toEqual([]);
 });

@@ -1479,7 +1479,8 @@ table.mlp-frontmatter td pre {
 .cm-panel.cm-search,
 .cm-panels-top .cm-dialog {
 	position: absolute !important;
-	top: 6px !important;
+	/* Keep Lock/Edit and folding controls reachable while searching. */
+	top: 48px !important;
 	right: 20px !important; /* clears the scrollbar */
 	left: auto !important;
 	z-index: 301 !important;
@@ -1648,6 +1649,10 @@ table.mlp-frontmatter td pre {
 }
 .cm-search .cm-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground, rgba(127, 127, 127, 0.3)) !important;
+}
+.cm-search .cm-button:disabled {
+	opacity: 0.5;
+	cursor: default;
 }
 .cm-search .cm-button:active {
 	background-image: none !important;
