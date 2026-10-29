@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mountEditor, openSearch } from './harness';
 
-for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const editingMode of ['editing', 'locked'] as const) for (const width of [500, 1000]) for (const modifier of phase === 'between-events' ? ['none', 'Shift'] : ['none']) test(`mouse selection retains its visual anchor during ${phase} height correction: ${editingMode}, ${width}px, ${modifier}`, async ({ page }) => {
+for (const phase of ['mousemove', 'mousedown', 'between-events', 'drag', 'mouseup']) for (const editingMode of ['editing', 'locked'] as const) for (const width of [500, 1000]) for (const modifier of phase === 'between-events' ? ['none', 'Shift'] : ['none']) test(`mouse selection retains its visual anchor during ${phase} height correction: ${editingMode}, ${width}px, ${modifier}`, async ({ page }) => {
 	await page.setViewportSize({ width, height: 700 });
 	const text = '# Notes\n\n' + 'Retained paragraph.\n\n'.repeat(2000) + 'Final editable paragraph.';
 	await mountEditor(page, text, { editingMode });
@@ -30,6 +30,15 @@ for (const phase of ['mousemove', 'mousedown', 'between-events']) for (const edi
 		if (phase === 'between-events') {
 			el.style.paddingTop = '24px';
 			el.getBoundingClientRect();
+			return;
+		}
+		if (phase === 'drag') {
+			const duringDrag = (event: MouseEvent) => {
+				if (event.buttons !== 1) return;
+				document.removeEventListener('mousemove', duringDrag, true);
+				view.requestMeasure({ read: () => null, write: () => { el.style.paddingTop = '24px'; } });
+			};
+			document.addEventListener('mousemove', duringDrag, true);
 			return;
 		}
 		document.addEventListener(phase, () => view.requestMeasure({

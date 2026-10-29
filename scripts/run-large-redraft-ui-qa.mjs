@@ -138,6 +138,18 @@ async function journey(name, index) {
 		await press('Backspace'); expected = expected.replace(marker, ''); await saved('bottom mouse selection deletion');
 		await press(`${mod}+z`); expected = original; await saved('restore bottom mouse deletion');
 	});
+	await check(`${name}: an external file update preserves subsequent typing and exact autosave`, async () => {
+		await find('END_OF_SEEDED_CONTENT');
+		await frame.locator('.cm-line').filter({ hasText: /^END_OF_SEEDED_CONTENT$/ }).hover();
+		expected = expected.replace('END_OF_SEEDED_CONTENT', '## External handoff\n\nExternal edit preserved.\n\nEND_OF_SEEDED_CONTENT');
+		// Simulate another local editor, then wait for the real file watcher and
+		// host/webview synchronization before resuming keyboard-only editing.
+		await writeFile(currentPath, expected);
+		await wait(async () => frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()).then(text => text === expected), 'external file update reached Live Preview');
+		await find('External edit preserved.'); await press('ArrowRight');
+		await type(' Confirmed.'); expected = expected.replace('External edit preserved.', 'External edit preserved. Confirmed.');
+		await saved('typing after an external file update');
+	});
 	await check(`${name}: opening and closing Replace keeps immediate typing out of the note`, async () => {
 		await find('DRAFT_SUMMARY');
 		await press(`${mod}+f`); await press('Enter');
