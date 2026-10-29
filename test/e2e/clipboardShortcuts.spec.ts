@@ -97,6 +97,58 @@ test.describe('native clipboard shortcuts stay inside the webview', () => {
 		expect(await page.evaluate(() => (window as any).__nativeClipboardEvents)).toEqual(['copy', 'paste']);
 	});
 
+	for (const operation of ['copy', 'cut', 'Backspace', 'Delete']) test(`Find owns ${operation} after selecting rendered HTML`, async ({ page }) => {
+		const original = '# Start\n\n<div><p>Evidence</p></div>\n\nAfter sentinel';
+		await mountWithHostClipboardBoundary(page, original);
+		await page.locator('.mlp-safe-html p').dblclick({ position: { x: 25, y: 8 } });
+		expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Evidence');
+		await page.keyboard.press(`${modifier}+f`);
+		const search = page.locator('.cm-search input[name="search"]');
+		await search.fill('Needle');
+		await page.keyboard.press(`${modifier}+a`);
+		await page.keyboard.press(operation === 'copy' ? `${modifier}+c` : operation === 'cut' ? `${modifier}+x` : operation);
+		await expect(search).toHaveValue(operation === 'copy' ? 'Needle' : '');
+		if (operation === 'copy' || operation === 'cut') {
+			await search.fill('');
+			await page.keyboard.press(`${modifier}+v`);
+			await expect(search).toHaveValue('Needle');
+		}
+		expect(await source(page)).toBe(original);
+	});
+
+	for (const locked of [false, true]) test(`Select All in HTML copies the complete Markdown source (${locked ? 'locked' : 'editing'})`, async ({ page }) => {
+		const original = '# Start\n\n<div><p>Evidence</p></div>\n\nAfter sentinel';
+		await mountWithHostClipboardBoundary(page, original, locked);
+		await page.locator('.mlp-safe-html p').click();
+		await page.keyboard.press(`${modifier}+a`);
+		await page.keyboard.press(`${modifier}+c`);
+		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(original);
+		expect(await source(page)).toBe(original);
+	});
+
+	for (const field of ['property', 'table']) for (const operation of ['copy', 'cut', 'Backspace', 'Delete']) {
+		test(`${field} owns ${operation} after selecting rendered HTML`, async ({ page }) => {
+			const original = '---\ntitle: Original\n---\n\n<div><p>Evidence</p></div>\n\n| Item | State |\n| --- | --- |\n| Original | Keep |';
+			await mountWithHostClipboardBoundary(page, original);
+			await page.locator('.mlp-safe-html p').dblclick({ position: { x: 25, y: 8 } });
+			expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Evidence');
+			const cell = field === 'property' ? page.locator('.mlp-frontmatter tr', { hasText: 'title' }).locator('td') : page.locator('.mlp-table tbody td').first();
+			if (field === 'property') await cell.dblclick(); else await cell.click();
+			const input = field === 'property' ? cell.locator('input') : cell;
+			await page.keyboard.press(`${modifier}+a`);
+			await page.keyboard.press(operation === 'copy' ? `${modifier}+c` : operation === 'cut' ? `${modifier}+x` : operation);
+			if (field === 'property') await expect(input).toHaveValue(operation === 'copy' ? 'Original' : '');
+			else await expect(input).toHaveText(operation === 'copy' ? 'Original' : '');
+			if (operation === 'copy' || operation === 'cut') {
+				await page.keyboard.press(`${modifier}+a`);
+				await page.keyboard.press('Backspace');
+				await page.keyboard.press(`${modifier}+v`);
+				if (field === 'property') await expect(input).toHaveValue('Original'); else await expect(input).toHaveText('Original');
+			}
+			expect(await source(page)).toContain('<div><p>Evidence</p></div>');
+		});
+	}
+
 	test('cut and immediate paste use browser clipboard events without losing prose', async ({ page }) => {
 		const original = 'Local evidence stays intact.';
 		await mountWithHostClipboardBoundary(page, original);

@@ -4,6 +4,19 @@ import { mountEditor } from './harness';
 const source = (page: import('@playwright/test').Page) => page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString());
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+for (const locked of [false, true]) for (const target of ['strong', 'summary']) test(`Select All from focused HTML ${target} stays inside the note (${locked ? 'locked' : 'editing'})`, async ({ page }) => {
+	const original = '# Start\n\n<div><p><strong>Evidence</strong></p><details><summary>Details</summary><p>Hidden evidence</p></details></div>\n\nAfter sentinel';
+	await mountEditor(page, original, { editingMode: locked ? 'locked' : 'editing' });
+	await page.locator(`.mlp-safe-html ${target}`).click();
+	await page.keyboard.press(`${mod}+a`);
+	expect(await page.locator('.cm-content').evaluate((el: any) => {
+		const range = el.cmTile.root.view.state.selection.main;
+		return { from: range.from, to: range.to };
+	})).toEqual({ from: 0, to: original.length });
+	await page.keyboard.type('Replacement');
+	await expect.poll(() => source(page)).toBe(locked ? original : 'Replacement');
+});
+
 test('identical HTML sections keep independent disclosure state after surrounding edits', async ({ page }) => {
 	const html = '<div><details><summary>Evidence</summary><p>Retain</p></details></div>';
 	const text = `# Start\n\n${html}\n\nBetween\n\n${html}\n\nAfter`;

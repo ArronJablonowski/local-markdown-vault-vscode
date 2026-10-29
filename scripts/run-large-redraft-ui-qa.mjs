@@ -92,6 +92,24 @@ try {
 		expected = 'Replacement source note. Every character must survive.';
 		await saved('source Select All immediate replacement');
 	});
+	await check('Focused HTML Select All replaces the note, not webview controls, and saves every character', async () => {
+		await press(`${mod}+a`);
+		await type('# HTML shortcut probe');
+		await press('Enter'); await press('Enter');
+		await type('<div><p><strong>Native selection evidence</strong></p></div>');
+		expected = '# HTML shortcut probe\n\n<div><p><strong>Native selection evidence</strong></p></div>';
+		await saved('HTML shortcut fixture');
+		await find('# HTML shortcut probe'); await press('ArrowRight');
+		await frame.locator('.mlp-safe-html strong').click(); report.pointerActions++;
+		await press(`${mod}+a`);
+		assert.deepEqual(await frame.locator('.cm-content').evaluate(el => {
+			const range = el.cmTile.root.view.state.selection.main;
+			return { from: range.from, to: range.to };
+		}), { from: 0, to: expected.length });
+		await type('Replacement after HTML focus. Every character survives.');
+		expected = 'Replacement after HTML focus. Every character survives.';
+		await saved('HTML Select All immediate replacement');
+	});
 	report.completed = true;
 	report.passed = report.failures.length === 0 && report.pageErrors.length === 0;
 } catch (error) {
