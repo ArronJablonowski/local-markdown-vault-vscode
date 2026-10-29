@@ -21,6 +21,7 @@ const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const version = process.env.MDLP_QA_VSCODE_VERSION ?? '1.139.1';
 const report = { startedAt: new Date().toISOString(), version, completed: false, passed: false, files: [], checks: [], failures: [], pageErrors: [], consoleErrors: [], samples: [], keyPresses: 0, pointerActions: 0 };
 const objects = {
+	HTML: '<div>\n<h3>HTML meeting decisions</h3>\n<p><strong>Retain</strong> <mark>local evidence</mark>.</p>\n<details><summary>Details</summary><ul><li>Review</li></ul></details>\n<table><tr><th>Owner</th><th>Status</th></tr><tr><td>Alex</td><td>Ready</td></tr></table>\n</div>',
 	HEADING: '### A heading with **bold** and *emphasis*\n\nA paragraph with `inline code`, ==highlight==, ~~deleted text~~, [local link](#arrow-report), $a^2$, and :smile:.',
 	LIST: '- An intentionally long list item whose wrapped continuation should remain aligned with the first letter after the bullet. '.repeat(1) + 'Additional detail keeps this line wrapping as the cursor moves.\n  - Nested detail\n    - Third level\n- [x] Completed **task**\n- [ ] Remaining task\n\n1. Ordered item\n   1. Nested ordered item\n2. Final item',
 	TABLE: '| Record | Explanation | Result |\n| --- | --- | --- |\n' + Array.from({ length: 16 }, (_, i) => `| Item ${i} | A long **formatted** explanation with a link [here](#arrow-report) | Retain |`).join('\n'),

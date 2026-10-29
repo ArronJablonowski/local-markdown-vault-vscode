@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep expanded HTML sections open when edits above them move their source range. Resolve the source button's location from the current widget DOM instead of retaining an outdated offset. Extend native arrow-navigation and object-boundary editing QA to HTML alongside Markdown objects, and cover identical independent sections with regression tests.
+
 - Harden HTML/Markdown interactions: preserve mouse selections across HTML previews, use the shared source control, retain double-click word selection, remeasure expanded details, and scroll wide HTML tables horizontally. Bound HTML nesting before sanitization and fall back to literal source on parser failures. Add mixed-object, locked, oversized, narrow/wide, and native save/Undo/Redo QA.
 
 - Render a bounded, sanitized formatting-only subset of standalone HTML blocks in Live Preview and embedded notes. Keep all attributes, resource loads, scripts, CSS, forms, SVG, and MathML disabled; provide an HTML source editing button.

@@ -85,7 +85,7 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 				const revealed = blockCursorTouchesRange(state, node.from, node.to);
 				noteRevealed(node.from, node.to, revealed);
 				if (!revealed) decorations.push(Decoration.replace({
-					widget: new HtmlWidget(state.sliceDoc(node.from, node.to), node.from), block: true,
+					widget: new HtmlWidget(state.sliceDoc(node.from, node.to)), block: true,
 				}).range(node.from, node.to));
 				return false;
 			}

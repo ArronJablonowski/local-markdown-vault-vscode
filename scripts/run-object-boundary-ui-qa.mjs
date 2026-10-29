@@ -19,7 +19,7 @@ const artifacts = join(root, '.vscode-test', process.env.MDLP_BOUNDARY_ARTIFACTS
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const version = process.env.MDLP_QA_VSCODE_VERSION ?? '1.139.1';
 const report = { startedAt: new Date().toISOString(), completed: false, passed: false, version, files: [], checks: [], failures: [], pageErrors: [], consoleErrors: [], samples: [], typedCharacters: 0, keyPresses: 0, pointerActions: 0 };
-const kinds = ['TABLE', 'CODE', 'INDENTED', 'ER', 'FLOW', 'DRAWIO', 'CALLOUT', 'MATH', 'LIST'];
+const kinds = ['HTML', 'TABLE', 'CODE', 'INDENTED', 'ER', 'FLOW', 'DRAWIO', 'CALLOUT', 'MATH', 'LIST'];
 let browser, child, page, frame, currentPath, expected, previousClipboard, fileIndex;
 
 try {
@@ -334,6 +334,7 @@ async function commandOutput(command, input) {
 	return Buffer.concat(chunks);
 }
 function object(kind, id) {
+	if (kind === 'HTML') return '<div>\n<h3>HTML boundary review</h3>\n<p><strong>Retain</strong> the local evidence.</p>\n<details><summary>Actions</summary><ul><li>Review source</li></ul></details>\n<table><tr><th>Owner</th></tr><tr><td>Alex</td></tr></table>\n</div>';
 	if (kind === 'TABLE') return '| Boundary evidence | Detailed explanation | State |\n| --- | --- | --- |\n' + Array.from({ length: 12 }, (_, i) => `| Entry ${id}-${i} | A wrapped explanation with **bold** and $n^2$ in a cell | Local |`).join('\n');
 	if (kind === 'CODE') return '```typescript\n' + Array.from({ length: 14 }, (_, i) => `const value${i} = ${i}; // Retain code boundary ${id}`).join('\n') + '\n```';
 	if (kind === 'INDENTED') return Array.from({ length: 10 }, (_, i) => `    const indentedValue${i} = ${i}; // Indented boundary ${id}`).join('\n');

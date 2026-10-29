@@ -4,6 +4,33 @@ import { mountEditor } from './harness';
 const source = (page: import('@playwright/test').Page) => page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString());
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+test('identical HTML sections keep independent disclosure state after surrounding edits', async ({ page }) => {
+	const html = '<div><details><summary>Evidence</summary><p>Retain</p></details></div>';
+	const text = `# Start\n\n${html}\n\nBetween\n\n${html}\n\nAfter`;
+	await mountEditor(page, text);
+	await page.locator('.mlp-safe-html summary').nth(1).click();
+	await page.locator('.cm-line').first().click(); await page.keyboard.press('End');
+	await page.keyboard.type(' revised');
+	await expect(page.locator('.mlp-safe-html details').first()).not.toHaveAttribute('open');
+	await expect(page.locator('.mlp-safe-html details').nth(1)).toHaveAttribute('open', '');
+	await page.locator('.mlp-code-mode-host').filter({ has: page.locator('.mlp-safe-html') }).nth(1).getByRole('button', { name: 'Switch to code mode' }).click();
+	await page.keyboard.type('X');
+	await expect.poll(() => source(page)).toBe(`# Start revised\n\n${html}\n\nBetween\n\nX${html}\n\nAfter`);
+});
+
+test('editing before expanded HTML keeps disclosure state and the source control targets its new position', async ({ page }) => {
+	const text = '# Start\n\n<div><details><summary>Evidence</summary><p>Retained detail</p></details></div>\n\nAfter';
+	await mountEditor(page, text);
+	await page.locator('.mlp-safe-html summary').click();
+	await page.locator('.cm-line').first().click(); await page.keyboard.press('End');
+	await page.keyboard.type(' revised');
+	await expect.poll(() => source(page)).toBe(text.replace('# Start', '# Start revised'));
+	await expect(page.locator('.mlp-safe-html details')).toHaveAttribute('open', '');
+	await page.getByRole('button', { name: 'Switch to code mode' }).click();
+	await page.keyboard.type('X');
+	await expect.poll(() => source(page)).toBe(text.replace('# Start', '# Start revised').replace('<div>', 'X<div>'));
+});
+
 test('double-click selects HTML text instead of unexpectedly opening source', async ({ page }) => {
 	await mountEditor(page, '# Start\n\n<div><p>Evidence</p></div>\n\nAfter');
 	await page.locator('.mlp-safe-html p').dblclick({ position: { x: 25, y: 8 } });
