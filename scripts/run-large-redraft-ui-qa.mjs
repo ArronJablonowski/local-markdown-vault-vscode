@@ -111,6 +111,19 @@ try {
 }
 
 async function journey(name, index) {
+	await check(`${name}: opening and closing Replace keeps immediate typing out of the note`, async () => {
+		await find('DRAFT_SUMMARY');
+		await press(`${mod}+f`); await press('Enter');
+		const toggle = frame.getByRole('button', { name: 'Toggle Replace', exact: true });
+		await toggle.click(); report.pointerActions++;
+		await type('Replacement field probe');
+		assert.equal(await frame.locator('.cm-search input[name="replace"]').inputValue(), 'Replacement field probe');
+		await saved('typing replacement query never edits selected note content');
+		await toggle.focus(); await press('Space');
+		assert.equal(await frame.locator('.cm-search input[name="search"]').evaluate(el => el === document.activeElement), true);
+		await type(' query'); await saved('typing collapsed Find query never edits selected note content');
+		await press('Escape');
+	});
 	await check(`${name}: property editing and exact autosave`, async () => {
 		await find(`# ${name.replace(/\.md$/, '')}`);
 		await frame.getByRole('button', { name: 'Edit priority', exact: true }).dblclick();

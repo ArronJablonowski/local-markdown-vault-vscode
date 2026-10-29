@@ -352,9 +352,13 @@ function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 		// The panel is inside the editor; without this the click also reaches the
 		// document and moves the caret out of the field the user was typing in.
 		event.preventDefault();
+		event.stopPropagation();
 		panel.classList.toggle(REPLACE_OPEN_CLASS);
 		sync();
-		view.focus();
+		// Keep typing in the panel. Focusing the note here overwrote the current
+		// Find match when users opened Replace and immediately entered a value.
+		const name = panel.classList.contains(REPLACE_OPEN_CLASS) ? 'replace' : 'search';
+		panel.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.focus({ preventScroll: true });
 	});
 	sync();
 	panel.insertBefore(toggle, panel.firstChild);

@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep keyboard focus in Find/Replace when its chevron is activated. Opening Replace now focuses the replacement field instead of the note, preventing immediate replacement-value typing from overwriting the selected search match. Closing Replace returns focus to Find. Add mouse/Enter/Space, locked-mode, bottom-edge selection, and native exact-save regressions.
+
 - Disable automatic HTML closing-tag insertion in Live Preview so individual-key entry does not save untyped tags. Patch RE2JS search denial of service and compatible URI/query/serialization tooling dependencies; retain explicit dependency floors.
 
 - Render valid HTML lists, tables, and paragraphs with optional closing tags instead of treating them as malformed source. Keep sanitization, resource exclusions, and nesting/token/output limits; add omitted-tag, nested-search, malicious-input, and native character-by-character editing/save regressions.
