@@ -4,13 +4,21 @@
 
 Production dependency audit is clean after updating RE2JS to 2.9.1. Compatible
 development-tool patches update fast-uri, qs, and serialize-javascript.
-The complete dependency audit still reports two high-severity package entries
-for one advisory: [GHSA-xcx6-jx8p-x3h5](https://github.com/advisories/GHSA-xcx6-jx8p-x3h5)
-in MSAL Node and its Azure Identity parent, pulled in by the VSCE publishing tool.
-These development-only packages are not shipped in the VSIX; the extension has
-no Azure authentication flow. Do not force an unverified MSAL major-version
-override or bypass the full audit gate. Marketplace publishing remains gated
-until a compatible patched dependency chain is available and verified.
+The full dependency audit is also clean after updating VSCE to 4.1.0 and pinning
+its MSAL Node dependency to 7.1.0, the patched release for
+[GHSA-xcx6-jx8p-x3h5](https://github.com/advisories/GHSA-xcx6-jx8p-x3h5).
+Azure Identity 4.14.0 still requests MSAL 6, so this is an explicit, reviewed
+major-version override, not an upstream compatibility guarantee. MSAL 7 removes
+the interactive `responseMode` option; Azure Identity's adapter does not supply
+that option, and VSCE uses non-interactive credential flows. Offline regression
+tests exercise Azure Identity's client-secret request and token cache through
+both ESM and CommonJS, and verify rejection of unsupported instance-aware
+confidential-client authentication. Packaging and installed-extension smoke
+tests must remain passing alongside the full audit gate. Real Marketplace
+authentication/publishing is not exercised by these offline tests.
+These development-only authentication packages are not shipped in the VSIX;
+the extension has no Azure authentication flow. Remove the override once Azure
+Identity adopts a patched MSAL range, retaining the regression tests and audit.
 
 ## Product security boundary
 
