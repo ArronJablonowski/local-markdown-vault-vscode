@@ -69,7 +69,7 @@ function pointIsInsideRenderedBlock(x: number, y: number): boolean {
 		// Only wrappers that actually contain a rendered widget: `.mlp-block` also
 		// wraps blocks whose source is already showing, and those must keep the
 		// ordinary click-to-place-caret behavior.
-		if (!el.querySelector('.mlp-table, .mlp-mermaid-wrap, .mlp-frontmatter, .mlp-frontmatter-error')) continue;
+		if (!el.querySelector('.mlp-table, .mlp-mermaid-wrap, .mlp-frontmatter, .mlp-frontmatter-error, .mlp-safe-html')) continue;
 		const box = el.getBoundingClientRect();
 		// A few pixels of slop: a press one pixel outside the box is the same
 		// gesture as one pixel inside it, and rounding at fractional device pixel

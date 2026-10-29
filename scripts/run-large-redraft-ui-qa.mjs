@@ -255,6 +255,26 @@ async function journey(name, index) {
 		assert.ok(await frame.locator('.cm-line.mlp-line-code', { hasText: 'continued();' }).count() === 1);
 		await page.screenshot({ path: join(artifacts, `indented-paste-${index + 1}.png`) });
 	});
+	await check(`${name}: HTML source edits, native Undo/Redo, expansion, and exact autosave`, async () => {
+		await replaceThroughFind('HTML_EDIT_TARGET', 'Revised HTML evidence');
+		const revised = expected;
+		// Separate a single-character edit from the preceding per-key save batches.
+		await find('Revised HTML evidence'); await press('ArrowRight'); await type('!');
+		expected = revised.replace('Revised HTML evidence', 'Revised HTML evidence!'); await saved('HTML punctuation');
+		await press(`${mod}+z`); expected = revised; await saved('HTML Undo');
+		await press(`${mod}+Shift+z`); expected = revised.replace('Revised HTML evidence', 'Revised HTML evidence!'); await saved('HTML Redo');
+		await press(`${mod}+z`); expected = revised; await saved('HTML restore');
+		await find('END_OF_SEEDED_CONTENT'); await press('ArrowRight');
+		const summary = frame.locator('.mlp-safe-html summary');
+		await summary.scrollIntoViewIfNeeded(); await summary.click(); report.pointerActions++;
+		assert.equal(await frame.locator('.mlp-safe-html details').getAttribute('open'), '');
+		await saved('HTML expansion leaves file unchanged');
+		await frame.locator('.mlp-code-mode-host').filter({ has: frame.locator('.mlp-safe-html') }).getByRole('button', { name: 'Switch to code mode' }).click();
+		await press('ArrowRight'); await type(' ');
+		expected = expected.replace('<div><p>', '< div><p>');
+		await saved('HTML source button typing');
+		await press('Backspace'); expected = revised; await saved('HTML source Backspace');
+	});
 }
 
 async function replaceThroughFind(from, to) {
@@ -402,5 +422,5 @@ function makeNote(title, minimumBytes) {
 		source += `\n## Supporting analysis ${section}\n\nThis detailed supporting section ${section} preserves **bold**, *emphasis*, ~~superseded text~~, ==highlighting==, \\*literal symbols\\*, and [a local reference](#risk-review). Do not abbreviate the retained source while performing a redraft. This intentionally long paragraph wraps across several display lines so mouse and keyboard navigation can expose transient layout shifts in a large document.\n\n- Primary observation ${section}: this line also wraps and should align with the first character of the item, not the bullet marker. Add context about local storage, offline operation, secure defaults, and recovery from interrupted sessions.\n  - Secondary observation ${section}\n    - Detailed observation ${section}\n- [ ] Follow-up action ${section}\n\n> [!note] Supporting detail ${section}\n> Read the source before changing its interpretation.\n>\n> | Question | Answer |\n> | --- | --- |\n> | Storage | Local only |\n\n\`\`\`json\n{"section": ${section}, "local": true, "labels": ["qa", "redraft"]}\n\`\`\`\n\nA reference[^support-${section}] and inline expression $n_{${section}}^2$.\n\n[^support-${section}]: Retain the accompanying evidence.\n`;
 		section++;
 	}
-	return source + '\n\n## Literal code continuation\n\n> [!note]+ Literal code\n>\n>     INDENTED_PASTE_TARGET\n\nEND_OF_SEEDED_CONTENT';
+	return source + '\n\n## Literal code continuation\n\n> [!note]+ Literal code\n>\n>     INDENTED_PASTE_TARGET\n\n## HTML preview probe\n\n<div><p><strong>HTML_EDIT_TARGET</strong></p><details><summary>HTML details</summary><ul><li>Retain evidence</li></ul></details></div>\n\nEND_OF_SEEDED_CONTENT';
 }

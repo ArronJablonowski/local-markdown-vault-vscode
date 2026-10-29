@@ -1,8 +1,9 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import { renderSafeHtml } from './safeHtml';
 import { wrapBlockWidget } from './blockWidgetWrap';
+import { withCodeModeButton } from './codeModeButton';
 
-/** HTML is a preview, not a second editable document; double-click reveals source. */
+/** HTML is a selectable preview; the shared source button opens its Markdown. */
 export class HtmlWidget extends WidgetType {
 	constructor(private readonly source: string, private readonly from: number) { super(); }
 	eq(other: HtmlWidget): boolean { return this.source === other.source && this.from === other.from; }
@@ -10,15 +11,9 @@ export class HtmlWidget extends WidgetType {
 		const content = document.createElement('div');
 		content.className = 'mlp-safe-html';
 		renderSafeHtml(content, this.source);
-		const wrap = wrapBlockWidget(content);
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.textContent = '</>';
-		button.setAttribute('aria-label', 'Edit HTML source');
-		const reveal = () => { view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true }); view.focus(); };
-		button.addEventListener('click', reveal);
-		wrap.prepend(button);
-		content.addEventListener('dblclick', reveal);
+		const wrap = wrapBlockWidget(withCodeModeButton(view, content, { anchor: content, caretPos: () => this.from }));
+		// Expanding details changes the height without changing editor state.
+		content.addEventListener('toggle', () => view.requestMeasure(), true);
 		return wrap;
 	}
 	ignoreEvent(): boolean { return true; }
