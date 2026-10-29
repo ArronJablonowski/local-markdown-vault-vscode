@@ -11,6 +11,7 @@ describe('reviewed security dependency graph', () => {
 		for (const [name, floor] of Object.entries({
 			'@vscode/vsce': '4.0.0', vitest: '4.1.12', '@vitest/mocker': '4.1.12',
 			'@vitest/coverage-v8': '4.1.12', vite: '8.3.5', 'source-map-js': '1.2.2', katex: '0.18.7', dompurify: '3.4.17',
+			re2js: '2.9.1', 'serialize-javascript': '7.1.3', 'fast-uri': '3.1.9', qs: '6.16.1',
 		})) {
 			const copies = packages.filter(([path]) => path.endsWith(`node_modules/${name}`));
 			expect(copies.length, name).toBeGreaterThan(0);

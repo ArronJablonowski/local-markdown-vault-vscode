@@ -103,12 +103,17 @@ test('large note mixed widgets survive repeated scrolling, folding, editing, and
 		return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
 	});
 	// Use rendered glyph bounds, not the full-width line's empty right margin.
+	const beforePress = await page.locator('.cm-content').evaluate((el: any) => {
+		const view = el.cmTile.root.view;
+		return { scroll: view.scrollDOM.scrollTop, focused: view.hasFocus, selection: view.state.selection.main.toJSON(),
+			scrollTarget: Boolean(view.viewState.scrollTarget) };
+	});
 	await page.mouse.move(box.x + 1, box.y + box.height / 2);
 	await page.mouse.down();
 	const afterDown = await line.evaluate(el => ({ rect: el.getBoundingClientRect().toJSON(), scroll: document.querySelector('.cm-scroller')?.scrollTop }));
 	await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 20 });
 	await page.mouse.up();
-	const diagnostics = await line.evaluate((el, before) => ({ before, after: el.getBoundingClientRect().toJSON(), viewport: { width: innerWidth, height: innerHeight } }), { box, afterDown });
+	const diagnostics = await line.evaluate((el, before) => ({ before, after: el.getBoundingClientRect().toJSON(), viewport: { width: innerWidth, height: innerHeight } }), { box, beforePress, afterDown });
 	// CodeMirror may redraw its DOM selection after a large viewport measure;
 	// verify the authoritative selection that Copy/Delete actually operate on.
 	await expect.poll(() => page.locator('.cm-content').evaluate((el: any) => {

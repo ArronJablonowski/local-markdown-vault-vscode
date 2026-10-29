@@ -1,5 +1,17 @@
 # Security Policy
 
+## Dependency triage — October 29, 2026
+
+Production dependency audit is clean after updating RE2JS to 2.9.1. Compatible
+development-tool patches update fast-uri, qs, and serialize-javascript.
+The complete dependency audit still reports two high-severity package entries
+for one advisory: [GHSA-xcx6-jx8p-x3h5](https://github.com/advisories/GHSA-xcx6-jx8p-x3h5)
+in MSAL Node and its Azure Identity parent, pulled in by the VSCE publishing tool.
+These development-only packages are not shipped in the VSIX; the extension has
+no Azure authentication flow. Do not force an unverified MSAL major-version
+override or bypass the full audit gate. Marketplace publishing remains gated
+until a compatible patched dependency chain is available and verified.
+
 ## Product security boundary
 
 Local Markdown Vault is a local-only editor. It does not provide accounts, cloud sync, publishing, telemetry, analytics, background uploads, or an extension-managed network service.
@@ -54,7 +66,7 @@ code, and details/summary. All attributes, URL targets, CSS, scripts, resource
 elements, SVG, MathML, templates, and forms are excluded. HTML never receives
 resource-loading privileges. Input over 100,000 characters or output over 2,000
 elements falls back to literal source. A conservative preflight also rejects
-nesting beyond 64 levels, more than 4,000 tag tokens, and mismatched closing tags
+nesting beyond 64 levels, more than 4,000 tag tokens, and mismatched non-optional closing tags
 before DOM parsing. Sanitizer exceptions fail closed to literal text. Empty sanitized blocks also show their
 literal source. Source remains unchanged; the source button reveals it for edits.
 

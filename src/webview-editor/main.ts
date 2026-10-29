@@ -12,6 +12,7 @@ import {
 	selectNextOccurrence,
 } from '@codemirror/search';
 import { insertNewlineContinueMarkupCommand, markdown } from '@codemirror/lang-markdown';
+import { html } from '@codemirror/lang-html';
 import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language';
 import { GFM } from './gfmTableFix';
 import {
@@ -310,7 +311,8 @@ function settleFocusedDraft(): boolean {
 }
 
 function createExtensions(): Extension[] {
-	const markdownSupport = markdown({ extensions: GFM });
+	// HTML in notes must not acquire untyped closing tags during ordinary input.
+	const markdownSupport = markdown({ extensions: GFM, htmlTagLanguage: html({ matchClosingTags: false, autoCloseTags: false }) });
 	return [
 		// Locked mode is enforced at the transaction boundary, not just by hiding
 		// the caret. This also blocks edits dispatched by rendered task, property,

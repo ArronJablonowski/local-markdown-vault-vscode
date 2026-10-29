@@ -292,6 +292,25 @@ async function journey(name, index) {
 		await saved('disclosure presentation never changes Markdown');
 		await page.screenshot({ path: join(artifacts, `disclosure-roundtrip-${index + 1}.png`) });
 	});
+	await check(`${name}: optional HTML is typed, redrafted, rendered, and saved without source repair`, async () => {
+		await frame.locator('.cm-content').focus(); await press(`${mod}+End`);
+		await press('Enter'); await press('Enter'); await type('## Optional HTML review');
+		await press('Enter'); await press('Enter');
+		await type('<ul><li>OPTIONAL_FIRST<li>OPTIONAL_SECOND</ul>');
+		expected += '\n\n## Optional HTML review\n\n<ul><li>OPTIONAL_FIRST<li>OPTIONAL_SECOND</ul>';
+		await saved('optional list typing');
+		await find('## Optional HTML review'); await press('ArrowRight');
+		const list = frame.locator('.mlp-safe-html').filter({ hasText: 'OPTIONAL_FIRST' });
+		await wait(async () => await list.locator('li').count() === 2, 'optional list renders');
+		await replaceThroughFind('OPTIONAL_SECOND', 'Second reviewed');
+		await press(`${mod}+End`); await press('Enter'); await press('Enter');
+		const table = '<table><tr><th>Owner<th>Status<tr><td>Alex<td>Ready</table>';
+		await type(table); await press('Enter'); await press('Enter'); await type('After optional table.');
+		expected += `\n\n${table}\n\nAfter optional table.`;
+		await saved('optional table typing');
+		await wait(async () => await frame.locator('.mlp-safe-html table tr').count() === 2, 'optional table renders');
+		await page.screenshot({ path: join(artifacts, `optional-html-${index + 1}.png`) });
+	});
 }
 
 async function replaceThroughFind(from, to) {
