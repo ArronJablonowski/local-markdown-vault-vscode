@@ -24,6 +24,7 @@ import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
 import { createBlockReplacementSelectionGuard } from './blockReplacementSelection';
 import { calloutState } from './calloutState';
+import { htmlDisclosureState } from './htmlDisclosureState';
 import { indentMarkdownList } from './quotedListIndent';
 import { detectFrontmatter } from './frontmatterWidget';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
@@ -350,6 +351,7 @@ function createExtensions(): Extension[] {
 		backtickInputHandler,
 		typingIntegrity,
 		calloutState,
+		htmlDisclosureState,
 		livePreviewPlugin,
 		listHangingIndent,
 		navigationScrollGuard,

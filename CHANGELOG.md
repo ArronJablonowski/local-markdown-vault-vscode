@@ -1,5 +1,7 @@
 # Changelog
 
+- Preserve nested HTML disclosure state across viewport eviction and source/preview round trips. Map bounded editor-only snapshots across unrelated edits, discard stale snapshots after HTML changes, and observe native open-state mutations before deferred toggle events. Cover keyboard/mouse activation, default summaries, locked mode, theme/viewport changes, and native exact-save checks.
+
 - Keep expanded HTML sections open when edits above them move their source range. Resolve the source button's location from the current widget DOM instead of retaining an outdated offset. Extend native arrow-navigation and object-boundary editing QA to HTML alongside Markdown objects, and cover identical independent sections with regression tests.
 
 - Harden HTML/Markdown interactions: preserve mouse selections across HTML previews, use the shared source control, retain double-click word selection, remeasure expanded details, and scroll wide HTML tables horizontally. Bound HTML nesting before sanitization and fall back to literal source on parser failures. Add mixed-object, locked, oversized, narrow/wide, and native save/Undo/Redo QA.
