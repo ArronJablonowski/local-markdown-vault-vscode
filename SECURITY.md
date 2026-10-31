@@ -127,6 +127,15 @@ requires Node.js 24.15.0 or newer in the development toolchain, not in the
 installed extension. Do not remove these overrides without reviewing the
 resulting graph, running both full and production-only audits, and repeating
 diagram and packaging QA. Development builds continue to disable install scripts.
+Development-only glob 14.0.3 and minimatch 11.0.3 overrides address
+[post-abort directory traversal](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
+and [pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+They replace older transitive copies in the packaging, test discovery, and
+coverage tools; neither library is shipped as a runtime dependency. These
+cross-major overrides require CommonJS/ESM matching and discovery checks,
+abort-regression tests, and packaged test/coverage smoke tests before release.
+Remove them only after upstream tool ranges include patched releases and the
+replacement dependency graph passes the same checks.
 The CI/release audit fails on low-severity and higher findings, not just high
 findings; lower-severity transitive issues must not silently bypass the gate.
 

@@ -129,6 +129,27 @@ try {
 		await press(`${mod}+z`); await press(`${mod}+Shift+z`); await delay(300);
 		await saved('locked HTML history leaves the file unchanged');
 	});
+	await check('Table options, toolbar and code controls preserve ordered history and locked files', async () => {
+		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click(); report.pointerActions++;
+		const baseline = '# Widget history probe\n\n| Owner | State |\n| --- | --- |\n| Alex | Keep |\n\n```js\n' + 'const value = 1;\n'.repeat(9) + '```\n\nTail sentinel';
+		await writeFile(currentPath, baseline); expected = baseline;
+		await wait(async () => await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()) === expected, 'control history fixture loaded');
+		await find('# Widget history probe'); await press('ArrowRight'); await type('!');
+		const revised = baseline.replace('# Widget history probe', '# Widget history probe!');
+		expected = revised; await saved('control history isolated edit');
+		await frame.locator('.mlp-table-options-btn').click(); report.pointerActions++;
+		await press(`${mod}+z`); expected = baseline; await saved('table options Undo');
+		await frame.locator('.mlp-table-toolbar button:not(:disabled)').first().focus();
+		await press(`${mod}+Shift+z`); expected = revised; await saved('table toolbar Redo');
+		await frame.getByRole('button', { name: 'Copy code block', exact: true }).click(); report.pointerActions++;
+		await press(`${mod}+z`); expected = baseline; await saved('code copy button Undo');
+		await frame.locator('.mlp-collapse-code-btn').focus();
+		await press(`${mod}+y`); expected = revised; await saved('code collapse button Redo');
+		await frame.getByRole('button', { name: 'Editing: select to lock the editor', exact: true }).click(); report.pointerActions++;
+		await frame.locator('.mlp-table-options-btn').click(); report.pointerActions++;
+		await press(`${mod}+z`); await press(`${mod}+Shift+z`); await delay(300);
+		await saved('locked control history leaves the file unchanged');
+	});
 	report.completed = true;
 	report.passed = report.failures.length === 0 && report.pageErrors.length === 0;
 } catch (error) {

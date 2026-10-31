@@ -21,6 +21,7 @@ import { isolatedSpreadsheetPaste, isPlainTextPaste, readSpreadsheetClipboard, s
 import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHeaderSettings';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { isClipboardShortcut } from './clipboardShortcuts';
+import { isHistoryShortcut } from './renderedHistoryShortcuts';
 import {
 	insertRow,
 	insertColumn,
@@ -684,7 +685,7 @@ class TableWidget extends WidgetType {
 		});
 		optionsButton.addEventListener('keydown', (event) => {
 			// Clipboard gestures belong to the editor's native-command bridge.
-			if (isClipboardShortcut(event)) return;
+			if (isClipboardShortcut(event) || isHistoryShortcut(event)) return;
 			event.stopPropagation();
 			protectRenderedBlockFromCaret();
 			if (event.key === 'Tab' && !event.shiftKey && !toolbar.hidden) {
@@ -697,7 +698,7 @@ class TableWidget extends WidgetType {
 			}
 		});
 		wrap.addEventListener('keydown', (event) => {
-			if (isClipboardShortcut(event)) return;
+			if (isClipboardShortcut(event) || isHistoryShortcut(event)) return;
 			if (toolbar.hidden) return;
 			if (toolbar.contains(event.target as Node)) {
 				event.stopPropagation();

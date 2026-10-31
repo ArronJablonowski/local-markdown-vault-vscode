@@ -62,6 +62,7 @@ import { exitEmptyMarkdownSection } from './sectionEditing';
 import { handleCodeClipboardResult, setCodeClipboardPoster } from './codeClipboard';
 import { renderedSelection } from './renderedSelection';
 import { clipboardShortcuts } from './clipboardShortcuts';
+import { renderedHistoryShortcuts } from './renderedHistoryShortcuts';
 import { createCalloutPasteHandler } from './calloutPaste';
 import { whitespaceMarkers } from './whitespaceMarkers';
 import { refreshPreview } from './previewRefresh';
@@ -505,6 +506,7 @@ function createExtensions(): Extension[] {
 		})),
 		renderedSelection,
 		clipboardShortcuts,
+		renderedHistoryShortcuts,
 		EditorView.lineWrapping,
 	];
 }
