@@ -6,6 +6,23 @@ const diagrams = {
 	mermaid: 'graph TD\nA --> B\nB --> C\nC --> D\nD --> E\nE --> F\nF --> G\nG --> H\nH --> I',
 	drawio: '<mxGraphModel>\n<root>\n<mxCell id="0"/>\n<mxCell id="1" parent="0"/>\n<mxCell id="2" value="QA node" vertex="1" parent="1">\n<mxGeometry x="20" y="20" width="160" height="60" as="geometry"/>\n</mxCell>\n</root>\n</mxGraphModel>',
 };
+
+for (const fence of ['```', '~~~']) for (const [opening, continuation] of [['- ', '  '], ['1. ', '   '], ['> - ', '>   ']]) {
+	test(`list-contained ${fence} diagram conversion reveals editable source under ${opening}`, async ({ page }) => {
+		const original = 'Intro\n\n' + opening + 'Diagram item\n' + continuation + '\n' + continuation + fence + 'text\n' + (diagrams.mermaid + '\n' + fence).split('\n').map(line => continuation + line).join('\n') + '\n\nAfter sentinel';
+		await mountEditor(page, original);
+		await page.getByRole('button', { name: 'Collapse code block', exact: true }).click();
+		const from = original.indexOf('text');
+		await postToWebview(page, { type: 'externalUpdate', version: 1, changes: [{ from, to: from + 4, insert: 'mermaid' }] });
+		await find(page, 'After sentinel'); await page.keyboard.press('ArrowRight');
+		await expect(page.locator('.mlp-mermaid-wrap svg')).toBeVisible();
+		await page.locator('.mlp-mermaid-wrap').getByRole('button', { name: 'Switch to code mode', exact: true }).click();
+		await expect(page.locator('.cm-foldPlaceholder')).toHaveCount(0);
+		await expect(page.locator('.cm-content')).toContainText('H --> I');
+		await find(page, 'H --> I'); await page.keyboard.press('ArrowRight'); await page.keyboard.type(';');
+		expect(await page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString())).toBe(original.replace(fence + 'text', fence + 'mermaid').replace('H --> I', 'H --> I;'));
+	});
+}
 async function find(page: Page, text: string) {
 	await openSearch(page);
 	await page.locator('.cm-search input[name="search"]').fill(text);

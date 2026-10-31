@@ -21,6 +21,11 @@ function reveal(state: EditorState, position: number): EditorState {
 }
 
 describe('explicit source reveal', () => {
+	for (const [opening, continuation] of [['- ', '  '], ['1. ', '   '], ['> - ', '>   ']]) it(`reveals folded source inside ${JSON.stringify(opening)} list containers`, () => {
+		const doc = 'Intro\n\n' + opening + '```mermaid\n' + ['hidden_1', 'hidden_2', '```'].map(line => continuation + line).join('\n') + '\n\nAfter';
+		const state = stateWithFolds(doc, ['hidden']);
+		expect(foldedRanges(reveal(state, state.doc.lineAt(doc.indexOf('```mermaid')).from)).size).toBe(0);
+	});
 	for (const prefix of ['', '> ', '> > ']) it(`expands a formerly folded diagram through ${JSON.stringify(prefix)} container prefixes`, () => {
 		const doc = 'Intro\n\n' + ['```mermaid', 'hidden_1', 'hidden_2', '```'].map(line => prefix + line).join('\n') + '\n\nAfter';
 		const state = stateWithFolds(doc, ['hidden']);
