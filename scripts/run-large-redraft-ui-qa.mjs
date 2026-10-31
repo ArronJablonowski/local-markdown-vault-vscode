@@ -439,6 +439,37 @@ async function journey(name, index) {
 		await wait(async () => await frame.locator('.mlp-safe-html table tr').count() === 2, 'optional table renders');
 		await page.screenshot({ path: join(artifacts, `optional-html-${index + 1}.png`) });
 	});
+	for (const [language, body, label] of [
+		['mermaid', 'graph TD\nQA0 --> QA1\nQA1 --> QA2\nQA2 --> QA3\nQA3 --> QA4\nQA4 --> QA5\nQA5 --> QA6\nQA6 --> QA7\nQA7 --> QA8', 'QA8'],
+		['drawio', '<mxGraphModel>\n<root>\n<mxCell id="0"/>\n<mxCell id="1" parent="0"/>\n<mxCell id="2" value="Fold conversion node" vertex="1" parent="1">\n<mxGeometry x="20" y="20" width="160" height="60" as="geometry"/>\n</mxCell>\n</root>\n</mxGraphModel>', 'Fold conversion node'],
+	]) await check(`${name}: collapsed text converts to ${language}, reveals complete source, and saves later edits`, async () => {
+		const heading = `## Fold conversion ${language}`;
+		const block = '```text\n' + body + '\n```';
+		// Seed a distant fixture; the language change and every edit use real keys.
+		expected = expected.replace('END_OF_SEEDED_CONTENT', `\n\n${heading}\n\n${block}\n\nEND_OF_SEEDED_CONTENT`);
+		await writeFile(currentPath, expected);
+		await wait(async () => await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()) === expected, 'conversion fixture loaded');
+		await find(heading); await press('ArrowRight');
+		const controls = frame.locator('.mlp-copy-code-host').filter({ has: frame.locator('.mlp-code-language', { hasText: /^text$/ }) });
+		await controls.getByRole('button', { name: 'Collapse code block', exact: true }).click(); report.pointerActions++;
+		await find('```text'); await press('ArrowRight');
+		for (let i = 0; i < 4; i++) await press('Shift+ArrowLeft');
+		await type(language); expected = expected.replace(block, '```' + language + '\n' + body + '\n```');
+		await saved(`${language} language conversion`);
+		await find('END_OF_SEEDED_CONTENT'); await press('ArrowRight');
+		const diagram = frame.locator('.mlp-mermaid-wrap').filter({ hasText: label });
+		await diagram.locator('svg').waitFor({ state: 'visible' });
+		await diagram.getByRole('button', { name: 'Switch to code mode', exact: true }).click(); report.pointerActions++;
+		assert.ok((await frame.locator('.cm-content').innerText()).includes(body.split('\n').at(-1)), 'Source remains hidden behind an old fold');
+		await saved(`${language} source reveal never changes bytes`);
+		if (language === 'mermaid') {
+			await find('QA7 --> QA8'); await press('ArrowRight'); await type(';');
+			expected = expected.replace('QA7 --> QA8', 'QA7 --> QA8;'); await saved('converted Mermaid edit');
+		} else await replaceThroughFind('Fold conversion node', 'Verified conversion node');
+		await find('END_OF_SEEDED_CONTENT'); await press('ArrowRight');
+		// SVG line wrapping can separate words into adjacent tspan nodes.
+		await frame.locator('.mlp-mermaid-wrap').filter({ hasText: language === 'mermaid' ? label : /Verified conversion\s*node/ }).locator('svg').waitFor({ state: 'visible' });
+	});
 }
 
 async function replaceThroughFind(from, to) {

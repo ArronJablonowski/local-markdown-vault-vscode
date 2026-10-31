@@ -2,6 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import { allowRevealOnce } from './cmUtils';
 import { t } from '../shared/i18n';
 import { copyCodeToClipboard } from './codeClipboard';
+import { sourceBlockUnfoldEffects } from './sourceReveal';
 
 /**
  * The "show me the source" control shared by every rendered block widget
@@ -59,9 +60,10 @@ export function createCodeModeButton(view: EditorView, options: CodeModeButtonOp
 		// guard would otherwise still be set and the source would not appear.
 		allowRevealOnce();
 		const committed = options.beforeShow?.() ?? null;
-		const pos = committed ?? options.caretPos?.() ?? view.posAtDOM(options.anchor);
+		const pos = Math.min(Math.max(committed ?? options.caretPos?.() ?? view.posAtDOM(options.anchor), 0), view.state.doc.length);
 		view.dispatch({
-			selection: { anchor: Math.min(Math.max(pos, 0), view.state.doc.length) },
+			effects: sourceBlockUnfoldEffects(view.state, pos),
+			selection: { anchor: pos },
 			scrollIntoView: true,
 		});
 		view.focus();
