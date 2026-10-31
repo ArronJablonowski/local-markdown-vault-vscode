@@ -268,3 +268,19 @@ test('global expansion clears a mapped code fold after the code is shortened bel
 	expect(await source(page)).toBe(original.slice(0, from) + original.slice(to));
 	expect(await editMessages(page)).toEqual([]);
 });
+
+for (const prefix of ['', '> ', '> > ']) test(`external fence removal leaves former code recoverable in ${JSON.stringify(prefix)} containers`, async ({ page }) => {
+	const block = fenced('converted').split('\n').map(line => prefix + line).join('\n');
+	const original = `Intro\n\n${block}\n\nAfter`;
+	await mountEditor(page, original);
+	await page.getByRole('button', { name: collapseLabel, exact: true }).click();
+	const opening = original.indexOf('```js');
+	const closing = original.lastIndexOf('```');
+	const changes = [{ from: opening, to: opening + 5, insert: '' }, { from: closing, to: closing + 3, insert: '' }];
+	await postToWebview(page, { type: 'externalUpdate', version: 1, changes });
+	await page.getByRole('button', { name: expandLabel, exact: true }).click();
+	await expect(page.locator('.cm-content')).toContainText('converted_8();');
+	await expect(page.locator('.mlp-fold-all-toggle')).toBeDisabled();
+	expect(await source(page)).toBe(original.slice(0, opening) + original.slice(opening + 5, closing) + original.slice(closing + 3));
+	expect(await editMessages(page)).toEqual([]);
+});
