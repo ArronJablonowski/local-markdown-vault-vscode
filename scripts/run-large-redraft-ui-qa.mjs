@@ -150,6 +150,24 @@ try {
 		await press(`${mod}+z`); await press(`${mod}+Shift+z`); await delay(300);
 		await saved('locked control history leaves the file unchanged');
 	});
+	await check('Table-menu Find and control-focused Select All retain note scope and immediate saves', async () => {
+		await frame.locator('.mlp-table-options-btn').click(); report.pointerActions++;
+		await press(`${mod}+f`);
+		const input = frame.locator('.cm-search input[name="search"]');
+		assert.equal(await input.evaluate(el => document.activeElement === el), true);
+		await press(`${mod}+a`); await type('Tail sentinel', false);
+		await press('Enter'); await press('Escape'); await saved('locked table-menu Find');
+		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click(); report.pointerActions++;
+		await frame.getByRole('button', { name: 'Copy code block', exact: true }).click(); report.pointerActions++;
+		await press(`${mod}+a`); await type('# Checkbox shortcut probe');
+		await press('Enter'); await press('Enter'); await type('- [ ] Retained task');
+		expected = '# Checkbox shortcut probe\n\n- [ ] Retained task'; await saved('code-control Select All replacement');
+		await find('# Checkbox shortcut probe'); await press('ArrowRight');
+		await frame.locator('.mlp-checkbox').focus(); await press(`${mod}+a`);
+		await type('Final replacement after checkbox focus. Every character survives.');
+		expected = 'Final replacement after checkbox focus. Every character survives.';
+		await saved('checkbox Select All immediate replacement');
+	});
 	report.completed = true;
 	report.passed = report.failures.length === 0 && report.pageErrors.length === 0;
 } catch (error) {

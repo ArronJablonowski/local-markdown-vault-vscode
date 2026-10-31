@@ -1,5 +1,4 @@
 import { EditorView, WidgetType } from '@codemirror/view';
-import { selectAll } from '@codemirror/commands';
 import { renderSafeHtml } from './safeHtml';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { withCodeModeButton } from './codeModeButton';
@@ -17,15 +16,6 @@ export class HtmlWidget extends WidgetType {
 		content.className = 'mlp-safe-html';
 		// Let native HTML selection own focus instead of syncing it into source.
 		content.tabIndex = -1;
-		content.addEventListener('keydown', event => {
-			if (event.isComposing || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'a') return;
-			// The preview owns native text selection, but Select All owns the note,
-			// never the surrounding webview controls or unrelated rendered text.
-			event.preventDefault();
-			event.stopPropagation();
-			view.focus();
-			selectAll(view);
-		});
 		renderSafeHtml(content, this.source);
 		const saved = view.state.field(htmlDisclosureState, false)?.get(this.initialFrom);
 		if (saved?.source === this.source) {

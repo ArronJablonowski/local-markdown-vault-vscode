@@ -21,7 +21,7 @@ import { isolatedSpreadsheetPaste, isPlainTextPaste, readSpreadsheetClipboard, s
 import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHeaderSettings';
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { isClipboardShortcut } from './clipboardShortcuts';
-import { isHistoryShortcut } from './renderedHistoryShortcuts';
+import { isNoteShortcut } from './renderedNoteShortcuts';
 import {
 	insertRow,
 	insertColumn,
@@ -684,8 +684,8 @@ class TableWidget extends WidgetType {
 			if (!editing) optionsButton.focus();
 		});
 		optionsButton.addEventListener('keydown', (event) => {
-			// Clipboard gestures belong to the editor's native-command bridge.
-			if (isClipboardShortcut(event) || isHistoryShortcut(event)) return;
+			// Shared note and clipboard commands must reach their editor bridges.
+			if (isClipboardShortcut(event) || isNoteShortcut(event)) return;
 			event.stopPropagation();
 			protectRenderedBlockFromCaret();
 			if (event.key === 'Tab' && !event.shiftKey && !toolbar.hidden) {
@@ -698,7 +698,7 @@ class TableWidget extends WidgetType {
 			}
 		});
 		wrap.addEventListener('keydown', (event) => {
-			if (isClipboardShortcut(event) || isHistoryShortcut(event)) return;
+			if (isClipboardShortcut(event) || isNoteShortcut(event)) return;
 			if (toolbar.hidden) return;
 			if (toolbar.contains(event.target as Node)) {
 				event.stopPropagation();
