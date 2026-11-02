@@ -167,6 +167,18 @@ try {
 		}
 		await find('Tail sentinel'); await press('ArrowRight');
 		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click(); report.pointerActions++;
+		for (const key of ['F3', 'Shift+F3', `${mod}+g`, `${mod}+Shift+g`]) {
+			await find('value');
+			await frame.locator('.mlp-table-options-btn').focus(); await press(key);
+			const range = await frame.locator('.cm-content').evaluate(el => {
+				const { from, to } = el.cmTile.root.view.state.selection.main;
+				return { from, to };
+			});
+			assert.equal(expected.slice(range.from, range.to), 'value');
+			await type('revised'); expected = expected.slice(0, range.from) + 'revised' + expected.slice(range.to);
+			await saved(`table-control ${key} hands immediate typing to the match`);
+		}
+		await find('Tail sentinel'); await press('ArrowRight');
 		await frame.getByRole('button', { name: 'Copy code block', exact: true }).click(); report.pointerActions++;
 		await press(`${mod}+a`); await type('# Checkbox shortcut probe');
 		await press('Enter'); await press('Enter'); await type('- [ ] Retained task');

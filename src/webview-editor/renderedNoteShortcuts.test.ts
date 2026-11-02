@@ -32,7 +32,7 @@ function setup() {
 }
 
 describe('rendered note-command fallback', () => {
-	it('routes forward and backward search without stealing field focus', () => {
+	it('returns forward and backward search results to source focus', () => {
 		const { view, press } = setup();
 		for (const [key, options] of [
 			['F3', {}], ['F3', { shiftKey: true }],
@@ -44,7 +44,7 @@ describe('rendered note-command fallback', () => {
 			expect(runScopeHandlers).toHaveBeenCalledExactlyOnceWith(view, event, 'editor');
 			expect(event.defaultPrevented).toBe(true);
 		}
-		expect(view.focus).not.toHaveBeenCalled();
+		expect(view.focus).toHaveBeenCalledTimes(6);
 	});
 	it.each(['ctrlKey', 'metaKey'])('routes supported %s chords exactly once', modifier => {
 		const { view, press } = setup();
@@ -67,7 +67,7 @@ describe('rendered note-command fallback', () => {
 		vi.spyOn(dom, 'contains').mockReturnValue(true);
 		const event = Object.assign(new Event('keydown', { cancelable: true }), { key: 'a', metaKey: true });
 		Object.defineProperty(event, 'target', { value: new Control() });
-		plugin.selectAll(event);
+		plugin.selectText(event);
 		expect(view.focus).toHaveBeenCalledOnce();
 		expect(runScopeHandlers).toHaveBeenCalledOnce(); expect(event.defaultPrevented).toBe(true);
 	});
