@@ -10,8 +10,13 @@ export function isHistoryShortcut(event: KeyboardEvent): boolean {
 /** Commands that belong to the note even when a rendered control owns focus. */
 export function isNoteShortcut(event: KeyboardEvent): boolean {
 	if (isHistoryShortcut(event)) return true;
-	if (event.isComposing || event.shiftKey || !(event.metaKey || event.ctrlKey)) return false;
+	if (event.isComposing) return false;
 	const key = event.key.toLowerCase();
+	// Search traversal belongs to the note even when a widget owns focus.
+	if (key === 'f3') return !event.altKey && !event.metaKey && !event.ctrlKey;
+	if (!(event.metaKey || event.ctrlKey)) return false;
+	if (key === 'g') return !event.altKey;
+	if (event.shiftKey) return false;
 	return key === 'a' && !event.altKey || key === 'f';
 }
 

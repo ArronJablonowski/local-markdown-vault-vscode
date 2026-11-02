@@ -32,6 +32,20 @@ function setup() {
 }
 
 describe('rendered note-command fallback', () => {
+	it('routes forward and backward search without stealing field focus', () => {
+		const { view, press } = setup();
+		for (const [key, options] of [
+			['F3', {}], ['F3', { shiftKey: true }],
+			['g', { metaKey: true }], ['g', { metaKey: true, shiftKey: true }],
+			['g', { ctrlKey: true }], ['g', { ctrlKey: true, shiftKey: true }],
+		] as Array<[string, Record<string, boolean>]>) {
+			vi.mocked(runScopeHandlers).mockClear();
+			const { event } = press(key, options);
+			expect(runScopeHandlers).toHaveBeenCalledExactlyOnceWith(view, event, 'editor');
+			expect(event.defaultPrevented).toBe(true);
+		}
+		expect(view.focus).not.toHaveBeenCalled();
+	});
 	it.each(['ctrlKey', 'metaKey'])('routes supported %s chords exactly once', modifier => {
 		const { view, press } = setup();
 		for (const [key, shiftKey] of [['z', false], ['Z', true], ['y', false], ['Y', false], ['a', false], ['f', false]] as const) {
@@ -65,6 +79,8 @@ describe('rendered note-command fallback', () => {
 			['z', {}, false], ['c', { metaKey: true }, false],
 			['a', { metaKey: true, altKey: true }, false], ['a', { metaKey: true, shiftKey: true }, false],
 			['f', { metaKey: true, shiftKey: true }, false],
+			['F3', { altKey: true }, false], ['F3', { ctrlKey: true }, false],
+			['F3', { isComposing: true }, false], ['g', { metaKey: true, altKey: true }, false],
 		] as Array<[string, Record<string, boolean>, boolean]>) {
 			const { stop } = press(key, options, prevented); expect(stop).not.toHaveBeenCalled();
 		}

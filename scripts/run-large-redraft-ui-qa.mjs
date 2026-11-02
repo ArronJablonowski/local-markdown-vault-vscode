@@ -157,6 +157,15 @@ try {
 		assert.equal(await input.evaluate(el => document.activeElement === el), true);
 		await press(`${mod}+a`); await type('Tail sentinel', false);
 		await press('Enter'); await press('Escape'); await saved('locked table-menu Find');
+		await find('value');
+		for (const key of ['F3', 'Shift+F3', `${mod}+g`, `${mod}+Shift+g`]) {
+			const position = () => frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.selection.main.from);
+			const before = await position();
+			await frame.locator('.mlp-table-options-btn').focus(); await press(key);
+			await wait(async () => await position() !== before, `table-control search traversal ${key}`);
+			await saved(`locked table-control ${key} preserves disk content`);
+		}
+		await find('Tail sentinel'); await press('ArrowRight');
 		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click(); report.pointerActions++;
 		await frame.getByRole('button', { name: 'Copy code block', exact: true }).click(); report.pointerActions++;
 		await press(`${mod}+a`); await type('# Checkbox shortcut probe');
