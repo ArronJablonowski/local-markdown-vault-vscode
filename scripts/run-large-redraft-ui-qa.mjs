@@ -178,6 +178,22 @@ try {
 			await type('revised'); expected = expected.slice(0, range.from) + 'revised' + expected.slice(range.to);
 			await saved(`table-control ${key} hands immediate typing to the match`);
 		}
+		let owner = 'Alex';
+		for (const key of ['F3', 'Shift+F3', `${mod}+g`, `${mod}+Shift+g`]) {
+			await find('value');
+			await frame.locator('.mlp-table td').first().click(); report.pointerActions++;
+			await press(`${mod}+a`); await type(owner + 'x');
+			expected = expected.replace(`| ${owner} |`, `| ${owner}x |`); owner += 'x';
+			await saved(`active cell draft before ${key}`);
+			await press(key);
+			const range = await frame.locator('.cm-content').evaluate(el => {
+				const { from, to } = el.cmTile.root.view.state.selection.main;
+				return { from, to };
+			});
+			assert.equal(expected.slice(range.from, range.to), 'value');
+			await type('updated'); expected = expected.slice(0, range.from) + 'updated' + expected.slice(range.to);
+			await saved(`active cell ${key} preserves draft and saves match replacement`);
+		}
 		await find('Tail sentinel'); await press('ArrowRight');
 		await frame.getByRole('button', { name: 'Copy code block', exact: true }).click(); report.pointerActions++;
 		await press(`${mod}+a`); await type('# Checkbox shortcut probe');

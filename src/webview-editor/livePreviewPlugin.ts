@@ -1,4 +1,4 @@
-import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
+import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType, runScopeHandlers } from '@codemirror/view';
 import { commitActiveDraft, notifyActiveDraftChanged, preserveUncommittedDraft, readActiveDraftSnapshot, registerActiveDraft } from './activeDraft';
 import { syntaxTree, foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language';
 import { EditorSelection, type Range, type EditorState, type Transaction } from '@codemirror/state';
@@ -894,6 +894,17 @@ class TableWidget extends WidgetType {
 			if (!editing) return;
 			const ref = readCellRef(editing);
 			if (!ref) return;
+			if (isNoteShortcut(event) && ['g', 'f3'].includes(event.key.toLowerCase())) {
+				// Finish this cell before search moves the document selection. Native
+				// field history and Select All must still stay local to the cell.
+				event.preventDefault();
+				event.stopPropagation();
+				commit(editing);
+				if (editing) return; // Rejected drafts must not lose their focused field.
+				view.focus();
+				runScopeHandlers(view, event, 'editor');
+				return;
+			}
 			if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a') {
 				// A nested contenteditable is one cell, not the whole CodeMirror
 				// document. Otherwise Mod+A bubbles into selectAll and the next
