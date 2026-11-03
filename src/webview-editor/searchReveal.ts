@@ -306,6 +306,13 @@ function decorateSearchPanel(view: EditorView, panel: HTMLElement): void {
 	groupSearchRows(panel);
 	if (panel.querySelector('.mlp-search-toggle')) return;
 	panel.addEventListener('keydown', event => {
+		// Run before the search library's bubbling handler: IME Enter/Escape
+		// must not replace text, advance a match, or close the composing field.
+		if ((event.isComposing || event.keyCode === 229) && event.target instanceof HTMLInputElement) {
+			event.stopPropagation();
+		}
+	}, true);
+	panel.addEventListener('keydown', event => {
 		const field = event.target;
 		if (!(field instanceof HTMLInputElement)) return;
 		if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'a') {
