@@ -386,6 +386,8 @@ function enableValueEditing(
 		};
 		input.addEventListener('keydown', (event) => {
 			const keyEvent = event as KeyboardEvent;
+			// IME confirmation/cancellation must not commit or discard the field.
+			if (keyEvent.isComposing || keyEvent.keyCode === 229) return;
 			// Keep Enter-to-commit consistent with the other property fields;
 			// Shift+Enter inserts a line break in a multiline scalar.
 			if (keyEvent.key === 'Enter' && !(multiline && keyEvent.shiftKey)) { event.preventDefault(); event.stopPropagation(); commit(); }

@@ -892,6 +892,9 @@ class TableWidget extends WidgetType {
 		// the first move. `beginEditing` attaches this to whichever cell is live.
 		function onCellKeydown(event: KeyboardEvent): void {
 			if (!editing) return;
+			// IME confirmation/candidate keys are not cell navigation. Older
+			// composition implementations report keyCode 229 instead of the flag.
+			if (event.isComposing || event.keyCode === 229) return;
 			const ref = readCellRef(editing);
 			if (!ref) return;
 			if (isNoteShortcut(event) && ['g', 'f3'].includes(event.key.toLowerCase())) {
