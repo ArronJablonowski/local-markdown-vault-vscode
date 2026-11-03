@@ -111,7 +111,7 @@ try {
     await press('Shift+Tab'); await page.keyboard.type('[ ] Confirm draft', { delay: 4 });
     await press('Enter'); await press('Enter'); await press('Enter');
     await page.keyboard.type('Independent closing paragraph.', { delay: 4 });
-    const suffix = '\n\n> [!warning]+ Draft review\n> Introductory **review**.\n> - Parent item\n>   - Child item\n> - [ ] Confirm draft\n\n\nIndependent closing paragraph.';
+    const suffix = '\n\n> [!warning]+ Draft review\n> Introductory **review**.\n> - Parent item\n>     - Child item\n> - [ ] Confirm draft\n\n\nIndependent closing paragraph.';
     await saved(fixtures['Large.md'] + suffix);
     const line = frame.locator('.cm-line').filter({ hasText: 'Independent closing paragraph.' });
     assert.ok(!/mlp-line-callout|mlp-line-list|mlp-line-quote/.test(await line.getAttribute('class')));
@@ -275,7 +275,18 @@ async function traceClipboard() {
   }, process.env.MDLP_CLIPBOARD_EXEC_PASTE === '1');
 }
 async function saved(expected, timeout = 10000) {
-  await wait(async () => (await source()) === expected && (await readFile(join(workspace, current), 'utf8')) === expected, `source and saved file ${current}`, timeout);
+  try {
+    await wait(async () => (await source()) === expected && (await readFile(join(workspace, current), 'utf8')) === expected, `source and saved file ${current}`, timeout);
+  } catch (error) {
+    const actual = await source(), disk = await readFile(join(workspace, current), 'utf8');
+    const stem = current.replace(/[^a-z0-9.-]/gi, '_');
+    await Promise.all([writeFile(join(artifacts, `${stem}.expected.md`), expected),
+      writeFile(join(artifacts, `${stem}.actual.md`), actual), writeFile(join(artifacts, `${stem}.disk.md`), disk)]);
+    let offset = 0;
+    while (offset < Math.min(expected.length, actual.length) && expected[offset] === actual[offset]) offset++;
+    throw new Error(`${error.message}; ${JSON.stringify({ offset, diskMatchesEditor: disk === actual,
+      expected: expected.slice(Math.max(0, offset - 40), offset + 120), actual: actual.slice(Math.max(0, offset - 40), offset + 120) })}`);
+  }
   report.savedChecks++;
   report.lastSaved = { file: current, bytes: Buffer.byteLength(expected), sha256: createHash('sha256').update(expected).digest('hex') };
 }
