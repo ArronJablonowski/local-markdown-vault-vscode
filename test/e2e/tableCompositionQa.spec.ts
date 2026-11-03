@@ -3,7 +3,7 @@ import { mountEditor } from './harness';
 
 const note = 'Before\n\n| Owner | State |\n| --- | --- |\n| Original | Retain |\n\nAfter';
 
-for (const nested of [false, true]) for (const text of ['\u4f1a\u8b70\u306e\u8a18\u9332', '\ud68c\uc758 \uae30\ub85d 😀']) for (const key of ['Enter', 'Escape', 'Tab']) for (const legacy of [false, true]) test(`IME ${key} keeps ${text} in the active table cell, legacy=${legacy}, nested=${nested}`, async ({ page }) => {
+for (const finish of ['Enter', 'Escape', 'Tab']) for (const nested of [false, true]) for (const text of ['\u4f1a\u8b70\u306e\u8a18\u9332', '\ud68c\uc758 \uae30\ub85d 😀']) for (const key of ['Enter', 'Escape', 'Tab']) for (const legacy of [false, true]) test(`IME ${key} keeps ${text} until normal ${finish}, legacy=${legacy}, nested=${nested}`, async ({ page }) => {
 	const original = nested ? '> [!note] Agenda\n>\n' + note.split('\n').map(line => '> ' + line).join('\n') : note;
 	await mountEditor(page, original);
 	const cell = page.locator('.mlp-table td').first();
@@ -20,6 +20,8 @@ for (const nested of [false, true]) for (const text of ['\u4f1a\u8b70\u306e\u8a1
 	expect(await page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString())).toBe(original);
 	await cell.evaluate((element, data) => element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data })), text);
 	await expect.poll(() => page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString())).toBe(original.replace('Original', text));
-	await page.keyboard.press('Enter');
+	await page.keyboard.press(finish);
 	await expect(cell).not.toHaveAttribute('contenteditable', 'true');
+	await expect.poll(() => page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString())).toBe(finish === 'Escape' ? original : original.replace('Original', text));
+	if (finish === 'Tab') await expect(page.locator('.mlp-table td').nth(1)).toBeFocused();
 });

@@ -79,3 +79,19 @@ test('a queue-rejected table cell commit remains editable and preserves its exac
 	await expect.poll(() => page.evaluate(() => (window as any).__webviewState?.recovery?.requiresSeparatePreservation)).toBe(true);
 	expect(await page.evaluate(() => (window as any).__posted.filter((message: any) => message.type === 'edit').length)).toBe(1);
 });
+
+for (const key of ['F3', 'Shift+F3', process.platform === 'darwin' ? 'Meta+g' : 'Control+g', process.platform === 'darwin' ? 'Meta+Shift+g' : 'Control+Shift+g']) test(`a queue-rejected table draft blocks search traversal ${key} without losing focus or text`, async ({ page }) => {
+	await fillPendingQueue(page);
+	const cell = page.locator('.mlp-table tbody td').first();
+	await cell.click();
+	const draft = 'Unsent owner | retain **every** character';
+	await cell.fill(draft);
+	const sourceBefore = await page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString());
+	await cell.press(key);
+	await expect(cell).toBeFocused();
+	await expect(cell).toHaveAttribute('contenteditable', 'true');
+	await expect(cell).toHaveText(draft);
+	await expect(page.locator('.cm-search')).toHaveCount(0);
+	expect(await page.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString())).toBe(sourceBefore);
+	await expect.poll(() => page.evaluate(text => (window as any).__posted.some((message: any) => message.type === 'preserveDraft' && message.text.includes(text)), draft)).toBe(true);
+});
