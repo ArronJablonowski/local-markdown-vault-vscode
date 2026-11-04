@@ -1,8 +1,16 @@
 import { StateEffect, StateField, type EditorState } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { t } from '../shared/i18n';
 
 const setWidths = StateEffect.define<{ from: number; widths: number[] }>();
+const refreshers = new WeakMap<HTMLTableElement, () => void>();
+/** Identical table widgets can reuse DOM after a neighboring table is deleted. */
+export const syncTableColumnWidths = EditorView.updateListener.of(update => {
+	if (!update.docChanged) return;
+	update.view.requestMeasure({ key: refreshers, read: () => null, write: () => {
+		for (const table of Array.from(update.view.dom.querySelectorAll<HTMLTableElement>('table.mlp-table'))) refreshers.get(table)?.();
+	} });
+});
 /** View-only widths follow source offsets without inserting nonstandard Markdown. */
 export const tableColumnWidths = StateField.define<Map<number, number[]>>({
 	create: () => new Map(),
@@ -12,12 +20,16 @@ export const tableColumnWidths = StateField.define<Map<number, number[]>>({
 			next = new Map();
 			for (const [from, widths] of value) {
 				let deleted = false;
-				transaction.changes.iterChangedRanges((start, end) => { if (start <= from && end > from) deleted = true; });
+				let replaced = false;
+				transaction.changes.iterChangedRanges((start, end, nextStart, nextEnd) => {
+					if (start <= from && end > from) { deleted = true; replaced = nextEnd > nextStart; }
+				});
 				const mapped = transaction.changes.mapPos(from, deleted ? -1 : 1);
 				// Host Undo/Redo and row rewrites can replace a whole table while
 				// leaving its header intact. Keep presentation widths in that case.
 				const sameHeader = transaction.startState.doc.lineAt(from).text === transaction.newDoc.lineAt(mapped).text;
-				if (!deleted || sameHeader) next.set(mapped, widths);
+				// A surviving table always wins over a deleted table's fallback.
+				if (!deleted || replaced && sameHeader && !next.has(mapped)) next.set(mapped, widths);
 			}
 		}
 		for (const effect of transaction.effects) if (effect.is(setWidths)) {
@@ -58,6 +70,16 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 	};
 	const saved = view.state.field(tableColumnWidths, false)?.get(from);
 	if (saved) apply(saved);
+	refreshers.set(table, () => {
+		const position = Number(table.closest<HTMLElement>('[data-mlp-table-from]')?.dataset.mlpTableFrom ?? from);
+		const widths = view.state.field(tableColumnWidths, false)?.get(position);
+		if (widths?.length === cells().length) apply(widths);
+		else if (table.classList.contains('mlp-table-resized')) {
+			table.classList.remove('mlp-table-resized'); table.style.tableLayout = ''; table.style.width = ''; table.style.minWidth = '';
+			cells().forEach(cell => { cell.style.width = ''; cell.style.boxSizing = ''; });
+			view.requestMeasure();
+		}
+	});
 	return function refresh() {
 		cells().forEach((cell, index) => {
 			if (cell.querySelector('.mlp-column-resize')) return;

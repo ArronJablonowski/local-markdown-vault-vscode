@@ -219,6 +219,25 @@ try {
 		expected = 'Final replacement after checkbox focus. Every character survives.';
 		await saved('checkbox Select All immediate replacement');
 	});
+	await check('deleting one identical resized table preserves its neighbor and saves exact Markdown', async () => {
+		const table = '| Owner | State |\n| --- | --- |\n| Alex | Keep |';
+		const fixture = 'Before\n\n' + table + '\n\n' + table + '\n\nAfter';
+		await writeFile(currentPath, fixture); expected = fixture;
+		await wait(async () => await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()) === fixture, 'twin table fixture loaded');
+		for (const index of [1, 0]) {
+			await frame.locator('.mlp-table').nth(index).getByRole('separator', { name: 'Resize column 1', exact: true }).focus();
+			for (let step = 0; step <= index; step++) await press('Shift+ArrowRight');
+		}
+		const retained = await frame.locator('.mlp-table').nth(1).locator('th').first().evaluate(cell => cell.getBoundingClientRect().width);
+		const firstTable = frame.locator('.mlp-table-wrap').first();
+		await firstTable.getByRole('button', { name: 'Table options', exact: true }).click(); report.pointerActions++;
+		await firstTable.getByRole('button', { name: 'Select entire table', exact: true }).click(); report.pointerActions++;
+		await press('Backspace'); expected = 'Before\n\n\n\n' + table + '\n\nAfter';
+		await saved('delete first identical table');
+		await find('After'); await press('ArrowRight');
+		assert.equal(await frame.locator('.mlp-table').count(), 1);
+		assert.ok(Math.abs(await frame.locator('.mlp-table th').first().evaluate(cell => cell.getBoundingClientRect().width) - retained) < 2);
+	});
 	report.completed = true;
 	report.passed = report.failures.length === 0 && report.pageErrors.length === 0;
 } catch (error) {
