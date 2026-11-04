@@ -105,6 +105,7 @@ const COPY_GLYPH = '⧉';
 
 export function createCopyCodeButton(getCode: () => string): HTMLButtonElement {
 	const button = document.createElement('button');
+	let feedbackTimer: ReturnType<typeof setTimeout> | undefined;
 	button.type = 'button';
 	// Same shape and treatment as the `</>` control, so the two read as one family
 	// of block chrome: a short glyph in the editor's monospace face, not a word.
@@ -124,12 +125,15 @@ export function createCopyCodeButton(getCode: () => string): HTMLButtonElement {
 		event.preventDefault();
 		event.stopPropagation();
 		const done = (ok: boolean) => {
+			// A previous attempt must not erase a newer retry's feedback early.
+			if (feedbackTimer !== undefined) clearTimeout(feedbackTimer);
 			// Feedback has to be visible: the clipboard gives none of its own, and
 			// without it a click looks like nothing happened.
 			button.textContent = ok ? '✓' : '✕';
 			button.classList.toggle('mlp-copy-code-btn-done', ok);
 			button.classList.toggle('mlp-copy-code-btn-failed', !ok);
-			setTimeout(() => {
+			feedbackTimer = setTimeout(() => {
+				feedbackTimer = undefined;
 				button.textContent = COPY_GLYPH;
 				button.classList.remove('mlp-copy-code-btn-done', 'mlp-copy-code-btn-failed');
 			}, 1200);
