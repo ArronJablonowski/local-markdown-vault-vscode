@@ -1,4 +1,4 @@
-import { StateEffect, StateField } from '@codemirror/state';
+import { StateEffect, StateField, type EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { t } from '../shared/i18n';
 
@@ -13,7 +13,11 @@ export const tableColumnWidths = StateField.define<Map<number, number[]>>({
 			for (const [from, widths] of value) {
 				let deleted = false;
 				transaction.changes.iterChangedRanges((start, end) => { if (start <= from && end > from) deleted = true; });
-				if (!deleted) next.set(transaction.changes.mapPos(from, -1), widths);
+				const mapped = transaction.changes.mapPos(from, deleted ? -1 : 1);
+				// Host Undo/Redo and row rewrites can replace a whole table while
+				// leaving its header intact. Keep presentation widths in that case.
+				const sameHeader = transaction.startState.doc.lineAt(from).text === transaction.newDoc.lineAt(mapped).text;
+				if (!deleted || sameHeader) next.set(mapped, widths);
 			}
 		}
 		for (const effect of transaction.effects) if (effect.is(setWidths)) {
@@ -25,6 +29,12 @@ export const tableColumnWidths = StateField.define<Map<number, number[]>>({
 		return next;
 	},
 });
+
+/** Structural edits preserve tracks only while the column count is compatible. */
+export function retainedTableColumnWidths(state: EditorState, from: number, columns: number) {
+	const widths = state.field(tableColumnWidths, false)?.get(from);
+	return widths?.length === columns ? [setWidths.of({ from, widths })] : [];
+}
 
 export function installTableColumnResize(view: EditorView, table: HTMLTableElement, from: number): () => void {
 	const cells = () => Array.from(table.tHead?.rows[0]?.cells ?? []);

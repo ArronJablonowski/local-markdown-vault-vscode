@@ -22,7 +22,7 @@ import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHe
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { isClipboardShortcut } from './clipboardShortcuts';
 import { isNoteShortcut } from './renderedNoteShortcuts';
-import { installTableColumnResize } from './tableColumnResize';
+import { installTableColumnResize, retainedTableColumnWidths } from './tableColumnResize';
 import {
 	insertRow,
 	insertColumn,
@@ -1682,7 +1682,8 @@ class TableWidget extends WidgetType {
 			const nextLength = doc.length - (to - from) + insert.length;
 			const endOfTable = from + insert.length;
 			const anchor = Math.min(endOfTable + 1, nextLength);
-			preserveHorizontalScroll(() => view.dispatch({ changes: { from, to, insert }, selection: { anchor } }));
+			preserveHorizontalScroll(() => view.dispatch({ changes: { from, to, insert }, selection: { anchor },
+				effects: retainedTableColumnWidths(view.state, from, next.align.length || next.rows[0]?.length || 0) }));
 		};
 
 		const makeAddButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {

@@ -131,7 +131,7 @@ try {
 	});
 	await check('Table options, toolbar and code controls preserve ordered history and locked files', async () => {
 		await frame.getByRole('button', { name: 'Locked: select to edit the document', exact: true }).click(); report.pointerActions++;
-		const baseline = '# Widget history probe\n\n| Owner | State |\n| --- | --- |\n| Alex | Keep |\n\n```js\n' + 'const value = 1;\n'.repeat(9) + '```\n\nTail sentinel';
+		let baseline = '# Widget history probe\n\n| Owner | State |\n| --- | --- |\n| Alex | Keep |\n\n```js\n' + 'const value = 1;\n'.repeat(9) + '```\n\nTail sentinel';
 		await writeFile(currentPath, baseline); expected = baseline;
 		await wait(async () => await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()) === expected, 'control history fixture loaded');
 		const column = frame.locator('.mlp-table th').first();
@@ -144,6 +144,10 @@ try {
 		await resize.focus(); await press('ArrowRight');
 		assert.ok(Math.abs(await column.evaluate(cell => cell.getBoundingClientRect().width) - beforeWidth - 50) < 2);
 		await saved('mouse and keyboard column resizing leaves Markdown unchanged');
+		await frame.getByRole('button', { name: 'Add a row', exact: true }).click(); report.pointerActions++;
+		baseline = baseline.replace('| Alex | Keep |', '| Alex | Keep |\n|  |  |'); expected = baseline;
+		await saved('adding a row preserves resized tracks and saves exact Markdown');
+		assert.ok(Math.abs(await column.evaluate(cell => cell.getBoundingClientRect().width) - beforeWidth - 50) < 2);
 		await find('# Widget history probe'); await press('ArrowRight'); await type('!');
 		const revised = baseline.replace('# Widget history probe', '# Widget history probe!');
 		expected = revised; await saved('control history isolated edit');
