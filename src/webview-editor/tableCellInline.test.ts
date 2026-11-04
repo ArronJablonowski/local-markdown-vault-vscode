@@ -55,6 +55,16 @@ describe('renderInlineInto', () => {
 	// same cell source — the regex-based renderer this replaced got every one of
 	// them wrong.
 	describe('GFM parity', () => {
+		it.each([
+			['` padded `', 'padded'],
+			['`` `literal` ``', '`literal`'],
+			['`  `', '  '],
+			['` left`', ' left'],
+			['`right `', 'right '],
+			['`one\ntwo`', 'one two'],
+		])('normalizes code-span whitespace in mixed emphasis: %s', (source, expected) => {
+			expect(render(`**${source}**`)).toBe(`<strong class="mlp-strong"><code class="mlp-inline-code">${expected}</code></strong>`);
+		});
 		it('renders bold and italic together', () => {
 			expect(render('***bi***')).toBe('<em class="mlp-em"><strong class="mlp-strong">bi</strong></em>');
 		});

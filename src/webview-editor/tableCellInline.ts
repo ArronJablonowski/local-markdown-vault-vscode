@@ -124,6 +124,12 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			const code = document.createElement('code');
 			code.className = 'mlp-inline-code';
 			code.textContent = marks.length >= 2 ? src.slice(marks[0].to, marks[1].from) : src.slice(node.from, node.to);
+			// CommonMark folds line endings and removes one paired padding space,
+			// except when the code consists entirely of spaces. Keep markup literal.
+			code.textContent = code.textContent.replace(/\r\n?|\n/g, ' ');
+			if (code.textContent.startsWith(' ') && code.textContent.endsWith(' ') && /[^ ]/.test(code.textContent)) {
+				code.textContent = code.textContent.slice(1, -1);
+			}
 			if (hooks.inTableCell) code.textContent = code.textContent.replace(/\\\|/g, '|');
 			parent.appendChild(code);
 			return;
