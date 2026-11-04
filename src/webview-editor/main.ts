@@ -23,6 +23,7 @@ import {
 } from './livePreviewPlugin';
 import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
+import { tableColumnWidths } from './tableColumnResize';
 import { createBlockReplacementSelectionGuard } from './blockReplacementSelection';
 import { calloutState } from './calloutState';
 import { htmlDisclosureState } from './htmlDisclosureState';
@@ -357,6 +358,7 @@ function createExtensions(): Extension[] {
 		calloutState,
 		htmlDisclosureState,
 		livePreviewPlugin,
+		tableColumnWidths,
 		listHangingIndent,
 		navigationScrollGuard,
 		pointerScrollAnchor,

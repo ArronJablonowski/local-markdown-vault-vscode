@@ -22,6 +22,7 @@ import { onStickyTableHeadersChange, stickyTableHeadersEnabled } from './tableHe
 import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { isClipboardShortcut } from './clipboardShortcuts';
 import { isNoteShortcut } from './renderedNoteShortcuts';
+import { installTableColumnResize } from './tableColumnResize';
 import {
 	insertRow,
 	insertColumn,
@@ -748,6 +749,8 @@ class TableWidget extends WidgetType {
 		tableViewport.setAttribute('aria-label', t('table.scrollRegion'));
 		tableViewport.appendChild(table);
 		wrap.appendChild(tableViewport);
+		const refreshColumnResize = installTableColumnResize(view, table, this.tableFrom);
+		refreshColumnResize();
 		// Horizontal overflow creates a new scroll container, which prevents the
 		// real <thead> from sticking to CodeMirror's vertical scroller. Mirror only
 		// the header in a non-interactive, clipped overlay for wide tables.
@@ -772,6 +775,7 @@ class TableWidget extends WidgetType {
 			if (!tableWidth || !widths.length || widths.some(width => width <= 0)) return;
 			// The mirrored header is visual only; its cloned cells must not become a second editor.
 			const clone = header.cloneNode(true) as HTMLTableSectionElement;
+			clone.querySelectorAll('.mlp-column-resize').forEach(handle => handle.remove());
 			clone.querySelectorAll<HTMLElement>('[tabindex], [contenteditable]').forEach((cell) => {
 				cell.removeAttribute('tabindex');
 				cell.removeAttribute('contenteditable');
@@ -1002,6 +1006,7 @@ class TableWidget extends WidgetType {
 				// source text, so it still has to be restored.
 				cell.textContent = '';
 				renderTableCellInto(cell, ref.source, cellInlineHooks);
+				refreshColumnResize();
 				notifyActiveDraftChanged();
 				return ref.to;
 			}
@@ -1057,6 +1062,7 @@ class TableWidget extends WidgetType {
 
 		/** Releases the pinned widths, letting the table size to content again. */
 		const thawColumnWidths = (): void => {
+			if (table.classList.contains('mlp-table-resized')) return;
 			if (table.style.tableLayout !== 'fixed') return;
 			table.style.tableLayout = '';
 			table.style.boxSizing = '';

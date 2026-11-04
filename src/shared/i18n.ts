@@ -130,6 +130,8 @@ const en = {
 	'table.scrollRegion': 'Markdown table; scroll horizontally for more columns',
 	'table.options': 'Table options',
 	'table.source': 'Show Markdown source',
+	'table.resizeColumn': 'Resize column {0}',
+	'table.resizeHint': 'Drag to resize; arrow keys adjust width; double-click to reset table widths',
 	'table.optionsHint': 'Select a table cell to enable row and column actions.',
 	'table.select': 'Select entire table',
 	'table.insertRowAbove': 'Insert row above selected row',

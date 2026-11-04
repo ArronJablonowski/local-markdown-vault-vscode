@@ -134,6 +134,16 @@ try {
 		const baseline = '# Widget history probe\n\n| Owner | State |\n| --- | --- |\n| Alex | Keep |\n\n```js\n' + 'const value = 1;\n'.repeat(9) + '```\n\nTail sentinel';
 		await writeFile(currentPath, baseline); expected = baseline;
 		await wait(async () => await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString()) === expected, 'control history fixture loaded');
+		const column = frame.locator('.mlp-table th').first();
+		const beforeWidth = await column.evaluate(cell => cell.getBoundingClientRect().width);
+		const resize = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
+		const grip = await resize.boundingBox();
+		await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+		await page.mouse.move(grip.x + grip.width / 2 + 40, grip.y + grip.height / 2, { steps: 8 }); await page.mouse.up();
+		assert.ok(Math.abs(await column.evaluate(cell => cell.getBoundingClientRect().width) - beforeWidth - 40) < 2);
+		await resize.focus(); await press('ArrowRight');
+		assert.ok(Math.abs(await column.evaluate(cell => cell.getBoundingClientRect().width) - beforeWidth - 50) < 2);
+		await saved('mouse and keyboard column resizing leaves Markdown unchanged');
 		await find('# Widget history probe'); await press('ArrowRight'); await type('!');
 		const revised = baseline.replace('# Widget history probe', '# Widget history probe!');
 		expected = revised; await saved('control history isolated edit');

@@ -394,6 +394,11 @@ the source remains read-only. Open **Table options** above the table
 to insert, move, sort, align, or delete rows and columns. The menu starts closed
 to keep notes uncluttered; actions that need a cell stay disabled until one is
 selected. Use Tab or arrow keys within the controls, and Escape to close them.
+Drag the right edge of a column header to resize it. Keyboard users can focus
+the resize handle and use Left/Right arrows (Shift for larger steps).
+Double-click a handle to reset the table to automatic widths. Resizing is a
+view-only adjustment, available even when locked; widths last while the document
+is open and do not add nonstandard formatting to the Markdown file.
 **Sticky table headers are off by default.** Turn them on in
 **CSS Themes → Settings → Sticky table headers**, or enable
 `mdLivePreview.stickyTableHeaders` in VS Code Settings. The setting applies to
