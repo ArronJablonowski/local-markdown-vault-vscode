@@ -10,6 +10,10 @@ describe('mixed embedded Markdown rendering', () => {
 		renderEmbeddedMarkdown(parent, source, { resolveImageSrc: () => undefined, renderNested: () => undefined });
 		return serializeChildren(parent);
 	};
+	it.each(['\n', '\r\n', '\r'])('renders mixed content consistently across line ending %j', ending => {
+		const source = '# **Meeting**\n\n- [x] **Done**\n\n> *Quoted*\n> continuation\n\n```text\nfirst\nlast\n```';
+		expect(render(source.replace(/\n/g, ending))).toBe(render(source));
+	});
 	it.each([1, 2, 3, 4, 5, 6])('renders empty level %i ATX headings without exposing delimiter hashes', level => {
 		const marker = '#'.repeat(level);
 		expect(render(marker)).toBe(`<h${level}></h${level}>`);

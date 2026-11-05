@@ -13,6 +13,9 @@ export interface EmbeddedMarkdownHooks extends CellInlineHooks {
 
 /** Renders a deliberately small, inert CommonMark/GFM DOM subset. */
 export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hooks: EmbeddedMarkdownHooks): void {
+	// Normalize only the read-only rendering copy. Imported CRLF/CR notes must
+	// parse like LF notes without rewriting their original file or offsets.
+	source = source.replace(/\r\n?/g, '\n');
 	const tree = parser.parse(source);
 	// Only parser-confirmed container marks are removed; literal '>' remains text.
 	const inlineSource = (node: SyntaxNode, end = node.to): string => {
