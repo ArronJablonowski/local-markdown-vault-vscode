@@ -47,7 +47,10 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 			case 'ATXHeading4': case 'ATXHeading5': case 'ATXHeading6': {
 				const level = Number(node.name.slice(-1));
 				const heading = document.createElement(`h${level}`);
-				const text = raw.replace(/^#{1,6}\s+/, '').replace(/\s+#+\s*$/, '');
+				// Parser marks distinguish empty headings and optional closing hashes
+				// from literal hashes in the label; regex trimming conflates them.
+				const marks = node.getChildren('HeaderMark');
+				const text = source.slice(marks[0]?.to ?? node.from, marks[1]?.from ?? node.to).trim();
 				renderInlineInto(heading, text, hooks);
 				container.appendChild(heading);
 				return;

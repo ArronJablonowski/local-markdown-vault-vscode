@@ -10,6 +10,11 @@ describe('mixed embedded Markdown rendering', () => {
 		renderEmbeddedMarkdown(parent, source, { resolveImageSrc: () => undefined, renderNested: () => undefined });
 		return serializeChildren(parent);
 	};
+	it.each([1, 2, 3, 4, 5, 6])('renders empty level %i ATX headings without exposing delimiter hashes', level => {
+		const marker = '#'.repeat(level);
+		expect(render(marker)).toBe(`<h${level}></h${level}>`);
+		expect(render(`${marker} ${marker}`)).toBe(`<h${level}></h${level}>`);
+	});
 	it.each(['x', 'X', ' '])('renders read-only embedded tasks without losing formatted labels: [%s]', marker => {
 		const html = render(`- [${marker}] **Review** and *confirm*`);
 		expect(html).toContain('type="checkbox"');
