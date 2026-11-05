@@ -19,6 +19,14 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each([
+		['"Review \\"quoted\\" notes"', 'Review &quot;quoted&quot; notes'],
+		["'Review \\'quoted\\' notes'", "Review 'quoted' notes"],
+		['(Review \\(draft\\) notes)', 'Review (draft) notes'],
+	])('decodes punctuation escapes in link and image titles: %s', (title, expected) => {
+		expect(render(`[**Notes**](Notes.md ${title})`)).toContain(`title="${expected}"`);
+		expect(render(`![Chart](chart.png ${title})`)).toContain(`title="${expected}"`);
+	});
 	it.each(['first  \nsecond', 'first\\\nsecond'])('renders explicit Markdown line breaks inside mixed inline formatting: %s', source => {
 		expect(render(`**${source}**`)).toBe('<strong class="mlp-strong">first<br>second</strong>');
 		expect(render(`[${source}](Notes.md)`)).toBe('<a data-href="Notes.md" role="link" tabindex="0" class="mlp-link">first<br>second</a>');
