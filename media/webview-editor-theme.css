@@ -1066,6 +1066,8 @@ body:not(.mlp-sticky-table-headers) .mlp-table-sticky-header { display: none; }
 }
 .mlp-wiki-embed-content > :first-child { margin-top: 0; }
 .mlp-wiki-embed-content > :last-child { margin-bottom: 0; }
+.mlp-embed-task > input { margin-right: 0.4em; }
+.mlp-embed-task-complete { text-decoration: line-through; }
 .mlp-wiki-embed-status {
 	color: var(--vscode-descriptionForeground, #aaa);
 	font-style: italic;

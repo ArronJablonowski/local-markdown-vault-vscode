@@ -10,6 +10,14 @@ describe('mixed embedded Markdown rendering', () => {
 		renderEmbeddedMarkdown(parent, source, { resolveImageSrc: () => undefined, renderNested: () => undefined });
 		return serializeChildren(parent);
 	};
+	it.each(['x', 'X', ' '])('renders read-only embedded tasks without losing formatted labels: [%s]', marker => {
+		const html = render(`- [${marker}] **Review** and *confirm*`);
+		expect(html).toContain('type="checkbox"');
+		expect(html).toContain('disabled=""');
+		expect(html.includes('checked=""')).toBe(marker !== ' ');
+		expect(html).toContain('<strong class="mlp-strong">Review</strong> and <em class="mlp-em">confirm</em>');
+		expect(html.includes('mlp-embed-task-complete')).toBe(marker !== ' ');
+	});
 	it.each([
 		['> first **bold**\n> second *italic*', '<blockquote><p>first <strong class="mlp-strong">bold</strong>\nsecond <em class="mlp-em">italic</em></p></blockquote>'],
 		['> > one\n> > two > three', '<blockquote><blockquote><p>one\ntwo &gt; three</p></blockquote></blockquote>'],

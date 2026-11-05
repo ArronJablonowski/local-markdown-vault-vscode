@@ -90,9 +90,29 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 			case 'ListItem': {
 				const item = document.createElement('li');
 				for (let child = node.firstChild; child; child = child.nextSibling) {
-					if (child.name !== 'ListMark') render(item, child);
+					if (child.name !== 'ListMark' && child.name !== 'QuoteMark') render(item, child);
 				}
 				container.appendChild(item);
+				return;
+			}
+			case 'Task': {
+				const marker = node.getChild('TaskMarker');
+				if (!marker) return;
+				const checked = /x/i.test(source.slice(marker.from, marker.to));
+				const paragraph = document.createElement('p');
+				paragraph.className = 'mlp-embed-task';
+				const checkbox = document.createElement('input');
+				checkbox.setAttribute('type', 'checkbox');
+				// Embedded notes are read-only: a task must not suggest it can save edits.
+				checkbox.setAttribute('disabled', '');
+				if (checked) checkbox.setAttribute('checked', '');
+				const label = document.createElement('span');
+				if (checked) label.className = 'mlp-embed-task-complete';
+				renderInlineInto(label, inlineSource(node).slice(marker.to - node.from).replace(/^[ \t]/, ''), hooks);
+				checkbox.setAttribute('aria-label', label.textContent ?? '');
+				paragraph.appendChild(checkbox);
+				paragraph.appendChild(label);
+				container.appendChild(paragraph);
 				return;
 			}
 			case 'Blockquote': {
