@@ -14,6 +14,18 @@ export interface EmbeddedMarkdownHooks extends CellInlineHooks {
 /** Renders a deliberately small, inert CommonMark/GFM DOM subset. */
 export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hooks: EmbeddedMarkdownHooks): void {
 	const tree = parser.parse(source);
+	// Only parser-confirmed container marks are removed; literal '>' remains text.
+	const inlineSource = (node: SyntaxNode, end = node.to): string => {
+		const pieces: string[] = [];
+		let position = node.from;
+		tree.iterate({ from: node.from, to: end, enter(child) {
+			if (child.name !== 'QuoteMark' || child.from < position || child.to > end) return;
+			pieces.push(source.slice(position, child.from));
+			position = child.to + Number(source[child.to] === ' ' && child.to < end);
+		} });
+		pieces.push(source.slice(position, end));
+		return pieces.join('');
+	};
 	let visited = 0;
 	const render = (container: HTMLElement, node: SyntaxNode): void => {
 		if (++visited > MAX_RENDER_NODES) throw new Error(t('embed.renderLimit'));
@@ -23,10 +35,11 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				for (let child = node.firstChild; child; child = child.nextSibling) render(container, child);
 				return;
 			case 'Paragraph': {
-				const nested = /^!\[\[([^\]\n]+)\]\]$/.exec(raw.trim());
+				const text = inlineSource(node);
+				const nested = /^!\[\[([^\]\n]+)\]\]$/.exec(text.trim());
 				if (nested) { hooks.renderNested(container, nested[1]); return; }
 				const p = document.createElement('p');
-				renderInlineInto(p, raw, hooks);
+				renderInlineInto(p, text, hooks);
 				container.appendChild(p);
 				return;
 			}
@@ -36,6 +49,14 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				const heading = document.createElement(`h${level}`);
 				const text = raw.replace(/^#{1,6}\s+/, '').replace(/\s+#+\s*$/, '');
 				renderInlineInto(heading, text, hooks);
+				container.appendChild(heading);
+				return;
+			}
+			case 'SetextHeading1': case 'SetextHeading2': {
+				const heading = document.createElement(node.name === 'SetextHeading1' ? 'h1' : 'h2');
+				// The last source line is the underline, including any quote prefix.
+				const end = source.lastIndexOf('\n', node.to - 1);
+				renderInlineInto(heading, inlineSource(node, end).trimEnd(), hooks);
 				container.appendChild(heading);
 				return;
 			}

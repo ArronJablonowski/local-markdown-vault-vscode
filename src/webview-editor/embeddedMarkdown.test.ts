@@ -10,6 +10,21 @@ describe('mixed embedded Markdown rendering', () => {
 		renderEmbeddedMarkdown(parent, source, { resolveImageSrc: () => undefined, renderNested: () => undefined });
 		return serializeChildren(parent);
 	};
+	it.each([
+		['> first **bold**\n> second *italic*', '<blockquote><p>first <strong class="mlp-strong">bold</strong>\nsecond <em class="mlp-em">italic</em></p></blockquote>'],
+		['> > one\n> > two > three', '<blockquote><blockquote><p>one\ntwo &gt; three</p></blockquote></blockquote>'],
+	])('removes only structural quote marks from multiline inline content: %s', (source, expected) => {
+		expect(render(source)).toBe(expected);
+	});
+	it.each([
+		['**Meeting**\n===', '<h1><strong class="mlp-strong">Meeting</strong></h1>'],
+		['*Agenda*\n---', '<h2><em class="mlp-em">Agenda</em></h2>'],
+		['[Notes](Notes.md)\n===', '<h1><a data-href="Notes.md" role="link" tabindex="0" class="mlp-link">Notes</a></h1>'],
+		['> `Decision`\n> ---', '<blockquote><h2><code class="mlp-inline-code">Decision</code></h2></blockquote>'],
+		['First line\nsecond **line**\n===', '<h1>First line\nsecond <strong class="mlp-strong">line</strong></h1>'],
+	])('renders underline-style headings with their text and formatting: %s', (source, expected) => {
+		expect(render(source)).toBe(expected);
+	});
 	it.each(['```js\n```', '~~~text\n~~~', '```js'])('renders an empty fence without leaking its delimiters: %s', source => {
 		expect(render(source)).toBe('<pre><code></code></pre>');
 	});
