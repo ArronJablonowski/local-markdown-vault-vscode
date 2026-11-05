@@ -54,6 +54,9 @@ export interface CellInlineHooks {
 	resolveLinkHref?: (href: string) => string | undefined;
 }
 
+/** Internal text-only pass: image descriptions must never request resources. */
+interface InlineRenderHooks extends CellInlineHooks { imageDescription?: number }
+
 /** The `[label](url "title")` pieces of a Link/Image node. */
 function readLinkParts(node: SyntaxNode, src: string): { label: string; url: string; title: string } {
 	let url = '';
@@ -75,7 +78,7 @@ function readLinkParts(node: SyntaxNode, src: string): { label: string; url: str
  * Renders the children of an inline container into `parent`, filling the gaps
  * between recognised children with their literal text.
  */
-function renderChildren(parent: HTMLElement, node: SyntaxNode, src: string, hooks: CellInlineHooks): void {
+function renderChildren(parent: HTMLElement, node: SyntaxNode, src: string, hooks: InlineRenderHooks): void {
 	let pos = node.from;
 	for (let child = node.firstChild; child; child = child.nextSibling) {
 		if (child.from > pos) appendText(parent, unescapePunctuation(src.slice(pos, child.from)));
@@ -85,7 +88,7 @@ function renderChildren(parent: HTMLElement, node: SyntaxNode, src: string, hook
 	if (pos < node.to) appendText(parent, unescapePunctuation(src.slice(pos, node.to)));
 }
 
-function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: CellInlineHooks): void {
+function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: InlineRenderHooks): void {
 	const name = node.name;
 
 	// Syntax-only markers contribute nothing on their own; the node owning them
@@ -141,6 +144,12 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 		}
 		case 'Image': {
 			const { label, url, title } = readLinkParts(node, src);
+			if (hooks.imageDescription) {
+				// Pathological nesting falls back to inert text rather than growing the stack.
+				if (hooks.imageDescription >= 32) appendText(parent, label);
+				else renderInlineInto(parent, label, { ...hooks, imageDescription: hooks.imageDescription + 1 } as InlineRenderHooks);
+				return;
+			}
 			const img = document.createElement('img');
 			img.className = 'mlp-image mlp-table-image';
 			const resolved = hooks.resolveImageSrc(url);
@@ -155,7 +164,10 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 					}).catch(() => undefined);
 				}
 			}
-			img.alt = label;
+			const description = document.createElement('span');
+			const descriptionHooks: InlineRenderHooks = { resolveImageSrc: () => undefined, imageDescription: 1 };
+			renderInlineInto(description, label, descriptionHooks);
+			img.alt = description.textContent ?? '';
 			if (title) img.title = title;
 			parent.appendChild(img);
 			return;
@@ -198,6 +210,7 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 			return;
 		}
 		case 'HTMLTag': {
+			if (hooks.imageDescription) return;
 			const tag = src.slice(node.from, node.to);
 			// A bare <br> is a common, Obsidian-compatible way to put multiple
 			// lines in a GFM table cell. Construct the element ourselves; never

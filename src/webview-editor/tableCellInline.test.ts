@@ -20,6 +20,31 @@ function render(source: string): string {
 
 describe('renderInlineInto', () => {
 	it.each([
+		['![**Bold** and *italic* with `code`](chart.png)', 'Bold and italic with code'],
+		['![outer ![inner](nested.png) label](chart.png)', 'outer inner label'],
+		['![\\*literal\\* <b>label</b>](chart.png)', '*literal* label'],
+	])('uses plain formatted text for image accessibility labels: %s', (source, alt) => {
+		expect(render(source)).toContain(`alt="${alt}"`);
+	});
+	it('does not authorize or fetch images nested inside an image description', () => {
+		const resolved: string[] = [];
+		const cell = createElement('td');
+		renderInlineInto(cell, '![outer ![inner](nested.png)](chart.png)', {
+			resolveImageSrc: src => { resolved.push(src); return undefined; },
+		});
+		expect(resolved).toEqual(['chart.png']);
+		expect(serializeChildren(cell)).toContain('alt="outer inner"');
+	});
+	it('bounds deeply nested image descriptions without requesting nested resources', () => {
+		let source = 'leaf';
+		for (let depth = 0; depth < 80; depth++) source = `![${source}](nested.png)`;
+		const resolved: string[] = [];
+		const cell = createElement('td');
+		renderInlineInto(cell, source, { resolveImageSrc: src => { resolved.push(src); return undefined; } });
+		expect(resolved).toEqual(['nested.png']);
+		expect(serializeChildren(cell)).toContain('leaf');
+	});
+	it.each([
 		['"Review \\"quoted\\" notes"', 'Review &quot;quoted&quot; notes'],
 		["'Review \\'quoted\\' notes'", "Review 'quoted' notes"],
 		['(Review \\(draft\\) notes)', 'Review (draft) notes'],
