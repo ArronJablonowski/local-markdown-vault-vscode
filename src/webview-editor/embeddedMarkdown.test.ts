@@ -13,6 +13,15 @@ describe('mixed embedded Markdown rendering', () => {
 	it.each(['```js\n```', '~~~text\n~~~', '```js'])('renders an empty fence without leaking its delimiters: %s', source => {
 		expect(render(source)).toBe('<pre><code></code></pre>');
 	});
+	it.each([
+		['> ```js\n> first\n> second\n> ```', '<blockquote><pre><code>first\nsecond</code></pre></blockquote>'],
+		['> ```\n> first\n>\n> second\n> ```', '<blockquote><pre><code>first\n\nsecond</code></pre></blockquote>'],
+		['- ```js\n  first\n  second\n  ```', '<ul><li><pre><code>first\nsecond</code></pre></li></ul>'],
+		['    first\n    second', '<pre><code>first\nsecond</code></pre>'],
+		['>     first\n>     second', '<blockquote><pre><code>first\nsecond</code></pre></blockquote>'],
+	])('retains every parser code segment in containers: %s', (source, expected) => {
+		expect(render(source)).toBe(expected);
+	});
 	it.each([0, 3, 42, 999999999])('preserves ordered list start %i alongside inline formatting and nested bullets', start => {
 		const html = render(`${start}. **Decision**\n${' '.repeat(String(start).length + 2)}- \`follow up\``);
 		expect(html).toContain(`<ol start="${start}">`);

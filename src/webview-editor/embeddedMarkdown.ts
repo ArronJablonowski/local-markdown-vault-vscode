@@ -40,13 +40,15 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				return;
 			}
 			case 'FencedCode': case 'CodeBlock': {
-				// An empty fence has no CodeText node; its delimiters are not code.
-				let text = node.name === 'FencedCode' ? '' : raw;
-				const codeText = node.getChild('CodeText');
-				if (codeText) text = source.slice(codeText.from, codeText.to);
+				// Container prefixes split code into multiple CodeText nodes. Join all
+				// literal segments, excluding quote/list prefixes and fence delimiters.
+				const segments: string[] = [];
+				for (let child = node.firstChild; child; child = child.nextSibling) {
+					if (child.name === 'CodeText') segments.push(source.slice(child.from, child.to));
+				}
 				const pre = document.createElement('pre');
 				const code = document.createElement('code');
-				code.textContent = text;
+				code.textContent = segments.join('');
 				pre.appendChild(code);
 				container.appendChild(pre);
 				return;
