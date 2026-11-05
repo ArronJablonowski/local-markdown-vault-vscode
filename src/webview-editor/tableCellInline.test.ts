@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { installStubDom, serializeChildren } from './testDom';
 import { renderInlineInto } from './tableCellInline';
 import { spreadsheetCellSource } from './spreadsheetClipboard';
+import { resolveLinkTarget } from '../shared/linkTarget';
 
 let createElement: (tag: string) => HTMLElement;
 
@@ -19,6 +20,24 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each(['javascript:foo@bar.invalid', 'command:foo@bar.invalid', 'data:foo@bar.invalid'])('never converts an explicit blocked scheme into an email target: %s', href => {
+		const cell = createElement('td');
+		const seen: string[] = [];
+		renderInlineInto(cell, `<${href}>`, { resolveImageSrc: () => undefined, resolveLinkHref: target => {
+			seen.push(target); return resolveLinkTarget(target).kind === 'blocked' ? undefined : target;
+		} });
+		expect(seen).toEqual([href]);
+		expect(serializeChildren(cell)).toContain('aria-disabled="true"');
+		expect(serializeChildren(cell)).not.toContain('data-href=');
+	});
+	it.each([
+		['<qa@example.invalid>', 'qa@example.invalid', 'mailto:qa@example.invalid'],
+		['qa@example.invalid', 'qa@example.invalid', 'mailto:qa@example.invalid'],
+		['www.example.invalid/path', 'www.example.invalid/path', 'https://www.example.invalid/path'],
+		['<https://example.invalid>', 'https://example.invalid', 'https://example.invalid'],
+	])('routes parser-confirmed autolinks without changing their visible labels: %s', (source, label, href) => {
+		expect(render(`**${source}**`)).toBe(`<strong class="mlp-strong"><a data-href="${href}" role="link" tabindex="0" class="mlp-link">${label}</a></strong>`);
+	});
 	it.each([
 		['![**Bold** and *italic* with `code`](chart.png)', 'Bold and italic with code'],
 		['![outer ![inner](nested.png) label](chart.png)', 'outer inner label'],

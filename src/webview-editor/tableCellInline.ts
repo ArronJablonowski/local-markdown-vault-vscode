@@ -195,7 +195,12 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: I
 		case 'URL': {
 			// A bare or angle-bracketed URL the Autolink extension promoted.
 			const text = src.slice(node.from, node.to);
-			const href = text.replace(/^<|>$/g, '');
+			const label = text.replace(/^<|>$/g, '');
+			// The parser recognizes email/www forms without an authored scheme.
+			// Preserve explicit schemes for the existing authorization boundary.
+			const href = /^[a-z][a-z0-9+.-]*:/i.test(label) ? label
+				: /^www\./i.test(label) ? `https://${label}`
+					: label.includes('@') ? `mailto:${label}` : label;
 			const a = document.createElement('a');
 			a.className = 'mlp-link';
 			const resolved = hooks.resolveLinkHref ? hooks.resolveLinkHref(href) : href;
@@ -205,7 +210,7 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: I
 				a.setAttribute('tabindex', '0');
 			}
 			else { a.classList.add('mlp-link-blocked'); a.setAttribute('aria-disabled', 'true'); }
-			a.textContent = href;
+			a.textContent = label;
 			parent.appendChild(a);
 			return;
 		}
