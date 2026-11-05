@@ -633,6 +633,10 @@ async function check(label, operation) {
 		await writeFile(join(artifacts, `${id}-expected.md`), expected);
 		const actual = await disk();
 		await writeFile(join(artifacts, `${id}-actual.md`), actual);
+		// Capture the editor separately: a watcher failure can leave disk correct
+		// while the visible document is stale, unlike an ordinary save failure.
+		if (frame && !frame.isDetached()) await writeFile(join(artifacts, `${id}-editor.md`),
+			await frame.locator('.cm-content').evaluate(el => el.cmTile.root.view.state.doc.toString())).catch(() => {});
 		console.error(`FAIL ${label}: ${error}`);
 		// Continue exploring the synthetic note without concealing the failure.
 		expected = actual;

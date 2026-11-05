@@ -127,7 +127,8 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				container.appendChild(document.createElement('hr'));
 				return;
 			case 'Table':
-				renderTable(container, raw, hooks);
+				// Container quote prefixes are syntax, not leading table cells.
+				renderTable(container, inlineSource(node), hooks);
 				return;
 			case 'HTMLBlock': {
 				const literal = document.createElement('div');
