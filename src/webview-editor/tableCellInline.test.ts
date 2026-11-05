@@ -20,6 +20,11 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each([[128, 0x20ac], [133, 0x2026], [145, 0x2018], [146, 0x2019], [147, 0x201c], [148, 0x201d], [149, 0x2022], [159, 0x178]])(
+		'decodes legacy numeric reference %i consistently with HTML text', (point, expected) => {
+			const value = String.fromCodePoint(expected);
+			expect(render(`**&#${point}; &#x${point.toString(16)};**`)).toBe(`<strong class="mlp-strong">${value} ${value}</strong>`);
+		});
 	it.each(['javascript:foo@bar.invalid', 'command:foo@bar.invalid', 'data:foo@bar.invalid'])('never converts an explicit blocked scheme into an email target: %s', href => {
 		const cell = createElement('td');
 		const seen: string[] = [];
