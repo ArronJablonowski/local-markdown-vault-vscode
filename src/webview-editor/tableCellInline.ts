@@ -89,11 +89,13 @@ function readLinkParts(node: SyntaxNode, src: string): { label: string; url: str
  * Renders the children of an inline container into `parent`, filling the gaps
  * between recognised children with their literal text.
  */
-function renderChildren(parent: HTMLElement, node: SyntaxNode, src: string, hooks: InlineRenderHooks): void {
+function renderChildren(parent: HTMLElement, node: SyntaxNode, src: string, hooks: InlineRenderHooks, literalReference = false): void {
 	let pos = node.from;
 	for (let child = node.firstChild; child; child = child.nextSibling) {
 		if (child.from > pos) appendText(parent, unescapePunctuation(src.slice(pos, child.from)));
-		renderNode(parent, child, src, hooks);
+		if (literalReference && (child.name === 'LinkMark' || child.name === 'LinkLabel')) {
+			appendText(parent, unescapePunctuation(src.slice(child.from, child.to)));
+		} else renderNode(parent, child, src, hooks);
 		pos = child.to;
 	}
 	if (pos < node.to) appendText(parent, unescapePunctuation(src.slice(pos, node.to)));
@@ -112,6 +114,13 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: I
 		el.className = wrapper.className;
 		renderChildren(el, node, src, hooks);
 		parent.appendChild(el);
+		return;
+	}
+	// The inline parser also reports unresolved reference syntax as Link/Image.
+	// Keep its brackets and formatting instead of inventing an empty destination.
+	// Four direct marks distinguish an explicit empty destination, e.g. [text]().
+	if ((name === 'Link' || name === 'Image') && !node.getChild('URL') && node.getChildren('LinkMark').length < 4) {
+		renderChildren(parent, node, src, hooks, true);
 		return;
 	}
 

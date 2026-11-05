@@ -20,6 +20,25 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('distinguishes explicit empty destinations from unresolved references', () => {
+		expect(render('[empty]()')).toContain('<a ');
+		expect(render('![empty]()')).toContain('<img ');
+	});
+	it.each([
+		['[missing]', '[missing]'],
+		['![missing]', '![missing]'],
+		['[**label**][missing]', '[<strong class="mlp-strong">label</strong>][missing]'],
+		['![*label*][missing]', '![<em class="mlp-em">label</em>][missing]'],
+		['[label][]', '[label][]'],
+	])('preserves unresolved reference syntax instead of creating an empty target: %s', (source, expected) => {
+		expect(render(source)).toBe(expected);
+	});
+	it('does not authorize image reference syntax without a resolved target', () => {
+		const requests: string[] = [];
+		const cell = createElement('td');
+		renderInlineInto(cell, '![missing][reference]', { resolveImageSrc: src => { requests.push(src); return undefined; } });
+		expect(requests).toEqual([]);
+	});
 	it.each([[128, 0x20ac], [133, 0x2026], [145, 0x2018], [146, 0x2019], [147, 0x201c], [148, 0x201d], [149, 0x2022], [159, 0x178]])(
 		'decodes legacy numeric reference %i consistently with HTML text', (point, expected) => {
 			const value = String.fromCodePoint(expected);
