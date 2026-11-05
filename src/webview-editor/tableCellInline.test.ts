@@ -19,6 +19,14 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each(['first  \nsecond', 'first\\\nsecond'])('renders explicit Markdown line breaks inside mixed inline formatting: %s', source => {
+		expect(render(`**${source}**`)).toBe('<strong class="mlp-strong">first<br>second</strong>');
+		expect(render(`[${source}](Notes.md)`)).toBe('<a data-href="Notes.md" role="link" tabindex="0" class="mlp-link">first<br>second</a>');
+	});
+	it('keeps soft line breaks and code-span whitespace distinct from hard breaks', () => {
+		expect(render('first\nsecond')).toBe('first\nsecond');
+		expect(render('`first  \nsecond`')).toBe('<code class="mlp-inline-code">first   second</code>');
+	});
 	it('preserves spreadsheet spaces, tabs, Unicode, and real multiline cell breaks', () => {
 		expect(render(spreadsheetCellSource('  A\t\r\nB 🙂 '))).toBe('  A\t<br>B 🙂 ');
 	});

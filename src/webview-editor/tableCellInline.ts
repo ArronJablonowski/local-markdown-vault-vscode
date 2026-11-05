@@ -101,6 +101,10 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: C
 	}
 
 	switch (name) {
+		case 'HardBreak':
+			// Only parser-confirmed Markdown breaks become DOM; code stays literal.
+			parent.appendChild(document.createElement('br'));
+			return;
 		case 'Entity': {
 			// Numeric references preserve spreadsheet boundary whitespace without
 			// feeding clipboard/source text to an HTML parser. Decode to a text
