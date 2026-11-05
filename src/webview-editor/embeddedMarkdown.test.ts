@@ -1,5 +1,24 @@
-import { describe, expect, it } from 'vitest';
-import { splitEmbeddedTableRow } from './embeddedMarkdown';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { renderEmbeddedMarkdown, splitEmbeddedTableRow } from './embeddedMarkdown';
+import { installStubDom, serializeChildren } from './testDom';
+
+describe('mixed embedded Markdown rendering', () => {
+	let createElement: (tag: string) => HTMLElement;
+	beforeAll(() => { ({ createElement } = installStubDom()); });
+	const render = (source: string): string => {
+		const parent = createElement('div');
+		renderEmbeddedMarkdown(parent, source, { resolveImageSrc: () => undefined, renderNested: () => undefined });
+		return serializeChildren(parent);
+	};
+	it.each(['```js\n```', '~~~text\n~~~', '```js'])('renders an empty fence without leaking its delimiters: %s', source => {
+		expect(render(source)).toBe('<pre><code></code></pre>');
+	});
+	it.each([0, 3, 42, 999999999])('preserves ordered list start %i alongside inline formatting and nested bullets', start => {
+		const html = render(`${start}. **Decision**\n${' '.repeat(String(start).length + 2)}- \`follow up\``);
+		expect(html).toContain(`<ol start="${start}">`);
+		expect(html).toContain('<ul><li><p><code class="mlp-inline-code">follow up</code></p></li></ul></li></ol>');
+	});
+});
 
 describe('embedded table row parsing', () => {
 	it('retains empty leading, middle, and trailing cells', () => {

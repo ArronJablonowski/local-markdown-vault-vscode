@@ -40,7 +40,8 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 				return;
 			}
 			case 'FencedCode': case 'CodeBlock': {
-				let text = raw;
+				// An empty fence has no CodeText node; its delimiters are not code.
+				let text = node.name === 'FencedCode' ? '' : raw;
 				const codeText = node.getChild('CodeText');
 				if (codeText) text = source.slice(codeText.from, codeText.to);
 				const pre = document.createElement('pre');
@@ -52,6 +53,11 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 			}
 			case 'BulletList': case 'OrderedList': {
 				const list = document.createElement(node.name === 'OrderedList' ? 'ol' : 'ul');
+				// Continued agendas may start at zero or any other valid Markdown number.
+				if (node.name === 'OrderedList') {
+					const start = /^\s*(\d{1,9})[.)]/.exec(raw)?.[1];
+					if (start !== undefined) list.setAttribute('start', String(Number(start)));
+				}
 				for (let child = node.firstChild; child; child = child.nextSibling) {
 					if (child.name === 'ListItem') render(list, child);
 				}
