@@ -20,6 +20,13 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('applies table pipe rules inside formatted image descriptions only in tables', () => {
+		const source = '![`x\\|y` and **label**](chart.png)';
+		const cell = createElement('td');
+		renderInlineInto(cell, source, { ...hooks, inTableCell: true });
+		expect(serializeChildren(cell)).toContain('alt="x|y and label"');
+		expect(render(source)).toContain('alt="x\\|y and label"');
+	});
 	it('distinguishes explicit empty destinations from unresolved references', () => {
 		expect(render('[empty]()')).toContain('<a ');
 		expect(render('![empty]()')).toContain('<img ');

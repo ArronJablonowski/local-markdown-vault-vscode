@@ -186,7 +186,7 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: I
 				}
 			}
 			const description = document.createElement('span');
-			const descriptionHooks: InlineRenderHooks = { resolveImageSrc: () => undefined, imageDescription: 1 };
+			const descriptionHooks: InlineRenderHooks = { resolveImageSrc: () => undefined, imageDescription: 1, inTableCell: hooks.inTableCell };
 			renderInlineInto(description, label, descriptionHooks);
 			img.alt = description.textContent ?? '';
 			if (title) img.title = title;

@@ -139,7 +139,8 @@ export function renderEmbeddedMarkdown(parent: HTMLElement, source: string, hook
 			case 'HTMLBlock': {
 				const literal = document.createElement('div');
 				literal.className = 'mlp-embed-raw-html';
-				renderSafeHtml(literal, raw);
+				// Strip only parser-confirmed container prefixes before sanitization.
+				renderSafeHtml(literal, inlineSource(node));
 				container.appendChild(literal);
 				return;
 			}
