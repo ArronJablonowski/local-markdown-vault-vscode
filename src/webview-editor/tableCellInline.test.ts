@@ -121,6 +121,14 @@ describe('renderInlineInto', () => {
 		expect(serializeChildren(cell)).toContain('leaf');
 	});
 	it.each([
+		['"A &amp; B &#169; &NotEqualTilde;"', 'A &amp; B © ≂̸'],
+		['"\\&copy; &amp;copy;"', '&amp;copy; &amp;copy;'],
+		['"&quot;&lt;img src=x onerror=alert(1)&gt;"', '&quot;&lt;img src=x onerror=alert(1)&gt;'],
+	])('decodes title references once while preserving escaped ampersands: %s', (title, expected) => {
+		expect(render(`[**Notes**](Notes.md ${title})`)).toContain(`title="${expected}"`);
+		expect(render(`![Chart](chart.png ${title})`)).toContain(`title="${expected}"`);
+	});
+	it.each([
 		['"Review \\"quoted\\" notes"', 'Review &quot;quoted&quot; notes'],
 		["'Review \\'quoted\\' notes'", "Review 'quoted' notes"],
 		['(Review \\(draft\\) notes)', 'Review (draft) notes'],

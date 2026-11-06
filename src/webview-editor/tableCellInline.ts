@@ -74,6 +74,12 @@ export interface CellInlineHooks {
 /** Internal text-only pass: image descriptions must never request resources. */
 interface InlineRenderHooks extends CellInlineHooks { imageDescription?: number }
 
+/** Consume escapes and references together so an escaped ampersand stays literal. */
+function decodeTitle(source: string): string {
+	return source.replace(/\\([!-/:-@[-`{-~])|&(?:#(?:x[\da-f]+|\d+)|[a-z][\da-z]+);/gi,
+		(token, escaped: string | undefined) => escaped ?? decodeHTMLStrict(token));
+}
+
 /** The `[label](url "title")` pieces of a Link/Image node. */
 function readLinkParts(node: SyntaxNode, src: string): { label: string; url: string; title: string } {
 	let url = '';
@@ -81,8 +87,8 @@ function readLinkParts(node: SyntaxNode, src: string): { label: string; url: str
 	const marks: SyntaxNode[] = [];
 	for (let c = node.firstChild; c; c = c.nextSibling) {
 		if (c.name === 'URL') url = markdownDestination(src.slice(c.from, c.to));
-		// Titles are inert attributes, but Markdown punctuation escapes are syntax.
-		else if (c.name === 'LinkTitle') title = unescapePunctuation(src.slice(c.from + 1, c.to - 1));
+		// Attribute assignment keeps decoded text inert; never parse it as HTML.
+		else if (c.name === 'LinkTitle') title = decodeTitle(src.slice(c.from + 1, c.to - 1));
 		else if (c.name === 'LinkMark') marks.push(c);
 	}
 	// The label is everything between the opening "[" (or "![") and its matching
