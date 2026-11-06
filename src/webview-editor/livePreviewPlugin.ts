@@ -795,6 +795,8 @@ class TableWidget extends WidgetType {
 				columns.appendChild(column);
 			}
 			stickyTable.replaceChildren(columns, clone);
+			// The mirror must use the same wrapping and list indents as resized cells.
+			stickyTable.classList.toggle('mlp-table-resized', table.classList.contains('mlp-table-resized'));
 			stickyTable.style.setProperty('table-layout', 'fixed', 'important');
 			stickyTable.style.setProperty('box-sizing', 'border-box', 'important');
 			stickyTable.style.setProperty('width', `${tableWidth}px`, 'important');

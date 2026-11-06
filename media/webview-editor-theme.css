@@ -1126,7 +1126,7 @@ table.mlp-table thead th { position: relative; }
 .mlp-column-resize:hover, .mlp-column-resize:focus-visible {
 	background: var(--vscode-focusBorder, #007fd4); outline: 1px solid var(--vscode-focusBorder, #007fd4);
 }
-table.mlp-table.mlp-table-resized th, table.mlp-table.mlp-table-resized td {
+:is(table.mlp-table, table.mlp-sticky-table).mlp-table-resized :is(th, td) {
 	white-space: normal; overflow-wrap: anywhere; min-width: 0;
 }
 body.mlp-sticky-table-headers table.mlp-table thead th,
@@ -1213,6 +1213,11 @@ table.mlp-table img.mlp-table-image {
 	margin: 0;
 	padding: 0 0 0 1.4em;
 	list-style-position: outside;
+}
+/* Nested fixed indents can consume a manually narrowed column completely.
+   Scale only resized-table indents so text wraps inside its own cell. */
+:is(table.mlp-table, table.mlp-sticky-table).mlp-table-resized .mlp-cell-list {
+	padding-left: min(1.4em, 20%);
 }
 :is(table.mlp-table, table.mlp-sticky-table) ul.mlp-cell-list { list-style-type: disc; }
 :is(table.mlp-table, table.mlp-sticky-table) ol.mlp-cell-list { list-style-type: decimal; }
