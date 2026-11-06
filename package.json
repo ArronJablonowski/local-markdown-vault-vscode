@@ -89,6 +89,12 @@
     ],
     "customEditors": [
       {
+        "viewType": "mdLivePreview.csv",
+        "displayName": "%editor.csv.displayName%",
+        "selector": [{ "filenamePattern": "*.[cC][sS][vV]" }],
+        "priority": "default"
+      },
+      {
         "viewType": "mdLivePreview.editor",
         "displayName": "%editor.displayName%",
         "selector": [

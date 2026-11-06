@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { isAbsolute, relative } from 'node:path';
+import { isAbsolute, relative, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright';
 
 const EXTENSION_ID = 'arronjablonowski.local-markdown-vault';
@@ -106,6 +107,61 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 		assert.ok(input instanceof vscode.TabInputCustom, 'the packaged Live Preview custom editor did not open');
 		assert.strictEqual(input.viewType, 'mdLivePreview.editor');
+	});
+	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Packaged CSV.csv');
+		const source = 'Name,Count,Notes\r\nZebra,10,"<img src=x onerror=alert(1)>"\r\nApple,2,=SUM(A1:A2)\r\nBlank,,Retained\r\n';
+		const before = Buffer.from(source, 'utf8');
+		await vscode.workspace.fs.writeFile(uri, before);
+		try {
+			await vscode.commands.executeCommand('vscode.open', uri, { preview: false });
+			await waitFor(() => {
+				const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+				return input instanceof vscode.TabInputCustom && input.viewType === 'mdLivePreview.csv';
+			}, 'CSV did not use its default custom editor');
+			const browser = await connectToDebugBrowser();
+			let frame: Frame | undefined;
+			await waitFor(async () => {
+				for (const page of browser.contexts().flatMap(context => context.pages())) for (const candidate of page.frames()) {
+					try { if (await candidate.locator('table[aria-label="CSV data"] #rows tr').count() === 3) { frame = candidate; return true; } } catch { /* A replaced editor frame may detach. */ }
+				}
+				return false;
+			}, 'CSV rows did not render');
+			assert.ok(frame);
+			await frame.locator('#head button').nth(1).click();
+			assert.strictEqual(await frame.locator('#rows tr').first().textContent(), '3Apple2=SUM(A1:A2)');
+			await frame.locator('#head button').nth(1).press('Enter');
+			assert.match(await frame.locator('#rows tr').first().textContent() ?? '', /Zebra10/);
+			assert.strictEqual(await frame.locator('#rows img, #rows script, #rows a').count(), 0);
+			const document = await vscode.workspace.openTextDocument(uri);
+			assert.strictEqual(document.isDirty, false);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), before, 'sorting changed CSV bytes');
+			// VS Code preserves the document's existing CRLF convention during edits.
+			const replacement = 'Name,Count,Notes\r\nUpdated,4,"Multiline\r\nfield"\r\n';
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), replacement);
+			assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+			await waitFor(async () => (await frame!.locator('#rows tr').count()) === 1 && (await frame!.locator('#rows').textContent())?.includes('Updated') === true, 'CSV did not refresh from the text buffer');
+			assert.strictEqual(await document.save(), true);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'), replacement);
+			await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(root, 'README.md'), { preview: false });
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.csv');
+			await waitFor(async () => {
+				for (const page of browser.contexts().flatMap(context => context.pages())) for (const candidate of page.frames()) {
+					try { if ((await candidate.locator('#rows').textContent({ timeout: 200 }))?.includes('Updated')) { frame = candidate; return true; } } catch { /* Wait for the rebuilt CSV frame. */ }
+				}
+				return false;
+			}, 'CSV did not restore its data after switching tabs');
+			assert.strictEqual(await frame.locator('#head th').nth(2).getAttribute('aria-sort'), 'descending');
+			await (await getWorkbenchPage()).screenshot({ path: join(tmpdir(), `vault-csv-${mode}.png`) });
+			await frame.getByRole('button', { name: 'Open Text', exact: true }).click();
+			await waitFor(() => vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText, 'CSV Open Text did not switch to the source');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
 	});
 
 	(mode === 'trusted' ? test : test.skip)('toggles packaged built-in Markdown Preview table headers live from the off default', async () => {

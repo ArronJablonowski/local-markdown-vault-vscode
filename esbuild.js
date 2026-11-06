@@ -146,6 +146,7 @@ async function main() {
 
 	const configs = [
 		extensionConfig,
+		{ ...webviewEditorConfig, entryPoints: ['src/webview-csv/main.ts'], outfile: 'dist/webview-csv.js' },
 		webviewEditorConfig,
 		webviewMermaidConfig,
 		webviewSidebarConfig,

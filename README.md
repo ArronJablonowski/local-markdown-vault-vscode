@@ -32,6 +32,30 @@ Other explicitly saved viewing preferences are preserved when updating.
 - Repeated Return reliably exits nested lists, tasks, quotes, and callouts—even at the bottom of a note
 - Solid, hollow, and square markers that distinguish nested bullet levels
 
+### CSV table viewer
+
+Open a local `.csv` file from the Vault or VS Code Explorer to display it as a
+read-only spreadsheet-style table. If another CSV extension is already your
+default, right-click its tab and choose **Reopen Editor With… > CSV Table**.
+
+- Click a column header to sort ascending; click again to sort descending.
+  Numeric columns sort numerically, text uses natural ordering, blanks stay
+  last, and **Reset sort** restores source order. Entire records stay together.
+- Toggle **First row is a header** for files without headings. Choose comma,
+  semicolon, or tab with **Separator**. Quoted separators, doubled quotes,
+  multiline fields, Unicode, and UTF-8 BOMs are supported.
+- Scroll horizontally for wide data and use **Previous page / Next page** for
+  more than 100 records. Headers and source row numbers remain visible.
+- Sorting is view-only and never saves or rewrites the CSV. Choose **Open Text**
+  to edit the original with VS Code. Changes there refresh an open CSV table.
+- HTML, links, and formulas remain literal text, with no network requests or
+  formula execution. The viewer also works in Restricted Mode.
+
+The viewer accepts up to 5,242,880 characters, 50,000 records, 200 columns,
+250,000 rectangular cells, and 65,536 characters per field. Invalid quoting or
+oversized input produces an error instead of showing a misleading partial table.
+This feature does not open Excel `.xlsx` workbooks or provide spreadsheet formulas.
+
 ### Document Vault
 
 - Native VS Code tree named after the actual workspace folder shown by Finder, File Explorer, or the Linux file manager

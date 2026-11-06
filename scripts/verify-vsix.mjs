@@ -9,6 +9,8 @@ const MAX_TOTAL_UNCOMPRESSED_BYTES = 25 * 1024 * 1024;
 const requiredFiles = new Set([
 	'extension/package.json',
 	'extension/dist/extension.js',
+	'extension/dist/webview-csv.js',
+	'extension/media/webview-csv.css',
 		'extension/SECURITY.md',
 		'extension/docs/ACCESSIBILITY.md',
 		'extension/docs/MIGRATION.md',

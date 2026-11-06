@@ -7,6 +7,11 @@ import {
 } from './editorOpenPolicy';
 
 describe('configured Markdown editor selection', () => {
+	it('opens CSV in its own viewer independently of Markdown preferences', () => {
+		expect(configuredEditorViewTypeForPath('/Vault/Report.CSV', 'textEditor')).toBe('mdLivePreview.csv');
+		expect(shouldOpenInLivePreview('/Vault/Report.csv', 'livePreview')).toBe(false);
+		expect(configuredEditorViewTypeForPath('/Vault/Report.csv.exe', 'livePreview')).toBeUndefined();
+	});
 	it('uses Live Preview for both supported Markdown extensions', () => {
 		expect(shouldOpenInLivePreview('/Vault/Note.md', 'livePreview')).toBe(true);
 		expect(shouldOpenInLivePreview('/Vault/Note.MARKDOWN', 'livePreview')).toBe(true);

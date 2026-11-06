@@ -2,6 +2,7 @@
 	"extension.displayName": "Local Markdown Vault",
 	"extension.description": "A secure, local-only Markdown vault and Obsidian-style Live Preview editor for VS Code. No accounts, telemetry, or cloud sync.",
 	"editor.displayName": "Markdown Live Preview",
+	"editor.csv.displayName": "CSV Table",
 	"viewContainer.title": "Local Markdown Vault",
 	"config.title": "Local Markdown Vault",
 	"capabilities.untrustedWorkspaces": "Plain Markdown editing remains available. Diagrams, custom CSS, remote media, attachment writes, and vault-wide file operations require a trusted workspace.",

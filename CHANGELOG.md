@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a local-only, read-only CSV Table editor with stable numeric/natural sorting, header and separator controls, paged rows, sticky headings, source access, strict quoted-field parsing, and resource limits. Display formulas, HTML, and URLs as inert text; sorting never rewrites the source file.
+
 - Keep keyboard focus in Find/Replace when its chevron is activated. Opening Replace now focuses the replacement field instead of the note, preventing immediate replacement-value typing from overwriting the selected search match. Closing Replace returns focus to Find. Add mouse/Enter/Space, locked-mode, bottom-edge selection, and native exact-save regressions.
 
 - Disable automatic HTML closing-tag insertion in Live Preview so individual-key entry does not save untyped tags. Patch RE2JS search denial of service and compatible URI/query/serialization tooling dependencies; retain explicit dependency floors.

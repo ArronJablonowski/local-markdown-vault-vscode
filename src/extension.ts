@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { MarkdownLivePreviewProvider } from './editor/MarkdownLivePreviewProvider';
+import { CsvTableProvider } from './editor/CsvTableProvider';
 import { StyleManagerViewProvider } from './sidebar/StyleManagerViewProvider';
 import { StyleStore } from './sidebar/styleStore';
 import { OutlineViewProvider } from './sidebar/OutlineViewProvider';
@@ -101,6 +102,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Markdo
 	// Never replace a workspace the user chose. In an empty window, create the
 	// local default vault and stop because vscode.openFolder reloads this host.
 	if (await openDefaultVaultWhenNeeded()) return undefined;
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider(CsvTableProvider.viewType, new CsvTableProvider(context), {
+		supportsMultipleEditorsPerDocument: true,
+	}));
 	// Apply the selected editor before exposing Vault commands. Index/style
 	// initialization can take time, and Quick Open otherwise races this setting.
 	try { await syncDefaultEditorAssociation(); }
