@@ -22,7 +22,7 @@ for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 
 }
 
 const approvedProductionLicenses = new Set([
-	'MIT', 'ISC', 'Apache-2.0', 'BSD-3-Clause', 'Unlicense', '(MPL-2.0 OR Apache-2.0)',
+	'MIT', 'ISC', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'Unlicense', '(MPL-2.0 OR Apache-2.0)',
 ]);
 const productionLicenseExceptions = new Map([
 	['node_modules/khroma', {

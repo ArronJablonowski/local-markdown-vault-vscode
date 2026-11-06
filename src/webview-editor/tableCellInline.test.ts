@@ -20,6 +20,11 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('decodes named references as text without reparsing markup or decoding twice', () => {
+		expect(render('**A &amp; B** &copy; &NotEqualTilde; &lt;img src=x&gt; &amp;copy;')).toBe('<strong class="mlp-strong">A &amp; B</strong> © ≂̸ &lt;img src=x&gt; &amp;copy;');
+		expect(render('`&copy;` \\&copy; &unknown;')).toBe('<code class="mlp-inline-code">&amp;copy;</code> &amp;copy; &amp;unknown;');
+		expect(render('![**A &amp; B** &copy;](chart.png)')).toContain('alt="A &amp; B ©"');
+	});
 	it.each(['div', 'p', 'section'])('renders inline Markdown consistently inside inert <%s> text', tag => {
 		const source = `<${tag}>**visible** <br>*detail*</${tag}>`;
 		expect(render(source)).toBe(`&lt;${tag}&gt;<strong class="mlp-strong">visible</strong> <br><em class="mlp-em">detail</em>&lt;/${tag}&gt;`);

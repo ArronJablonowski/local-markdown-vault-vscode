@@ -1,5 +1,6 @@
 import { parser as baseMarkdownParser, Table, TaskList, Strikethrough, Autolink } from '@lezer/markdown';
 import type { SyntaxNode, Tree } from '@lezer/common';
+import { decodeHTMLStrict } from 'entities/decode';
 import { markdownDestination } from '../shared/markdownDestination';
 import { parseTableCellLists, type CellListPart } from './tableCellLists';
 
@@ -145,7 +146,9 @@ function renderNode(parent: HTMLElement, node: SyntaxNode, src: string, hooks: I
 				const point = NUMERIC_REFERENCE_REPLACEMENTS[original] ?? original;
 				appendText(parent, point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
 					? String.fromCodePoint(point) : '\ufffd');
-			} else appendText(parent, raw);
+			// Decode only parser-confirmed, semicolon-terminated references once.
+			// The result is a text node, never HTML or another Markdown parse.
+			} else appendText(parent, decodeHTMLStrict(raw));
 			return;
 		}
 		case 'InlineCode': {
