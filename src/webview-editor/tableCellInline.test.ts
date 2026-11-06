@@ -20,6 +20,14 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it('keeps definition-like text inline instead of inventing a partial link', () => {
+		expect(render('[label]: Notes.md')).toBe('[label]: Notes.md');
+		expect(render('![label]: chart.png')).toBe('![label]: chart.png');
+	});
+	it('does not treat an indented formatted link label as a code block', () => {
+		expect(render('[    **label** and *detail*](Notes.md)')).toContain('<strong class="mlp-strong">label</strong> and <em class="mlp-em">detail</em>');
+		expect(render('![    **label**](chart.png)')).toContain('alt="label"');
+	});
 	it.each([
 		['```', '```'], ['```js', '```js'],
 		['``` **bold**', '``` <strong class="mlp-strong">bold</strong>'],

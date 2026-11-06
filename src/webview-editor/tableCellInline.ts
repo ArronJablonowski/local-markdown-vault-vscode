@@ -19,7 +19,10 @@ import { parseTableCellLists, type CellListPart } from './tableCellLists';
 // gets drawn.
 // A cell/label is inline content: an unfinished fence is literal text, not a
 // block that may swallow the rest of the value while the user is typing.
-const cellParser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink, { remove: ['FencedCode'] }]);
+// Reference definitions and indentation likewise must not open block constructs.
+const cellParser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink, {
+	remove: ['FencedCode', 'IndentedCode', 'LinkReference'],
+}]);
 
 /** Inline nodes rendered as a wrapper element around their own children. */
 const WRAPPER_TAGS: Record<string, { tag: string; className: string }> = {
