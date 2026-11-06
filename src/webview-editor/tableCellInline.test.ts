@@ -20,6 +20,11 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each(['div', 'p', 'section'])('renders inline Markdown consistently inside inert <%s> text', tag => {
+		const source = `<${tag}>**visible** <br>*detail*</${tag}>`;
+		expect(render(source)).toBe(`&lt;${tag}&gt;<strong class="mlp-strong">visible</strong> <br><em class="mlp-em">detail</em>&lt;/${tag}&gt;`);
+		expect(render(`![${source}](chart.png)`)).toContain('alt="visible detail"');
+	});
 	it('keeps definition-like text inline instead of inventing a partial link', () => {
 		expect(render('[label]: Notes.md')).toBe('[label]: Notes.md');
 		expect(render('![label]: chart.png')).toBe('![label]: chart.png');

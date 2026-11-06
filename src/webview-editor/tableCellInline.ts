@@ -21,7 +21,7 @@ import { parseTableCellLists, type CellListPart } from './tableCellLists';
 // block that may swallow the rest of the value while the user is typing.
 // Reference definitions and indentation likewise must not open block constructs.
 const cellParser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink, {
-	remove: ['FencedCode', 'IndentedCode', 'LinkReference'],
+	remove: ['FencedCode', 'IndentedCode', 'LinkReference', 'HTMLBlock'],
 }]);
 
 /** Inline nodes rendered as a wrapper element around their own children. */
