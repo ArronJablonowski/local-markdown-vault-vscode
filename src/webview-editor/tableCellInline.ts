@@ -17,7 +17,9 @@ import { parseTableCellLists, type CellListPart } from './tableCellLists';
 // parser the editor already uses for the document removes that whole class of
 // divergence by construction: whatever the parser says the markup is, is what
 // gets drawn.
-const cellParser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink]);
+// A cell/label is inline content: an unfinished fence is literal text, not a
+// block that may swallow the rest of the value while the user is typing.
+const cellParser = baseMarkdownParser.configure([Table, TaskList, Strikethrough, Autolink, { remove: ['FencedCode'] }]);
 
 /** Inline nodes rendered as a wrapper element around their own children. */
 const WRAPPER_TAGS: Record<string, { tag: string; className: string }> = {

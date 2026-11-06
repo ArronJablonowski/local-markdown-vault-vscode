@@ -20,6 +20,14 @@ function render(source: string): string {
 }
 
 describe('renderInlineInto', () => {
+	it.each([
+		['```', '```'], ['```js', '```js'],
+		['``` **bold**', '``` <strong class="mlp-strong">bold</strong>'],
+		['~~~', '~~~'], ['~~~text', '~~~text'],
+		['~~~ *italic*', '~~~ <em class="mlp-em">italic</em>'],
+	])('keeps unmatched fence-like inline text visible: %s', (source, expected) => {
+		expect(render(source)).toBe(expected);
+	});
 	it('applies table pipe rules inside formatted image descriptions only in tables', () => {
 		const source = '![`x\\|y` and **label**](chart.png)';
 		const cell = createElement('td');
