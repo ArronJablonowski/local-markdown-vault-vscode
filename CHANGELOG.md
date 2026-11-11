@@ -1,5 +1,7 @@
 # Changelog
 
+- Preserve collapsed Markdown Preview code blocks when VS Code replaces their rendered code node. Keep seven-line replacements expandable, reveal all six-or-fewer lines, and copy only the current source.
+
 - Wait for parser-confirmed context before drawing inline tags, and refresh tag styling when deferred parsing finishes. Prevent temporary tag chips inside code during large-note parsing.
 
 - Correct six-line code previews after line insertions/deletions without moving an active code-editing cursor. Keep a local Expand control for shortened folded blocks and fix global table folding inside quotes, callouts, and lists. Add mixed-fold, duplicate-table, sticky-header, preview-refresh, and native source-preservation regressions.

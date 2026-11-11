@@ -22,6 +22,8 @@
 	function addCopyButton(code) {
 		const pre = code.parentElement;
 		if (!pre || pre.tagName !== 'PRE') return;
+		// Preview patches can replace the code node while retaining its parent.
+		const wasCollapsed = pre.classList.contains('lmv-code-collapsed');
 		// VS Code can replace only the code node during a preview update. Controls
 		// attached to its surviving parent must not retain the old node's text.
 		if (renderedCode.has(pre) && renderedCode.get(pre) !== code) {
@@ -72,7 +74,7 @@
 		const withoutTrailingNewline = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
 		const lineCount = withoutTrailingNewline ? withoutTrailingNewline.split('\n').length : 0;
 		const existingCollapse = pre.querySelector(`:scope > .${COLLAPSE_BUTTON_CLASS}`);
-		if (lineCount < 8) {
+		if (lineCount < 8 && !(wasCollapsed && lineCount > 6)) {
 			existingCollapse?.remove();
 			code.hidden = false;
 			pre.classList.remove('lmv-code-collapsed');
@@ -80,7 +82,7 @@
 			const collapse = document.createElement('button');
 			collapse.type = 'button';
 			collapse.className = COLLAPSE_BUTTON_CLASS;
-			let collapsed = false;
+			let collapsed = wasCollapsed;
 			const update = () => {
 				collapse.textContent = collapsed ? '›' : '⌄';
 				collapse.title = `${collapsed ? 'Expand' : 'Collapse'} this code block (${collapse.dataset.lineCount} lines)`;

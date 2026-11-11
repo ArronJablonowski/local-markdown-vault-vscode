@@ -128,7 +128,14 @@ suite('Installed VSIX clean-profile smoke', () => {
 					try { if (await candidate.locator('table[aria-label="CSV data"] #rows tr').count() === 3) { frame = candidate; return true; } } catch { /* A replaced editor frame may detach. */ }
 				}
 				return false;
-			}, 'CSV rows did not render');
+			}, 'CSV rows did not render').catch(async error => {
+				const snapshots: unknown[] = [];
+				for (const page of browser.contexts().flatMap(context => context.pages())) for (const candidate of page.frames()) {
+					try { snapshots.push({ url: candidate.url(), text: (await candidate.locator('body').textContent({ timeout: 500 }))?.slice(0, 1500) }); } catch { /* Detached diagnostics frame. */ }
+				}
+				console.error('CSV startup diagnostics', JSON.stringify(snapshots));
+				throw error;
+			});
 			assert.ok(frame);
 			await frame.locator('#head button').nth(1).click();
 			assert.strictEqual(await frame.locator('#rows tr').first().textContent(), '3Apple2=SUM(A1:A2)');
