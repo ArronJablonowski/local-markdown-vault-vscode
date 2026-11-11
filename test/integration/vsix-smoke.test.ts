@@ -192,6 +192,13 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await waitFor(async () => await frame.locator('.mlp-table tbody tr:visible').count() === 5, 'global fold did not collapse the table');
 			await frame.getByRole('button', { name: 'Expand all collapsible objects' }).click();
 			await waitFor(async () => await frame.locator('.mlp-table tbody tr:visible').count() === 12, 'global unfold did not restore the table');
+			const resize = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
+			await resize.focus();
+			const width = await resize.evaluate(handle => handle.closest('th')!.getBoundingClientRect().width);
+			await resize.press('Shift+ArrowRight');
+			await waitFor(async () => Math.abs(await resize.evaluate(handle => handle.closest('th')!.getBoundingClientRect().width) - width - 40) < 2, 'packaged column did not resize');
+			await resize.dblclick();
+			await waitFor(async () => await resize.evaluate(handle => Math.abs(Number(handle.getAttribute('aria-valuenow')) - Math.round(handle.closest('th')!.getBoundingClientRect().width))) <= 1, 'packaged reset reported a stale accessible width');
 			assert.strictEqual((await vscode.workspace.openTextDocument(uri)).isDirty, false);
 			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
 		} finally {

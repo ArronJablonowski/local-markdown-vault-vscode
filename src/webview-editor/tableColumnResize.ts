@@ -51,6 +51,19 @@ export function retainedTableColumnWidths(state: EditorState, from: number, colu
 export function installTableColumnResize(view: EditorView, table: HTMLTableElement, from: number): () => void {
 	const cells = () => Array.from(table.tHead?.rows[0]?.cells ?? []);
 	const read = () => cells().map(cell => cell.getBoundingClientRect().width);
+	// Resetting automatic layout changes widths after the DOM write completes.
+	const measureHandles = () => view.requestMeasure({
+		key: table,
+		read,
+		write: widths => cells().forEach((cell, index) => {
+			const handle = cell.querySelector('.mlp-column-resize');
+			const width = Math.round(widths[index]);
+			if (!handle || !Number.isFinite(width) || width <= 0) return;
+			handle.setAttribute('aria-valuenow', String(width));
+			handle.setAttribute('aria-valuemin', String(Math.min(64, width)));
+			handle.setAttribute('aria-valuemax', String(Math.max(2000, width)));
+		}),
+	});
 	const apply = (widths: number[]) => {
 		if (widths.length !== cells().length) return;
 		table.classList.add('mlp-table-resized');
@@ -112,7 +125,7 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 			handle.addEventListener('dblclick', event => {
 				event.preventDefault(); event.stopPropagation(); remember([]);
 				table.classList.remove('mlp-table-resized'); table.style.tableLayout = ''; table.style.width = ''; table.style.minWidth = '';
-				cells().forEach(header => { header.style.width = ''; header.style.boxSizing = ''; }); view.requestMeasure();
+				cells().forEach(header => { header.style.width = ''; header.style.boxSizing = ''; }); measureHandles();
 			});
 			handle.addEventListener('keydown', event => {
 				if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -121,16 +134,6 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 			});
 			cell.appendChild(handle);
 		});
-		view.requestMeasure({
-			read,
-			write: widths => cells().forEach((cell, index) => {
-				const handle = cell.querySelector('.mlp-column-resize');
-				const width = Math.round(widths[index]);
-				if (!handle || !Number.isFinite(width) || width <= 0) return;
-				handle.setAttribute('aria-valuenow', String(width));
-				handle.setAttribute('aria-valuemin', String(Math.min(64, width)));
-				handle.setAttribute('aria-valuemax', String(Math.max(2000, width)));
-			}),
-		});
+		measureHandles();
 	};
 }
