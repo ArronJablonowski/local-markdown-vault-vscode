@@ -70,6 +70,9 @@ body.vscode-body table.lmv-sticky-table-headers thead th {
 	background: var(--vscode-editor-background);
 }
 
+.lmv-table-collapse-button { margin: 4px 0; padding: 3px 8px; font: inherit; cursor: pointer; }
+table tr[hidden] { display: none !important; }
+.lmv-table-collapse-button:focus-visible { outline: 2px solid var(--vscode-focusBorder); }
 .lmv-code-copy-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }

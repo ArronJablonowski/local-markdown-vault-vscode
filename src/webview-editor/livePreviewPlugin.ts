@@ -23,6 +23,7 @@ import { createCodeModeButton, createCopyCodeButton } from './codeModeButton';
 import { isClipboardShortcut } from './clipboardShortcuts';
 import { isNoteShortcut } from './renderedNoteShortcuts';
 import { installTableColumnResize, retainedTableColumnWidths } from './tableColumnResize';
+import { installTableCollapse } from './tableCollapse';
 import {
 	insertRow,
 	insertColumn,
@@ -651,6 +652,7 @@ class TableWidget extends WidgetType {
 		const wrap = document.createElement('div');
 		wrap.className = 'mlp-table-wrap';
 		wrap.dataset.mlpTableFrom = String(this.tableFrom);
+		let revealTableCell = (_cell: HTMLElement): void => {};
 		// The button is a normal element *before* the table, not an overlay on top
 		// of it: floated over the corner it was easy to miss, and it had to be kept
 		// clear of the header cell's own text. In the flow it sits in its own strip
@@ -1079,6 +1081,7 @@ class TableWidget extends WidgetType {
 
 		/** Swaps a cell to its raw Markdown and puts the caret in it. */
 		const beginEditing = (cell: HTMLElement, caret: 'all' | 'end' | number): void => {
+			revealTableCell(cell);
 			// Widget contenteditable attributes bypass the parent editor's DOM
 			// editability. Keep locked cells inert as well as rejecting transactions.
 			if (!view.state.facet(EditorView.editable)) {
@@ -1184,8 +1187,11 @@ class TableWidget extends WidgetType {
 			tableCellOrigins.set(live, origin);
 		}
 
-		const cellAt = (row: number, col: number): HTMLElement | null =>
-			table.querySelector('[data-mlp-row="' + row + '"][data-mlp-col="' + col + '"]');
+		const cellAt = (row: number, col: number): HTMLElement | null => {
+			const cell = table.querySelector<HTMLElement>('[data-mlp-row="' + row + '"][data-mlp-col="' + col + '"]');
+			if (cell) revealTableCell(cell);
+			return cell;
+		};
 
 		/** Moves editing `delta` cells along in reading order. */
 		const moveFocus = (ref: CellRef, delta: number): boolean => {
@@ -1254,6 +1260,10 @@ class TableWidget extends WidgetType {
 		tableSourceButton.title = t('table.source');
 		tableSourceButton.setAttribute('aria-label', t('table.source'));
 		tableButtons.prepend(tableSourceButton);
+		revealTableCell = installTableCollapse(view, wrap, table, tableButtons, () => {
+			if (editing) commit(editing);
+			return !editing;
+		});
 
 		// Cell interaction is driven from `mousedown`, not `click`.
 		//
@@ -1382,6 +1392,7 @@ class TableWidget extends WidgetType {
 			if (!delta) return;
 			const next = cellAt(ref.row + delta[0], ref.col + delta[1]);
 			if (!next || !readCellRef(next)) return;
+			revealTableCell(next);
 			event.preventDefault();
 			event.stopPropagation();
 			next.focus();

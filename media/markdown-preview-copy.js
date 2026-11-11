@@ -6,6 +6,7 @@
 	const MAX_BLOCKS = 10_000;
 	const MAX_COPY_CHARACTERS = 5 * 1024 * 1024;
 	const renderedCode = new WeakMap();
+	const renderedTables = new WeakMap();
 	let refreshPending = false;
 
 	function setResult(button, succeeded) {
@@ -101,11 +102,35 @@
 		}
 	}
 
+	function addTableCollapse(table) {
+		if (!(table instanceof HTMLTableElement)) return;
+		const rows = Array.from(table.tBodies).flatMap(body => Array.from(body.rows));
+		const previous = renderedTables.get(table);
+		if (previous && previous.rows.length === rows.length && rows.every((row, index) => row === previous.rows[index])) return;
+		previous?.button.remove();
+		if (!previous && table.previousElementSibling?.classList.contains('lmv-table-collapse-button')) table.previousElementSibling.remove();
+		if (rows.length <= 5) { rows.forEach(row => { row.hidden = false; }); renderedTables.delete(table); return; }
+		const button = document.createElement('button');
+		button.type = 'button'; button.className = 'lmv-table-collapse-button';
+		const state = { rows, button, collapsed: previous?.collapsed ?? false };
+		const update = () => {
+			rows.forEach((row, index) => { row.hidden = state.collapsed && index >= 5; });
+			button.textContent = state.collapsed ? 'Expand table' : 'Collapse table';
+			button.setAttribute('aria-expanded', String(!state.collapsed));
+			button.title = state.collapsed ? `${rows.length - 5} more rows hidden` : 'Show the header and first five data rows';
+		};
+		button.addEventListener('click', () => { state.collapsed = !state.collapsed; update(); });
+		table.before(button); renderedTables.set(table, state); update();
+	}
+
 	function refresh() {
 		refreshPending = false;
 		const blocks = document.querySelectorAll('pre > code');
 		const count = Math.min(blocks.length, MAX_BLOCKS);
 		for (let index = 0; index < count; index++) addCopyButton(blocks[index]);
+		for (const button of document.querySelectorAll('.lmv-table-collapse-button')) if (button.nextElementSibling?.tagName !== 'TABLE') button.remove();
+		const tables = document.querySelectorAll('table');
+		for (let index = 0; index < Math.min(tables.length, MAX_BLOCKS); index++) addTableCollapse(tables[index]);
 	}
 
 	function scheduleRefresh() {

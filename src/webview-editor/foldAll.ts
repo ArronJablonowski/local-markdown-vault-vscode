@@ -7,9 +7,10 @@ import { isDiagramLang, isDiagramRenderingAllowed } from './diagramLang';
 import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { protectRenderedBlockFromCaret } from './cmUtils';
 import { t } from '../shared/i18n';
+import { setTableCollapsed, tableCollapseState, TABLE_PREVIEW_ROWS } from './tableCollapse';
 
 export interface CollapsibleObject {
-	kind: 'callout' | 'code';
+	kind: 'callout' | 'code' | 'table';
 	from: number;
 	to: number;
 	anchor: number;
@@ -44,7 +45,11 @@ export function collectCollapsibleObjects(state: EditorState): CollapsibleObject
 			if (last - first + 1 >= 8) objects.push({ kind: 'code',
 				from: state.doc.line(first).to, to: state.doc.line(last).to, anchor: state.doc.line(first).from });
 			return false;
-		} else if (node.name === 'Paragraph' || node.name === 'Table' || /^(?:ATX|Setext)Heading/.test(node.name)) {
+		} else if (node.name === 'Table') {
+			const hidden = node.node.getChildren('TableRow')[TABLE_PREVIEW_ROWS];
+			if (hidden) objects.push({ kind: 'table', from: hidden.from, to: node.to, anchor: node.from });
+			return false;
+		} else if (node.name === 'Paragraph' || /^(?:ATX|Setext)Heading/.test(node.name)) {
 			return false; // Inline syntax cannot contain a callout or a code block.
 		}
 	} });
@@ -91,6 +96,7 @@ export class FoldAllControls {
 		if (update.docChanged || syntaxTree(update.startState) !== syntaxTree(update.state)
 			|| foldedRanges(update.startState) !== foldedRanges(update.state)
 			|| update.startState.field(calloutState, false) !== update.state.field(calloutState, false)
+			|| update.startState.field(tableCollapseState, false) !== update.state.field(tableCollapseState, false)
 			|| this.cachedDiagramPolicy !== isDiagramRenderingAllowed()) this.scheduleRefresh();
 	}
 
@@ -129,6 +135,7 @@ export class FoldAllControls {
 		const overrides = state.field(calloutState, false);
 		return objects.some(object => object.kind === 'callout'
 			? !(overrides?.get(object.header!) ?? object.defaultCollapsed)
+			: object.kind === 'table' ? !state.field(tableCollapseState, false)?.has(object.anchor)
 			: !codeFolds.has(`${object.from}:${object.to}`));
 	}
 
@@ -179,6 +186,7 @@ export class FoldAllControls {
 			const effects: StateEffect<unknown>[] = [];
 			for (const object of objects) {
 				if (object.kind === 'callout') effects.push(toggleCallout.of({ from: object.header!, collapsed: collapse }));
+				else if (object.kind === 'table') effects.push(setTableCollapsed.of({ from: object.anchor, collapsed: collapse }));
 				else if (collapse) effects.push(foldEffect.of({ from: object.from, to: object.to }));
 			}
 			// Include mapped folds whose code was shortened since folding. Otherwise

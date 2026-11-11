@@ -163,6 +163,33 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
+	vsixOnly('collapses packaged Markdown tables to five rows without changing source', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Table collapse.md');
+		const source = '# Table collapse smoke\n\n| Name | Notes |\n| --- | --- |\n' + Array.from({ length: 12 }, (_, n) => `| Row ${n + 1} | Detail ${n + 1} |`).join('\n') + '\n\nAfter';
+		const bytes = Buffer.from(source);
+		await vscode.workspace.fs.writeFile(uri, bytes);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Table collapse smoke');
+			await frame.getByRole('button', { name: 'Collapse table', exact: true }).click();
+			assert.strictEqual(await frame.locator('.mlp-table tbody tr:visible').count(), 5);
+			assert.strictEqual(await frame.locator('.mlp-table tbody tr').count(), 12);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+			await frame.getByRole('button', { name: 'Expand table', exact: true }).press('Enter');
+			assert.strictEqual(await frame.locator('.mlp-table tbody tr:visible').count(), 12);
+			await frame.getByRole('button', { name: 'Collapse all collapsible objects' }).click();
+			await waitFor(async () => await frame.locator('.mlp-table tbody tr:visible').count() === 5, 'global fold did not collapse the table');
+			await frame.getByRole('button', { name: 'Expand all collapsible objects' }).click();
+			await waitFor(async () => await frame.locator('.mlp-table tbody tr:visible').count() === 12, 'global unfold did not restore the table');
+			assert.strictEqual((await vscode.workspace.openTextDocument(uri)).isDirty, false);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 
 	(mode === 'trusted' ? test : test.skip)('toggles packaged built-in Markdown Preview table headers live from the off default', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;

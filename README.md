@@ -423,6 +423,11 @@ the resize handle and use Left/Right arrows (Shift for larger steps).
 Double-click a handle to reset the table to automatic widths. Resizing is a
 view-only adjustment, available even when locked; widths last while the document
 is open and do not add nonstandard formatting to the Markdown file.
+Tables with more than five data rows also have **Collapse table / Expand table**
+controls. Collapsing keeps the header and first five data rows visible without
+changing or deleting source content. This works in Live Preview (including locked
+mode and embedded notes) and Markdown Preview. Live Preview's global collapse/expand
+button includes tables; keyboard navigation into a hidden row expands its table.
 **Sticky table headers are off by default.** Turn them on in
 **CSS Themes → Settings → Sticky table headers**, or enable
 `mdLivePreview.stickyTableHeaders` in VS Code Settings. The setting applies to

@@ -24,6 +24,7 @@ import {
 import { codeHighlightExtension, setCodeTokens } from './codeHighlightPlugin';
 import { blockDecorationsField, dragReleaseRefresh } from './blockDecorations';
 import { tableColumnWidths, syncTableColumnWidths } from './tableColumnResize';
+import { tableCollapseState, syncCollapsedTables } from './tableCollapse';
 import { createBlockReplacementSelectionGuard } from './blockReplacementSelection';
 import { calloutState } from './calloutState';
 import { htmlDisclosureState } from './htmlDisclosureState';
@@ -359,6 +360,8 @@ function createExtensions(): Extension[] {
 		htmlDisclosureState,
 		livePreviewPlugin,
 		tableColumnWidths,
+		tableCollapseState,
+		syncCollapsedTables,
 		syncTableColumnWidths,
 		listHangingIndent,
 		navigationScrollGuard,

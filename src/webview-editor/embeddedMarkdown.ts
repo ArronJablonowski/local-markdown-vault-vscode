@@ -1,6 +1,7 @@
 import { parser as baseMarkdownParser, Autolink, Strikethrough, Table, TaskList } from '@lezer/markdown';
 import type { SyntaxNode } from '@lezer/common';
 import { renderInlineInto, renderTableCellInto, type CellInlineHooks } from './tableCellInline';
+import { tableCollapseButton } from './tableCollapse';
 import { t } from '../shared/i18n';
 import { renderSafeHtml } from './safeHtml';
 
@@ -188,6 +189,8 @@ function renderTable(parent: HTMLElement, source: string, hooks: CellInlineHooks
 	viewport.setAttribute('role', 'region');
 	viewport.setAttribute('aria-label', t('table.scrollRegion'));
 	viewport.appendChild(table);
+	const collapse = tableCollapseButton(table, collapsed => collapse?.apply(collapsed));
+	if (collapse) parent.appendChild(collapse.button);
 	parent.appendChild(viewport);
 }
 
