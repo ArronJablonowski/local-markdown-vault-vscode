@@ -841,6 +841,8 @@ class TableWidget extends WidgetType {
 			}
 		}, { passive: true });
 		const widthObserver = new ResizeObserver(() => {
+			// Theme/font changes can alter natural tracks without a document edit.
+			refreshColumnResize();
 			const overflowing = table.scrollWidth > tableViewport.clientWidth + 1;
 			if (tableViewport.classList.contains('mlp-table-scrollable') !== overflowing) {
 				tableViewport.classList.toggle('mlp-table-scrollable', overflowing);
@@ -851,6 +853,8 @@ class TableWidget extends WidgetType {
 		});
 		widthObserver.observe(tableViewport);
 		widthObserver.observe(table);
+		// Individual tracks can change while the table's total width stays fixed.
+		for (const cell of Array.from(table.tHead?.rows[0]?.cells ?? [])) widthObserver.observe(cell, { box: 'border-box' });
 		const headerObserver = new MutationObserver(() => {
 			if (tableViewport.classList.contains('mlp-table-scrollable')) syncStickyHeader();
 		});

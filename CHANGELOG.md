@@ -1,5 +1,7 @@
 # Changelog
 
+- Refresh accessible column-width values when theme fonts, spacing, or padding change table geometry. Add nested-table theme-change and rich-content height restoration regressions.
+
 - Refresh accessible table-column width values after resetting automatic widths. Add mixed-format, nested-callout, pending-edit, mouse/keyboard resize, wrapping-height, collapse, and reset regressions.
 
 - Restore table collapse controls after preview patches move or reinsert tables. Remove stale copy, language, and collapse controls when a code block disappears, without deleting surrounding content.
