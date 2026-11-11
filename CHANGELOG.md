@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep the first six code lines visible when collapsing fenced or indented blocks, including global folding and Markdown Preview. Preserve complete source and full-block copy behavior.
+
 - Add view-only table collapse controls that retain the header and first five data rows in Live Preview, embedded notes, and Markdown Preview. Include long tables in global folding, preserve source content and pending edits, and expand automatically when keyboard navigation enters a hidden row.
 
 - Add a local-only, read-only CSV Table editor with stable numeric/natural sorting, header and separator controls, paged rows, sticky headings, source access, strict quoted-field parsing, and resource limits. Display formulas, HTML, and URLs as inert text; sorting never rewrites the source file.

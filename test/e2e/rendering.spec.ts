@@ -540,7 +540,7 @@ test.describe('block rendering', () => {
 		const code = Array.from({ length: 200 }, (_, index) => `code line ${index + 1}`).join('\n');
 		await mountEditor(page, `Before\n\n\`\`\`text\n${code}\n\`\`\`\n\nAfter\n\n${'paragraph\n\n'.repeat(200)}`);
 		await page.getByRole('button', { name: 'Collapse code block' }).click();
-		await expect(page.locator('.cm-content')).not.toContainText('code line 2');
+		await expect(page.locator('.cm-content')).not.toContainText('code line 7');
 		await page.locator('.cm-line', { hasText: /^After$/ }).click();
 		await page.keyboard.press('End');
 		await page.keyboard.type(' edited');
@@ -552,7 +552,7 @@ test.describe('block rendering', () => {
 		await page.setViewportSize({ width: 800, height: 500 });
 		await page.locator('.cm-scroller').evaluate((element) => { element.scrollTop = 0; });
 		await expect(page.getByRole('button', { name: 'Expand code block' })).toBeVisible();
-		await expect(page.locator('.cm-content')).not.toContainText('code line 2');
+		await expect(page.locator('.cm-content')).not.toContainText('code line 7');
 		await page.getByRole('button', { name: 'Copy code block', exact: true }).click();
 		await expect.poll(() => page.evaluate(() => (window as unknown as { __posted: Array<{ type: string; text?: string }> }).__posted.find((message) => message.type === 'copyCode')?.text)).toBe(code);
 		await page.getByRole('button', { name: 'Expand code block' }).press('Space');

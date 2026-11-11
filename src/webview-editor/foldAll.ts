@@ -8,6 +8,7 @@ import { diagramFenceRange, diagramFenceText } from './diagramFence';
 import { protectRenderedBlockFromCaret } from './cmUtils';
 import { t } from '../shared/i18n';
 import { setTableCollapsed, tableCollapseState, TABLE_PREVIEW_ROWS } from './tableCollapse';
+import { CODE_PREVIEW_LINES, existingCodeFold } from './codePreview';
 
 export interface CollapsibleObject {
 	kind: 'callout' | 'code' | 'table';
@@ -43,7 +44,7 @@ export function collectCollapsibleObjects(state: EditorState): CollapsibleObject
 				if (node.node.getChildren('CodeMark').length >= 2) last--;
 			}
 			if (last - first + 1 >= 8) objects.push({ kind: 'code',
-				from: state.doc.line(first).to, to: state.doc.line(last).to, anchor: state.doc.line(first).from });
+				from: state.doc.line(first + CODE_PREVIEW_LINES - 1).to, to: state.doc.line(last).to, anchor: state.doc.line(first).from });
 			return false;
 		} else if (node.name === 'Table') {
 			const hidden = node.node.getChildren('TableRow')[TABLE_PREVIEW_ROWS];
@@ -130,13 +131,11 @@ export class FoldAllControls {
 
 	private collapseNext(objects: CollapsibleObject[]): boolean {
 		const state = this.view.state;
-		const codeFolds = new Set<string>();
-		foldedRanges(state).between(0, state.doc.length, (from, to) => { codeFolds.add(`${from}:${to}`); });
 		const overrides = state.field(calloutState, false);
 		return objects.some(object => object.kind === 'callout'
 			? !(overrides?.get(object.header!) ?? object.defaultCollapsed)
 			: object.kind === 'table' ? !state.field(tableCollapseState, false)?.has(object.anchor)
-			: !codeFolds.has(`${object.from}:${object.to}`));
+			: !existingCodeFold(state, object.anchor, object.to));
 	}
 
 	private refresh(): void {

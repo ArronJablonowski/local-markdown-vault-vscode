@@ -76,14 +76,15 @@ test.describe('Markdown Preview code copy controls', () => {
 		const style = readFileSync(join(ROOT, 'media', 'markdown-preview-copy.css'), 'utf8');
 		const seven = Array.from({ length: 7 }, (_, index) => `short ${index + 1}`).join('\n');
 		const eight = Array.from({ length: 8 }, (_, index) => `long ${index + 1}`).join('\n');
-		await page.setContent(`<!doctype html><html><head><style>${style}</style></head><body class="vscode-body">
+		await page.setContent(`<!doctype html><html><head><style>${style}\nbody { line-height: 20px; }</style></head><body class="vscode-body">
 			<pre><code>${seven}</code></pre><pre><code>${eight}</code></pre>
 			<script>${script.replace(/<\/script>/gi, '<\\/script>')}</script>
 		</body></html>`);
 
 		await expect(page.getByRole('button', { name: 'Collapse code block' })).toHaveCount(1);
 		await page.getByRole('button', { name: 'Collapse code block' }).press('Enter');
-		await expect(page.locator('pre').nth(1).locator('code')).toBeHidden();
+		await expect(page.locator('pre').nth(1).locator('code')).toBeVisible();
+		expect(await page.locator('pre').nth(1).locator('code').evaluate(code => Math.abs(code.getBoundingClientRect().height - 6 * parseFloat(getComputedStyle(code).lineHeight)))).toBeLessThan(2);
 		await page.getByRole('button', { name: 'Expand code block' }).press('Space');
 		await expect(page.locator('pre').nth(1).locator('code')).toBeVisible();
 	});

@@ -61,6 +61,14 @@
 .lmv-code-collapsed {
 	min-height: 2.4rem;
 }
+.lmv-code-collapsed > code {
+	display: block;
+	white-space: pre;
+	max-height: 6lh;
+	overflow: hidden;
+	width: max-content;
+	min-width: 100%;
+}
 
 .markdown-body table.lmv-sticky-table-headers thead th,
 body.vscode-body table.lmv-sticky-table-headers thead th {

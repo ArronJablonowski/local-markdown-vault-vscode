@@ -257,7 +257,7 @@ test('global expansion clears a mapped code fold after the code is shortened bel
 	const original = `Intro\n\n${fenced('shortened')}\n\nAfter`;
 	await mountEditor(page, original);
 	await page.getByRole('button', { name: collapseLabel, exact: true }).click();
-	const from = original.indexOf('shortened_2();');
+	const from = original.indexOf('shortened_7();');
 	const to = original.indexOf('shortened_8();');
 	await postToWebview(page, { type: 'externalUpdate', version: 1, changes: [{ from, to, insert: '' }] });
 	await expect(page.getByRole('button', { name: expandLabel, exact: true })).toBeEnabled();

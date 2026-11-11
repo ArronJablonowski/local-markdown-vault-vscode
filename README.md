@@ -607,6 +607,8 @@ code block removes its hidden opening and closing fences as well.
 Code blocks containing eight or more lines also have a chevron control in
 Markdown Live Preview and Markdown Preview. Select it, or focus it and press
 Return or Space, to collapse or expand the block.
+Collapsed blocks retain the first six code lines. Expanding restores the full
+view, and **Copy** always copies every code line, including hidden lines.
 
 #### Add tags and aliases
 

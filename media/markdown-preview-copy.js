@@ -86,7 +86,8 @@
 				collapse.title = `${collapsed ? 'Expand' : 'Collapse'} this code block (${collapse.dataset.lineCount} lines)`;
 				collapse.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Collapse'} code block`);
 				collapse.setAttribute('aria-expanded', String(!collapsed));
-				code.hidden = collapsed;
+				// Clip the view rather than removing text; Copy still includes all lines.
+				code.hidden = false;
 				pre.classList.toggle('lmv-code-collapsed', collapsed);
 			};
 			collapse.addEventListener('click', () => {
@@ -98,7 +99,7 @@
 			pre.appendChild(collapse);
 		} else {
 			existingCollapse.dataset.lineCount = String(lineCount);
-			existingCollapse.title = `${code.hidden ? 'Expand' : 'Collapse'} this code block (${lineCount} lines)`;
+			existingCollapse.title = `${pre.classList.contains('lmv-code-collapsed') ? 'Expand' : 'Collapse'} this code block (${lineCount} lines)`;
 		}
 	}
 

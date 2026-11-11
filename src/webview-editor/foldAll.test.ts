@@ -25,7 +25,7 @@ describe('fold-all code targets', () => {
 		const doc = ['Before', '', '```typescript', ...codeLines(count), '```', '', 'After'].join('\n');
 		const state = parsedState(doc);
 		expect(collectCollapsibleObjects(state)).toEqual(count < 8 ? [] : [{
-			kind: 'code', from: doc.indexOf('\nline 2'),
+			kind: 'code', from: doc.indexOf('\nline 7'),
 			to: doc.indexOf('\n```', doc.indexOf('line 1')), anchor: doc.indexOf('line 1'),
 		}]);
 	});
@@ -33,14 +33,14 @@ describe('fold-all code targets', () => {
 	it.each([7, 8, 9])('counts all body lines in an unclosed fence with %i lines', count => {
 		const doc = ['~~~text', ...codeLines(count)].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual(count < 8 ? [] : [{
-			kind: 'code', from: doc.indexOf('\nline 2'), to: doc.length, anchor: doc.indexOf('line 1'),
+			kind: 'code', from: doc.indexOf('\nline 7'), to: doc.length, anchor: doc.indexOf('line 1'),
 		}]);
 	});
 
 	it.each([7, 8, 9])('counts indented code by its actual %i source lines', count => {
 		const doc = ['Before', '', ...codeLines(count, '    '), '', 'After'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual(count < 8 ? [] : [{
-			kind: 'code', from: doc.indexOf('\n    line 2'),
+			kind: 'code', from: doc.indexOf('\n    line 7'),
 			to: doc.indexOf('\n\nAfter'), anchor: doc.indexOf('    line 1'),
 		}]);
 	});
@@ -48,21 +48,21 @@ describe('fold-all code targets', () => {
 	it('uses the grammar closing mark and keeps a shorter fence inside the body', () => {
 		const doc = ['````text', 'line 1', '```', ...codeLines(6), '`````', '', 'After'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\n```'), to: doc.indexOf('\n`````'), anchor: doc.indexOf('line 1'),
+			kind: 'code', from: doc.indexOf('\nline 5'), to: doc.indexOf('\n`````'), anchor: doc.indexOf('line 1'),
 		}]);
 	});
 
 	it('keeps a mismatched closing fence as the final line of an unclosed block', () => {
 		const doc = ['```text', ...codeLines(7), '~~~'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\nline 2'), to: doc.length, anchor: doc.indexOf('line 1'),
+			kind: 'code', from: doc.indexOf('\nline 7'), to: doc.length, anchor: doc.indexOf('line 1'),
 		}]);
 	});
 
 	it('collects code nested in a list with its source indentation intact', () => {
 		const doc = ['- Item', '', '  ```text', ...codeLines(8, '  '), '  ```', '', 'After'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\n  line 2'),
+			kind: 'code', from: doc.indexOf('\n  line 7'),
 			to: doc.indexOf('\n  ```', doc.indexOf('line 1')), anchor: doc.indexOf('  line 1'),
 		}]);
 	});
@@ -78,7 +78,7 @@ describe('fold-all callout targets', () => {
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([
 			{ kind: 'callout', header: outer, from: doc.indexOf('> Outer body'), to: end, anchor: outer, defaultCollapsed: true },
 			{ kind: 'callout', header: inner, from: doc.indexOf('> >\n', inner), to: end, anchor: inner, defaultCollapsed: true },
-			{ kind: 'code', from: doc.indexOf('\n> > line 2'), to: doc.indexOf('\n> > ```', doc.indexOf('line 1')),
+			{ kind: 'code', from: doc.indexOf('\n> > line 7'), to: doc.indexOf('\n> > ```', doc.indexOf('line 1')),
 				anchor: doc.indexOf('> > line 1') },
 		]);
 	});
@@ -135,14 +135,14 @@ describe('fold-all rendered-object exclusions', () => {
 		setDiagramRenderingAllowed(false);
 		const doc = ['```' + language, ...codeLines(8), '```'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\nline 2'), to: doc.lastIndexOf('\n```'), anchor: doc.indexOf('line 1'),
+			kind: 'code', from: doc.indexOf('\nline 7'), to: doc.lastIndexOf('\n```'), anchor: doc.indexOf('line 1'),
 		}]);
 	});
 
 	it('always includes ordinary XML fences', () => {
 		const doc = ['```xml', ...codeLines(8), '```'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\nline 2'), to: doc.lastIndexOf('\n```'), anchor: doc.indexOf('line 1'),
+			kind: 'code', from: doc.indexOf('\nline 7'), to: doc.lastIndexOf('\n```'), anchor: doc.indexOf('line 1'),
 		}]);
 	});
 
@@ -150,14 +150,14 @@ describe('fold-all rendered-object exclusions', () => {
 		const doc = ['- ```mermaid', '  flowchart LR', '  A-->B', '  B-->C', '  C-->D',
 			'  D-->E', '  E-->F', '  F-->G', '  G-->H', '  ```'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: doc.indexOf('\n  A-->B'), to: doc.lastIndexOf('\n  ```'), anchor: doc.indexOf('  flowchart LR'),
+			kind: 'code', from: doc.indexOf('\n  F-->G'), to: doc.lastIndexOf('\n  ```'), anchor: doc.indexOf('  flowchart LR'),
 		}]);
 	});
 
 	it('includes an empty diagram fence that has no rendered widget', () => {
 		const doc = ['```mermaid', ...Array(8).fill(''), '```'].join('\n');
 		expect(collectCollapsibleObjects(parsedState(doc))).toEqual([{
-			kind: 'code', from: '```mermaid\n'.length, to: doc.lastIndexOf('\n```'), anchor: '```mermaid\n'.length,
+			kind: 'code', from: '```mermaid\n'.length + 5, to: doc.lastIndexOf('\n```'), anchor: '```mermaid\n'.length,
 		}]);
 	});
 

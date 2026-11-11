@@ -24,6 +24,7 @@ import { isClipboardShortcut } from './clipboardShortcuts';
 import { isNoteShortcut } from './renderedNoteShortcuts';
 import { installTableColumnResize, retainedTableColumnWidths } from './tableColumnResize';
 import { installTableCollapse } from './tableCollapse';
+import { codePreviewEnd, existingCodeFold } from './codePreview';
 import {
 	insertRow,
 	insertColumn,
@@ -448,9 +449,10 @@ class CopyCodeWidget extends WidgetType {
 		const collapsed = this.collapsed;
 		const setCollapsed = (next: boolean) => {
 			const firstLine = view.state.doc.lineAt(this.from);
-			const range = { from: firstLine.to, to: this.to };
+			const range = !next && existingCodeFold(view.state, this.from, this.to)
+				|| { from: codePreviewEnd(view.state, this.from, this.to), to: this.to };
 			// Folding belongs to editor state, not transient viewport DOM. Keep the
-			// first code line and controls visible; never change the Markdown bytes.
+			// first six code lines and controls visible; never change the Markdown bytes.
 			view.dispatch({
 				effects: (next ? foldEffect : unfoldEffect).of(range),
 				...(next && view.state.selection.ranges.some((selection) => selection.from < range.to && selection.to > range.from)
@@ -2574,10 +2576,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 							'mlp-line-code' + (isFirst ? ' mlp-line-code-first' : '') + (isLast ? ' mlp-line-code-last' : ''));
 						if (!seenCodeControls.has(node.from)) {
 							seenCodeControls.add(node.from);
-							let collapsed = false;
-							foldedRanges(state).between(first.to, last.to, (from, to) => {
-								if (from === first.to && to === last.to) collapsed = true;
-							});
+							const collapsed = !!existingCodeFold(state, first.from, last.to);
 							decorations.push(Decoration.widget({
 								widget: new CopyCodeWidget(node.from, last.to, node.from, last.number - first.number + 1, collapsed, ''),
 								side: -1,
@@ -2641,11 +2640,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 							const codeFrom = hasContentLines ? doc.line(firstLineNum + 1).from : doc.line(firstLineNum).to;
 							const codeTo = hasContentLines ? doc.line(finalCodeLine).to : codeFrom;
 							const contentLineCount = hasContentLines ? finalCodeLine - firstLineNum : 0;
-							let collapsed = false;
-							const foldFrom = doc.lineAt(codeFrom).to;
-							foldedRanges(state).between(foldFrom, codeTo, (from, to) => {
-								if (from === foldFrom && to === codeTo) collapsed = true;
-							});
+							const collapsed = !!existingCodeFold(state, codeFrom, codeTo);
 							decorations.push(
 								Decoration.widget({
 									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount, collapsed,

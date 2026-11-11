@@ -190,6 +190,30 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
+	vsixOnly('retains six code lines when collapsed without rewriting the file', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Code preview.md');
+		const source = '# Code six-line smoke\n\n```text\n' + Array.from({ length: 12 }, (_, n) => `preview_${n + 1}();`).join('\n') + '\n```\n\nAfter';
+		const bytes = Buffer.from(source);
+		await vscode.workspace.fs.writeFile(uri, bytes);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Code six-line smoke');
+			await frame.getByRole('button', { name: 'Collapse code block', exact: true }).click();
+			let text = await frame.locator('.cm-content').textContent() ?? '';
+			for (let n = 1; n <= 6; n++) assert.ok(text.includes(`preview_${n}();`));
+			assert.ok(!text.includes('preview_7();'));
+			await frame.getByRole('button', { name: 'Expand code block', exact: true }).press('Enter');
+			text = await frame.locator('.cm-content').textContent() ?? '';
+			assert.ok(text.includes('preview_12();'));
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+			assert.strictEqual((await vscode.workspace.openTextDocument(uri)).isDirty, false);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 
 	(mode === 'trusted' ? test : test.skip)('toggles packaged built-in Markdown Preview table headers live from the off default', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
