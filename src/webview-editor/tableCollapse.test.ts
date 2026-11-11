@@ -36,4 +36,14 @@ describe('view-only table collapse state', () => {
 		expect(objects).toHaveLength(count > 5 ? 1 : 0);
 		if (count > 5) expect(objects[0]).toEqual({ kind: 'table', from: doc.indexOf('| Row 6'), to: doc.length, anchor: 0 });
 	});
+	it.each([
+		['> ', '> [!note] Meeting\n>\n'], ['  ', '- Item\n\n'],
+		['> > ', '> [!note] Outer\n>\n> > [!tip] Inner\n> >\n'],
+	])('uses the same whole-line anchor as the %j table widget', (prefix, intro) => {
+		const doc = intro + table.split('\n').map(line => prefix + line).join('\n');
+		const parsed = state(doc); ensureSyntaxTree(parsed, doc.length, 5000);
+		const target = collectCollapsibleObjects(parsed.update({}).state).find(object => object.kind === 'table');
+		expect(target?.anchor).toBe(doc.indexOf(prefix + '| A | B |'));
+		expect(target?.from).toBe(doc.indexOf(prefix + '| Row 6 |'));
+	});
 });

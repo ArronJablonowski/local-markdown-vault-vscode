@@ -24,7 +24,7 @@ import { isClipboardShortcut } from './clipboardShortcuts';
 import { isNoteShortcut } from './renderedNoteShortcuts';
 import { installTableColumnResize, retainedTableColumnWidths } from './tableColumnResize';
 import { installTableCollapse } from './tableCollapse';
-import { codePreviewEnd, existingCodeFold } from './codePreview';
+import { codePreviewEnd, existingCodeFold, codePreviewCollapsed } from './codePreview';
 import {
 	insertRow,
 	insertColumn,
@@ -476,7 +476,7 @@ class CopyCodeWidget extends WidgetType {
 				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
-		if (this.lineCount >= 8) {
+		if (this.lineCount >= 8 || collapsed) {
 			const collapseButton = document.createElement('button');
 			collapseButton.type = 'button';
 			collapseButton.className = 'mlp-collapse-code-btn';
@@ -2576,7 +2576,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 							'mlp-line-code' + (isFirst ? ' mlp-line-code-first' : '') + (isLast ? ' mlp-line-code-last' : ''));
 						if (!seenCodeControls.has(node.from)) {
 							seenCodeControls.add(node.from);
-							const collapsed = !!existingCodeFold(state, first.from, last.to);
+							const collapsed = codePreviewCollapsed(view, first.from, last.to);
 							decorations.push(Decoration.widget({
 								widget: new CopyCodeWidget(node.from, last.to, node.from, last.number - first.number + 1, collapsed, ''),
 								side: -1,
@@ -2640,7 +2640,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 							const codeFrom = hasContentLines ? doc.line(firstLineNum + 1).from : doc.line(firstLineNum).to;
 							const codeTo = hasContentLines ? doc.line(finalCodeLine).to : codeFrom;
 							const contentLineCount = hasContentLines ? finalCodeLine - firstLineNum : 0;
-							const collapsed = !!existingCodeFold(state, codeFrom, codeTo);
+							const collapsed = codePreviewCollapsed(view, codeFrom, codeTo);
 							decorations.push(
 								Decoration.widget({
 									widget: new CopyCodeWidget(codeFrom, codeTo, doc.line(firstLineNum).to, contentLineCount, collapsed,

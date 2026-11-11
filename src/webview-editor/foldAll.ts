@@ -48,7 +48,9 @@ export function collectCollapsibleObjects(state: EditorState): CollapsibleObject
 			return false;
 		} else if (node.name === 'Table') {
 			const hidden = node.node.getChildren('TableRow')[TABLE_PREVIEW_ROWS];
-			if (hidden) objects.push({ kind: 'table', from: hidden.from, to: node.to, anchor: node.from });
+			// Table widgets use whole-line anchors, including quote/list prefixes.
+			if (hidden) objects.push({ kind: 'table', from: state.doc.lineAt(hidden.from).from,
+				to: node.to, anchor: state.doc.lineAt(node.from).from });
 			return false;
 		} else if (node.name === 'Paragraph' || /^(?:ATX|Setext)Heading/.test(node.name)) {
 			return false; // Inline syntax cannot contain a callout or a code block.

@@ -208,7 +208,39 @@ suite('Installed VSIX clean-profile smoke', () => {
 			text = await frame.locator('.cm-content').textContent() ?? '';
 			assert.ok(text.includes('preview_12();'));
 			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
-			assert.strictEqual((await vscode.workspace.openTextDocument(uri)).isDirty, false);
+			const document = await vscode.workspace.openTextDocument(uri);
+			assert.strictEqual(document.isDirty, false);
+			await frame.getByRole('button', { name: 'Collapse code block', exact: true }).click();
+			const offset = source.indexOf('preview_2();');
+			const edit = new vscode.WorkspaceEdit(); edit.insert(uri, document.positionAt(offset), 'Inserted\n');
+			assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+			await waitFor(async () => {
+				const rendered = await frame.locator('.cm-content').textContent() ?? '';
+				return rendered.includes('Inserted') && rendered.includes('preview_5();') && !rendered.includes('preview_6();');
+			}, 'edited code preview did not return to six lines');
+			assert.strictEqual(await document.save(), true);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'), source.slice(0, offset) + 'Inserted\n' + source.slice(offset));
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
+
+	vsixOnly('globally folds tables nested inside callouts using their widget anchors', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+		assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Nested table QA.md');
+		const source = '# Nested table QA\n\n> [!note] Meeting\n>\n> | Name | Status |\n> | --- | --- |\n' + Array.from({ length: 10 }, (_, n) => `> | Row ${n + 1} | Retained |`).join('\n') + '\n\nAfter';
+		const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Nested table QA');
+			await frame.getByRole('button', { name: 'Collapse all collapsible objects' }).click();
+			await frame.getByRole('button', { name: 'Meeting callout', exact: true }).click();
+			await waitFor(async () => await frame.locator('.mlp-table tbody tr:visible').count() === 5, 'nested table was not collapsed');
+			await frame.getByRole('button', { name: 'Expand table', exact: true }).click();
+			assert.strictEqual(await frame.locator('.mlp-table tbody tr:visible').count(), 10);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
 		} finally {
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.workspace.fs.delete(uri, { useTrash: false });

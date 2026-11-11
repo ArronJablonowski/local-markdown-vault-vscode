@@ -1,4 +1,4 @@
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import type { EditorState, Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 
@@ -18,7 +18,8 @@ export function findInlineTags(state: EditorState, from: number, to: number): Ar
 			const hashOffset = (match.index ?? 0) + match[1].length;
 			const tagFrom = line.from + hashOffset;
 			const tagTo = tagFrom + tag.length + 1;
-			if (tagTo <= from || tagFrom >= to || isCode(state, tagFrom)) continue;
+			// A partial tree cannot yet distinguish a tag from text inside a code fence.
+			if (tagTo <= from || tagFrom >= to || !syntaxTreeAvailable(state, tagTo) || isCode(state, tagFrom)) continue;
 			results.push({ from: tagFrom, to: tagTo, tag });
 		}
 	}
@@ -48,6 +49,6 @@ export const tagDecorations = ViewPlugin.fromClass(class {
 	decorations: DecorationSet;
 	constructor(view: EditorView) { this.decorations = buildDecorations(view); }
 	update(update: ViewUpdate) {
-		if (update.docChanged || update.viewportChanged) this.decorations = buildDecorations(update.view);
+		if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = buildDecorations(update.view);
 	}
 }, { decorations: (plugin) => plugin.decorations });
