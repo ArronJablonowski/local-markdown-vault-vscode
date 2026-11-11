@@ -109,7 +109,11 @@
 		if (!(table instanceof HTMLTableElement)) return;
 		const rows = Array.from(table.tBodies).flatMap(body => Array.from(body.rows));
 		const previous = renderedTables.get(table);
-		if (previous && previous.rows.length === rows.length && rows.every((row, index) => row === previous.rows[index])) return;
+		if (previous && previous.rows.length === rows.length && rows.every((row, index) => row === previous.rows[index])) {
+			// A preview patch can move the table or remove its sibling control.
+			if (table.previousElementSibling !== previous.button) table.before(previous.button);
+			return;
+		}
 		previous?.button.remove();
 		if (!previous && table.previousElementSibling?.classList.contains('lmv-table-collapse-button')) table.previousElementSibling.remove();
 		if (rows.length <= 5) { rows.forEach(row => { row.hidden = false; }); renderedTables.delete(table); return; }
@@ -128,6 +132,13 @@
 
 	function refresh() {
 		refreshPending = false;
+		// Parent nodes can survive after a code block is removed or becomes prose.
+		for (const pre of document.querySelectorAll('pre.lmv-code-copy-host')) {
+			if (pre.querySelector(':scope > code')) continue;
+			for (const control of pre.querySelectorAll(`:scope > .${BUTTON_CLASS}, :scope > .${COLLAPSE_BUTTON_CLASS}, :scope > .lmv-code-language`)) control.remove();
+			pre.classList.remove('lmv-code-copy-host', 'lmv-code-collapsed');
+			renderedCode.delete(pre);
+		}
 		const blocks = document.querySelectorAll('pre > code');
 		const count = Math.min(blocks.length, MAX_BLOCKS);
 		for (let index = 0; index < count; index++) addCopyButton(blocks[index]);

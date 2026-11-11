@@ -116,12 +116,14 @@ suite('Installed VSIX clean-profile smoke', () => {
 		const before = Buffer.from(source, 'utf8');
 		await vscode.workspace.fs.writeFile(uri, before);
 		try {
+			// Attach before creating the webview so CDP observes its inner frame.
+			// Late attachment can intermittently enumerate only VS Code's outer shell.
+			const browser = await connectToDebugBrowser();
 			await vscode.commands.executeCommand('vscode.open', uri, { preview: false });
 			await waitFor(() => {
 				const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 				return input instanceof vscode.TabInputCustom && input.viewType === 'mdLivePreview.csv';
 			}, 'CSV did not use its default custom editor');
-			const browser = await connectToDebugBrowser();
 			let frame: Frame | undefined;
 			await waitFor(async () => {
 				for (const page of browser.contexts().flatMap(context => context.pages())) for (const candidate of page.frames()) {
