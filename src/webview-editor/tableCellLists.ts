@@ -8,12 +8,12 @@ export const MAX_CELL_LIST_NODES = 1_000;
 export const MAX_CELL_LIST_DEPTH = 32;
 
 export interface CellListElement {
-	tag: 'ul' | 'ol' | 'li';
+	tag: 'ul' | 'ol' | 'li' | 'strong' | 'em' | 'b' | 'i' | 'u' | 's' | 'del' | 'mark' | 'sub' | 'sup' | 'kbd';
 	children: CellListPart[];
 }
 export type CellListPart = string | CellListElement;
 
-/** Recognize balanced, attribute-free list structure, never general HTML. */
+/** Recognize bounded, attribute-free lists and item formatting, never general HTML. */
 export function parseTableCellLists(source: string): CellListPart[] | null {
 	if (source.length > MAX_CELL_LIST_SOURCE || !/<(?:ul|ol)[\s>]/i.test(source)) return null;
 	const parts: CellListPart[] = [];
@@ -24,7 +24,7 @@ export function parseTableCellLists(source: string): CellListPart[] | null {
 	const append = (text: string): void => {
 		const owner = stack[stack.length - 1];
 		// A list can contain items, not orphan text or arbitrary markup.
-		if (owner && owner.tag !== 'li') { if (text.trim()) invalid = true; return; }
+		if (owner && (owner.tag === 'ul' || owner.tag === 'ol')) { if (text.trim()) invalid = true; return; }
 		if (text) (owner?.children ?? parts).push(text);
 	};
 	listParser.parse(source).iterate({ enter(node) {
@@ -34,9 +34,11 @@ export function parseTableCellLists(source: string): CellListPart[] | null {
 		if (node.name !== 'Document' && node.name !== 'Paragraph' && node.name !== 'HTMLTag') return false;
 		if (node.name !== 'HTMLTag') return;
 		const raw = source.slice(node.from, node.to);
-		if (!/^<\/?(?:ul|ol|li)(?:[\s/>])/i.test(raw)) return;
+		if (!/^<\/?(?:ul|ol|li|strong|em|b|i|u|s|del|mark|sub|sup|kbd)(?:[\s/>])/i.test(raw)) return;
+		// Formatting is supported only within an existing list, not surrounding prose.
+		if (!stack.length && !/^<\/?(?:ul|ol|li)(?:[\s/>])/i.test(raw)) return;
 		append(source.slice(offset, node.from));
-		const tag = /^<(\/?)(ul|ol|li)[\t\n\r ]*>$/i.exec(raw);
+		const tag = /^<(\/?)(ul|ol|li|strong|em|b|i|u|s|del|mark|sub|sup|kbd)[\t\n\r ]*>$/i.exec(raw);
 		if (!tag || invalid) { invalid = true; return false; }
 		const name = tag[2].toLowerCase() as CellListElement['tag'];
 		const owner = stack[stack.length - 1];
@@ -44,8 +46,12 @@ export function parseTableCellLists(source: string): CellListPart[] | null {
 			if (owner?.tag !== name) { invalid = true; return false; }
 			stack.pop();
 		} else {
+			const ownerIsList = owner && (owner.tag === 'ul' || owner.tag === 'ol');
+			const invalidParent = name === 'li' ? !ownerIsList
+				: name === 'ul' || name === 'ol' ? owner && owner.tag !== 'li'
+				: !owner || ownerIsList;
 			if (++nodes > MAX_CELL_LIST_NODES || stack.length >= MAX_CELL_LIST_DEPTH
-				|| (name === 'li' ? !owner || owner.tag === 'li' : owner && owner.tag !== 'li')) {
+				|| invalidParent) {
 				invalid = true; return false;
 			}
 			const element: CellListElement = { tag: name, children: [] };

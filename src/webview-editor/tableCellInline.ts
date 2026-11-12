@@ -304,7 +304,8 @@ export function renderTableCellInto(parent: HTMLElement, text: string, hooks: Ce
 			return;
 		}
 		const element = document.createElement(part.tag);
-		element.className = part.tag === 'li' ? 'mlp-cell-list-item' : 'mlp-cell-list';
+		if (part.tag === 'li') element.className = 'mlp-cell-list-item';
+		else if (part.tag === 'ul' || part.tag === 'ol') element.className = 'mlp-cell-list';
 		for (const child of part.children) append(element, child);
 		container.appendChild(element);
 	};

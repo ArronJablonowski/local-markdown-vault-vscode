@@ -51,6 +51,14 @@ export function retainedTableColumnWidths(state: EditorState, from: number, colu
 export function installTableColumnResize(view: EditorView, table: HTMLTableElement, from: number): () => void {
 	const cells = () => Array.from(table.tHead?.rows[0]?.cells ?? []);
 	const read = () => cells().map(cell => cell.getBoundingClientRect().width);
+	const limits = new Map<number, { minimum: number; maximum: number }>();
+	const bounds = (index: number, width: number) => {
+		const previous = limits.get(index);
+		// Preserve natural extremes so reversing a resize can restore its starting width.
+		const range = { minimum: Math.min(64, width, previous?.minimum ?? 64), maximum: Math.max(2000, width, previous?.maximum ?? 2000) };
+		limits.set(index, range);
+		return range;
+	};
 	// Resetting automatic layout changes widths after the DOM write completes.
 	const measureHandles = () => view.requestMeasure({
 		key: table,
@@ -59,9 +67,10 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 			const handle = cell.querySelector('.mlp-column-resize');
 			const width = Math.round(widths[index]);
 			if (!handle || !Number.isFinite(width) || width <= 0) return;
+			const range = bounds(index, widths[index]);
 			handle.setAttribute('aria-valuenow', String(width));
-			handle.setAttribute('aria-valuemin', String(Math.min(64, width)));
-			handle.setAttribute('aria-valuemax', String(Math.max(2000, width)));
+			handle.setAttribute('aria-valuemin', String(Math.round(range.minimum)));
+			handle.setAttribute('aria-valuemax', String(Math.round(range.maximum)));
 		}),
 	});
 	const apply = (widths: number[]) => {
@@ -106,7 +115,10 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 			handle.addEventListener('focus', () => handle.setAttribute('aria-valuenow', String(Math.round(cell.getBoundingClientRect().width))));
 			let drag: { x: number; widths: number[] } | undefined;
 			const resize = (widths: number[], width: number) => {
-				const next = [...widths]; next[index] = Math.max(64, Math.min(2000, width));
+				// Natural content or theme sizing can start outside the manual limits.
+				// Keep that starting width legal so the first gesture cannot jump backward.
+				const { minimum, maximum } = bounds(index, widths[index]);
+				const next = [...widths]; next[index] = Math.max(minimum, Math.min(maximum, width));
 				apply(next); remember(next);
 			};
 			handle.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
@@ -123,7 +135,7 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 			handle.addEventListener('lostpointercapture', () => { drag = undefined; });
 			handle.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
 			handle.addEventListener('dblclick', event => {
-				event.preventDefault(); event.stopPropagation(); remember([]);
+				event.preventDefault(); event.stopPropagation(); limits.clear(); remember([]);
 				table.classList.remove('mlp-table-resized'); table.style.tableLayout = ''; table.style.width = ''; table.style.minWidth = '';
 				cells().forEach(header => { header.style.width = ''; header.style.boxSizing = ''; }); measureHandles();
 			});

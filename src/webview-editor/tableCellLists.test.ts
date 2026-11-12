@@ -16,6 +16,40 @@ function render(source: string): string {
 }
 
 describe('safe lists in table cells', () => {
+	it('renders balanced attribute-free HTML emphasis inside list items', () => {
+		expect(render('<ul><li>Review <strong>important <em>details</em></strong> and **Markdown**.</li></ul>'))
+			.toBe(ul(li('Review <strong>important <em>details</em></strong> and <strong class="mlp-strong">Markdown</strong>.')));
+	});
+	it.each(['b', 'i', 'u', 's', 'del', 'mark', 'sub', 'sup', 'kbd'])('renders safe <%s> formatting inside a list item', tag => {
+		expect(render(`<ul><li><${tag}>Visible</${tag}></li></ul>`)).toBe(ul(li(`<${tag}>Visible</${tag}>`)));
+	});
+	it.each(['onclick="alert(1)"', 'style="display:none"', 'class="mlp-mode-toggle"', 'data-href="command:evil"'])('keeps attributed list formatting inert: %s', attribute => {
+		const source = `<ul><li><strong ${attribute}>Visible</strong></li></ul>`;
+		expect(parseTableCellLists(source)).toBeNull();
+		expect(render(source)).not.toContain('<strong');
+	});
+	it.each(['<strong>Unclosed', '<strong>Wrong</em>', '<strong><ul><li>Block</li></ul></strong>'])('keeps malformed formatting inert: %s', content => {
+		expect(parseTableCellLists(`<ul><li>${content}</li></ul>`)).toBeNull();
+	});
+	it('keeps code, escaped tags, and encoded examples literal inside formatted list items', () => {
+		const result = render('<ul><li><strong>`<em>Code</em>` and \\<em>escaped&lt;/em&gt; and &lt;em&gt;encoded&lt;/em&gt;</strong></li></ul>');
+		expect(result).toContain('<strong><code class="mlp-inline-code">&lt;em&gt;Code&lt;/em&gt;</code>');
+		expect(result).not.toContain('<em>');
+	});
+	it('never activates raw resource, navigation, or script tags inside allowed formatting', () => {
+		const result = render('<ul><li><strong><script>alert(1)</script><img src="https://tracker.invalid"><a href="command:evil">Run</a><svg onload="alert(1)"></svg></strong></li></ul>');
+		expect(result).toContain('<strong>');
+		expect(result).not.toMatch(/<(?:script|img|a|svg)(?:\s|>)/);
+		expect(result).toContain('&lt;img');
+	});
+	it('counts formatting nodes toward list depth and node budgets', () => {
+		const deep = '<ul><li>' + '<strong>'.repeat(MAX_CELL_LIST_DEPTH) + 'Text' + '</strong>'.repeat(MAX_CELL_LIST_DEPTH) + '</li></ul>';
+		const many = '<ul><li>' + '<strong>Text</strong>'.repeat(MAX_CELL_LIST_NODES) + '</li></ul>';
+		for (const value of [deep, many]) {
+			expect(parseTableCellLists(value)).toBeNull();
+			expect(render(value)).not.toContain('<strong>');
+		}
+	});
 	it('renders the reported whole-cell unordered list as distinct items', () => {
 		expect(render('<ul><li>Confirm client context.</li><li>Resolve coverage gaps.</li></ul>'))
 			.toBe(ul(li('Confirm client context.') + li('Resolve coverage gaps.')));

@@ -36,3 +36,9 @@ The normal smoke suite retains this test; a separate diagnostic run excludes
 only this known failure to exercise the remaining trust modes. Additional
 synthetic-fixture diagnostics now report the expected, saved, and editor text
 when the history assertion fails.
+
+November 12 follow-up: the complete installed-VSIX suite passed the saved
+Undo/Redo case in trusted and restricted profiles without exclusions. No history
+algorithm change was made, so this records a successful later run rather than
+claiming the earlier intermittent failure is permanently fixed. See the
+[mixed-content QA report](MIXED_YAML_TABLE_QA_2026-11-12.md).

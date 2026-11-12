@@ -226,6 +226,37 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
+	vsixOnly('resizes naturally oversized columns without snapping or modifying mixed notes', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Natural table width QA.md');
+		const content = '- [ ] Review\n\n```yaml\n' + Array.from({ length: 9 }, (_, n) => `item_${n}: retained`).join('\n')
+			+ '\n```\n\n| Notes | State |\n| --- | --- |\n| `' + 'Identifier'.repeat(100) + '` | Retained |'
+			+ '\n| <ul><li>Review <strong>important <em>details</em></strong><ul><li>Nested **task**</li></ul></li></ul> | Retained |';
+		const source = '# Natural table width QA\n\n> [!note]+ Meeting\n>\n' + content.split('\n').map(line => '> ' + line).join('\n') + '\n\nOutside';
+		const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Natural table width QA');
+			const header = frame.locator('.mlp-table th').first();
+			const handle = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
+			const width = await header.evaluate(cell => cell.getBoundingClientRect().width);
+			assert.ok(width > 2000, 'fixture did not create an oversized natural column');
+			await handle.focus(); await frame.page().keyboard.press('ArrowRight');
+			assert.ok(await header.evaluate(cell => cell.getBoundingClientRect().width) >= width - 1, 'Right Arrow unexpectedly shrank the column');
+			await frame.page().keyboard.press('ArrowLeft');
+			assert.ok(Math.abs(await header.evaluate(cell => cell.getBoundingClientRect().width) - (width - 10)) < 2, 'Left Arrow did not resize gradually');
+			await frame.page().keyboard.press('ArrowRight');
+			assert.ok(Math.abs(await header.evaluate(cell => cell.getBoundingClientRect().width) - width) < 2, 'Reverse resize did not restore the starting width');
+			assert.strictEqual(await frame.locator('.mlp-table td ul strong').first().textContent(), 'important details');
+			assert.strictEqual(await frame.locator('.mlp-table td ul em').textContent(), 'details');
+			assert.strictEqual(await frame.getByRole('button', { name: 'Expand code block', exact: true }).count(), 1);
+			assert.strictEqual(await frame.locator('.mlp-checkbox').count(), 1);
+			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);
@@ -996,7 +1027,20 @@ async function connectToLivePreviewFrame(expectedText: string, timeoutMs = 20_00
 		}
 		await delay(100);
 	}
-	assert.fail('could not find the installed Live Preview CodeMirror frame');
+	const observed: unknown[] = [];
+	for (const page of browser.contexts().flatMap(context => context.pages())) {
+		for (const frame of page.frames()) {
+			if (frame.isDetached()) continue;
+			try {
+				const editor = frame.locator('.cm-content');
+				if (await editor.count()) observed.push(await editor.evaluate((element: any) => ({
+					text: element.cmTile?.root?.view?.state.doc.toString().slice(0, 160), visible: element.getBoundingClientRect().height,
+				})));
+			} catch { /* A frame may disappear while collecting failure diagnostics. */ }
+		}
+	}
+	const active = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+	assert.fail(`could not find the installed Live Preview CodeMirror frame: ${JSON.stringify({ expectedText, observed, active: active instanceof vscode.TabInputCustom ? { uri: active.uri.toString(), viewType: active.viewType } : 'other' })}`);
 }
 
 async function connectToCssThemesFrame(): Promise<Frame> {

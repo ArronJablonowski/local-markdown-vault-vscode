@@ -1,5 +1,9 @@
 # Changelog
 
+- Render balanced, attribute-free HTML emphasis and keyboard labels inside table list items. Keep malformed tags, active HTML, attributed elements, escaped examples, and excessive nesting inert.
+
+- Prevent table columns from snapping in the wrong direction when their natural content or theme sizes fall outside manual resize limits. Cover mouse and keyboard resizing alongside collapsed YAML, nested callouts, bullets, rich cell edits, and automatic row heights.
+
 - Add the default-enabled **Collapse YAML by default** setting for YAML properties and fenced `yaml`/`yml` blocks. Keep six code lines visible and preserve manual expansion choices within an open note.
 
 - Highlight YAML and other supported fenced languages inside callouts and list containers using parser-owned code spans. Preserve YAML indentation and native LF/CRLF token offsets without coloring Markdown quote or list markers.
