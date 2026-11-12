@@ -177,6 +177,42 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
+	vsixOnly('undoes and redoes saved YAML, table, and task edits without losing neighboring content', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		await connectToDebugBrowser();
+		const uri = vscode.Uri.joinPath(root, 'Mixed undo QA.md');
+		const source = '# Mixed undo QA\n\n> [!warning]+ Configuration\n> - [ ] Review\n>     - Compare\n>\n> ```yaml\n> service:\n>   name: demo\n>   enabled: true\n> ```\n>\n> | Notes | Owner |\n> | --- | --- |\n> | Review<br>Details | Team |\n\nOutside';
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Mixed undo QA');
+			const key = process.platform === 'darwin' ? 'Meta' : 'Control';
+			const saved = async (expected: string) => waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected
+				&& await frame.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString()) === expected, 'mixed Undo/Redo did not preserve and save the expected source');
+			const handle = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
+			await handle.focus(); for (let n = 0; n < 55; n++) await frame.page().keyboard.press('Shift+ArrowLeft');
+			await frame.locator('.cm-line').filter({ hasText: 'name: demo' }).click();
+			await frame.page().keyboard.press('End'); await frame.page().keyboard.type('X');
+			const yamlEdited = source.replace('name: demo', 'name: demoX'); await saved(yamlEdited);
+			await frame.page().keyboard.press(`${key}+z`); await saved(source);
+			await frame.page().keyboard.press(`${key}+Shift+z`); await saved(yamlEdited);
+			await frame.locator('.mlp-table td').first().click(); await frame.page().keyboard.press('End'); await frame.page().keyboard.type('X'); await frame.page().keyboard.press('Enter');
+			const tableEdited = yamlEdited.replace('Review<br>Details', 'Review<br>DetailsX'); await saved(tableEdited);
+			await frame.page().keyboard.press(`${key}+z`); await saved(yamlEdited);
+			await frame.page().keyboard.press(`${key}+Shift+z`); await saved(tableEdited);
+			await frame.locator('.mlp-checkbox').click();
+			const taskEdited = tableEdited.replace('[ ] Review', '[x] Review'); await saved(taskEdited);
+			await frame.page().keyboard.press(`${key}+z`); await saved(tableEdited);
+			await frame.page().keyboard.press(`${key}+Shift+z`); await saved(taskEdited);
+			// History may restore an editing selection; leave source before measuring widgets.
+			await frame.locator('.cm-line').filter({ hasText: /^Outside$/ }).click();
+			assert.strictEqual(await handle.getAttribute('aria-valuenow'), '64');
+			assert.strictEqual(await frame.locator('.mlp-table td').last().textContent(), 'Team');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);
