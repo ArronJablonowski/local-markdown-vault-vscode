@@ -377,6 +377,8 @@ description: |
 
 Keep the opening and closing backticks on their own lines. YAML fenced this way
 is separate from the note's properties. See [the YAML example](sample/yaml-example.md).
+YAML highlighting also works in callouts and list containers; keep the Markdown
+container prefix before each fenced line and retain the YAML indentation after it.
 
 #### Add YAML properties
 

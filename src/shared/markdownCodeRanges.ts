@@ -27,6 +27,51 @@ export function markdownCodeRanges(text: string): MarkdownSourceRange[] {
 	return ranges;
 }
 
+export interface MarkdownFence {
+	from: number;
+	to: number;
+	lang: string;
+	lines: Array<{ from: number; text: string }>;
+}
+
+/** Extract code without container prefixes while retaining native UTF-16 offsets. */
+export function markdownFencedBlocks(text: string): MarkdownFence[] {
+	const physical: Array<{ from: number; to: number }> = [];
+	let from = 0;
+	for (const match of text.matchAll(/\r\n|\r|\n/g)) {
+		physical.push({ from, to: match.index! }); from = match.index! + match[0].length;
+	}
+	physical.push({ from, to: text.length });
+	const lineAt = (position: number) => {
+		let low = 0, high = physical.length - 1;
+		while (low < high) { const middle = Math.ceil((low + high) / 2); if (physical[middle].from <= position) low = middle; else high = middle - 1; }
+		return low;
+	};
+	const blocks: MarkdownFence[] = [];
+	blockParser.parse(text).iterate({ enter(node) {
+		if (node.name !== 'FencedCode') return;
+		const marks = node.node.getChildren('CodeMark');
+		const info = node.node.getChild('CodeInfo');
+		// Match the existing highlighter policy: closed, labeled, nonempty fences.
+		if (marks.length < 2 || !info) return false;
+		const lang = text.slice(info.from, info.to).trim();
+		if (!/^[\w#+.-]+$/.test(lang)) return false;
+		const first = lineAt(marks[0].from), last = lineAt(marks[marks.length - 1].from);
+		if (last <= first + 1) return false;
+		const lines = physical.slice(first + 1, last).map(line => ({ from: line.from, text: '' }));
+		for (const part of node.node.getChildren('CodeText')) {
+			for (let index = lineAt(part.from); index <= lineAt(Math.max(part.from, part.to - 1)); index++) {
+				if (index <= first || index >= last) continue;
+				const start = Math.max(part.from, physical[index].from), end = Math.min(part.to, physical[index].to);
+				if (end >= start) lines[index - first - 1] = { from: start, text: text.slice(start, end) };
+			}
+		}
+		blocks.push({ from: physical[first].from, to: node.to, lang, lines });
+		return false;
+	} });
+	return blocks;
+}
+
 function inlineCodeRanges(line: string): MarkdownSourceRange[] {
 	const runs: Array<{ from: number; to: number; length: number }> = [];
 	for (let cursor = 0; cursor < line.length;) {

@@ -9,6 +9,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { LanguageRegistration } from '@shikijs/types';
 import type { CodeBlockTokens } from '../shared/messages';
+import { markdownFencedBlocks } from '../shared/markdownCodeRanges';
 
 // VS Code's own built-in default themes (Dark+ / Light+), so highlighted code
 // matches the colors of the editor next to it out of the box.
@@ -36,14 +37,6 @@ const CURATED_LANGS = [
 
 const CURATED_LANG_SET: ReadonlySet<string> = new Set(CURATED_LANGS);
 const LANG_ALIASES: Record<string, string> = { sh: 'shellscript', shell: 'shellscript', js: 'javascript', ts: 'typescript', 'c++': 'cpp', 'c#': 'csharp', yml: 'yaml', md: 'markdown' };
-
-interface FenceBlock {
-	from: number;
-	to: number;
-	contentStartLine: number;
-	contentEndLine: number;
-	lang: string;
-}
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 /** Directory holding the generated grammar JSON; set once at activation. */
@@ -122,42 +115,6 @@ export function pickCodeTheme(): string {
 	return isLight ? DEFAULT_LIGHT_THEME : DEFAULT_DARK_THEME;
 }
 
-function findFences(document: vscode.TextDocument): FenceBlock[] {
-	const blocks: FenceBlock[] = [];
-	let open: { line: number; marker: string; lang: string } | null = null;
-
-	for (let i = 0; i < document.lineCount; i++) {
-		const lineText = document.lineAt(i).text;
-		const trimmed = lineText.trimStart();
-		const fenceMatch = /^(`{3,}|~{3,})\s*([\w#+.-]*)\s*$/.exec(trimmed);
-
-		if (!open) {
-			if (fenceMatch) {
-				open = { line: i, marker: fenceMatch[1][0].repeat(fenceMatch[1].length), lang: fenceMatch[2] };
-			}
-			continue;
-		}
-
-		const closeMatch = /^(`{3,}|~{3,})\s*$/.exec(trimmed);
-		if (closeMatch && closeMatch[1][0] === open.marker[0] && closeMatch[1].length >= open.marker.length) {
-			const from = document.offsetAt(new vscode.Position(open.line, 0));
-			const to = document.offsetAt(new vscode.Position(i, lineText.length));
-			if (i > open.line + 1) {
-				blocks.push({
-					from,
-					to,
-					contentStartLine: open.line + 1,
-					contentEndLine: i - 1,
-					lang: normalizeLang(open.lang),
-				});
-			}
-			open = null;
-		}
-	}
-
-	return blocks;
-}
-
 // Process-local test observability only: this value is never persisted, logged,
 // or sent anywhere. The development extension API uses it to prove that hidden
 // panels do not invoke the expensive tokenizer after background document edits.
@@ -169,7 +126,7 @@ export function getCodeTokenizationRunCount(): number {
 
 export async function tokenizeDocument(document: vscode.TextDocument): Promise<CodeBlockTokens[]> {
 	codeTokenizationRunCount++;
-	const fences = findFences(document);
+	const fences = markdownFencedBlocks(document.getText()).map(fence => ({ ...fence, lang: normalizeLang(fence.lang) }));
 	if (fences.length === 0) {
 		return [];
 	}
@@ -183,11 +140,7 @@ export async function tokenizeDocument(document: vscode.TextDocument): Promise<C
 			continue;
 		}
 
-		const lines: string[] = [];
-		for (let li = fence.contentStartLine; li <= fence.contentEndLine; li++) {
-			lines.push(document.lineAt(li).text);
-		}
-		const code = lines.join('\n');
+		const code = fence.lines.map(line => line.text).join('\n');
 
 		let tokenLines;
 		try {
@@ -199,19 +152,19 @@ export async function tokenizeDocument(document: vscode.TextDocument): Promise<C
 		const tokens: CodeBlockTokens['tokens'] = [];
 		// Return native document offsets; DocumentSync converts CRLF coordinates for CodeMirror.
 		for (let li = 0; li < tokenLines.length; li++) {
+			const line = fence.lines[li];
+			if (!line) break;
 			let col = 0;
 			for (const token of tokenLines[li]) {
 				if (token.content.length > 0) {
-					const startPos = new vscode.Position(fence.contentStartLine + li, col);
-					const endPos = new vscode.Position(fence.contentStartLine + li, col + token.content.length);
 					const styleParts = [`color:${token.color ?? '#999999'}`];
 					const fontStyle = token.fontStyle ?? 0;
 					if (fontStyle & 1) styleParts.push('font-style:italic');
 					if (fontStyle & 2) styleParts.push('font-weight:bold');
 					if (fontStyle & 4) styleParts.push('text-decoration:underline');
 					tokens.push({
-						from: document.offsetAt(startPos),
-						to: document.offsetAt(endPos),
+						from: line.from + col,
+						to: line.from + col + token.content.length,
 						style: styleParts.join(';'),
 					});
 				}

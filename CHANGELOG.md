@@ -1,5 +1,7 @@
 # Changelog
 
+- Highlight YAML and other supported fenced languages inside callouts and list containers using parser-owned code spans. Preserve YAML indentation and native LF/CRLF token offsets without coloring Markdown quote or list markers.
+
 - Complete quoted code fences without inserting an extra inline closing backtick that can follow the cursor into later callout lines.
 
 - Prevent deleted callouts from transferring their fold state to identical neighboring callouts. Cover nested mixed-content survivors, retained table widths, and full-block rewrites.

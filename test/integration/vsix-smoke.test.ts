@@ -129,6 +129,23 @@ suite('Installed VSIX clean-profile smoke', () => {
 		}
 		await vscode.workspace.fs.delete(uri, { useTrash: false });
 	});
+	vsixOnly('highlights YAML inside callout containers with exact source offsets', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		await connectToDebugBrowser();
+		const uri = vscode.Uri.joinPath(root, 'Nested YAML QA.md');
+		for (const [header, prefix] of [['> [!warning]+ Configuration', '> '], ['> [!note]+ Outer\n>\n> > [!tip]+ Configuration', '> > '], ['- > [!note]+ Configuration', '  > ']]) {
+			const source = '# Nested YAML QA\n\n' + header + '\n' + ['```yaml', 'service:', '  enabled: true', '  port: 8080', 'tags:', '  - notes', '```', '', '| Notes | Owner |', '| --- | --- |', '| **Review**<br>Follow up | Team |'].map(line => prefix + line).join('\n') + '\n\nAfter';
+			const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+			try {
+				await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+				const frame = await connectToLivePreviewFrame('Nested YAML QA');
+				await waitFor(async () => await frame.locator('.mlp-line-code [style*="color"]').count() > 3, 'nested YAML did not receive syntax highlighting');
+				assert.strictEqual(await frame.locator('.mlp-table td').last().textContent(), 'Team');
+				assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+			} finally { await vscode.commands.executeCommand('workbench.action.closeAllEditors'); }
+		}
+		await vscode.workspace.fs.delete(uri, { useTrash: false });
+	});
 	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);
