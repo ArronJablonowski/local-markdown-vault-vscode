@@ -9,9 +9,12 @@ import { protectRenderedBlockFromCaret } from './cmUtils';
 import { t } from '../shared/i18n';
 import { setTableCollapsed, tableCollapseState, TABLE_PREVIEW_ROWS } from './tableCollapse';
 import { CODE_PREVIEW_LINES, existingCodeFold } from './codePreview';
+import { frontmatterExpanded, setFrontmatterExpanded } from './frontmatterDisclosure';
+import { parseFrontmatterYaml } from './frontmatterSecurity';
+import { isYamlLanguage } from './yamlDefaults';
 
 export interface CollapsibleObject {
-	kind: 'callout' | 'code' | 'table';
+	kind: 'callout' | 'code' | 'table' | 'frontmatter';
 	from: number;
 	to: number;
 	anchor: number;
@@ -23,6 +26,11 @@ export interface CollapsibleObject {
 export function collectCollapsibleObjects(state: EditorState): CollapsibleObject[] {
 	const objects: CollapsibleObject[] = [];
 	const frontmatter = detectFrontmatter(state);
+	if (frontmatter) {
+		try {
+			if (Object.keys(parseFrontmatterYaml(frontmatter.yamlText) ?? {}).length) objects.push({ kind: 'frontmatter', from: frontmatter.from, to: frontmatter.to, anchor: Math.min(frontmatter.to + 1, state.doc.length) });
+		} catch { /* Invalid YAML keeps its visible error and source controls. */ }
+	}
 	let visited = 0;
 	syntaxTree(state).iterate({ enter(node) {
 		// Bound document-derived work without ever presenting a partial result as "all".
@@ -34,16 +42,18 @@ export function collectCollapsibleObjects(state: EditorState): CollapsibleObject
 				from: state.doc.lineAt(callout.from).to + 1, to: callout.to, anchor: callout.from,
 				defaultCollapsed: callout.collapsed });
 		} else if (node.name === 'FencedCode' || node.name === 'CodeBlock') {
+			let yaml = false;
 			let first = state.doc.lineAt(node.from).number;
 			let last = state.doc.lineAt(Math.max(node.from, node.to - 1)).number;
 			if (node.name === 'FencedCode') {
 				const info = node.node.getChild('CodeInfo');
+				yaml = Boolean(info && isYamlLanguage(state.sliceDoc(info.from, info.to)));
 				if (info && isDiagramLang(state.sliceDoc(info.from, info.to).trim().toLowerCase())
 					&& diagramFenceRange(state, node.node) !== null && diagramFenceText(state, node.node).trim()) return false;
 				first++;
 				if (node.node.getChildren('CodeMark').length >= 2) last--;
 			}
-			if (last - first + 1 >= 8) objects.push({ kind: 'code',
+			if (last - first + 1 >= (yaml ? 7 : 8)) objects.push({ kind: 'code',
 				from: state.doc.line(first + CODE_PREVIEW_LINES - 1).to, to: state.doc.line(last).to, anchor: state.doc.line(first).from });
 			return false;
 		} else if (node.name === 'Table') {
@@ -97,6 +107,7 @@ export class FoldAllControls {
 
 	update(update: ViewUpdate): void {
 		if (update.docChanged || syntaxTree(update.startState) !== syntaxTree(update.state)
+			|| update.startState.field(frontmatterExpanded, false) !== update.state.field(frontmatterExpanded, false)
 			|| foldedRanges(update.startState) !== foldedRanges(update.state)
 			|| update.startState.field(calloutState, false) !== update.state.field(calloutState, false)
 			|| update.startState.field(tableCollapseState, false) !== update.state.field(tableCollapseState, false)
@@ -136,6 +147,7 @@ export class FoldAllControls {
 		const overrides = state.field(calloutState, false);
 		return objects.some(object => object.kind === 'callout'
 			? !(overrides?.get(object.header!) ?? object.defaultCollapsed)
+			: object.kind === 'frontmatter' ? Boolean(state.field(frontmatterExpanded, false))
 			: object.kind === 'table' ? !state.field(tableCollapseState, false)?.has(object.anchor)
 			: !existingCodeFold(state, object.anchor, object.to));
 	}
@@ -187,6 +199,7 @@ export class FoldAllControls {
 			const effects: StateEffect<unknown>[] = [];
 			for (const object of objects) {
 				if (object.kind === 'callout') effects.push(toggleCallout.of({ from: object.header!, collapsed: collapse }));
+				else if (object.kind === 'frontmatter') effects.push(setFrontmatterExpanded.of(!collapse));
 				else if (object.kind === 'table') effects.push(setTableCollapsed.of({ from: object.anchor, collapsed: collapse }));
 				else if (collapse) effects.push(foldEffect.of({ from: object.from, to: object.to }));
 			}

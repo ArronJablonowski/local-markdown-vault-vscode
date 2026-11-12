@@ -12,6 +12,7 @@ import { parseFrontmatterYaml } from './frontmatterSecurity';
 import { calloutForNode, containingCallouts, toggleCallout } from './calloutState';
 import { refreshPreview } from './previewRefresh';
 import { HtmlWidget } from './htmlWidget';
+import { frontmatterExpanded, setFrontmatterExpanded } from './frontmatterDisclosure';
 
 /** Keep a block object's measured box inside its surrounding callout panel. */
 class CalloutBlockWidget extends WidgetType {
@@ -61,7 +62,7 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 		try {
 			const data = parseFrontmatterYaml(fm.yamlText) ?? {};
 			const entries = Object.entries(data);
-			widget = entries.length === 0 ? new FrontmatterEmptyWidget() : new FrontmatterWidget(entries, fm);
+			widget = entries.length === 0 ? new FrontmatterEmptyWidget() : new FrontmatterWidget(entries, fm, state.field(frontmatterExpanded, false) ?? false);
 		} catch (err) {
 			widget = new FrontmatterErrorWidget(err instanceof Error ? err.message : String(err));
 		}
@@ -188,7 +189,7 @@ export const blockDecorationsField = StateField.define<DecorationSet>({
 		if (
 			tr.docChanged ||
 			tr.selection ||
-			tr.effects.some((e) => e.is(refreshBlocks) || e.is(refreshPreview) || e.is(toggleCallout)) ||
+			tr.effects.some((e) => e.is(refreshBlocks) || e.is(refreshPreview) || e.is(toggleCallout) || e.is(setFrontmatterExpanded)) ||
 			syntaxTree(tr.startState) !== syntaxTree(tr.state)
 		) {
 			return buildBlockDecorations(tr.state);

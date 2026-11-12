@@ -60,7 +60,7 @@ export function validateSidebarToHostMessage(value: unknown): ValidationResult<S
 		value.type === 'setSetting' && exact(value, ['type', 'key', 'value']) &&
 		((value.key === 'defaultEditor' && oneOf(value.value, ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview'])) ||
 			(value.key === 'showWhitespace' && (value.value === 'off' || value.value === 'on')) ||
-			(value.key === 'stickyTableHeaders' && typeof value.value === 'boolean') ||
+			((value.key === 'stickyTableHeaders' || value.key === 'collapseYamlByDefault') && typeof value.value === 'boolean') ||
 			(value.key === 'defaultEditingMode' && oneOf(value.value, ['editing', 'locked'])) ||
 			(value.key === 'codeTheme' && oneOf(value.value, ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light'])) ||
 			(value.key === 'vaultOpenBehavior' && oneOf(value.value, ['reuseTab', 'newTab'])))
@@ -98,9 +98,10 @@ export function validateHostToSidebarMessage(value: unknown): ValidationResult<H
 		cssLength += bytes;
 	}
 	if (
-		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior', 'showWhitespace', 'stickyTableHeaders']) ||
+		!exact(value.settings, ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior', 'showWhitespace', 'stickyTableHeaders', 'collapseYamlByDefault']) ||
 		(value.settings.showWhitespace !== 'off' && value.settings.showWhitespace !== 'on') ||
 		typeof value.settings.stickyTableHeaders !== 'boolean' ||
+		typeof value.settings.collapseYamlByDefault !== 'boolean' ||
 		!oneOf(value.settings.defaultEditor, ['prompt', 'textEditor', 'markdownPreview', 'vscodeMarkdownEditor', 'markdownEditor', 'livePreview']) ||
 		!oneOf(value.settings.defaultEditingMode, ['editing', 'locked']) ||
 		!oneOf(value.settings.codeTheme, ['auto', 'dark-plus', 'light-plus', 'github-dark', 'github-light']) ||

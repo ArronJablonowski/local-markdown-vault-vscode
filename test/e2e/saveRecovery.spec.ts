@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const vaultPath = 'QA/Save safety.md';
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';

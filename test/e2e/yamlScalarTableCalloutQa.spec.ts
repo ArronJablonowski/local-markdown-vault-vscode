@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const bodies = [
 	['literal Markdown', 'description: |\n  # Literal heading\n  > [!warning] Literal callout\n  - [ ] Literal task\n  | A | B |\n  | --- | --- |\n  ```text\n  literal code\n  ```\n  ~~~\nenabled: true'],

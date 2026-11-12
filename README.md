@@ -356,6 +356,13 @@ and remaining limitations.
 
 #### Display YAML code
 
+**Collapse YAML by default** is enabled in **CSS Themes → Settings** and VS Code
+settings (`mdLivePreview.collapseYamlByDefault`). Newly opened notes show YAML
+properties collapsed and YAML code blocks with the first six lines visible.
+Shorter blocks remain fully visible. Expand a section or block using its button.
+Turn the setting off and reopen the note to start expanded. These display choices
+do not modify your Markdown files.
+
 Use a fenced code block labeled `yaml` (or its `yml` alias) to display YAML
 inside a note. The block keeps indentation and shows YAML syntax highlighting,
 a language label, and a Copy button. YAML in a code block is displayed as text;

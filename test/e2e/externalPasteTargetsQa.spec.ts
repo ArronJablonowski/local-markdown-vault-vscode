@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const table = '| Item | Count |\n| --- | --- |\n| Cable | 2 |';

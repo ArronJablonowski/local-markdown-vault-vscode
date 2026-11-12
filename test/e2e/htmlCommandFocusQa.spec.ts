@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const note = '# Start\n\n<div><p>Evidence</p><details><summary>Details</summary><p>Retained detail</p></details></div>\n\nAfter sentinel';

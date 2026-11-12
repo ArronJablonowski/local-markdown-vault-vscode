@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const CORPUS_ROOT = join(__dirname, '..', 'security-corpus');
 interface CorpusEntry {

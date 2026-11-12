@@ -25,6 +25,7 @@ import { isNoteShortcut } from './renderedNoteShortcuts';
 import { installTableColumnResize, retainedTableColumnWidths } from './tableColumnResize';
 import { installTableCollapse } from './tableCollapse';
 import { codePreviewEnd, existingCodeFold, codePreviewCollapsed } from './codePreview';
+import { isYamlLanguage } from './yamlDefaults';
 import {
 	insertRow,
 	insertColumn,
@@ -476,7 +477,7 @@ class CopyCodeWidget extends WidgetType {
 				caretPos: () => Math.min(this.revealPos, view.state.doc.length),
 			}),
 		);
-		if (this.lineCount >= 8 || collapsed) {
+		if (this.lineCount >= 8 || isYamlLanguage(this.language) && this.lineCount > 6 || collapsed) {
 			const collapseButton = document.createElement('button');
 			collapseButton.type = 'button';
 			collapseButton.className = 'mlp-collapse-code-btn';

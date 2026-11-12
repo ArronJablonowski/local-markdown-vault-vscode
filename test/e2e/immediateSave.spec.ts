@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor, openSearch, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, openSearch, postToWebview } from './harness';
 
 for (const focused of ['search', 'replace', 'editor'] as const) {
 	test(`full host resynchronization preserves Find/Replace state and ${focused} focus`, async ({ page }) => {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const source = '---\npriority: 1\npublished: true\n---\n\nBody';
 

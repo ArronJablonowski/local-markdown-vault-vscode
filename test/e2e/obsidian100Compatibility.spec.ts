@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 type FixtureRecord = {
 	id: number;

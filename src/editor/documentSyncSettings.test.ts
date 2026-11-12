@@ -37,6 +37,16 @@ describe('live editor display settings', () => {
 		session.scheduleVaultNotesSync = vi.fn();
 	});
 	afterEach(async () => { await session.dispose(); });
+	it('sends the enabled YAML default before initializing the editor', () => {
+		session.sendInit();
+		expect(mocks.post.mock.calls[0][0]).toEqual({ type: 'setYamlDefaults', collapsed: true });
+		expect(mocks.getConfiguration).toHaveBeenCalledWith('mdLivePreview', document.uri);
+	});
+	it.each([true, false])('sends the configured YAML default %s', collapsed => {
+		mocks.settings.collapseYamlByDefault = collapsed;
+		session.sendInit();
+		expect(mocks.post.mock.calls[0][0]).toEqual({ type: 'setYamlDefaults', collapsed });
+	});
 	it('sends sticky headers off on initialization when no value is configured', () => {
 		session.sendInit();
 		expect(mocks.post).toHaveBeenCalledWith({ type: 'setStickyTableHeaders', enabled: false });

@@ -30,6 +30,10 @@ import { calloutState } from './calloutState';
 import { htmlDisclosureState } from './htmlDisclosureState';
 import { indentMarkdownList } from './quotedListIndent';
 import { detectFrontmatter } from './frontmatterWidget';
+import { frontmatterExpanded } from './frontmatterDisclosure';
+import { yamlCodeDefaults } from './yamlDefaults';
+import { setYamlDefault } from './yamlSettings';
+import { noteRevealed, protectRenderedBlockFromCaret } from './cmUtils';
 import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
 import { toggleEmphasisCommand } from './emphasisShortcuts';
@@ -346,6 +350,8 @@ function createExtensions(): Extension[] {
 		indentUnit.of('    '),
 		EditorState.tabSize.of(4),
 		codeFolding(),
+		frontmatterExpanded,
+		yamlCodeDefaults,
 		// Extend closeBrackets' default pair set (`( [ { ' "`) with the emphasis
 		// marks so `*bold/italic*` and `_italic_` also auto-pair and wrap a
 		// selection when typed — the same mechanism VS Code and most editors use
@@ -624,6 +630,10 @@ function initialStateFor(text: string, persisted = stripDraftRecovery(getWebview
 	if (persisted) return state;
 	const fm = detectFrontmatter(state);
 	if (!fm) return state;
+	if (fm.to === state.doc.length) {
+		noteRevealed(fm.from, fm.to, false);
+		protectRenderedBlockFromCaret();
+	}
 	const anchor = Math.min(fm.to + 1, state.doc.length);
 	return state.update({ selection: { anchor } }).state;
 }
@@ -810,6 +820,9 @@ onHostMessage((message) => {
 			break;
 		case 'setWhitespace':
 			view?.dispatch({ effects: whitespaceCompartment.reconfigure(message.enabled ? whitespaceMarkers : []) });
+			break;
+		case 'setYamlDefaults':
+			setYamlDefault(message.collapsed);
 			break;
 		case 'setStickyTableHeaders':
 			setStickyTableHeaders(message.enabled);

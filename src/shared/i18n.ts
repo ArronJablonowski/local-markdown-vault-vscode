@@ -96,6 +96,10 @@ const en = {
 	'footnote.return': 'Return to footnote reference {0}',
 
 	'frontmatter.parseFailed': 'Could not parse the front matter',
+	'yaml.properties': 'YAML properties',
+	'yaml.properties.expand': 'Expand YAML properties',
+	'yaml.properties.collapse': 'Collapse YAML properties',
+	'sidebar.collapseYamlByDefault': 'Collapse YAML by default (newly opened notes)',
 	'property.true': 'True',
 	'property.false': 'False',
 	'property.edit': 'Edit {0}',

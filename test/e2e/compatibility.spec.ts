@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const fixture = readFileSync(join(__dirname, '..', 'fixtures', 'obsidian-core.md'), 'utf8');
 const notes = [

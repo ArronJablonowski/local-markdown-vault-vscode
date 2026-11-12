@@ -149,6 +149,9 @@ export class DocumentSyncSession {
 			this.disposables.push(watcher, watcher.onDidChange(refresh), watcher.onDidCreate(refresh), watcher.onDidDelete(refresh));
 		}
 		this.disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('mdLivePreview.collapseYamlByDefault', this.document.uri) && this.readyReceived) {
+				this.sendYamlDefaultsSetting();
+			}
 			if (event.affectsConfiguration('mdLivePreview.showWhitespace', this.document.uri) && this.readyReceived) {
 				this.sendWhitespaceSetting();
 			}
@@ -986,7 +989,13 @@ export class DocumentSyncSession {
 		this.post({ type: 'setStickyTableHeaders', enabled: vscode.workspace.getConfiguration('mdLivePreview', this.document.uri).get<boolean>('stickyTableHeaders', false) === true });
 	}
 
+	private sendYamlDefaultsSetting(): void {
+		this.post({ type: 'setYamlDefaults', collapsed: vscode.workspace.getConfiguration('mdLivePreview', this.document.uri).get<boolean>('collapseYamlByDefault', true) !== false });
+	}
+
 	private sendInit() {
+		// Defaults must arrive before constructing the next note's editor state.
+		this.sendYamlDefaultsSetting();
 		const configuration = vscode.workspace.getConfiguration('mdLivePreview', this.document.uri);
 		const remoteMedia = resolveWorkspaceRemoteMediaPolicy(
 			vscode.workspace.isTrusted,

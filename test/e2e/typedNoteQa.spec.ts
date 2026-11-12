@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 test('type YAML properties and a note from an empty editor without losing keyboard focus', async ({ page }) => {
 	const errors: string[] = [];

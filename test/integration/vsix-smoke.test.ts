@@ -111,9 +111,10 @@ suite('Installed VSIX clean-profile smoke', () => {
 	vsixOnly('highlights YAML and yml code fences using the packaged local grammar', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
 		await connectToDebugBrowser();
-		const uri = vscode.Uri.joinPath(root, 'YAML code QA.md');
 		const code = 'service:\n  name: local-vault\n  enabled: true\n  port: 8080\ntags:\n  - notes\n  - local\ndescription: |\n  Local only.';
-		for (const language of ['yaml', 'yml', 'YAML', 'YML']) {
+		for (const [index, language] of ['yaml', 'yml', 'YAML', 'YML'].entries()) {
+			// Fresh notes avoid racing disposal and reopening of one custom editor.
+			const uri = vscode.Uri.joinPath(root, `YAML code QA ${index}.md`);
 			const source = '# YAML code QA\n\n```' + language + '\n' + code + '\n```\n\nAfter';
 			const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
 			try {
@@ -122,12 +123,15 @@ suite('Installed VSIX clean-profile smoke', () => {
 				await waitFor(async () => await frame.locator('.mlp-line-code [style*="color"]').count() > 3, 'YAML syntax colors did not arrive from the packaged grammar');
 				assert.strictEqual(await frame.locator('.mlp-code-language').textContent(), language);
 				assert.strictEqual(await frame.locator('.mlp-frontmatter').count(), 0);
+				await frame.getByRole('button', { name: 'Expand code block', exact: true }).click();
 				await frame.getByRole('button', { name: 'Collapse code block', exact: true }).click();
 				assert.strictEqual(await frame.getByRole('button', { name: 'Expand code block', exact: true }).count(), 1);
 				assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
-			} finally { await vscode.commands.executeCommand('workbench.action.closeAllEditors'); }
+			} finally {
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.workspace.fs.delete(uri, { useTrash: false });
+			}
 		}
-		await vscode.workspace.fs.delete(uri, { useTrash: false });
 	});
 	vsixOnly('highlights YAML inside callout containers with exact source offsets', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
@@ -155,6 +159,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 		try {
 			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
 			const frame = await connectToLivePreviewFrame('YAML scalar edit QA');
+			await frame.getByRole('button', { name: 'Expand code block', exact: true }).click();
 			const handle = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
 			await handle.focus(); for (let n = 0; n < 55; n++) await frame.page().keyboard.press('Shift+ArrowLeft');
 			await frame.locator('.cm-line').filter({ hasText: 'enabled: true' }).click();
@@ -187,8 +192,16 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
 			const frame = await connectToLivePreviewFrame('Mixed undo QA');
 			const key = process.platform === 'darwin' ? 'Meta' : 'Control';
-			const saved = async (expected: string) => waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected
-				&& await frame.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString()) === expected, 'mixed Undo/Redo did not preserve and save the expected source');
+			const saved = async (expected: string) => {
+				try {
+					await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected
+						&& await frame.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString()) === expected, 'mixed Undo/Redo did not preserve and save the expected source');
+				} catch (error) {
+					const actual = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+					const editor = await frame.locator('.cm-content').evaluate((el: any) => ({ text: el.cmTile.root.view.state.doc.toString(), selection: el.cmTile.root.view.state.selection.toJSON(), focus: document.activeElement?.className }));
+					throw new Error(`${String(error)}; synthetic fixture diagnostics: ${JSON.stringify({ expected, actual, editor })}`);
+				}
+			};
 			const handle = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
 			await handle.focus(); for (let n = 0; n < 55; n++) await frame.page().keyboard.press('Shift+ArrowLeft');
 			await frame.locator('.cm-line').filter({ hasText: 'name: demo' }).click();
@@ -748,6 +761,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await frame.locator('.cm-content').waitFor({ state: 'visible', timeout: 10_000 });
 		await frame.locator('.mlp-mermaid-wrap svg').waitFor({ state: 'visible', timeout: 20_000 });
 
+		await frame.getByRole('button', { name: 'Expand YAML properties', exact: true }).click();
 		const property = frame.locator('.mlp-property-number');
 		await focusControlWithKeyboard(frame, '.mlp-property-number');
 		await property.press('Enter');
@@ -968,7 +982,9 @@ async function connectToLivePreviewFrame(expectedText: string, timeoutMs = 20_00
 					if (frame.isDetached()) continue;
 					try {
 						const editor = frame.locator('.cm-content');
-						if (await editor.count() > 0 && (await editor.textContent())?.includes(expectedText)) return frame;
+						// CodeMirror virtualizes lines; a scrolled heading may be absent from the DOM.
+						if (await editor.count() > 0 && await editor.evaluate((element: any, text) =>
+							element.cmTile?.root?.view?.state.doc.toString().includes(text) === true, expectedText)) return frame;
 					} catch (error) {
 						// VS Code replaces webview frames while restoring or refreshing an
 						// editor. Resume discovery when that happens between enumeration

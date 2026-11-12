@@ -1,4 +1,5 @@
 {
+  "config.collapseYamlByDefault": "Start newly opened notes with YAML properties collapsed and YAML code blocks showing at most six lines. Enabled by default. Does not change file content or existing manual fold choices. Reopen a note to apply changes.",
 	"extension.displayName": "Local Markdown Vault",
 	"extension.description": "A secure, local-only Markdown vault and Obsidian-style Live Preview editor for VS Code. No accounts, telemetry, or cloud sync.",
 	"editor.displayName": "Markdown Live Preview",

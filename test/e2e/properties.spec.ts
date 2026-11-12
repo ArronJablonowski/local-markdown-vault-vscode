@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 test('renders bounded YAML frontmatter as typed properties', async ({ page }) => {
 	await mountEditor(page, `---

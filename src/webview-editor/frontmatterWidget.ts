@@ -1,5 +1,5 @@
 import type { EditorState } from '@codemirror/state';
-import { notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft } from './activeDraft';
+import { commitActiveDraft, notifyActiveDraftChanged, preserveUncommittedDraft, registerActiveDraft } from './activeDraft';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { wrapBlockWidget } from './blockWidgetWrap';
 import { withCodeModeButton } from './codeModeButton';
@@ -7,6 +7,8 @@ import { t } from '../shared/i18n';
 import { parseDocument } from 'yaml';
 import { MAX_YAML_BYTES, MAX_YAML_NODES } from './frontmatterSecurity';
 import { parseWikiLinkBody } from '../vault/LinkResolver';
+import { frontmatterExpanded, setFrontmatterExpanded } from './frontmatterDisclosure';
+import { protectRenderedBlockFromCaret } from './cmUtils';
 
 export interface FrontmatterRange {
 	from: number;
@@ -463,12 +465,13 @@ export class FrontmatterWidget extends WidgetType {
 	constructor(
 		private readonly entries: Array<[string, unknown]>,
 		private readonly range: FrontmatterRange,
+		private readonly expanded = false,
 	) {
 		super();
 	}
 
 	eq(other: FrontmatterWidget): boolean {
-		return JSON.stringify(other.entries) === JSON.stringify(this.entries) &&
+		return other.expanded === this.expanded && JSON.stringify(other.entries) === JSON.stringify(this.entries) &&
 			other.range.from === this.range.from && other.range.to === this.range.to &&
 			other.range.rawText === this.range.rawText;
 	}
@@ -534,7 +537,23 @@ export class FrontmatterWidget extends WidgetType {
 		});
 		// Clicking the block already reveals the source; the button makes that
 		// route visible, and matches the one every other rendered block carries.
-		return wrapBlockWidget(withCodeModeButton(view, table, { anchor: table }));
+		const section = document.createElement('div'); section.className = 'mlp-yaml-section';
+		const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'mlp-frontmatter-toggle';
+		toggle.textContent = `${this.expanded ? '⌄' : '›'} ${t('yaml.properties')}`;
+		toggle.setAttribute('aria-expanded', String(this.expanded));
+		toggle.setAttribute('aria-label', t(this.expanded ? 'yaml.properties.collapse' : 'yaml.properties.expand'));
+		const body = document.createElement('div'); body.className = 'mlp-frontmatter-content'; body.hidden = !this.expanded; body.append(table);
+		toggle.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
+		toggle.addEventListener('click', event => {
+			event.preventDefault(); event.stopPropagation();
+			const residual = commitActiveDraft();
+			if (residual !== undefined) { preserveUncommittedDraft(residual); return; }
+			protectRenderedBlockFromCaret();
+			view.dispatch({ effects: setFrontmatterExpanded.of(!view.state.field(frontmatterExpanded)) });
+			view.dom.querySelector<HTMLButtonElement>('.mlp-frontmatter-toggle')?.focus();
+		});
+		section.append(toggle, body);
+		return wrapBlockWidget(withCodeModeButton(view, section, { anchor: section }));
 	}
 
 	ignoreEvent(): boolean {

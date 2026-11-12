@@ -7,7 +7,7 @@ const styles = [
 	{ id: 'first', name: 'First QA', enabled: true, css: '' },
 	{ id: 'second', name: 'Second QA', enabled: false, css: '' },
 ];
-const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', stickyTableHeaders: false };
+const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', collapseYamlByDefault: true, stickyTableHeaders: false };
 
 test('settings keep keyboard focus after the host confirms a change', async ({ page }) => {
 	await mountStyleSidebar(page, styles);
@@ -68,7 +68,7 @@ test('sidebar updates neither steal external focus nor expose restricted theme a
 	await postToWebview(page, { type: 'init', styles, settings, themeKind: 'vscode-dark', workspaceTrusted: false });
 	await expect(page.locator('#external-control')).toBeFocused();
 	await expect(page.locator('.mlp-card, .mlp-new-style')).toHaveCount(0);
-	await expect(page.locator('select')).toHaveCount(6);
+	await expect(page.locator('select')).toHaveCount(7);
 });
 
 for (const editingMode of ['editing', 'locked'] as const) {

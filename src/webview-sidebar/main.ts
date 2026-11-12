@@ -199,6 +199,11 @@ function buildSettings(settings: SidebarSettings): HTMLElement {
 		[['off', t('sidebar.stickyTableHeaders.off')], ['on', t('sidebar.stickyTableHeaders.on')]],
 		(value) => post({ type: 'setSetting', key: 'stickyTableHeaders', value: value === 'on' }),
 	));
+	section.appendChild(buildSelect(
+		t('sidebar.collapseYamlByDefault'), settings.collapseYamlByDefault ? 'on' : 'off',
+		[['on', t('sidebar.stickyTableHeaders.on')], ['off', t('sidebar.stickyTableHeaders.off')]],
+		(value) => post({ type: 'setSetting', key: 'collapseYamlByDefault', value: value === 'on' }),
+	));
 
 	section.appendChild(
 		buildSelect(

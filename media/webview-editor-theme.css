@@ -1249,6 +1249,9 @@ table.mlp-frontmatter {
 	width: 100%;
 	margin: 0; /* spacing lives on the `.mlp-block` wrapper — see above */
 }
+.mlp-frontmatter-content[hidden] { display: none !important; }
+.mlp-frontmatter-toggle { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; padding: 6px 36px 6px 4px; text-align: start; }
+.mlp-frontmatter-toggle:focus-visible { outline: 2px solid var(--vscode-focusBorder, #007fd4); }
 table.mlp-frontmatter th, table.mlp-frontmatter td {
 	border: 1px solid rgba(127, 127, 127, 0.35);
 	padding: 5px 11px;

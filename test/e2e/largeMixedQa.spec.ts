@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 import { largeMixedDocument } from '../fixtures/largeMixedDocument';
 
 for (const sections of [80, 240, 600]) {

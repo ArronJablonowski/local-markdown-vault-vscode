@@ -12,6 +12,7 @@ const PREVIEW_REFRESH_DELAY_MS = 350;
 // structural instead of shipping a second parser just for its renderer hook.
 interface PreviewToken {
 	attrs: [string, string][] | null;
+	info?: string;
 }
 interface PreviewRenderer {
 	renderToken(tokens: PreviewToken[], index: number, options: unknown): string;
@@ -56,7 +57,7 @@ export function createMarkdownPreviewSupport(): MarkdownPreviewApi & vscode.Disp
 		}
 	}
 	const subscription = vscode.workspace.onDidChangeConfiguration(event => {
-		if (disposed || !event.affectsConfiguration(SETTING)) return;
+		if (disposed || !event.affectsConfiguration(SETTING) && !event.affectsConfiguration('mdLivePreview.collapseYamlByDefault')) return;
 		if (refreshTimer !== undefined) clearTimeout(refreshTimer);
 		refreshTimer = setTimeout(() => {
 			refreshTimer = undefined;
@@ -69,6 +70,13 @@ export function createMarkdownPreviewSupport(): MarkdownPreviewApi & vscode.Disp
 		extendMarkdownIt<T extends MarkdownItPreview>(markdownIt: T): T {
 			if (installed.has(markdownIt)) return markdownIt;
 			installed.add(markdownIt);
+			const previousFence = markdownIt.renderer.rules.fence;
+			if (previousFence) markdownIt.renderer.rules.fence = (tokens, index, options, env, renderer) => {
+				const html = previousFence(tokens, index, options, env, renderer);
+				if (!/^(?:yaml|yml)$/i.test(tokens[index].info?.trim() ?? '')) return html;
+				const collapsed = vscode.workspace.getConfiguration('mdLivePreview', env?.currentDocument).get<unknown>('collapseYamlByDefault', true) !== false;
+				return html.replace(/<pre(?=[\s>])/, `<pre data-lmv-yaml-default-collapsed="${collapsed}"`);
+			};
 			const previous = markdownIt.renderer.rules.table_open;
 			markdownIt.renderer.rules.table_open = (tokens, index, options, env, renderer) => {
 				const token = tokens[index];

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 type Edit = { type: string; baseVersion: number; changes: Array<{ from: number; to: number; insert: string }> };

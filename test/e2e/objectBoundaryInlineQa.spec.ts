@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 const obsidian = readFileSync(join(__dirname, '../../media/sample-styles/obsidian-dark.css'), 'utf8');

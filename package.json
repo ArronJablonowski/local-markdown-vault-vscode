@@ -537,6 +537,12 @@
           "scope": "resource",
           "description": "%config.stickyTableHeaders%"
         },
+        "mdLivePreview.collapseYamlByDefault": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.collapseYamlByDefault%"
+        },
         "mdLivePreview.autoSave": {
           "type": "boolean",
           "default": true,

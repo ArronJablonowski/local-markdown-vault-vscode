@@ -103,7 +103,8 @@ describe('built-in Markdown Preview sticky-header integration', () => {
 		const rule = md.renderer.rules.table_open;
 		support.extendMarkdownIt(md);
 		expect(md.renderer.rules.table_open).toBe(rule);
-		expect(md.renderer.rules.fence).toBe(fence);
+		expect(md.renderer.rules.fence!([{ attrs: null, info: 'typescript' }], 0, {}, undefined, md.renderer)).toBe('<pre>safe</pre>');
+		expect(fence).toHaveBeenCalledTimes(1);
 	});
 
 	it('refreshes open built-in previews on changes without writing settings', async () => {
@@ -111,6 +112,15 @@ describe('built-in Markdown Preview sticky-header integration', () => {
 		changed(); await vi.advanceTimersByTimeAsync(350);
 		expect(mocks.execute).toHaveBeenCalledTimes(1);
 		expect(mocks.execute).toHaveBeenCalledWith('markdown.preview.refresh');
+	});
+	it.each([true, false, undefined])('marks YAML preview fences with the resource preference %s', setting => {
+		mocks.setting = setting;
+		const md = parser(); md.renderer.rules.fence = () => '<pre class="code"><code>safe</code></pre>';
+		support.extendMarkdownIt(md);
+		for (const info of ['yaml', 'yml', 'YAML']) {
+			expect(md.renderer.rules.fence!([{ attrs: null, info }], 0, {}, undefined, md.renderer))
+				.toBe(`<pre data-lmv-yaml-default-collapsed="${setting !== false}" class="code"><code>safe</code></pre>`);
+		}
 	});
 
 	it('coalesces rapid changes and reruns after an in-flight refresh', async () => {

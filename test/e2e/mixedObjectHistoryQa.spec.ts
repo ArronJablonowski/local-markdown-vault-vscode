@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const contexts = [['## Configuration', ''], ['> [!note]+ Configuration', '> '], ['> [!abstract]+ Outer\n>\n> > [!warning]+ Configuration', '> > '], ['- > [!tip]+ Configuration', '  > ']];
 for (const [header, prefix] of contexts) for (const target of ['YAML', 'bullet', 'table']) for (const remove of [false, true]) {

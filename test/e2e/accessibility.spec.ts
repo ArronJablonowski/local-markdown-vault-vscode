@@ -52,6 +52,7 @@ Intro
 			document.documentElement.style.fontSize = '32px';
 		});
 		const controls = page.locator('button:not([disabled]), input:not([disabled]), [role="checkbox"], [role="button"][tabindex="0"]');
+		await page.getByRole('button', { name: 'Expand YAML properties', exact: true }).click();
 		expect(await controls.count()).toBeGreaterThan(0);
 		for (let index = 0; index < await controls.count(); index++) {
 			if (!await controls.nth(index).isVisible() && await controls.nth(index).evaluate((element) => Boolean(element.closest('.mlp-table-toolbar')))) {

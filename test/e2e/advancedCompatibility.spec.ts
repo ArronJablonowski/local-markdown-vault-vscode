@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const fixtureRoot = join(__dirname, '..', 'fixtures', 'obsidian-advanced');
 const fixture = (name: string) => readFileSync(join(fixtureRoot, name), 'utf8');

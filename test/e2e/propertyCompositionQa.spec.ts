@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 for (const multiline of [false, true]) for (const key of ['Enter', 'Escape']) for (const legacy of [false, true]) test(`property IME ${key} preserves its draft, multiline=${multiline}, legacy=${legacy}`, async ({ page }) => {
 	await mountEditor(page, `---\ntitle: ${multiline ? '|\n  Original\n  Second line' : 'Original'}\n---\n\nAfter`);

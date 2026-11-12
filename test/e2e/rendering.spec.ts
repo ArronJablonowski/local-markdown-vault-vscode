@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 /**
  * The rendering the extension exists for: a block of text becoming a table, a

@@ -47,6 +47,7 @@
   "config.enabledStyles": "The CSS theme applied to the live preview. Pick one exclusively from \"CSS Themes\" in the sidebar (global setting).",
   "config.showWhitespace": "Show spaces, tabs, and line-break markers in Markdown Live Preview. Display only; does not change Markdown or copied text. Off by default.",
   "config.stickyTableHeaders": "Keep table headers visible while scrolling through a table. Display only; does not change Markdown. Off by default.",
+  "config.collapseYamlByDefault": "Start newly opened notes with YAML properties collapsed and YAML code blocks showing at most six lines. Enabled by default. Does not change file content or existing manual fold choices. Reopen a note to apply changes.",
   "config.defaultEditor": "Selects the default viewing mode used when opening Markdown files.",
   "config.defaultEditor.prompt": "Use VS Code's current default editor association.",
   "config.defaultEditor.textEditor": "Open Markdown files as source in the Text Editor.",

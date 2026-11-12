@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 for (const language of ['yaml', 'yml']) for (const nested of [false, true]) for (const editingMode of ['editing', 'locked'] as const) {
 	test(`${language} code displays literally and copies completely, nested=${nested}, ${editingMode}`, async ({ page }) => {

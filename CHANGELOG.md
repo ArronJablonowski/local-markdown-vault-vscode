@@ -1,5 +1,7 @@
 # Changelog
 
+- Add the default-enabled **Collapse YAML by default** setting for YAML properties and fenced `yaml`/`yml` blocks. Keep six code lines visible and preserve manual expansion choices within an open note.
+
 - Highlight YAML and other supported fenced languages inside callouts and list containers using parser-owned code spans. Preserve YAML indentation and native LF/CRLF token offsets without coloring Markdown quote or list markers.
 
 - Complete quoted code fences without inserting an extra inline closing backtick that can follow the cursor into later callout lines.

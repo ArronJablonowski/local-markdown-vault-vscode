@@ -23,7 +23,8 @@
 		const pre = code.parentElement;
 		if (!pre || pre.tagName !== 'PRE') return;
 		// Preview patches can replace the code node while retaining its parent.
-		const wasCollapsed = pre.classList.contains('lmv-code-collapsed');
+		const firstRender = !renderedCode.has(pre);
+		let wasCollapsed = pre.classList.contains('lmv-code-collapsed');
 		// VS Code can replace only the code node during a preview update. Controls
 		// attached to its surviving parent must not retain the old node's text.
 		if (renderedCode.has(pre) && renderedCode.get(pre) !== code) {
@@ -34,6 +35,8 @@
 		renderedCode.set(pre, code);
 		const languageClass = Array.from(code.classList).find(value => value.startsWith('language-'));
 		const language = languageClass ? languageClass.slice(9, 89) : '';
+		const yaml = /^(?:yaml|yml)$/i.test(language);
+		if (firstRender && yaml && pre.dataset.lmvYamlDefaultCollapsed !== 'false') wasCollapsed = true;
 		let label = pre.querySelector(':scope > .lmv-code-language');
 		if (language) {
 			if (!label) {
@@ -74,7 +77,7 @@
 		const withoutTrailingNewline = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
 		const lineCount = withoutTrailingNewline ? withoutTrailingNewline.split('\n').length : 0;
 		const existingCollapse = pre.querySelector(`:scope > .${COLLAPSE_BUTTON_CLASS}`);
-		if (lineCount < 8 && !(wasCollapsed && lineCount > 6)) {
+		if (lineCount < 8 && !(yaml && lineCount > 6) && !(wasCollapsed && lineCount > 6)) {
 			existingCollapse?.remove();
 			code.hidden = false;
 			pre.classList.remove('lmv-code-collapsed');

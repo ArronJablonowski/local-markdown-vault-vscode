@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mountEditor, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, postToWebview } from './harness';
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const source = '---\npriority: 2\n---\n\nKeep the source intact.';

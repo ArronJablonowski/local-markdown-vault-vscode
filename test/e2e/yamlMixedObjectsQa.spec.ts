@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const contexts = [['## Configuration', ''], ['> [!warning]+ Configuration', '> '], ['> [!note]+ Outer\n>\n> > [!tip]+ Configuration', '> > '], ['- > [!abstract]+ Configuration', '  > ']];
 for (const [header, prefix] of contexts) for (const language of ['yaml', 'yml']) for (const edit of ['boolean', 'list']) {

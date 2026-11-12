@@ -191,6 +191,10 @@ export function validateHostToEditorMessage(
 			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }
 				: { ok: false, reason: 'Invalid whitespace setting.' };
+		case 'setYamlDefaults':
+			return hasExactKeys(value, ['type', 'collapsed']) && typeof value.collapsed === 'boolean'
+				? { ok: true, value: value as unknown as HostToEditorMessage }
+				: { ok: false, reason: 'Invalid YAML collapse setting.' };
 		case 'setStickyTableHeaders':
 			return hasExactKeys(value, ['type', 'enabled']) && typeof value.enabled === 'boolean'
 				? { ok: true, value: value as unknown as HostToEditorMessage }

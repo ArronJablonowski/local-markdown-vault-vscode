@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mountEditor, openSearch, postToWebview } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor, openSearch, postToWebview } from './harness';
 
 const collapseLabel = 'Collapse all collapsible objects';
 const expandLabel = 'Expand all collapsible objects';

@@ -11,6 +11,11 @@ import {
 } from './messageValidation';
 
 describe('validateEditorToHostMessage', () => {
+	it('accepts only exact boolean YAML opening defaults from the host', () => {
+		for (const collapsed of [true, false]) expect(validateHostToEditorMessage({ type: 'setYamlDefaults', collapsed }, 0).ok).toBe(true);
+		for (const collapsed of ['false', 0, null, undefined, {}, []]) expect(validateHostToEditorMessage({ type: 'setYamlDefaults', collapsed }, 0).ok).toBe(false);
+		expect(validateHostToEditorMessage({ type: 'setYamlDefaults', collapsed: true, command: 'unsafe' }, 0).ok).toBe(false);
+	});
 	it('accepts only an exact host draw.io invalidation signal', () => {
 		expect(validateHostToEditorMessage({ type: 'invalidateDrawioFiles' }, 0).ok).toBe(true);
 		expect(validateHostToEditorMessage({ type: 'invalidateDrawioFiles', src: '../../secret' }, 0).ok).toBe(false);

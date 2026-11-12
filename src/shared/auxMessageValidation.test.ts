@@ -22,7 +22,7 @@ describe('auxiliary enum types', () => {
 		}
 	});
 	it('rejects non-string settings and theme kinds in sidebar snapshots', () => {
-		const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', stickyTableHeaders: false };
+		const settings = { defaultEditor: 'livePreview', defaultEditingMode: 'editing', codeTheme: 'auto', vaultOpenBehavior: 'reuseTab', showWhitespace: 'off', collapseYamlByDefault: true, stickyTableHeaders: false };
 		const message = { type: 'init', styles: [], settings, themeKind: 'vscode-dark', workspaceTrusted: true };
 		for (const key of ['defaultEditor', 'defaultEditingMode', 'codeTheme', 'vaultOpenBehavior'] as const) {
 			expect(validateHostToSidebarMessage({ ...message, settings: { ...settings, [key]: [settings[key]] } }).ok).toBe(false);
@@ -32,6 +32,10 @@ describe('auxiliary enum types', () => {
 });
 
 describe('auxiliary webview message validation', () => {
+	it('accepts YAML collapse preferences only as exact booleans', () => {
+		for (const value of [true, false]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'collapseYamlByDefault', value }).ok).toBe(true);
+		for (const value of ['true', 'false', 0, 1, null, undefined, [], {}]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'collapseYamlByDefault', value }).ok).toBe(false);
+	});
 	it('accepts only the on/off whitespace setting', () => {
 		for (const value of ['on', 'off']) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(true);
 		for (const value of [true, 'all', {}, null]) expect(validateSidebarToHostMessage({ type: 'setSetting', key: 'showWhitespace', value }).ok).toBe(false);
@@ -86,7 +90,7 @@ describe('auxiliary webview message validation', () => {
 				codeTheme: 'auto',
 				vaultOpenBehavior: 'reuseTab',
 				showWhitespace: 'off',
-				stickyTableHeaders: false,
+				collapseYamlByDefault: true, stickyTableHeaders: false,
 			},
 			themeKind: 'vscode-dark',
 			workspaceTrusted: false,

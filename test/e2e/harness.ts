@@ -49,6 +49,7 @@ export async function mountEditor(
 		currentVaultPath?: string;
 		editingMode?: 'editing' | 'locked';
 		stickyTableHeaders?: boolean;
+		collapseYamlByDefault?: boolean;
 		themeKind?: 'dark' | 'light';
 	} = {},
 ): Promise<void> {
@@ -105,7 +106,8 @@ ${style}
 </body>
 </html>`);
 
-	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath, editingMode, stickyTableHeaders }) => {
+	await page.evaluate(({ docText, workspaceTrusted, diagramRenderingAllowed, remoteMedia, css, vaultNotes, currentVaultPath, editingMode, stickyTableHeaders, collapseYamlByDefault }) => {
+		window.dispatchEvent(new MessageEvent('message', { data: { type: 'setYamlDefaults', collapsed: collapseYamlByDefault } }));
 		window.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
@@ -135,6 +137,7 @@ ${style}
 		currentVaultPath: options.currentVaultPath ?? '',
 		editingMode: options.editingMode ?? 'editing',
 		stickyTableHeaders: options.stickyTableHeaders ?? false,
+		collapseYamlByDefault: options.collapseYamlByDefault ?? true,
 	});
 
 	await page.waitForSelector('.cm-content');
@@ -164,6 +167,7 @@ export async function mountStyleSidebar(
 					vaultOpenBehavior: 'reuseTab',
 					showWhitespace: 'off',
 					stickyTableHeaders: false,
+					collapseYamlByDefault: true,
 				},
 				themeKind: 'vscode-dark',
 				workspaceTrusted: trusted,
@@ -192,4 +196,9 @@ export async function openSearch(page: Page): Promise<void> {
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f');
 	await page.waitForSelector('.cm-search');
 	await page.locator('.cm-search input').first().focus();
+}
+
+/** Existing expanded-property editing scenarios explicitly disable the opening fold preference. */
+export async function mountEditorWithExpandedYaml(page: Page, text: string, options: Parameters<typeof mountEditor>[2] = {}): Promise<void> {
+ await mountEditor(page, text, { collapseYamlByDefault: false, ...options });
 }

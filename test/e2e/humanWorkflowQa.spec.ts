@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mountEditor } from './harness';
+import { mountEditorWithExpandedYaml as mountEditor } from './harness';
 
 const note = '# Everyday editing\n\nA **bold** sentence, *italic* text, ==highlight==, and `inline code`.\n\n## Checklist\n- [ ] Review the table\n- [x] Prepare test notes\n- Parent bullet\n  - Child bullet\n\n## Budget\n| Item | Cost |\n| --- | ---: |\n| Notebook | $12 |\n| Pens | $5 |\n\n> [!warning]+ Local test\n> Keep all changes in the disposable vault.\n> - [ ] Confirm autosave\n\nFinal paragraph.';
 
