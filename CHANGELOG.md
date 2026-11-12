@@ -1,5 +1,9 @@
 # Changelog
 
+- Complete quoted code fences without inserting an extra inline closing backtick that can follow the cursor into later callout lines.
+
+- Prevent deleted callouts from transferring their fold state to identical neighboring callouts. Cover nested mixed-content survivors, retained table widths, and full-block rewrites.
+
 - Keep selected list continuation lines with their owning bullet during Tab/Shift+Tab, preserving callout quote markers and legacy indentation levels.
 
 - Refresh accessible column-width values when theme fonts, spacing, or padding change table geometry. Add nested-table theme-change and rich-content height restoration regressions.

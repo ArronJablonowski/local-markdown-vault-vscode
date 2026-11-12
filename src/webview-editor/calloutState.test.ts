@@ -5,6 +5,22 @@ import { calloutState, toggleCallout } from './calloutState';
 import { searchRevealExtension } from './searchReveal';
 
 describe('callout folding state', () => {
+	it.each([false, true])('does not transfer deleted fold state to a neighboring callout, touched=%s', touched => {
+		const block = '> [!note]+ Meeting\n> Retained body';
+		const second = block.length + 2;
+		let state = EditorState.create({ doc: block + '\n\n' + block, extensions: [calloutState] });
+		if (touched) state = state.update({ effects: toggleCallout.of({ from: second, collapsed: false }) }).state;
+		state = state.update({ effects: toggleCallout.of({ from: 0, collapsed: true }) }).state;
+		state = state.update({ changes: { from: 0, to: second } }).state;
+		expect(state.field(calloutState).get(0) ?? false).toBe(false);
+	});
+	it('retains a fold override during a compatible whole-callout rewrite', () => {
+		const doc = '> [!note]+ Meeting\n> Original body';
+		let state = EditorState.create({ doc, extensions: [calloutState] });
+		state = state.update({ effects: toggleCallout.of({ from: 0, collapsed: true }) }).state;
+		state = state.update({ changes: { from: 0, to: doc.length, insert: doc.replace('Original', 'Updated') } }).state;
+		expect(state.field(calloutState).get(0)).toBe(true);
+	});
 	it('Find opens every collapsed ancestor without changing saved fold markers', () => {
 		const doc = 'Before\n\n> [!note]- Outer\n> > [!tip]- Inner\n> > Find this token.\n\nAfter';
 		const from = doc.indexOf('Find this');

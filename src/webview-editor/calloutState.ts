@@ -17,7 +17,14 @@ export const calloutState = StateField.define<ReadonlyMap<number, boolean>>({
 		if (!tr.docChanged && !revealSearch && !tr.effects.some(effect => effect.is(toggleCallout))) return value;
 		const next = new Map<number, boolean>();
 		for (const [from, collapsed] of value) {
-			const mapped = tr.changes.mapPos(from, 1);
+			let removed = false, replaced = false;
+			tr.changes.iterChangedRanges((start, end, nextStart, nextEnd) => {
+				if (start <= from && end > from) { removed = true; replaced = nextEnd > nextStart; }
+			});
+			const mapped = tr.changes.mapPos(from, removed ? -1 : 1);
+			// Deleted headers must not donate their fold choice to a surviving neighbor.
+			// A whole-block rewrite may retain it only when its header is unchanged.
+			if (removed && (!replaced || tr.startState.doc.lineAt(from).text !== tr.newDoc.lineAt(mapped).text)) continue;
 			const oldHeader = tr.startState.doc.lineAt(from).text.match(/\[![A-Za-z0-9_-]{1,32}\]([+-])?/);
 			const newHeader = tr.newDoc.lineAt(mapped).text.match(/\[![A-Za-z0-9_-]{1,32}\]([+-])?/);
 			// An explicit source change to the fold marker supersedes a UI toggle.

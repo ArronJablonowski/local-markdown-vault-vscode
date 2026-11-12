@@ -12,6 +12,7 @@ import type { SyntaxNode } from '@lezer/common';
 // race: closeBrackets would auto-pair the first backtick into an empty ``
 // span before this handler ever sees a real "third backtick" keystroke.
 const FENCE_OPEN_RE = /^ {0,3}``$/;
+const QUOTED_FENCE_OPEN_RE = /^(?: {0,3}>[ \t]?)+ {0,3}``$/;
 
 function isInsideFencedCode(state: EditorState, pos: number): boolean {
 	for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); node; node = node.parent) {
@@ -52,6 +53,12 @@ export const backtickInputHandler = Prec.high(
 				selection: { anchor: from + 1 },
 				userEvent: 'input.type',
 			});
+			return true;
+		}
+		if (QUOTED_FENCE_OPEN_RE.test(prefix)) {
+			// Complete a quoted fence literally; inline pairing would leave a
+			// spare backtick that moves into later code lines on Shift+Enter.
+			view.dispatch({ changes: { from, to, insert: '`' }, selection: { anchor: from + 1 }, userEvent: 'input.type' });
 			return true;
 		}
 

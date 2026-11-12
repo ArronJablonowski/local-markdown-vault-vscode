@@ -262,6 +262,49 @@ suite('Installed VSIX clean-profile smoke', () => {
 		}
 	});
 
+	vsixOnly('types and saves a quoted code fence without stray backticks', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Quoted fence QA.md');
+		const source = '# Quoted fence QA\n\n> [!note]+ Meeting\n> ';
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Quoted fence QA');
+			await frame.locator('.cm-content').evaluate((el: any) => { const view = el.cmTile.root.view; view.dispatch({ selection: { anchor: view.state.doc.length } }); view.focus(); });
+			await frame.page().keyboard.type('```js', { delay: 20 });
+			await frame.page().keyboard.press('Shift+Enter'); await frame.page().keyboard.type('const retained = true;', { delay: 10 });
+			await frame.page().keyboard.press('Shift+Enter'); await frame.page().keyboard.type('```', { delay: 20 });
+			const expected = source + '```js\n> const retained = true;\n> ```';
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'quoted fence did not save exactly the typed delimiters');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
+	vsixOnly('deleting a folded callout keeps its surviving neighbor expanded', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Callout neighbor QA.md');
+		const block = '> [!note]+ Meeting\n> - [ ] Retained task\n>\n> | Notes | Owner |\n> | --- | --- |\n> | Retained | Team |';
+		const source = '# Callout neighbor QA\n\n' + block + '\n\n' + block;
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Callout neighbor QA');
+			const meetings = frame.getByRole('button', { name: 'Meeting callout', exact: true });
+			await meetings.first().click();
+			const document = await vscode.workspace.openTextDocument(uri);
+			const from = source.indexOf(block), to = from + block.length + 2;
+			const edit = new vscode.WorkspaceEdit(); edit.delete(uri, new vscode.Range(document.positionAt(from), document.positionAt(to)));
+			assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+			await waitFor(async () => await meetings.count() === 1 && await meetings.getAttribute('aria-expanded') === 'true', 'surviving callout inherited deleted fold state');
+			assert.strictEqual(await frame.locator('.mlp-table td').last().textContent(), 'Team');
+			assert.strictEqual(await document.save(), true);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'), source.slice(0, from) + source.slice(to));
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 	vsixOnly('globally folds tables nested inside callouts using their widget anchors', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);
