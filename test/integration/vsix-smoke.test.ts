@@ -108,6 +108,27 @@ suite('Installed VSIX clean-profile smoke', () => {
 		assert.ok(input instanceof vscode.TabInputCustom, 'the packaged Live Preview custom editor did not open');
 		assert.strictEqual(input.viewType, 'mdLivePreview.editor');
 	});
+	vsixOnly('highlights YAML and yml code fences using the packaged local grammar', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		await connectToDebugBrowser();
+		const uri = vscode.Uri.joinPath(root, 'YAML code QA.md');
+		const code = 'service:\n  name: local-vault\n  enabled: true\n  port: 8080\ntags:\n  - notes\n  - local\ndescription: |\n  Local only.';
+		for (const language of ['yaml', 'yml', 'YAML', 'YML']) {
+			const source = '# YAML code QA\n\n```' + language + '\n' + code + '\n```\n\nAfter';
+			const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+			try {
+				await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+				const frame = await connectToLivePreviewFrame('YAML code QA');
+				await waitFor(async () => await frame.locator('.mlp-line-code [style*="color"]').count() > 3, 'YAML syntax colors did not arrive from the packaged grammar');
+				assert.strictEqual(await frame.locator('.mlp-code-language').textContent(), language);
+				assert.strictEqual(await frame.locator('.mlp-frontmatter').count(), 0);
+				await frame.getByRole('button', { name: 'Collapse code block', exact: true }).click();
+				assert.strictEqual(await frame.getByRole('button', { name: 'Expand code block', exact: true }).count(), 1);
+				assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+			} finally { await vscode.commands.executeCommand('workbench.action.closeAllEditors'); }
+		}
+		await vscode.workspace.fs.delete(uri, { useTrash: false });
+	});
 	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);

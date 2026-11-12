@@ -354,6 +354,30 @@ are inside a collapsed callout. The button is disabled when nothing can fold.
 See [callout QA coverage](docs/CALLOUT_QA_2026-09-23.md) for tested interactions
 and remaining limitations.
 
+#### Display YAML code
+
+Use a fenced code block labeled `yaml` (or its `yml` alias) to display YAML
+inside a note. The block keeps indentation and shows YAML syntax highlighting,
+a language label, and a Copy button. YAML in a code block is displayed as text;
+it is not loaded as configuration or executed.
+
+````markdown
+```yaml
+service:
+  name: local-vault
+  enabled: true
+  port: 8080
+tags:
+  - notes
+  - local
+description: |
+  A local Markdown workspace.
+```
+````
+
+Keep the opening and closing backticks on their own lines. YAML fenced this way
+is separate from the note's properties. See [the YAML example](sample/yaml-example.md).
+
 #### Add YAML properties
 
 Place a YAML block at the very beginning of the note:
