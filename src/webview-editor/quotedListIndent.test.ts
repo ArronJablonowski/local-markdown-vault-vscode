@@ -43,6 +43,15 @@ describe('quoted list indentation', () => {
 });
 
 describe('full-tab list indentation', () => {
+	it.each(['', '> ', '> > '])('preserves blank separators when indenting a loose list selection: %j', quote => {
+		const block = `${quote}- Child\n${quote}\n${quote}  Continued detail`;
+		const doc = `${quote}- Parent\n${block}\n${quote}- Sibling`;
+		const view = editor(doc, doc.indexOf(block), doc.indexOf(block) + block.length, false, '    ');
+		expect(indentMarkdownList(view)).toBe(true);
+		expect(view.state.doc.toString()).toBe(doc.replace(block, `${quote}    - Child\n${quote}    \n${quote}      Continued detail`));
+		expect(indentMarkdownList(view, true)).toBe(true);
+		expect(view.state.doc.toString()).toBe(doc);
+	});
 	it.each(['', '> ', '> > '])('indents selected continuation text with its owning item: %j', quote => {
 		const block = `${quote}- Child\n${quote}  Continued **detail**`;
 		const doc = `${quote}- Parent\n${block}\n${quote}- Sibling`;
