@@ -146,6 +146,37 @@ suite('Installed VSIX clean-profile smoke', () => {
 		}
 		await vscode.workspace.fs.delete(uri, { useTrash: false });
 	});
+	vsixOnly('saves a YAML scalar edit while preserving callout bullets and table widths', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		await connectToDebugBrowser();
+		const uri = vscode.Uri.joinPath(root, 'YAML scalar edit QA.md');
+		const source = '# YAML scalar edit QA\n\n> [!warning]+ Configuration\n> - [ ] Review\n>     - Compare\n>\n> ````yaml\n> description: |\n>   > [!note] Literal\n>   - [ ] Literal task\n>   ```text\n>   literal code\n>   ```\n> enabled: true\n> ````\n>\n> | Notes | Owner |\n> | --- | --- |\n> | **Decision**<br>Follow up | Team |\n\nOutside';
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('YAML scalar edit QA');
+			const handle = frame.getByRole('separator', { name: 'Resize column 1', exact: true });
+			await handle.focus(); for (let n = 0; n < 55; n++) await frame.page().keyboard.press('Shift+ArrowLeft');
+			await frame.locator('.cm-line').filter({ hasText: 'enabled: true' }).click();
+			await frame.page().keyboard.press('End');
+			for (let n = 0; n < 4; n++) await frame.page().keyboard.press('Shift+ArrowLeft');
+			await frame.page().keyboard.type('falseX', { delay: 25 });
+			await frame.page().keyboard.press('ArrowLeft'); await frame.page().keyboard.press('ArrowRight'); await frame.page().keyboard.press('Backspace');
+			const expected = source.replace('enabled: true', 'enabled: false');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'YAML scalar edit did not save exactly');
+			await waitFor(async () => await frame.locator('.mlp-line-code').filter({ hasText: 'enabled: false' }).locator('[style*="color"]').count() > 0, 'YAML colors did not refresh after editing');
+			await frame.locator('.cm-line').filter({ hasText: /^Outside$/ }).click();
+			const callout = frame.getByRole('button', { name: 'Configuration callout', exact: true });
+			await callout.click(); await callout.click();
+			assert.strictEqual(await handle.getAttribute('aria-valuenow'), '64');
+			assert.strictEqual(await frame.locator('.mlp-table td').last().textContent(), 'Team');
+			assert.strictEqual(await frame.locator('.mlp-checkbox').count(), 1);
+			assert.strictEqual(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'), expected);
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 	vsixOnly('opens, sorts, refreshes, and leaves packaged CSV data unchanged', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);

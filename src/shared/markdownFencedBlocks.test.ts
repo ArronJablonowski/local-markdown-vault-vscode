@@ -8,6 +8,17 @@ const contexts = [
 	['> - > [!note] Configuration\n>   >\n', '>   > '],
 ];
 describe('parser-owned syntax-highlighting fence boundaries', () => {
+	for (const prefix of ['', '> ', '> > ', '   > ']) for (const ending of ['\n', '\r\n']) for (const fence of ['````', '~~~~']) {
+		it(`retains Markdown inside YAML scalars: ${JSON.stringify({ prefix, ending, fence })}`, () => {
+			const code = ['description: |', '  > [!note] Literal', '  - [ ] Literal task', '  ```text', '  literal code', '  ```', 'enabled: true'];
+			const intro = prefix === '   > ' ? '1. > [!tip] Configuration\n' : prefix ? prefix + '[!note] Configuration\n' : '';
+			const source = (intro + [fence + 'yaml', ...code, fence].map(line => prefix + line).join('\n')).replace(/\n/g, ending);
+			const blocks = markdownFencedBlocks(source);
+			expect(blocks).toHaveLength(1);
+			expect(blocks[0].lines.map(line => line.text)).toEqual(code);
+			for (const line of blocks[0].lines) expect(source.slice(line.from, line.from + line.text.length)).toBe(line.text);
+		});
+	}
 	for (const [intro, prefix] of contexts) for (const ending of ['\n', '\r\n']) for (const marker of ['```', '~~~']) for (const lang of ['yaml', 'yml']) {
 		it(`retains literal code and native offsets: ${JSON.stringify({ prefix, ending, marker, lang })}`, () => {
 			const code = ['service:', '  name: "local \u{1f642}"', '  enabled: true', '', 'tags:', '  - notes', '  - "> literal"'];
