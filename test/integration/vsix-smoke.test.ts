@@ -206,6 +206,26 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
+	vsixOnly('saves selected callout list indentation without moving quote markers', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'List indentation QA.md');
+		const block = '> - Child\n>   Continued **detail**';
+		const source = '# List indentation QA\n\n> [!note] Agenda\n> - Parent\n' + block + '\n> - Sibling';
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('List indentation QA');
+			await frame.locator('.cm-content').evaluate((el: any, range) => { const view = el.cmTile.root.view; view.dispatch({ selection: { anchor: range.from, head: range.to } }); view.focus(); }, { from: source.indexOf(block), to: source.indexOf(block) + block.length });
+			await frame.page().keyboard.press('Tab');
+			const expected = source.replace(block, '>     - Child\n>       Continued **detail**');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'selected list indentation did not save correctly');
+			await frame.page().keyboard.press('Shift+Tab');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === source, 'selected list outdent did not restore the original file');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
 	vsixOnly('retains six code lines when collapsed without rewriting the file', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 		assert.ok(root);

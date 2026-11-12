@@ -25,13 +25,17 @@ function indentList(view: EditorView, outdent: boolean, quotedOnly: boolean): bo
 	const changes: ChangeSpec[] = [];
 	for (const n of [...lines].sort((a, b) => a - b)) {
 		const line = state.doc.line(n);
-		const match = /^((?:[ \t]*>[ \t]?)*)([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.exec(line.text);
+		const marker = /^((?:[ \t]*>[ \t]?)*)([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.exec(line.text);
+		// A selected item can include wrapped/soft-break continuation lines.
+		const match = marker ?? /^((?:[ \t]*>[ \t]?)*)([ \t]*)/.exec(line.text);
 		if (!match || quotedOnly && !match[1]) return false;
 		let node = syntaxTree(state).resolveInner(line.from + match[1].length + match[2].length, 1);
 		while (node.name !== 'ListItem') {
 			if (!node.parent || node.name === 'FencedCode' || node.name === 'CodeBlock') return false;
 			node = node.parent;
 		}
+		const ownerIndent = marker ? match[2] : /^((?:[ \t]*>[ \t]?)*)([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.exec(state.doc.lineAt(node.from).text)?.[2];
+		if (ownerIndent === undefined) return false;
 		// A first item has no preceding sibling to become its parent. Four
 		// spaces there would turn the bullet into literal Markdown code.
 		let previous = node.prevSibling;
@@ -45,17 +49,17 @@ function indentList(view: EditorView, outdent: boolean, quotedOnly: boolean): bo
 		const from = line.from + match[1].length;
 		if (!outdent) changes.push({ from, insert: ' '.repeat(getIndentUnit(state)) });
 		else {
-			let remove = match[2].startsWith('\t') ? 1 : Math.min(getIndentUnit(state), match[2].length);
+			let remove = ownerIndent.startsWith('\t') ? 1 : Math.min(getIndentUnit(state), ownerIndent.length);
 			for (let parent = node.parent; parent; parent = parent.parent) {
 				if (parent.name !== 'ListItem') continue;
 				const parentLine = state.doc.lineAt(parent.from).text;
 				const parentIndent = /^((?:[ \t]*>[ \t]?)*)([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.exec(parentLine)?.[2];
-				if (parentIndent !== undefined && match[2].startsWith(parentIndent)) {
-					remove = match[2].length - parentIndent.length;
+				if (parentIndent !== undefined && ownerIndent.startsWith(parentIndent)) {
+					remove = ownerIndent.length - parentIndent.length;
 				}
 				break;
 			}
-			if (remove) changes.push({ from, to: from + remove });
+			if (remove) changes.push({ from, to: from + Math.min(remove, match[2].length) });
 		}
 	}
 	if (changes.length) view.dispatch({ changes, scrollIntoView: true, userEvent: 'input.indent' });

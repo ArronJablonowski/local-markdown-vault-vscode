@@ -43,6 +43,28 @@ describe('quoted list indentation', () => {
 });
 
 describe('full-tab list indentation', () => {
+	it.each(['', '> ', '> > '])('indents selected continuation text with its owning item: %j', quote => {
+		const block = `${quote}- Child\n${quote}  Continued **detail**`;
+		const doc = `${quote}- Parent\n${block}\n${quote}- Sibling`;
+		const view = editor(doc, doc.indexOf(block), doc.indexOf(block) + block.length, false, '    ');
+		expect(indentMarkdownList(view)).toBe(true);
+		expect(view.state.doc.toString()).toBe(doc.replace(block, `${quote}    - Child\n${quote}      Continued **detail**`));
+		expect(indentMarkdownList(view, true)).toBe(true);
+		expect(view.state.doc.toString()).toBe(doc);
+	});
+	for (const quote of ['', '> ']) for (const indent of ['  ', '    ']) it(`outdents continuation text by its owner's legacy depth: ${JSON.stringify({ quote, indent })}`, () => {
+		const block = `${quote}${indent}- Child\n${quote}${indent}  Continued detail`;
+		const doc = `${quote}- Parent\n${block}\n${quote}- Sibling`;
+		const view = editor(doc, doc.indexOf(block), doc.indexOf(block) + block.length, false, '    ');
+		expect(indentMarkdownList(view, true)).toBe(true);
+		expect(view.state.doc.toString()).toBe(doc.replace(block, `${quote}- Child\n${quote}  Continued detail`));
+	});
+	it('does not reinterpret fenced literal continuation text as a list', () => {
+		const doc = '> - Parent\n>\n>   ```text\n>   Literal text\n>   ```';
+		const view = editor(doc, doc.indexOf('Literal'));
+		expect(indentMarkdownList(view)).toBe(false);
+		expect(view.state.doc.toString()).toBe(doc);
+	});
 	it.each(['- Child', '- [ ] Task', '- [x] Done', '1. Numbered', '+ Alternative'])('adds four spaces to %s and reverses it', marker => {
 		const doc = `- Parent\n${marker}`;
 		const view = editor(doc, doc.length, doc.length, false, '    ');

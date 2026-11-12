@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep selected list continuation lines with their owning bullet during Tab/Shift+Tab, preserving callout quote markers and legacy indentation levels.
+
 - Refresh accessible column-width values when theme fonts, spacing, or padding change table geometry. Add nested-table theme-change and rich-content height restoration regressions.
 
 - Refresh accessible table-column width values after resetting automatic widths. Add mixed-format, nested-callout, pending-edit, mouse/keyboard resize, wrapping-height, collapse, and reset regressions.
