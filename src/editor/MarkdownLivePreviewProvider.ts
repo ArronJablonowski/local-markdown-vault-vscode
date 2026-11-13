@@ -77,7 +77,7 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 			webviewPanel.webview.html = this.buildDocumentLimitHtml(webviewPanel.webview);
 			return;
 		}
-		webviewPanel.webview.html = this.buildHtml(webviewPanel.webview, remoteMediaPolicy(document.uri));
+		const html = this.buildHtml(webviewPanel.webview, remoteMediaPolicy(document.uri));
 		const autoSaveTracking = this.autoSave.track(document);
 
 		const session: DocumentSyncSession = new DocumentSyncSession(
@@ -108,6 +108,8 @@ export class MarkdownLivePreviewProvider implements vscode.CustomTextEditorProvi
 			void closing.finally(() => { autoSaveTracking.dispose(); this.closingSaves.delete(closing); });
 			this.sessions.delete(session);
 		});
+		// Attach message/lifecycle handlers before the renderer can announce readiness.
+		webviewPanel.webview.html = html;
 	}
 
 	async flushPendingSaves(): Promise<void> {

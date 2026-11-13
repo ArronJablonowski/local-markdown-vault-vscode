@@ -11,6 +11,14 @@ import {
 } from './messageValidation';
 
 describe('validateEditorToHostMessage', () => {
+	it('validates a bounded renderer identity without accepting arbitrary ready arguments', () => {
+		expect(validateEditorToHostMessage({ type: 'ready', instanceId: 'a'.repeat(32) }, 0).ok).toBe(true);
+		expect(validateEditorToHostMessage({ type: 'ready' }, 0).ok).toBe(true);
+		for (const instanceId of ['', 'a'.repeat(31), 'a'.repeat(33), 'g'.repeat(32), [], {}, null, 1, undefined]) {
+			expect(validateEditorToHostMessage({ type: 'ready', instanceId }, 0).ok).toBe(false);
+		}
+		expect(validateEditorToHostMessage({ type: 'ready', instanceId: 'a'.repeat(32), command: 'unsafe' }, 0).ok).toBe(false);
+	});
 	it('accepts only exact boolean YAML opening defaults from the host', () => {
 		for (const collapsed of [true, false]) expect(validateHostToEditorMessage({ type: 'setYamlDefaults', collapsed }, 0).ok).toBe(true);
 		for (const collapsed of ['false', 0, null, undefined, {}, []]) expect(validateHostToEditorMessage({ type: 'setYamlDefaults', collapsed }, 0).ok).toBe(false);

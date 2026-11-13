@@ -38,7 +38,7 @@ import { headingSpaceInputHandler } from './headingSpacePlugin';
 import { backtickInputHandler } from './backtickPairPlugin';
 import { toggleEmphasisCommand } from './emphasisShortcuts';
 import { createImagePasteHandler, flushPendingImagePastes, type ImagePasteRejection } from './imagePasteHandler';
-import { getWebviewState, postToHost, onHostMessage, setWebviewState } from './vscodeApi';
+import { announceReady, getWebviewState, postToHost, onHostMessage, setWebviewState } from './vscodeApi';
 import { setDrawioFilePoster, handleDrawioFileMessage, clearDrawioFileCache } from './drawioFileClient';
 import {
 	searchRevealExtension,
@@ -888,4 +888,4 @@ window.addEventListener('blur', preserveBeforeLeaving);
 window.addEventListener('pagehide', preserveBeforeLeaving);
 document.addEventListener('visibilitychange', () => { if (document.hidden) preserveBeforeLeaving(); });
 
-postToHost({ type: 'ready' });
+announceReady();

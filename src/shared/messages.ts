@@ -82,7 +82,7 @@ export type EditorToHostMessage =
 	| { type: 'resync' }
 	| { type: 'save' }
 	| { type: 'copyCode'; requestId: number; text: string }
-	| { type: 'ready' }
+	| { type: 'ready'; instanceId?: string }
 	| { type: 'edit'; baseVersion: number; changes: TextChange[] }
 	| { type: 'undo' }
 	| { type: 'redo' }

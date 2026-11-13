@@ -219,12 +219,14 @@ describe('host security boundaries', () => {
 		expect(coordinator).toContain("transaction.state = 'retired'");
 	});
 
-	it('accepts only one initialization handshake per retained webview lifecycle', () => {
+	it('rejects duplicate renderer identities while bounding replacement-context handshakes', () => {
 		const sync = readFileSync(join(ROOT, 'src', 'editor', 'documentSync.ts'), 'utf8');
 		const readyCase = sync.slice(sync.indexOf("case 'ready':"), sync.indexOf("case 'edit':"));
-		expect(readyCase).toContain('if (this.readyReceived)');
+		expect(readyCase).toContain('message.instanceId === this.rendererInstanceId');
+		expect(readyCase).toContain('!this.resyncRateLimiter.tryTake()');
+		expect(readyCase).toContain('if (this.readySyncPending) break;');
 		expect(readyCase).toContain("diagnosticEventRateLimited('protocol.duplicateReadyRejected')");
-		expect(readyCase.indexOf('if (this.readyReceived)')).toBeLessThan(readyCase.indexOf('this.sendInit()'));
+		expect(readyCase.indexOf('message.instanceId === this.rendererInstanceId')).toBeLessThan(readyCase.indexOf('this.sendInit()'));
 		expect(sync).toContain('reloadWebview(html: string): void {\n\t\tthis.rehighlightGeneration++;\n\t\tthis.queuePendingDraftFlush();\n\t\tthis.readyReceived = false;');
 		const setVisible = sync.slice(sync.indexOf('setVisible(visible: boolean)'), sync.indexOf('\n\tdispose()', sync.indexOf('setVisible(visible: boolean)')));
 		const hiddenCase = setVisible.slice(setVisible.indexOf('if (!visible) {'), setVisible.indexOf('if (this.needsFullSync)'));

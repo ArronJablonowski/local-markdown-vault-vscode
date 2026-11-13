@@ -1,5 +1,7 @@
 # Changelog
 
+- Restore Markdown Live Preview after VS Code recreates a webview instead of leaving it blank. Distinguish replacement contexts from duplicate startup messages, settle pending drafts before reinitializing, bound startup retries, and attach host handlers before loading the renderer. Add large-file Preview and reload/save-recovery regressions.
+
 - Render balanced, attribute-free HTML emphasis and keyboard labels inside table list items. Keep malformed tags, active HTML, attributed elements, escaped examples, and excessive nesting inert.
 
 - Prevent table columns from snapping in the wrong direction when their natural content or theme sizes fall outside manual resize limits. Cover mouse and keyboard resizing alongside collapsed YAML, nested callouts, bullets, rich cell edits, and automatic row heights.

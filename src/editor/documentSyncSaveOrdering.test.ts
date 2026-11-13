@@ -482,6 +482,57 @@ describe('cached renderer drafts across hide and close', () => {
 		expect(mocks.diagnostic).toHaveBeenCalledWith('protocol.duplicateReadyRejected');
 		expect(session.sendInit).not.toHaveBeenCalled();
 	});
+	it('initializes a recreated context once without accepting duplicate ready messages', async () => {
+		const { session } = mutationHarness(); session.readyReceived = false; session.flushPendingJump = vi.fn();
+		const first = 'a'.repeat(32), second = 'b'.repeat(32);
+		session.handleMessage({ type: 'ready', instanceId: first });
+		await vi.waitFor(() => expect(session.sendInit).toHaveBeenCalledTimes(1));
+		session.handleMessage({ type: 'ready', instanceId: first });
+		await session.mutationQueue.drain(); expect(session.sendInit).toHaveBeenCalledTimes(1);
+		session.handleMessage({ type: 'ready', instanceId: second });
+		session.handleMessage({ type: 'ready', instanceId: second });
+		await vi.waitFor(() => expect(session.sendInit).toHaveBeenCalledTimes(2));
+	});
+	it('saves the previous renderer draft before initializing its replacement', async () => {
+		const { session, document, settle } = mutationHarness(); session.flushPendingJump = vi.fn();
+		session.rendererInstanceId = 'a'.repeat(32);
+		let release!: () => void;
+		settle.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Before retained draft' });
+		session.handleMessage({ type: 'ready', instanceId: 'b'.repeat(32) });
+		await vi.waitFor(() => expect(settle).toHaveBeenCalled());
+		expect(session.sendInit).not.toHaveBeenCalled();
+		session.handleMessage({ type: 'ready', instanceId: 'b'.repeat(32) });
+		release(); await session.mutationQueue.drain();
+		await vi.waitFor(() => expect(session.sendInit).toHaveBeenCalledOnce());
+		expect(document.text).toBe('Before retained draft'); expect(document.isDirty).toBe(false);
+	});
+	it('preserves a divergent old draft rather than overwriting the current file on renderer replacement', async () => {
+		const { session, document } = mutationHarness('External edit'); session.flushPendingJump = vi.fn();
+		session.rendererInstanceId = 'a'.repeat(32);
+		session.handleMessage({ type: 'draftSnapshot', baselineText: 'Before', text: 'Private draft' });
+		session.handleMessage({ type: 'ready', instanceId: 'b'.repeat(32) });
+		await vi.waitFor(() => expect(session.sendInit).toHaveBeenCalledOnce());
+		expect(document.text).toBe('External edit'); expect(session.preserveDraft).toHaveBeenCalledWith('Private draft');
+	});
+	it('coalesces replacement handshakes behind pending work and throttles a forged identity flood', async () => {
+		const { session } = mutationHarness(); session.flushPendingJump = vi.fn(); session.rendererInstanceId = 'a'.repeat(32);
+		let release!: () => void;
+		session.mutationQueue.tryEnqueue(() => new Promise<void>(resolve => { release = resolve; }));
+		await Promise.resolve();
+		for (let i = 1; i <= 20; i++) session.handleMessage({ type: 'ready', instanceId: i.toString(16).padStart(32, '0') });
+		expect(session.mutationQueue.pendingCount).toBe(1); expect(session.sendInit).not.toHaveBeenCalled();
+		expect(mocks.diagnostic).toHaveBeenCalledWith('protocol.rendererReloadThrottled');
+		release(); await session.mutationQueue.drain();
+		await vi.waitFor(() => expect(session.sendInit).toHaveBeenCalledOnce());
+	});
+	it('waits until reveal before initializing a replacement context in a hidden panel', async () => {
+		const { session } = mutationHarness(); session.flushPendingJump = vi.fn(); session.rendererInstanceId = 'a'.repeat(32);
+		session.setVisible(false); session.handleMessage({ type: 'ready', instanceId: 'b'.repeat(32) });
+		await session.mutationQueue.drain(); await Promise.resolve();
+		expect(session.sendInit).not.toHaveBeenCalled(); expect(session.needsFullSync).toBe(true);
+		session.setVisible(true); expect(session.sendInit).toHaveBeenCalledOnce();
+	});
 	it('refreshes the retained source and version after a hidden snapshot-only widget draft saves', async () => {
 		const { session, document } = mutationHarness();
 		session.flushPendingJump = vi.fn();

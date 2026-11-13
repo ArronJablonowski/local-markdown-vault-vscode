@@ -71,6 +71,93 @@ suite('Installed VSIX clean-profile smoke', () => {
 		await debugBrowser?.close();
 		debugBrowser = undefined;
 	});
+	for (const ending of ['LF', 'CRLF']) for (const edited of [false, true]) vsixOnly(`recovers a large Markdown document after preview renderer reload, edited=${edited}, ${ending}`, async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Large renderer reload QA.md');
+		const source = ('# Large renderer reload QA\n\n' + 'Retained meeting notes.\n\n'.repeat(15000) + '\nEnd retained document').replace(/\n/g, ending === 'CRLF' ? '\r\n' : '\n');
+		const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Large renderer reload QA');
+			let expected = source;
+			if (edited) {
+				await frame.locator('.cm-line').filter({ hasText: /^Retained meeting notes\.$/ }).first().click();
+				await frame.page().keyboard.press('End'); await frame.page().keyboard.type(' Updated');
+				expected = source.replace('Retained meeting notes.', 'Retained meeting notes. Updated');
+			}
+			await frame.evaluate(() => { (window as any).__qaPreviousContext = true; });
+			await vscode.commands.executeCommand('workbench.action.webview.reloadWebviewAction');
+			await waitFor(async () => frame.isDetached() || await frame.evaluate(() => !(window as any).__qaPreviousContext).catch(() => true), 'renderer did not reload');
+			const restored = await connectToLivePreviewFrame('Large renderer reload QA', 10000);
+			await waitFor(async () => await restored.locator('.cm-content').evaluate((el: any) => el.cmTile.root.view.state.doc.toString()) === expected.replace(/\r\n/g, '\n') &&
+				Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'reload lost an edit or did not save the restored document');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
+	vsixOnly('preserves an unfinished table edit when a large mixed preview is reloaded', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+		const uri = vscode.Uri.joinPath(root, 'Large pending table reload QA.md');
+		const source = '# Large pending table reload QA\n\n> [!note]+ Meeting\n> - [ ] Review\n>\n> | Notes | State |\n> | --- | --- |\n> | Original | Retained |\n\n' + 'Retained meeting notes.\n\n'.repeat(15000);
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(source));
+		try {
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'mdLivePreview.editor');
+			const frame = await connectToLivePreviewFrame('Large pending table reload QA');
+			await frame.locator('.mlp-table td').first().dblclick();
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+			await frame.page().keyboard.type('Updated draft');
+			await frame.evaluate(() => { (window as any).__qaPreviousContext = true; });
+			await vscode.commands.executeCommand('workbench.action.webview.reloadWebviewAction');
+			await waitFor(async () => frame.isDetached() || await frame.evaluate(() => !(window as any).__qaPreviousContext).catch(() => true), 'renderer did not reload');
+			const restored = await connectToLivePreviewFrame('Large pending table reload QA', 10000);
+			const expected = source.replace('| Original |', '| Updated draft |');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'reload did not preserve the pending table draft');
+			// The saved editing caret may reveal table source until the user leaves it.
+			await restored.locator('.cm-line').filter({ hasText: /^Retained meeting notes\.$/ }).first().click();
+			assert.strictEqual(await restored.locator('.mlp-table td').first().textContent(), 'Updated draft');
+		} finally {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.workspace.fs.delete(uri, { useTrash: false });
+		}
+	});
+	for (const kind of ['prose', 'code', 'tables', 'mixed']) {
+		vsixOnly(`opens large Markdown Preview ${kind} files completely`, async () => {
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
+			const uri = vscode.Uri.joinPath(root, `Large preview ${kind}.md`);
+			const title = `Large preview ${kind} sentinel`;
+			const chunk = 'Meeting notes with **bold**, *italic*, `inline code`, a [local link](Notes.md), and enough text to exercise long documents.\n\n';
+			const body = kind === 'prose' ? chunk.repeat(30000)
+				: kind === 'code' ? '```text\n' + 'configuration: retained source without execution\n'.repeat(100000) + '```\n'
+				: kind === 'tables' ? '| Notes | Owner | State | Details |\n| --- | --- | --- | --- |\n' + '| **Review** | Team | Retained | Long meeting follow-up details |\n'.repeat(12000)
+				: Array.from({ length: 1200 }, (_, n) => `## Meeting ${n}\n\n> [!note] Review\n> - [ ] Retained task\n>     - Compare details\n\n\`\`\`yaml\n${'key: retained\n'.repeat(10)}\`\`\`\n\n| Notes | State |\n| --- | --- |\n${'| Review | Retained |\n'.repeat(8)}\n${chunk}`).join('\n');
+			const source = `# ${title}\n\n${body}\n\n# End ${title}\n`;
+			const bytes = Buffer.from(source); await vscode.workspace.fs.writeFile(uri, bytes);
+			try {
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.commands.executeCommand('vscode.openWith', uri, 'vscode.markdown.preview.editor');
+				const browser = await connectToDebugBrowser();
+				let found: Frame | undefined;
+				await waitFor(async () => {
+					for (const page of browser.contexts().flatMap(context => context.pages())) for (const frame of page.frames()) {
+						if (frame.isDetached()) continue;
+						try {
+							if (await frame.getByRole('heading', { name: title, exact: true }).count()) { found = frame; return true; }
+						} catch { /* Preview navigation can replace a frame during discovery. */ }
+					}
+					return false;
+				}, `large ${kind} Markdown Preview did not display its first heading`, 30000);
+				assert.ok(found);
+				await found.getByRole('heading', { name: title, exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+				assert.strictEqual(await found.getByRole('heading', { name: `End ${title}`, exact: true }).count(), 1, 'preview truncated the document');
+				await found.getByRole('heading', { name: `End ${title}`, exact: true }).scrollIntoViewIfNeeded();
+				assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes, 'preview modified its source');
+			} finally {
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.workspace.fs.delete(uri, { useTrash: false });
+			}
+		});
+	}
 
 	vsixOnly('loads the packaged extension rather than the development checkout', async () => {
 		const extension = vscode.extensions.getExtension(EXTENSION_ID);

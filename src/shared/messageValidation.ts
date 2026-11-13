@@ -350,9 +350,13 @@ export function validateEditorToHostMessage(
 				&& typeof value.text === 'string' && isEditorDocumentWithinLimit(value.text)
 				? { ok: true, value: value as unknown as EditorToHostMessage }
 				: { ok: false, reason: 'Invalid recovery snapshot.' };
+		case 'ready':
+			return hasExactKeys(value, ['type']) || hasExactKeys(value, ['type', 'instanceId']) &&
+				typeof value.instanceId === 'string' && /^[a-f0-9]{32}$/.test(value.instanceId)
+				? { ok: true, value: value as unknown as EditorToHostMessage }
+				: { ok: false, reason: 'Invalid renderer identity.' };
 		case 'resync':
 		case 'save':
-		case 'ready':
 		case 'undo':
 		case 'redo':
 			return hasExactKeys(value, ['type'])

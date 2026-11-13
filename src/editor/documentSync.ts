@@ -98,6 +98,8 @@ export class DocumentSyncSession {
 	private pendingVaultNotes = false;
 	private readonly pendingLineNavigation = new PendingLineNavigation();
 	private readyReceived = false;
+	private rendererInstanceId?: string;
+	private readySyncPending = false;
 	private initSent = false;
 	private vaultNotesGeneration = 0;
 	private disposed = false;
@@ -258,23 +260,41 @@ export class DocumentSyncSession {
 				).finally(() => { this.clipboardWritePending = false; });
 				break;
 			}
-			case 'ready':
-				if (this.readyReceived) {
+			case 'ready': {
+				const replacing = this.readyReceived || this.rendererInstanceId !== undefined;
+				if (replacing && (!message.instanceId || message.instanceId === this.rendererInstanceId)) {
 					diagnosticEventRateLimited('protocol.duplicateReadyRejected');
 					break;
+				}
+				if (replacing && !this.resyncRateLimiter.tryTake()) {
+					diagnosticEventRateLimited('protocol.rendererReloadThrottled');
+					break;
+				}
+				this.rendererInstanceId = message.instanceId;
+				if (replacing) {
+					// A recreated iframe is empty even when its retained host session is ready.
+					// Settle the previous context's accepted work before publishing a new snapshot.
+					this.initSent = false;
+					this.rehighlightGeneration++;
+					this.queuePendingDraftFlush();
 				}
 				this.readyReceived = true;
 				// Retained VS Code panels can stay document.hidden === false even
 				// when their tab is not shown. Send host-owned visibility before init
 				// so a new or policy-reloaded renderer does not start hidden work.
 				this.post({ type: 'panelVisibility', visible: this.visible });
+				// Coalesce replacement contexts while an earlier save is still settling.
+				if (this.readySyncPending) break;
+				this.readySyncPending = true;
 				void this.mutationQueue.drain().then(() => {
-					if (this.disposed) return;
-					if (this.visible) { this.sendInit(); this.scheduleRehighlight(true); }
+					this.readySyncPending = false;
+					if (this.disposed || !this.readyReceived) return;
+					if (this.visible) { this.needsFullSync = false; this.needsRehighlight = false; this.sendInit(); this.scheduleRehighlight(true); }
 					else { this.needsFullSync = true; this.needsRehighlight = true; }
 					this.flushPendingJump();
 				});
 				break;
+			}
 			case 'edit': {
 				const acceptedText = this.documentText;
 				if (!this.enqueueMutation(async () => {
@@ -402,7 +422,7 @@ export class DocumentSyncSession {
 					// they produce no edit ACK. A retained renderer still needs their
 					// authoritative source/version before its next edit. Visibility may
 					// have changed while the native edit/save was awaited.
-					if (this.visible && this.readyReceived && !this.closing) {
+					if (this.visible && this.readyReceived && !this.readySyncPending && !this.closing) {
 						this.needsFullSync = false;
 						this.sendInit();
 					} else this.needsFullSync = true;
@@ -1361,7 +1381,7 @@ export class DocumentSyncSession {
 			}
 			return;
 		}
-		if (!this.readyReceived) return;
+		if (!this.readyReceived || this.readySyncPending) return;
 		if (this.needsFullSync) {
 			this.needsFullSync = false;
 			this.pendingCss = false;
