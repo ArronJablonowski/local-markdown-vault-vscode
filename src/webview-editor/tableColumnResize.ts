@@ -4,6 +4,12 @@ import { t } from '../shared/i18n';
 
 const setWidths = StateEffect.define<{ from: number; widths: number[] }>();
 const refreshers = new WeakMap<HTMLTableElement, () => void>();
+interface ResizeRange { minimum: number; maximum: number }
+// Bounds belong to the immutable width snapshot, not disposable widget DOM.
+const savedBounds = new WeakMap<number[], Map<number, ResizeRange>>();
+function copyBounds(source?: ReadonlyMap<number, ResizeRange>): Map<number, ResizeRange> {
+	return new Map(Array.from(source ?? [], ([index, range]) => [index, { ...range }] as const));
+}
 /** Identical table widgets can reuse DOM after a neighboring table is deleted. */
 export const syncTableColumnWidths = EditorView.updateListener.of(update => {
 	if (!update.docChanged) return;
@@ -51,7 +57,8 @@ export function retainedTableColumnWidths(state: EditorState, from: number, colu
 export function installTableColumnResize(view: EditorView, table: HTMLTableElement, from: number): () => void {
 	const cells = () => Array.from(table.tHead?.rows[0]?.cells ?? []);
 	const read = () => cells().map(cell => cell.getBoundingClientRect().width);
-	const limits = new Map<number, { minimum: number; maximum: number }>();
+	const saved = view.state.field(tableColumnWidths, false)?.get(from);
+	const limits = copyBounds(saved ? savedBounds.get(saved) : undefined);
 	const bounds = (index: number, width: number) => {
 		const previous = limits.get(index);
 		// Preserve natural extremes so reversing a resize can restore its starting width.
@@ -88,15 +95,21 @@ export function installTableColumnResize(view: EditorView, table: HTMLTableEleme
 	const remember = (widths: number[]) => {
 		const current = table.closest<HTMLElement>('[data-mlp-table-from]');
 		const position = Number(current?.dataset.mlpTableFrom ?? from);
+		if (widths.length) savedBounds.set(widths, copyBounds(limits));
 		view.dispatch({ effects: setWidths.of({ from: position, widths }) });
 	};
-	const saved = view.state.field(tableColumnWidths, false)?.get(from);
 	if (saved) apply(saved);
 	refreshers.set(table, () => {
 		const position = Number(table.closest<HTMLElement>('[data-mlp-table-from]')?.dataset.mlpTableFrom ?? from);
 		const widths = view.state.field(tableColumnWidths, false)?.get(position);
-		if (widths?.length === cells().length) apply(widths);
+		if (widths?.length === cells().length) {
+			// Reused DOM may now represent a different surviving table.
+			limits.clear();
+			for (const [index, range] of copyBounds(savedBounds.get(widths))) limits.set(index, range);
+			apply(widths);
+		}
 		else if (table.classList.contains('mlp-table-resized')) {
+			limits.clear();
 			table.classList.remove('mlp-table-resized'); table.style.tableLayout = ''; table.style.width = ''; table.style.minWidth = '';
 			cells().forEach(cell => { cell.style.width = ''; cell.style.boxSizing = ''; });
 			view.requestMeasure();

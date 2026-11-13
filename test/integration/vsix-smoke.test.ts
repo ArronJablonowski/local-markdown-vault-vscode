@@ -313,7 +313,7 @@ suite('Installed VSIX clean-profile smoke', () => {
 			await vscode.workspace.fs.delete(uri, { useTrash: false });
 		}
 	});
-	vsixOnly('resizes naturally oversized columns without snapping or modifying mixed notes', async () => {
+	vsixOnly('resizes naturally oversized columns without snapping across mixed-note cell edits', async () => {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri; assert.ok(root);
 		const uri = vscode.Uri.joinPath(root, 'Natural table width QA.md');
 		const content = '- [ ] Review\n\n```yaml\n' + Array.from({ length: 9 }, (_, n) => `item_${n}: retained`).join('\n')
@@ -339,6 +339,14 @@ suite('Installed VSIX clean-profile smoke', () => {
 			assert.strictEqual(await frame.getByRole('button', { name: 'Expand code block', exact: true }).count(), 1);
 			assert.strictEqual(await frame.locator('.mlp-checkbox').count(), 1);
 			assert.deepStrictEqual(await vscode.workspace.fs.readFile(uri), bytes);
+			await handle.focus(); await frame.page().keyboard.press('ArrowLeft');
+			await frame.locator('.mlp-table td').nth(1).dblclick();
+			await frame.page().keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+			await frame.page().keyboard.type('Updated'); await frame.page().keyboard.press('Enter');
+			await handle.focus(); await frame.page().keyboard.press('ArrowRight');
+			assert.ok(Math.abs(await header.evaluate(cell => cell.getBoundingClientRect().width) - width) < 2, 'Cell editing discarded the original resize bounds');
+			const expected = source.replace('| Retained |', '| Updated |');
+			await waitFor(async () => Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') === expected, 'mixed table edit did not save');
 		} finally {
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.workspace.fs.delete(uri, { useTrash: false });

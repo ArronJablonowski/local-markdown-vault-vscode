@@ -1,5 +1,7 @@
 # Changelog
 
+- Preserve a column's original resize limits through cell edits, sorting, and row insertion. Keep reverse resizing and accessible bounds consistent when table widgets rebuild, without changing Markdown content or retaining deleted widgets.
+
 - Restore Markdown Live Preview after VS Code recreates a webview instead of leaving it blank. Distinguish replacement contexts from duplicate startup messages, settle pending drafts before reinitializing, bound startup retries, and attach host handlers before loading the renderer. Add large-file Preview and reload/save-recovery regressions.
 
 - Render balanced, attribute-free HTML emphasis and keyboard labels inside table list items. Keep malformed tags, active HTML, attributed elements, escaped examples, and excessive nesting inert.
